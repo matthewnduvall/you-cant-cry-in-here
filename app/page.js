@@ -174,10 +174,6 @@ const supabaseCloud = {
 // 1. NATIVE iOS 17/18 HIG DESIGN SYSTEM (TYPOGRAPHY, DYNAMIC COLORS & SF SYMBOLS)
 // ============================================================================
 
-/**
- * iOS Semantic Text Styles (Apple HIG Typography Scale - San Francisco / -apple-system)
- * Mapped strictly to point sizes, line heights, weights, and tracking.
- */
 const IOS_TEXT = {
   largeTitle: {
     fontSize: '34px',
@@ -247,10 +243,6 @@ const IOS_TEXT = {
   }
 };
 
-/**
- * Official iOS Dynamic System Colors (Light & Dark Mode Semantic Tokens)
- * Uses exact UIKit / SwiftUI dynamic color definitions.
- */
 const getSystemColors = (isDark) => ({
   // Backgrounds
   systemBackground: isDark ? 'rgb(0, 0, 0)' : 'rgb(255, 255, 255)',
@@ -292,11 +284,6 @@ const getSystemColors = (isDark) => ({
   chromeMaterial: isDark ? 'rgba(28, 28, 30, 0.82)' : 'rgba(249, 249, 249, 0.82)'
 });
 
-/**
- * Native SF Symbols Renderer
- * Maps official Apple SF Symbol names (e.g., "figure.strengthtraining.traditional",
- * "clock.arrow.circlepath", "chevron.backward") to crisp vector paths.
- */
 const SFSymbol = ({ name, size = 18, color = 'currentColor', style = {} }) => {
   const s = { width: size, height: size, display: 'inline-block', flexShrink: 0, ...style };
 
@@ -868,9 +855,16 @@ const EXERCISE_MAP = Object.fromEntries(EXERCISE_LIBRARY.map(ex => [ex.id, ex]))
 
 const roundTo5 = (val) => Math.max(5, Math.round(val / 5) * 5);
 
+// Deterministic ID counter so SSR / Prerendering never calls Date.now() or Math.random() during build
+let deterministicCounter = 1;
+const nextDeterministicId = (prefix = 'id') => {
+  deterministicCounter += 1;
+  return `${prefix}_${deterministicCounter}`;
+};
+
 const generateSetsForScheme = (scheme, oneRepMax, category = 'Compound Lift', exerciseId = '') => {
   const base1RM = oneRepMax || (EXERCISE_MAP[exerciseId]?.default1RM ?? 135);
-  const ts = Date.now() + Math.floor(Math.random() * 1000);
+  const ts = nextDeterministicId('s');
 
   if (category === 'Warm-Up Routine' || exerciseId === 'warmup_12_step') {
     return WARMUP_MOVEMENTS.map((stepName, idx) => ({
@@ -1034,7 +1028,7 @@ const createWorkoutSlot = ({
 }) => {
   const ex1 = EXERCISE_MAP[exerciseId] || EXERCISE_LIBRARY[0];
   const ex2 = secondaryExerciseId ? EXERCISE_MAP[secondaryExerciseId] : null;
-  const uid = `slot_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+  const uid = nextDeterministicId('slot');
 
   const sets1 = generateSetsForScheme(
     scheme,
@@ -1253,9 +1247,10 @@ const getInitial1RMs = () => {
   return map;
 };
 
+// Uses static ISO strings so Next.js 16 Prerendering / Cache Components never fails on new Date()
 const getInitialSeedHistory = (oneRepMaxes) => {
-  const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-  const fourDaysAgo = new Date(Date.now() - 4 * 24 * 60 * 60 * 1000).toISOString();
+  const yesterday = '2025-02-20T18:00:00.000Z';
+  const fourDaysAgo = '2025-02-17T18:00:00.000Z';
 
   const slotsYesterday = normalizeSlotLabels([
     createWorkoutSlot({
@@ -1436,10 +1431,6 @@ const formatTimerSeconds = (sec) => {
 // 3. NATIVE iOS 17/18 UIKIT / SWIFTUI PRIMITIVES (INSET GROUPED LIST, SHEETS)
 // ============================================================================
 
-/**
- * Native SwiftUI `Section` inside `List(.insetGrouped)`
- * Standard 16pt horizontal margin, 10pt corner radius, and hairline separators.
- */
 const IOSListSection = ({ header, footer, children, colors }) => (
   <section style={{ marginBottom: '24px', paddingLeft: '16px', paddingRight: '16px' }}>
     {header && (
@@ -1481,9 +1472,6 @@ const IOSListSection = ({ header, footer, children, colors }) => (
   </section>
 );
 
-/**
- * Native SwiftUI `ListRow` with minimum 44pt tap target & inset hairline separator
- */
 const IOSListRow = ({
   children,
   onClick,
@@ -1522,9 +1510,6 @@ const IOSListRow = ({
   </div>
 );
 
-/**
- * Native iOS `UISegmentedControl`
- */
 const IOSSegmentedControl = ({ options, value, onChange, colors }) => (
   <div
     style={{
@@ -1563,9 +1548,6 @@ const IOSSegmentedControl = ({ options, value, onChange, colors }) => (
   </div>
 );
 
-/**
- * Native iOS `Sheet` Modal Presentation (with top Grabber Pill & NavigationBar)
- */
 const IOSSheet = ({ isOpen, onClose, title, leftLabel = 'Cancel', rightLabel, onRightAction, colors, children }) => {
   if (!isOpen) return null;
   return (
@@ -1594,7 +1576,6 @@ const IOSSheet = ({ isOpen, onClose, title, leftLabel = 'Cancel', rightLabel, on
           boxShadow: '0 -8px 30px rgba(0,0,0,0.35)'
         }}
       >
-        {/* Standard iOS Sheet Grabber (36pt x 5pt) */}
         <div style={{ paddingTop: '6px', paddingBottom: '4px', display: 'flex', justifyContent: 'center' }}>
           <div
             style={{
@@ -1606,7 +1587,6 @@ const IOSSheet = ({ isOpen, onClose, title, leftLabel = 'Cancel', rightLabel, on
           />
         </div>
 
-        {/* Sheet Navigation Bar */}
         <div
           style={{
             minHeight: '44px',
@@ -1666,7 +1646,6 @@ const IOSSheet = ({ isOpen, onClose, title, leftLabel = 'Cancel', rightLabel, on
           </div>
         </div>
 
-        {/* Sheet Scrollable Content */}
         <div style={{ overflowY: 'auto', paddingTop: '16px', paddingBottom: '28px' }}>
           {children}
         </div>
@@ -1680,11 +1659,9 @@ const IOSSheet = ({ isOpen, onClose, title, leftLabel = 'Cancel', rightLabel, on
 // ============================================================================
 
 export default function App() {
-  // --- Dynamic Appearance (Dark Mode by Default, Supports Light Mode Automatic/Toggle) ---
   const [isDarkMode, setIsDarkMode] = useState(true);
   const colors = useMemo(() => getSystemColors(isDarkMode), [isDarkMode]);
 
-  // --- Responsive Real-Device Detection (Removes Simulated Bezel on Real Phones) ---
   const [isRealMobileViewport, setIsRealMobileViewport] = useState(false);
   useEffect(() => {
     const checkViewport = () => {
@@ -1695,16 +1672,11 @@ export default function App() {
     return () => window.removeEventListener('resize', checkViewport);
   }, []);
 
-  // --- Auth State ---
-  const [user, setUser] = useState(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEYS.USER);
-      if (saved) return JSON.parse(saved);
-      return supabaseCloud.isConfigured ? null : { email: 'athlete@ironpulse.app', id: 'usr_demo_01' };
-    } catch {
-      return supabaseCloud.isConfigured ? null : { email: 'athlete@ironpulse.app', id: 'usr_demo_01' };
-    }
-  });
+  // SSR-Safe Deterministic Initial States (Hydrated on Mount in useEffect)
+  const [hasHydratedStorage, setHasHydratedStorage] = useState(false);
+  const [user, setUser] = useState(() =>
+    supabaseCloud.isConfigured ? null : { email: 'athlete@ironpulse.app', id: 'usr_demo_01' }
+  );
   const [authMode, setAuthMode] = useState('login');
   const [authName, setAuthName] = useState('');
   const [authEmail, setAuthEmail] = useState('');
@@ -1712,44 +1684,12 @@ export default function App() {
   const [authConfirmPassword, setAuthConfirmPassword] = useState('');
   const [authLoading, setAuthLoading] = useState(false);
 
-  // --- 1RM State ---
-  const [oneRepMaxes, setOneRepMaxes] = useState(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEYS.MAXES);
-      return saved ? JSON.parse(saved) : getInitial1RMs();
-    } catch {
-      return getInitial1RMs();
-    }
-  });
-
-  // --- Workout History State ---
-  const [history, setHistory] = useState(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEYS.HISTORY);
-      if (saved) return JSON.parse(saved);
-      return getInitialSeedHistory(getInitial1RMs());
-    } catch {
-      return getInitialSeedHistory(getInitial1RMs());
-    }
-  });
-
-  // --- Active Live Session State ---
-  const [activeSession, setActiveSession] = useState(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEYS.ACTIVE_SESSION);
-      return saved ? JSON.parse(saved) : null;
-    } catch {
-      return null;
-    }
-  });
-
-  // --- Historical Workout Entry Draft ---
+  const [oneRepMaxes, setOneRepMaxes] = useState(() => getInitial1RMs());
+  const [history, setHistory] = useState(() => getInitialSeedHistory(getInitial1RMs()));
+  const [activeSession, setActiveSession] = useState(null);
   const [historicalDraft, setHistoricalDraft] = useState(null);
-
-  // --- NavigationStack View ('home' | 'session' | 'history' | 'historical_entry' | 'auth') ---
   const [currentView, setCurrentView] = useState('home');
 
-  // --- iOS Notification Banner ---
   const [bannerMessage, setBannerMessage] = useState(null);
   const triggerBanner = (msg, type = 'info') => {
     setBannerMessage({ msg, type });
@@ -1758,10 +1698,7 @@ export default function App() {
     }, 4000);
   };
 
-  // --- Multi-Slot Selection for "Suggest Alternative" ---
   const [selectedSlotIds, setSelectedSlotIds] = useState([]);
-
-  // --- Collapsible Slots State ---
   const [collapsedSlotIds, setCollapsedSlotIds] = useState([]);
   const toggleCollapseSlot = (slotId) => {
     setCollapsedSlotIds(prev =>
@@ -1769,28 +1706,16 @@ export default function App() {
     );
   };
 
-  // --- Custom User Workouts State ---
-  const [customPresets, setCustomPresets] = useState(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEYS.CUSTOM_PRESETS);
-      return saved ? JSON.parse(saved) : [];
-    } catch {
-      return [];
-    }
-  });
+  const [customPresets, setCustomPresets] = useState([]);
   const [showSavePresetModal, setShowSavePresetModal] = useState(false);
-  const [newPresetName, setNewPresetName] = useState(() =>
-    new Date().toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
-  );
+  const [newPresetName, setNewPresetName] = useState('Custom Workout');
 
-  // --- Add Slot Sheet State ---
   const [showAddSlotModal, setShowAddSlotModal] = useState(false);
   const [newSlotCategory, setNewSlotCategory] = useState('Compound Lift');
   const [newSlotEx1, setNewSlotEx1] = useState('barbell_bench_press');
   const [newSlotEx2, setNewSlotEx2] = useState('reverse_flies');
   const [newSlotScheme, setNewSlotScheme] = useState('5x8');
 
-  // --- Plate & Weight Calculator Sheet State ---
   const [plateCalcTarget, setPlateCalcTarget] = useState(null);
   const [calcUnit, setCalcUnit] = useState('lb');
   const [calcMode, setCalcMode] = useState('per_side');
@@ -1798,10 +1723,8 @@ export default function App() {
   const [calcPlatesPerSide, setCalcPlatesPerSide] = useState([]);
   const [calcDirectTotal, setCalcDirectTotal] = useState(135);
 
-  // --- Native iOS ConfirmationDialog (Action Sheet) for Reset / Cancel ---
   const [confirmAction, setConfirmAction] = useState(null);
 
-  // --- Rest Timer & Telemetry State ---
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [timerState, setTimerState] = useState({
     isRunning: false,
@@ -1813,13 +1736,11 @@ export default function App() {
   });
   const lastCompletedSetTimestampRef = useRef(null);
 
-  // --- History Page Filters ---
   const [historyFilterLift, setHistoryFilterLift] = useState('ALL');
   const [historyFilterMuscleGroup, setHistoryFilterMuscleGroup] = useState('ALL');
   const [historyFilterSpecificMuscle, setHistoryFilterSpecificMuscle] = useState('ALL');
   const [expandedHistoryId, setExpandedHistoryId] = useState('hist_4days_wed_thu');
 
-  // --- 1RM Calculator Sheet State ---
   const [maxCalcTarget, setMaxCalcTarget] = useState(null);
   const [maxCalcMode, setMaxCalcMode] = useState('scheme');
   const [maxCalcScheme, setMaxCalcScheme] = useState('5x8');
@@ -1873,15 +1794,40 @@ export default function App() {
     return highest1RM > 0 ? roundTo5(highest1RM) : maxCalcTarget?.currentMax || 135;
   }, [maxCalcMode, maxCalcDirectValue, maxCalcSets, maxCalcTarget]);
 
-  // --- Persistence Effects & Cloud Hydration ---
+  // Client-Side Hydration Effect (Runs only in Browser after mount)
   useEffect(() => {
+    try {
+      const savedUser = localStorage.getItem(STORAGE_KEYS.USER);
+      if (savedUser) setUser(JSON.parse(savedUser));
+
+      const savedMaxes = localStorage.getItem(STORAGE_KEYS.MAXES);
+      if (savedMaxes) setOneRepMaxes(JSON.parse(savedMaxes));
+
+      const savedHist = localStorage.getItem(STORAGE_KEYS.HISTORY);
+      if (savedHist) setHistory(JSON.parse(savedHist));
+
+      const savedActive = localStorage.getItem(STORAGE_KEYS.ACTIVE_SESSION);
+      if (savedActive) setActiveSession(JSON.parse(savedActive));
+
+      const savedCustom = localStorage.getItem(STORAGE_KEYS.CUSTOM_PRESETS);
+      if (savedCustom) setCustomPresets(JSON.parse(savedCustom));
+
+      setNewPresetName(
+        new Date().toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
+      );
+    } catch {}
+    setHasHydratedStorage(true);
+  }, []);
+
+  // Persistence Effects & Cloud Hydration
+  useEffect(() => {
+    if (!hasHydratedStorage) return;
     try {
       if (user) localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(user));
       else localStorage.removeItem(STORAGE_KEYS.USER);
     } catch {}
-  }, [user]);
+  }, [user, hasHydratedStorage]);
 
-  // Hydrate 1RMs, Workout History & Custom Workouts from Supabase when signed in
   useEffect(() => {
     if (!user?.id || !user?.accessToken || !supabaseCloud.isConfigured) return;
     let isMounted = true;
@@ -1906,34 +1852,38 @@ export default function App() {
   }, [user?.id, user?.accessToken]);
 
   useEffect(() => {
+    if (!hasHydratedStorage) return;
     try {
       localStorage.setItem(STORAGE_KEYS.MAXES, JSON.stringify(oneRepMaxes));
       if (user?.accessToken && supabaseCloud.isConfigured) {
         supabaseCloud.upsertProfile(user, oneRepMaxes);
       }
     } catch {}
-  }, [oneRepMaxes, user]);
+  }, [oneRepMaxes, user, hasHydratedStorage]);
 
   useEffect(() => {
+    if (!hasHydratedStorage) return;
     try {
       localStorage.setItem(STORAGE_KEYS.HISTORY, JSON.stringify(history));
     } catch {}
-  }, [history]);
+  }, [history, hasHydratedStorage]);
 
   useEffect(() => {
+    if (!hasHydratedStorage) return;
     try {
       if (activeSession) localStorage.setItem(STORAGE_KEYS.ACTIVE_SESSION, JSON.stringify(activeSession));
       else localStorage.removeItem(STORAGE_KEYS.ACTIVE_SESSION);
     } catch {}
-  }, [activeSession]);
+  }, [activeSession, hasHydratedStorage]);
 
   useEffect(() => {
+    if (!hasHydratedStorage) return;
     try {
       localStorage.setItem(STORAGE_KEYS.CUSTOM_PRESETS, JSON.stringify(customPresets));
     } catch {}
-  }, [customPresets]);
+  }, [customPresets, hasHydratedStorage]);
 
-  // --- Timer Countdown & Negative Overtime Engine ---
+  // Timer Countdown & Negative Overtime Engine
   useEffect(() => {
     if (!timerState.isRunning || !timerState.startedAtMs) return;
     const interval = setInterval(() => {
@@ -1973,7 +1923,6 @@ export default function App() {
     }));
   };
 
-  // --- Computed History & Filter Lists ---
   const incompleteWorkoutsCount = useMemo(
     () => history.filter(w => !w.isComplete && !w.verifiedByUser).length,
     [history]
@@ -2028,7 +1977,6 @@ export default function App() {
       });
   }, [history, historyFilterLift, historyFilterMuscleGroup, historyFilterSpecificMuscle]);
 
-  // --- Session & History Actions ---
   const syncSessionToHistory = (sessionToSync) => {
     if (!user) return;
     if (!sessionToSync || !sessionToSync.slots || sessionToSync.slots.length === 0) return;
@@ -2159,11 +2107,10 @@ export default function App() {
     const slots = customMatch
       ? normalizeSlotLabels(
           (customMatch.slots || []).map((slot, sIdx) => {
-            const ex1 = EXERCISE_MAP[slot.exerciseId] || EXERCISE_LIBRARY[0];
             const ex2 = slot.secondaryExerciseId ? EXERCISE_MAP[slot.secondaryExerciseId] : null;
             return {
               ...slot,
-              id: `slot_${ts}_${sIdx}_${Math.random().toString(36).substring(2, 6)}`,
+              id: `slot_${ts}_${sIdx}`,
               sets: (slot.sets || []).map((st, idx) => ({
                 ...st,
                 id: `set_${ts}_${sIdx}_1_${idx}`,
@@ -2549,7 +2496,7 @@ export default function App() {
           return [
             ...list,
             {
-              id: `set_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+              id: nextDeterministicId('set'),
               setNumber: list.length + 1,
               type: `Set ${list.length + 1}`,
               reps: lastSet.reps ?? 8,
@@ -2863,7 +2810,6 @@ export default function App() {
         color: colors.label
       }}
     >
-      {/* Responsive Viewport Container: Fullscreen on Real Phones, iPhone Frame on Desktop */}
       <div
         style={{
           width: '100%',
@@ -2883,7 +2829,6 @@ export default function App() {
           position: 'relative'
         }}
       >
-        {/* Simulated Status Bar (Only shown on Desktop preview; real phones use native iOS status bar) */}
         {!isRealMobileViewport && (
           <div
             style={{
@@ -2902,7 +2847,6 @@ export default function App() {
           >
             <span style={{ ...IOS_TEXT.footnote, fontWeight: 600, color: colors.label }}>9:41</span>
 
-            {/* Dynamic Island Live Activity Pill */}
             <div
               style={{
                 width: '120px',
@@ -2937,7 +2881,6 @@ export default function App() {
               )}
             </div>
 
-            {/* Right Status Bar + Appearance Switcher */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <button
                 type="button"
@@ -2963,9 +2906,6 @@ export default function App() {
           </div>
         )}
 
-        {/* ================================================================== */}
-        {/* NATIVE iOS `NavigationStack` TOP BAR + STICKY SESSION ACCESSORY    */}
-        {/* ================================================================== */}
         <header
           style={{
             position: 'sticky',
@@ -2979,7 +2919,6 @@ export default function App() {
             flexShrink: 0
           }}
         >
-          {/* Standard 44pt UINavigationBar */}
           <div
             style={{
               height: '44px',
@@ -2990,7 +2929,6 @@ export default function App() {
               alignItems: 'center'
             }}
           >
-            {/* Leading NavigationBarItem (Back Button) */}
             <div>
               {currentView !== 'home' && (
                 <button
@@ -3020,7 +2958,6 @@ export default function App() {
               )}
             </div>
 
-            {/* Center Inline Title */}
             <div
               style={{
                 ...IOS_TEXT.headline,
@@ -3034,7 +2971,6 @@ export default function App() {
               {currentView === 'home' ? '' : navTitle}
             </div>
 
-            {/* Trailing NavigationBarItem (Theme Toggle on Mobile + Account / Auth Button) */}
             <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '10px' }}>
               {isRealMobileViewport && (
                 <button
@@ -3088,7 +3024,6 @@ export default function App() {
             </div>
           </div>
 
-          {/* Native NavigationBar Accessory Toolbar: Always-Visible Rest Timer & Suggest Alternative During Session */}
           {currentView === 'session' && activeSession && (
             <div
               style={{
@@ -3107,7 +3042,6 @@ export default function App() {
                   gap: '8px'
                 }}
               >
-                {/* Native Menu Picker for Rest Duration */}
                 <div
                   style={{
                     backgroundColor: colors.tertiarySystemFill,
@@ -3152,7 +3086,6 @@ export default function App() {
                   </select>
                 </div>
 
-                {/* Live Rest Countdown / Negative Overtime Pill */}
                 <div
                   style={{
                     flex: 1,
@@ -3218,7 +3151,6 @@ export default function App() {
                   </button>
                 </div>
 
-                {/* Sound Toggle */}
                 <button
                   type="button"
                   onClick={() => setSoundEnabled(prev => !prev)}
@@ -3242,7 +3174,6 @@ export default function App() {
                 </button>
               </div>
 
-              {/* Sticky "Suggest Alternative" Action Bar when 1 or more workout slots are selected */}
               {selectedSlotIds.length > 0 && (
                 <button
                   type="button"
@@ -3271,9 +3202,6 @@ export default function App() {
           )}
         </header>
 
-        {/* ================================================================== */}
-        {/* MAIN SCROLLABLE `List(.insetGrouped)` CONTENT AREA                 */}
-        {/* ================================================================== */}
         <div
           style={{
             flex: 1,
@@ -3283,7 +3211,6 @@ export default function App() {
             paddingBottom: '32px'
           }}
         >
-          {/* Native iOS Notification Banner */}
           {bannerMessage && (
             <div style={{ padding: '0 16px 12px' }}>
               <div
@@ -3319,12 +3246,8 @@ export default function App() {
             </div>
           )}
 
-          {/* ================================================================ */}
-          {/* VIEW 1: HOME (`List` with Primary Actions & 1RM Section)         */}
-          {/* ================================================================ */}
           {currentView === 'home' && (
             <div>
-              {/* Primary Navigation Rows (Inset Grouped List) */}
               <IOSListSection colors={colors}>
                 <IOSListRow onClick={handleOpenNewSession} colors={colors}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -3368,7 +3291,6 @@ export default function App() {
                     </span>
                   </div>
 
-                  {/* Red Notification Dot on History Row when Incomplete Workouts Exist */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                     {incompleteWorkoutsCount > 0 && (
                       <span
@@ -3387,7 +3309,6 @@ export default function App() {
                 </IOSListRow>
               </IOSListSection>
 
-              {/* Active Session Resume Card (If In Progress) */}
               {activeSession && activeSession.slots && activeSession.slots.length > 0 && (
                 <IOSListSection header="In Progress" colors={colors}>
                   <IOSListRow onClick={() => setCurrentView('session')} isLast colors={colors}>
@@ -3406,7 +3327,6 @@ export default function App() {
                 </IOSListSection>
               )}
 
-              {/* 1RM Section */}
               <IOSListSection
                 header={
                   <div
@@ -3524,9 +3444,6 @@ export default function App() {
             </div>
           )}
 
-          {/* ================================================================ */}
-          {/* VIEW 2: WORKOUT SESSION & HISTORICAL ENTRY (`Form` / `List`)     */}
-          {/* ================================================================ */}
           {(currentView === 'session' || currentView === 'historical_entry') &&
             (currentView === 'session' ? activeSession : historicalDraft) && (() => {
               const isHistoricalMode = currentView === 'historical_entry';
@@ -3534,9 +3451,7 @@ export default function App() {
 
               return (
                 <div>
-                  {/* Workout Metadata & Workouts Dropdown Section */}
                   <IOSListSection header="Session Details & Workouts" colors={colors}>
-                    {/* Title Input Row */}
                     <IOSListRow colors={colors}>
                       <span style={{ ...IOS_TEXT.body, color: colors.secondaryLabel }}>Title</span>
                       <input
@@ -3561,7 +3476,6 @@ export default function App() {
                       />
                     </IOSListRow>
 
-                    {/* Date Picker Row (Historical Mode Only) */}
                     {isHistoricalMode && (
                       <IOSListRow colors={colors}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -3590,7 +3504,6 @@ export default function App() {
                       </IOSListRow>
                     )}
 
-                    {/* Workouts Dropdown Menu Row */}
                     <IOSListRow isLast={isHistoricalMode} colors={colors}>
                       <span style={{ ...IOS_TEXT.body, color: colors.label, flexShrink: 0 }}>
                         Workout
@@ -3654,7 +3567,6 @@ export default function App() {
                       </div>
                     </IOSListRow>
 
-                    {/* Suggest Workout Row (Live Session Only) */}
                     {!isHistoricalMode && (
                       <IOSListRow
                         onClick={handleSuggestWorkoutFromHistory}
@@ -3678,7 +3590,6 @@ export default function App() {
                     )}
                   </IOSListSection>
 
-                  {/* Exercise Slots Rendered as Collapsible Native Inset Grouped Sections */}
                   {currentWorkout.slots.map(slot => {
                     const ex1 = EXERCISE_MAP[slot.exerciseId] || EXERCISE_LIBRARY[0];
                     const ex2 = slot.secondaryExerciseId
@@ -3811,7 +3722,6 @@ export default function App() {
                           </IOSListRow>
                         ) : (
                           <>
-                            {/* Exercise & Scheme Pickers (Non-Warmup) */}
                             {!isWarmup && (
                               <>
                                 <IOSListRow colors={colors}>
@@ -3949,7 +3859,6 @@ export default function App() {
                               </>
                             )}
 
-                            {/* Primary Sets List (Warmup Checklist vs Two-Line Readable Set Rows) */}
                             {isWarmup ? (
                               slot.sets.map((setItem, idx) => (
                                 <IOSListRow
@@ -3996,7 +3905,6 @@ export default function App() {
                                 </IOSListRow>
                               ))
                             ) : (() => {
-                              // Intertwine sets when slot is a Superset (A1 Set 1 -> A2 Set 1 -> A1 Set 2 -> A2 Set 2)
                               const isSupersetWithEx2 = Boolean(slot.category === 'Supersets' && ex2);
                               const combinedSets = [];
                               if (isSupersetWithEx2) {
@@ -4040,7 +3948,6 @@ export default function App() {
                                   colors={colors}
                                   padding="10px 16px"
                                 >
-                                  {/* Two-Line Layout: Line 1 = Full Name + Done Button; Line 2 = Weight Box + Reps Box */}
                                   <div
                                     style={{
                                       width: '100%',
@@ -4049,7 +3956,6 @@ export default function App() {
                                       gap: '8px'
                                     }}
                                   >
-                                    {/* Line 1: Full Workout & Set Name + Done Button */}
                                     <div
                                       style={{
                                         display: 'flex',
@@ -4101,7 +4007,6 @@ export default function App() {
                                       </button>
                                     </div>
 
-                                    {/* Line 2: Vertically Aligned Weight Box (Launches Plate Calculator) & Reps Box */}
                                     <div
                                       style={{
                                         display: 'grid',
@@ -4110,7 +4015,6 @@ export default function App() {
                                         alignItems: 'center'
                                       }}
                                     >
-                                      {/* Weight Box Column */}
                                       <div
                                         style={{
                                           display: 'flex',
@@ -4166,7 +4070,6 @@ export default function App() {
                                         )}
                                       </div>
 
-                                      {/* Reps Box Column */}
                                       <div
                                         style={{
                                           display: 'flex',
@@ -4221,7 +4124,6 @@ export default function App() {
                     );
                   })}
 
-                  {/* "Add Exercise" Row */}
                   <IOSListSection colors={colors}>
                     <IOSListRow onClick={() => setShowAddSlotModal(true)} isLast colors={colors}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -4233,7 +4135,6 @@ export default function App() {
                     </IOSListRow>
                   </IOSListSection>
 
-                  {/* Single Button to Open Save as New Workout Sheet */}
                   <IOSListSection colors={colors}>
                     <IOSListRow onClick={handleOpenSavePresetModal} isLast colors={colors}>
                       <span
@@ -4250,7 +4151,6 @@ export default function App() {
                     </IOSListRow>
                   </IOSListSection>
 
-                  {/* Destructive / Save Actions Section */}
                   {isHistoricalMode ? (
                     <IOSListSection colors={colors}>
                       <IOSListRow onClick={handleSaveHistoricalDraft} colors={colors}>
@@ -4317,12 +4217,8 @@ export default function App() {
               );
             })()}
 
-          {/* ================================================================ */}
-          {/* VIEW 3: HISTORY (`List` with 3-Tier Filter Pickers)              */}
-          {/* ================================================================ */}
           {currentView === 'history' && (
             <div>
-              {/* 3-Tier Filter Section */}
               <IOSListSection
                 header={
                   <div
@@ -4429,7 +4325,6 @@ export default function App() {
                 </IOSListRow>
               </IOSListSection>
 
-              {/* Enter Historical Workout Button Row (Directly Below Filters) */}
               <IOSListSection colors={colors}>
                 <IOSListRow onClick={handleOpenHistoricalEntry} isLast colors={colors}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -4442,7 +4337,6 @@ export default function App() {
                 </IOSListRow>
               </IOSListSection>
 
-              {/* Chronological Workout History Feed */}
               <IOSListSection header="Logged Workouts" colors={colors}>
                 {filteredHistory.map((workout, idx) => {
                   const isExpanded = expandedHistoryId === workout.id;
@@ -4481,10 +4375,11 @@ export default function App() {
                             </span>
                           </div>
                           <div style={{ ...IOS_TEXT.footnote, color: colors.secondaryLabel }}>
-                            {new Date(workout.startedAt).toLocaleDateString(undefined, {
+                            {new Date(workout.startedAt).toLocaleDateString('en-US', {
                               month: 'short',
                               day: 'numeric',
-                              year: 'numeric'
+                              year: 'numeric',
+                              timeZone: 'UTC'
                             })}{' '}
                             • {workout.slots?.length || 0} Exercises
                           </div>
@@ -4581,9 +4476,6 @@ export default function App() {
             </div>
           )}
 
-          {/* ================================================================ */}
-          {/* VIEW 4: ACCOUNT / LOG IN / CREATE NEW USER (`Form`)              */}
-          {/* ================================================================ */}
           {currentView === 'auth' && (
             <div>
               {user && (
@@ -4693,7 +4585,6 @@ export default function App() {
                         triggerBanner(`Signed in as ${loggedInUser.email}.`, 'success');
                       }
                     } else {
-                      // Local preview fallback when NEXT_PUBLIC_SUPABASE_URL is not configured yet
                       const localUser = {
                         id: `usr_${Date.now()}`,
                         email: trimmedEmail,
@@ -4836,7 +4727,6 @@ export default function App() {
           )}
         </div>
 
-        {/* Native iOS Home Indicator (Only shown in Desktop frame preview) */}
         {!isRealMobileViewport && (
           <div
             style={{
@@ -4860,9 +4750,6 @@ export default function App() {
           </div>
         )}
 
-        {/* ================================================================== */}
-        {/* NATIVE iOS `ConfirmationDialog` (Action Sheet) FOR RESET / CANCEL  */}
-        {/* ================================================================== */}
         {confirmAction && (
           <div
             onClick={() => setConfirmAction(null)}
@@ -4941,9 +4828,6 @@ export default function App() {
         )}
       </div>
 
-      {/* ==================================================================== */}
-      {/* SHEET 1: ADD EXERCISE SLOT (`Sheet`)                                 */}
-      {/* ==================================================================== */}
       <IOSSheet
         isOpen={showAddSlotModal}
         onClose={() => setShowAddSlotModal(false)}
@@ -5063,9 +4947,6 @@ export default function App() {
         )}
       </IOSSheet>
 
-      {/* ==================================================================== */}
-      {/* SHEET 1B: SAVE AS NEW WORKOUT (`Sheet`)                              */}
-      {/* ==================================================================== */}
       <IOSSheet
         isOpen={showSavePresetModal}
         onClose={() => setShowSavePresetModal(false)}
@@ -5101,9 +4982,6 @@ export default function App() {
         </IOSListSection>
       </IOSSheet>
 
-      {/* ==================================================================== */}
-      {/* SHEET 2: PLATE & WEIGHT INCREMENT CALCULATOR (`Sheet`)               */}
-      {/* ==================================================================== */}
       <IOSSheet
         isOpen={Boolean(plateCalcTarget)}
         onClose={() => setPlateCalcTarget(null)}
@@ -5320,9 +5198,6 @@ export default function App() {
         )}
       </IOSSheet>
 
-      {/* ==================================================================== */}
-      {/* SHEET 3: 1RM SCHEME CALCULATOR (`Sheet`)                             */}
-      {/* ==================================================================== */}
       <IOSSheet
         isOpen={Boolean(maxCalcTarget)}
         onClose={() => setMaxCalcTarget(null)}
@@ -5409,7 +5284,6 @@ export default function App() {
                         gap: '8px'
                       }}
                     >
-                      {/* Line 1: Set Name */}
                       <div
                         style={{
                           display: 'flex',
@@ -5439,7 +5313,6 @@ export default function App() {
                         </div>
                       </div>
 
-                      {/* Line 2: Weight Box (Launches Plate Calculator) & Reps Box */}
                       <div
                         style={{
                           display: 'grid',
