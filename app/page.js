@@ -1,1243 +1,767 @@
-"use client";
+'use client';
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 
 // ============================================================================
-// 0. PRODUCTION SUPABASE CLOUD SYNC & AUTH ADAPTER (ZERO-DEPENDENCY REST/AUTH)
+// 1. KINETIC DESIGN SYSTEM TOKENS & GLOBAL STYLES
 // ============================================================================
-// Automatically reads NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY
-// when deployed on Next.js / Vercel. Gracefully falls back to localStorage
-// in preview environments or when used as a Guest.
 
-const getEnv = (key) => {
-  try {
-    if (typeof process !== 'undefined' && process.env && process.env[key]) {
-      return process.env[key];
-    }
-  } catch {}
-  return '';
+const IOS_DARK = {
+  background: '#101010',
+  secondaryBackground: '#161616',
+  label: '#FFFFFF',
+  secondaryLabel: '#A0A0A0',
+  separator: '#5C5C5C',
+  systemOrange: '#FF6B00',
+  systemGreen: '#30D158',
+  systemRed: '#FF3B30',
+  systemYellow: '#FFD60A',
+  systemBlue: '#FF6B00',
+  systemIndigo: '#FFFFFF'
 };
 
-const SUPABASE_URL = getEnv('NEXT_PUBLIC_SUPABASE_URL');
-const SUPABASE_ANON_KEY = getEnv('NEXT_PUBLIC_SUPABASE_ANON_KEY');
-const IS_SUPABASE_CONFIGURED = Boolean(SUPABASE_URL && SUPABASE_ANON_KEY);
+const KINETIC_CSS = `
+  @import url('https://fonts.googleapis.com/css2?family=Host+Grotesk:wght@400;600;700;800&display=swap');
 
-const supabaseCloud = {
-  isConfigured: IS_SUPABASE_CONFIGURED,
+  :root {
+    --dp-color-ground: #101010;
+    --dp-color-ink: #ffffff;
+    --dp-color-accent: #ff6b00;
+    --dp-color-decorative: #343434;
+    --dp-color-rule: #5c5c5c;
+    --dp-typography-face: "Kinetic Host Grotesk", "Host Grotesk", -apple-system, BlinkMacSystemFont, sans-serif;
+    --dp-spacing-gutter: max(14px, 2.2cqw);
+    --dp-motion-marquee-easing: linear;
+  }
 
-  getHeaders(accessToken = null) {
-    return {
-      apikey: SUPABASE_ANON_KEY,
-      Authorization: `Bearer ${accessToken || SUPABASE_ANON_KEY}`,
-      'Content-Type': 'application/json',
-      Prefer: 'return=representation'
-    };
+  .kinetic-app, .kinetic-app * {
+    font-family: var(--dp-typography-face);
+    border-radius: 0px !important;
+    box-sizing: border-box;
+  }
+
+  .kinetic-app select,
+  .kinetic-app select option {
+    background-color: #101010 !important;
+    color: #FFFFFF !important;
+  }
+
+  .kinetic-btn {
+    transition: transform 0.08s ease, background-color 0.12s ease, color 0.12s ease;
+  }
+  .kinetic-btn:active {
+    transform: scale(0.98);
+  }
+  .kinetic-btn:focus-visible {
+    outline: 2px solid var(--dp-color-accent);
+    outline-offset: 2px;
+  }
+
+  .kinetic-row-interactive {
+    transition: background-color 0.12s ease, color 0.12s ease;
+  }
+  .kinetic-row-interactive:hover {
+    background-color: var(--dp-color-accent) !important;
+    color: #101010 !important;
+  }
+  .kinetic-row-interactive:hover .kinetic-sub {
+    color: #101010 !important;
+  }
+
+  @keyframes kinetic-marquee {
+    0% { transform: translateX(0%); }
+    100% { transform: translateX(-50%); }
+  }
+
+  .kinetic-marquee-track {
+    display: flex;
+    width: max-content;
+    white-space: nowrap;
+    animation: kinetic-marquee 28s var(--dp-motion-marquee-easing) infinite;
+  }
+
+  .kinetic-marquee-paused .kinetic-marquee-track {
+    animation-play-state: paused !important;
+  }
+`;
+
+const UI = {
+  pagePad: { paddingTop: '14px' },
+  gutterWrap: { padding: '0 var(--dp-spacing-gutter)' },
+  gutterBottom: { padding: '0 var(--dp-spacing-gutter) 16px' },
+  primaryBtn: {
+    width: '100%', padding: '14px', backgroundColor: 'var(--dp-color-accent)', color: '#101010',
+    border: '2px solid #FFFFFF', fontSize: '14px', fontWeight: 800, textTransform: 'uppercase',
+    display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer'
   },
-
-  async signUp(email, password, displayName) {
-    const res = await fetch(`${SUPABASE_URL}/auth/v1/signup`, {
-      method: 'POST',
-      headers: this.getHeaders(),
-      body: JSON.stringify({
-        email,
-        password,
-        data: { display_name: displayName }
-      })
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.msg || data.error_description || data.message || 'Sign up failed');
-    return data;
+  primaryBtnCenter: {
+    width: '100%', padding: '14px', backgroundColor: 'var(--dp-color-accent)', color: '#101010',
+    border: '2px solid #FFFFFF', fontSize: '14px', fontWeight: 800, textTransform: 'uppercase', cursor: 'pointer'
   },
-
-  async signIn(email, password) {
-    const res = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
-      method: 'POST',
-      headers: this.getHeaders(),
-      body: JSON.stringify({ email, password })
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error_description || data.msg || data.message || 'Invalid login credentials');
-    return data;
+  secondaryBtnCenter: {
+    width: '100%', padding: '14px', backgroundColor: '#161616', color: '#FFFFFF',
+    border: '2px solid var(--dp-color-rule)', fontSize: '14px', fontWeight: 800, textTransform: 'uppercase', cursor: 'pointer'
   },
-
-  async signOut(accessToken) {
-    if (!accessToken) return;
-    await fetch(`${SUPABASE_URL}/auth/v1/logout`, {
-      method: 'POST',
-      headers: this.getHeaders(accessToken)
-    }).catch(() => {});
+  dashedBtn: {
+    width: '100%', padding: '14px', backgroundColor: '#161616', color: 'var(--dp-color-accent)',
+    border: '2px dashed var(--dp-color-rule)', fontSize: '14px', fontWeight: 800, textTransform: 'uppercase', cursor: 'pointer'
   },
-
-  async fetchUserData(userId, accessToken) {
-    const headers = this.getHeaders(accessToken);
-    const [profRes, histRes, custRes] = await Promise.all([
-      fetch(`${SUPABASE_URL}/rest/v1/user_profiles?id=eq.${userId}&select=*`, { headers }),
-      fetch(`${SUPABASE_URL}/rest/v1/workout_history?user_id=eq.${userId}&order=started_at.desc`, { headers }),
-      fetch(`${SUPABASE_URL}/rest/v1/custom_workouts?user_id=eq.${userId}&order=created_at.desc`, { headers })
-    ]);
-
-    const profiles = profRes.ok ? await profRes.json() : [];
-    const historyRows = histRes.ok ? await histRes.json() : [];
-    const customRows = custRes.ok ? await custRes.json() : [];
-
-    return {
-      oneRepMaxes: profiles[0]?.one_rep_maxes || null,
-      history: historyRows.map(r => ({
-        id: r.id,
-        title: r.title,
-        presetUsed: r.preset_used,
-        startedAt: r.started_at,
-        updatedAt: r.updated_at,
-        defaultRestSeconds: r.default_rest_seconds,
-        isComplete: r.is_complete,
-        verifiedByUser: r.verified_by_user,
-        slots: r.slots || []
-      })),
-      customPresets: customRows.map(r => ({
-        key: r.key,
-        label: r.label,
-        createdAt: r.created_at,
-        slots: r.slots || []
-      }))
-    };
+  drawerBtn: (active = false) => ({
+    width: '100%', padding: '14px', backgroundColor: active ? 'var(--dp-color-accent)' : '#161616',
+    color: active ? '#101010' : '#FFFFFF', border: '2px solid var(--dp-color-rule)',
+    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+    fontWeight: 800, fontSize: '15px', textTransform: 'uppercase', cursor: 'pointer'
+  }),
+  pillBtn: (active = false) => ({
+    padding: '8px', backgroundColor: active ? 'var(--dp-color-accent)' : '#101010',
+    color: active ? '#101010' : '#FFFFFF', border: '2px solid var(--dp-color-rule)',
+    fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', cursor: 'pointer'
+  }),
+  badge: (active = false) => ({
+    padding: '4px 10px', backgroundColor: active ? 'var(--dp-color-accent)' : '#101010',
+    color: active ? '#101010' : '#888888', border: '2px solid var(--dp-color-rule)',
+    fontSize: '11px', fontWeight: 800, textTransform: 'uppercase'
+  }),
+  select: {
+    width: '100%', backgroundColor: '#101010', color: '#FFFFFF',
+    border: '2px solid var(--dp-color-rule)', padding: '10px', fontSize: '12px', fontWeight: 800
   },
-
-  async upsertProfile(user, oneRepMaxes) {
-    if (!user?.accessToken || !this.isConfigured) return;
-    await fetch(`${SUPABASE_URL}/rest/v1/user_profiles`, {
-      method: 'POST',
-      headers: {
-        ...this.getHeaders(user.accessToken),
-        Prefer: 'resolution=merge-duplicates'
-      },
-      body: JSON.stringify({
-        id: user.id,
-        email: user.email,
-        display_name: user.name || user.email.split('@')[0],
-        one_rep_maxes: oneRepMaxes,
-        updated_at: new Date().toISOString()
-      })
-    }).catch(() => {});
+  textInputBare: {
+    width: '100%', backgroundColor: 'transparent', border: 'none',
+    color: '#FFFFFF', fontSize: '16px', fontWeight: 800, outline: 'none'
   },
-
-  async upsertWorkoutHistory(user, workout) {
-    if (!user?.accessToken || !this.isConfigured) return;
-    await fetch(`${SUPABASE_URL}/rest/v1/workout_history`, {
-      method: 'POST',
-      headers: {
-        ...this.getHeaders(user.accessToken),
-        Prefer: 'resolution=merge-duplicates'
-      },
-      body: JSON.stringify({
-        id: workout.id,
-        user_id: user.id,
-        title: workout.title,
-        preset_used: workout.presetUsed,
-        started_at: workout.startedAt,
-        updated_at: workout.updatedAt || new Date().toISOString(),
-        default_rest_seconds: workout.defaultRestSeconds || 90,
-        is_complete: Boolean(workout.isComplete),
-        verified_by_user: Boolean(workout.verifiedByUser),
-        slots: workout.slots || []
-      })
-    }).catch(() => {});
+  numInput: (width = '58px', color = '#FFFFFF') => ({
+    width, backgroundColor: '#101010', color, border: '2px solid var(--dp-color-rule)',
+    padding: '6px', textAlign: 'center', fontSize: '13px', fontWeight: 800
+  }),
+  modalBackdrop: {
+    position: 'fixed', inset: 0, zIndex: 70, backgroundColor: 'rgba(0,0,0,0.85)',
+    display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px'
   },
-
-  async deleteWorkoutHistory(user, workoutId) {
-    if (!user?.accessToken || !this.isConfigured) return;
-    await fetch(`${SUPABASE_URL}/rest/v1/workout_history?id=eq.${workoutId}&user_id=eq.${user.id}`, {
-      method: 'DELETE',
-      headers: this.getHeaders(user.accessToken)
-    }).catch(() => {});
+  modalCard: (maxWidth = '420px') => ({
+    width: '100%', maxWidth, maxHeight: '90vh', overflowY: 'auto',
+    backgroundColor: '#141414', border: '2px solid var(--dp-color-rule)', padding: '18px'
+  }),
+  modalHeader: {
+    fontSize: '18px', fontWeight: 800, textTransform: 'uppercase',
+    borderBottom: '2px solid var(--dp-color-rule)', paddingBottom: '10px', marginBottom: '14px',
+    display: 'flex', justifyContent: 'space-between', alignItems: 'center'
   },
-
-  async upsertCustomPreset(user, preset) {
-    if (!user?.accessToken || !this.isConfigured) return;
-    await fetch(`${SUPABASE_URL}/rest/v1/custom_workouts`, {
-      method: 'POST',
-      headers: {
-        ...this.getHeaders(user.accessToken),
-        Prefer: 'resolution=merge-duplicates'
-      },
-      body: JSON.stringify({
-        key: preset.key,
-        user_id: user.id,
-        label: preset.label,
-        created_at: preset.createdAt || new Date().toISOString(),
-        slots: preset.slots || []
-      })
-    }).catch(() => {});
+  closeXBtn: {
+    background: 'var(--dp-color-accent)', color: '#101010', border: 'none',
+    padding: '2px 8px', fontWeight: 800, cursor: 'pointer'
+  },
+  stepLabel: {
+    fontSize: '11px', fontWeight: 800, color: 'var(--dp-color-accent)', marginBottom: '6px', textTransform: 'uppercase'
+  },
+  fieldLabel: {
+    fontSize: '10px', fontWeight: 800, color: 'var(--dp-color-accent)', textTransform: 'uppercase'
+  },
+  rowTitle: { fontSize: '15px', fontWeight: 800, textTransform: 'uppercase' },
+  rowSub: { fontSize: '11px', color: '#A0A0A0', fontWeight: 600 },
+  deleteXBtn: {
+    width: '26px', height: '26px', border: '2px solid var(--dp-color-rule)',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    fontWeight: 800, fontSize: '13px', backgroundColor: '#101010', color: '#FF3B30',
+    cursor: 'pointer', flexShrink: 0, padding: 0
   }
 };
 
 // ============================================================================
-// 1. NATIVE iOS 17/18 HIG DESIGN SYSTEM (TYPOGRAPHY, DYNAMIC COLORS & SF SYMBOLS)
+// 2. SF SYMBOL / VECTOR ICON PRIMITIVE & RULED LIST COMPONENTS
 // ============================================================================
 
-const IOS_TEXT = {
-  largeTitle: {
-    fontSize: '34px',
-    lineHeight: '41px',
-    fontWeight: 700,
-    letterSpacing: '0.37px'
-  },
-  title1: {
-    fontSize: '28px',
-    lineHeight: '34px',
-    fontWeight: 700,
-    letterSpacing: '0.36px'
-  },
-  title2: {
-    fontSize: '22px',
-    lineHeight: '28px',
-    fontWeight: 700,
-    letterSpacing: '0.35px'
-  },
-  title3: {
-    fontSize: '20px',
-    lineHeight: '25px',
-    fontWeight: 600,
-    letterSpacing: '0.38px'
-  },
-  headline: {
-    fontSize: '17px',
-    lineHeight: '22px',
-    fontWeight: 600,
-    letterSpacing: '-0.41px'
-  },
-  body: {
-    fontSize: '17px',
-    lineHeight: '22px',
-    fontWeight: 400,
-    letterSpacing: '-0.41px'
-  },
-  callout: {
-    fontSize: '16px',
-    lineHeight: '21px',
-    fontWeight: 400,
-    letterSpacing: '-0.32px'
-  },
-  subheadline: {
-    fontSize: '15px',
-    lineHeight: '20px',
-    fontWeight: 400,
-    letterSpacing: '-0.24px'
-  },
-  footnote: {
-    fontSize: '13px',
-    lineHeight: '18px',
-    fontWeight: 400,
-    letterSpacing: '-0.08px'
-  },
-  caption1: {
-    fontSize: '12px',
-    lineHeight: '16px',
-    fontWeight: 400,
-    letterSpacing: '0px'
-  },
-  caption2: {
-    fontSize: '11px',
-    lineHeight: '13px',
-    fontWeight: 400,
-    letterSpacing: '0.07px'
-  }
-};
-
-const getSystemColors = (isDark) => ({
-  // Backgrounds
-  systemBackground: isDark ? 'rgb(0, 0, 0)' : 'rgb(255, 255, 255)',
-  secondarySystemBackground: isDark ? 'rgb(28, 28, 30)' : 'rgb(242, 242, 247)',
-  tertiarySystemBackground: isDark ? 'rgb(44, 44, 46)' : 'rgb(255, 255, 255)',
-  systemGroupedBackground: isDark ? 'rgb(0, 0, 0)' : 'rgb(242, 242, 247)',
-  secondarySystemGroupedBackground: isDark ? 'rgb(28, 28, 30)' : 'rgb(255, 255, 255)',
-  tertiarySystemGroupedBackground: isDark ? 'rgb(44, 44, 46)' : 'rgb(242, 242, 247)',
-
-  // Labels
-  label: isDark ? 'rgb(255, 255, 255)' : 'rgb(0, 0, 0)',
-  secondaryLabel: isDark ? 'rgba(235, 235, 245, 0.6)' : 'rgba(60, 60, 67, 0.6)',
-  tertiaryLabel: isDark ? 'rgba(235, 235, 245, 0.3)' : 'rgba(60, 60, 67, 0.3)',
-  quaternaryLabel: isDark ? 'rgba(235, 235, 245, 0.18)' : 'rgba(60, 60, 67, 0.18)',
-
-  // Fills & Separators
-  systemFill: isDark ? 'rgba(120, 120, 128, 0.36)' : 'rgba(120, 120, 128, 0.2)',
-  secondarySystemFill: isDark ? 'rgba(120, 120, 128, 0.32)' : 'rgba(120, 120, 128, 0.16)',
-  tertiarySystemFill: isDark ? 'rgba(118, 118, 128, 0.24)' : 'rgba(118, 118, 128, 0.12)',
-  separator: isDark ? 'rgba(84, 84, 88, 0.65)' : 'rgba(60, 60, 67, 0.29)',
-  opaqueSeparator: isDark ? 'rgb(56, 56, 58)' : 'rgb(198, 198, 200)',
-
-  // Vibrant Tint Colors
-  systemBlue: isDark ? 'rgb(10, 132, 255)' : 'rgb(0, 122, 255)',
-  systemGreen: isDark ? 'rgb(48, 209, 88)' : 'rgb(52, 199, 89)',
-  systemIndigo: isDark ? 'rgb(94, 92, 230)' : 'rgb(88, 86, 214)',
-  systemOrange: isDark ? 'rgb(255, 159, 10)' : 'rgb(255, 149, 0)',
-  systemPink: isDark ? 'rgb(255, 55, 95)' : 'rgb(255, 45, 85)',
-  systemPurple: isDark ? 'rgb(191, 90, 242)' : 'rgb(175, 82, 222)',
-  systemRed: isDark ? 'rgb(255, 69, 58)' : 'rgb(255, 59, 48)',
-  systemTeal: isDark ? 'rgb(100, 210, 255)' : 'rgb(48, 176, 199)',
-  systemYellow: isDark ? 'rgb(255, 214, 10)' : 'rgb(255, 204, 0)',
-  systemGray: 'rgb(142, 142, 147)',
-  systemGray4: isDark ? 'rgb(58, 58, 60)' : 'rgb(209, 209, 214)',
-  systemGray5: isDark ? 'rgb(44, 44, 46)' : 'rgb(229, 229, 234)',
-  systemGray6: isDark ? 'rgb(28, 28, 30)' : 'rgb(242, 242, 247)',
-
-  // Blur / Vibrancy Materials
-  chromeMaterial: isDark ? 'rgba(28, 28, 30, 0.82)' : 'rgba(249, 249, 249, 0.82)'
-});
-
-const SFSymbol = ({ name, size = 18, color = 'currentColor', style = {} }) => {
-  const s = { width: size, height: size, display: 'inline-block', flexShrink: 0, ...style };
-
+function SFSymbol({ name, size = 18, color = 'currentColor' }) {
   switch (name) {
+    case 'line.3.horizontal':
+      return (
+        <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.5">
+          <line x1="3" y1="6" x2="21" y2="6" />
+          <line x1="3" y1="12" x2="21" y2="12" />
+          <line x1="3" y1="18" x2="21" y2="18" />
+        </svg>
+      );
     case 'chevron.backward':
       return (
-        <svg viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={s} aria-label={name}>
-          <path d="M15 19l-7-7 7-7" />
+        <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.8">
+          <polyline points="15 18 9 12 15 6" />
         </svg>
       );
-    case 'chevron.forward':
+    case 'clock':
       return (
-        <svg viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={s} aria-label={name}>
-          <path d="M9 5l7 7-7 7" />
-        </svg>
-      );
-    case 'chevron.up.chevron.down':
-      return (
-        <svg viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={s} aria-label={name}>
-          <path d="M8 9l4-4 4 4M16 15l-4 4-4-4" />
-        </svg>
-      );
-    case 'chevron.down':
-      return (
-        <svg viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={s} aria-label={name}>
-          <path d="M6 9l6 6 6-6" />
-        </svg>
-      );
-    case 'chevron.up':
-      return (
-        <svg viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={s} aria-label={name}>
-          <path d="M18 15l-6-6-6 6" />
-        </svg>
-      );
-    case 'figure.strengthtraining.traditional':
-    case 'dumbbell.fill':
-      return (
-        <svg viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round" style={s} aria-label={name}>
-          <path d="M6.5 6.5L17.5 17.5" />
-          <path d="M3 10l7-7M2.5 5.5l3-3M14 21l7-7M18.5 21.5l3-3" />
-        </svg>
-      );
-    case 'play.fill':
-      return (
-        <svg viewBox="0 0 24 24" fill={color} style={s} aria-label={name}>
-          <path d="M6 4.5v15a1 1 0 001.52.85l12-7.5a1 1 0 000-1.7l-12-7.5A1 1 0 006 4.5z" />
-        </svg>
-      );
-    case 'clock.arrow.circlepath':
-      return (
-        <svg viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={s} aria-label={name}>
-          <path d="M3 12a9 9 0 1 0 3-6.7L3 8" />
-          <path d="M3 3v5h5" />
-          <path d="M12 7v5l3 2" />
-        </svg>
-      );
-    case 'trophy.fill':
-      return (
-        <svg viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={s} aria-label={name}>
-          <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6M18 9h1.5a2.5 2.5 0 0 0 0-5H18" />
-          <path d="M4 22h16M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22" />
-          <path d="M18 2H6v7a6 6 0 0 0 12 0V2Z" />
-        </svg>
-      );
-    case 'arrow.triangle.2.circlepath':
-      return (
-        <svg viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={s} aria-label={name}>
-          <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
-          <path d="M3 3v5h5M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16" />
-          <path d="M16 16h5v5" />
-        </svg>
-      );
-    case 'person.crop.circle':
-    case 'person.crop.circle.fill':
-      return (
-        <svg viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={s} aria-label={name}>
-          <circle cx="12" cy="12" r="10" />
-          <circle cx="12" cy="9.5" r="3" />
-          <path d="M6.5 18.5c1.5-2.3 3.4-3.5 5.5-3.5s4 1.2 5.5 3.5" />
-        </svg>
-      );
-    case 'plus':
-    case 'plus.circle.fill':
-      return (
-        <svg viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round" style={s} aria-label={name}>
-          {name.includes('circle') && <circle cx="12" cy="12" r="9.5" />}
-          <path d="M12 7.5v9M7.5 12h9" />
-        </svg>
-      );
-    case 'sparkles':
-      return (
-        <svg viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={s} aria-label={name}>
-          <path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9L12 3z" />
-          <path d="M19 16l.8 2.2L22 19l-2.2.8L19 22l-.8-2.2L16 19l2.2-.8L19 16z" />
-        </svg>
-      );
-    case 'checkmark':
-      return (
-        <svg viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round" style={s} aria-label={name}>
-          <path d="M20 6L9 17l-5-5" />
-        </svg>
-      );
-    case 'checkmark.circle.fill':
-      return (
-        <svg viewBox="0 0 24 24" fill={color} style={s} aria-label={name}>
-          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1.4 14.6L6 12l1.4-1.4 3.2 3.2 6-6L18 9.2l-7.4 7.4z" />
-        </svg>
-      );
-    case 'circle':
-      return (
-        <svg viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" style={s} aria-label={name}>
+        <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.2">
           <circle cx="12" cy="12" r="9" />
-        </svg>
-      );
-    case 'trash':
-      return (
-        <svg viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={s} aria-label={name}>
-          <path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6h14" />
-        </svg>
-      );
-    case 'timer':
-      return (
-        <svg viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={s} aria-label={name}>
-          <circle cx="12" cy="13" r="8" />
-          <path d="M12 9v4l2.5 2.5M10 2h4" />
-        </svg>
-      );
-    case 'speaker.wave.2.fill':
-      return (
-        <svg viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={s} aria-label={name}>
-          <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
-          <path d="M15.54 8.46a5 5 0 0 1 0 7.07M19.07 4.93a10 10 0 0 1 0 14.14" />
-        </svg>
-      );
-    case 'speaker.slash.fill':
-      return (
-        <svg viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={s} aria-label={name}>
-          <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
-          <line x1="23" y1="9" x2="17" y2="15" />
-          <line x1="17" y1="9" x2="23" y2="15" />
-        </svg>
-      );
-    case 'scalemass.fill':
-      return (
-        <svg viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={s} aria-label={name}>
-          <circle cx="12" cy="12" r="9" />
-          <circle cx="12" cy="12" r="3" />
-        </svg>
-      );
-    case 'line.3.horizontal.decrease.circle':
-      return (
-        <svg viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={s} aria-label={name}>
-          <circle cx="12" cy="12" r="10" />
-          <path d="M7 9h10M9 12h6M11 15h2" />
-        </svg>
-      );
-    case 'calendar':
-      return (
-        <svg viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={s} aria-label={name}>
-          <rect x="3" y="4" width="18" height="18" rx="2" />
-          <line x1="16" y1="2" x2="16" y2="6" />
-          <line x1="8" y1="2" x2="8" y2="6" />
-          <line x1="3" y1="10" x2="21" y2="10" />
-        </svg>
-      );
-    case 'sun.max.fill':
-      return (
-        <svg viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={s} aria-label={name}>
-          <circle cx="12" cy="12" r="4" />
-          <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41" />
-        </svg>
-      );
-    case 'moon.fill':
-      return (
-        <svg viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={s} aria-label={name}>
-          <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
-        </svg>
-      );
-    case 'exclamationmark.circle.fill':
-      return (
-        <svg viewBox="0 0 24 24" fill={color} style={s} aria-label={name}>
-          <path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm1 15h-2v-2h2zm0-4h-2V7h2z" />
+          <polyline points="12 7 12 12 15.5 14" />
         </svg>
       );
     default:
       return (
-        <svg viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" style={s} aria-label={name}>
-          <circle cx="12" cy="12" r="8" />
+        <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.4">
+          <polyline points="9 18 15 12 9 6" />
         </svg>
       );
   }
-};
+}
+
+function IOSListSection({ header, headerRight, footer, children, style }) {
+  return (
+    <section style={{ marginBottom: '22px', padding: '0 var(--dp-spacing-gutter)', ...style }}>
+      {(header || headerRight) && (
+        <div
+          style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            gap: '8px', marginBottom: '8px'
+          }}
+        >
+          {header && (
+            <div
+              style={{
+                fontSize: '20px', fontWeight: 800, letterSpacing: '-0.04em',
+                textTransform: 'uppercase', color: '#FFFFFF', lineHeight: 1.05
+              }}
+            >
+              {header}
+            </div>
+          )}
+          {headerRight}
+        </div>
+      )}
+      <div
+        style={{
+          border: '2px solid var(--dp-color-rule)',
+          backgroundColor: '#141414'
+        }}
+      >
+        {children}
+      </div>
+      {footer && (
+        <div style={{ fontSize: '12px', color: '#9A9A9A', marginTop: '6px', lineHeight: 1.35, fontWeight: 600 }}>
+          {footer}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function IOSListRow({ children, onClick, isLast = false, indexLabel, bgNumeral, style }) {
+  const interactive = typeof onClick === 'function';
+  const childArray = React.Children.toArray(children);
+  const firstChild = childArray[0] ?? null;
+  const restChildren = childArray.length > 1 ? childArray.slice(1) : null;
+
+  return (
+    <div
+      role={interactive ? 'button' : undefined}
+      tabIndex={interactive ? 0 : undefined}
+      onClick={onClick}
+      onKeyDown={
+        interactive
+          ? e => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              onClick(e);
+            }
+          }
+          : undefined
+      }
+      className={interactive ? 'kinetic-row-interactive' : ''}
+      style={{
+        position: 'relative', overflow: 'hidden', display: 'flex', alignItems: 'center',
+        justifyContent: 'space-between', gap: '12px', padding: '14px 16px',
+        borderBottom: isLast ? 'none' : '2px solid var(--dp-color-rule)',
+        backgroundColor: '#141414', color: '#FFFFFF',
+        cursor: interactive ? 'pointer' : 'default',
+        ...style
+      }}
+    >
+      {bgNumeral && (
+        <span
+          aria-hidden="true"
+          style={{
+            position: 'absolute', right: '36px', top: '50%', transform: 'translateY(-50%)',
+            fontSize: '54px', fontWeight: 800, color: 'var(--dp-color-decorative)',
+            lineHeight: 1, pointerEvents: 'none', userSelect: 'none', zIndex: 0
+          }}
+        >
+          {bgNumeral}
+        </span>
+      )}
+      <div
+        style={{
+          position: 'relative', zIndex: 1, display: 'flex', alignItems: 'center',
+          justifyContent: 'space-between', gap: '12px', width: '100%'
+        }}
+      >
+        {indexLabel ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0, flex: 1 }}>
+            <span
+              className="kinetic-sub"
+              style={{
+                fontSize: '11px', fontWeight: 800, color: 'var(--dp-color-accent)',
+                letterSpacing: '0.06em', flexShrink: 0
+              }}
+            >
+              {indexLabel}
+            </span>
+            <div style={{ minWidth: 0, flex: 1 }}>{firstChild}</div>
+          </div>
+        ) : (
+          firstChild
+        )}
+        {restChildren}
+      </div>
+    </div>
+  );
+}
 
 // ============================================================================
-// 2. EXERCISE LIBRARY, PRESETS & 1RM ENGINE (DATA LAYER)
+// 3. EXERCISE LIBRARY, GYM EQUIPMENT & EXRX STANDARDS
 // ============================================================================
 
-const WARMUP_MOVEMENTS = [
-  '1min Plank',
-  'Cat Curl',
-  'Thread the Needle',
-  'Downward Dog',
-  'Arm Walks',
-  "World's Greatest",
-  'Back Slaps',
-  'Arm Circles Backward',
-  'Arm Circles Forward',
-  'Shoulder Blade Pulls',
-  'Shoulder Overs',
-  'Band Overhead Press'
+const GYM_EQUIPMENT_OPTIONS = [
+  'Barbell', 'Dumbbell', 'EZ Bar', 'Landmine', 'Pull-Up Bar',
+  'Resistance Bands', 'Weight Plates', 'Flat / Incline Bench',
+  'Squat Rack', 'Cable Machine', 'Kettlebells'
 ];
 
-const EXERCISE_LIBRARY = [
-  {
-    id: 'barbell_bench_press',
-    name: 'Barbell Bench Press',
-    equipment: 'Barbell',
-    category: 'Compound Lift',
-    muscleGroup: 'Chest',
-    specificMuscles: ['Mid Pectorals', 'Anterior Deltoid', 'Triceps'],
-    isPriority: true,
-    default1RM: 225,
-    alternatives: ['dumbbell_press', 'incline_bench_press', 'dumbbell_incline_press']
-  },
-  {
-    id: 'barbell_back_squat',
-    name: 'Barbell Back Squat',
-    equipment: 'Barbell',
-    category: 'Compound Lift',
-    muscleGroup: 'Legs',
-    specificMuscles: ['Quadriceps', 'Glutes', 'Hamstrings'],
-    isPriority: true,
-    default1RM: 285,
-    alternatives: ['front_squat', 'split_squat', 'goblet_squat']
-  },
-  {
-    id: 'barbell_deadlift',
-    name: 'Barbell Deadlift',
-    equipment: 'Barbell',
-    category: 'Compound Lift',
-    muscleGroup: 'Back',
-    specificMuscles: ['Hamstrings', 'Glutes', 'Lats', 'Upper Back / Rhomboids'],
-    isPriority: true,
-    default1RM: 335,
-    alternatives: ['landmine_rdl', 'dumbbell_rdl', 'barbell_row']
-  },
-  {
-    id: 'overhead_press',
-    name: 'Barbell Overhead Press',
-    equipment: 'Barbell',
-    category: 'Compound Lift',
-    muscleGroup: 'Shoulders',
-    specificMuscles: ['Anterior Deltoid', 'Lateral Deltoid', 'Triceps'],
-    isPriority: true,
-    default1RM: 145,
-    alternatives: ['dumbbell_shoulder_press', 'incline_bench_press']
-  },
-  {
-    id: 'incline_bench_press',
-    name: 'Incline Bench Press',
-    equipment: 'Barbell',
-    category: 'Compound Lift',
-    muscleGroup: 'Chest',
-    specificMuscles: ['Upper Pectorals', 'Anterior Deltoid', 'Triceps'],
-    isPriority: true,
-    default1RM: 195,
-    alternatives: ['dumbbell_incline_press', 'dumbbell_press', 'barbell_bench_press']
-  },
-  {
-    id: 'chin_ups',
-    name: 'Chin-Ups / Pull-Ups',
-    equipment: 'Bodyweight / Weighted',
-    category: 'Compound Lift',
-    muscleGroup: 'Back',
-    specificMuscles: ['Lats', 'Biceps', 'Upper Back / Rhomboids'],
-    isPriority: true,
-    default1RM: 210,
-    alternatives: ['meadows_row', 'barbell_row', 'dumbbell_row']
-  },
-  {
-    id: 'dumbbell_press',
-    name: 'Dumbbell Press',
-    equipment: 'Dumbbell',
-    category: 'Compound Lift',
-    muscleGroup: 'Chest',
-    specificMuscles: ['Mid Pectorals', 'Anterior Deltoid', 'Triceps'],
-    isPriority: false,
-    default1RM: 180,
-    alternatives: ['barbell_bench_press', 'incline_bench_press', 'dumbbell_incline_press']
-  },
-  {
-    id: 'dumbbell_incline_press',
-    name: 'Dumbbell Incline Press',
-    equipment: 'Dumbbell',
-    category: 'Compound Lift',
-    muscleGroup: 'Chest',
-    specificMuscles: ['Upper Pectorals', 'Anterior Deltoid', 'Triceps'],
-    isPriority: false,
-    default1RM: 160,
-    alternatives: ['incline_bench_press', 'dumbbell_press', 'barbell_bench_press']
-  },
-  {
-    id: 'meadows_row',
-    name: "Meadow's Row",
-    equipment: 'Landmine / Barbell',
-    category: 'Compound Lift',
-    muscleGroup: 'Back',
-    specificMuscles: ['Lats', 'Upper Back / Rhomboids', 'Posterior Deltoid', 'Biceps'],
-    isPriority: false,
-    default1RM: 165,
-    alternatives: ['barbell_row', 'dumbbell_row', 'chin_ups']
-  },
-  {
-    id: 'barbell_row',
-    name: 'Barbell Bent-Over Row',
-    equipment: 'Barbell',
-    category: 'Compound Lift',
-    muscleGroup: 'Back',
-    specificMuscles: ['Upper Back / Rhomboids', 'Lats', 'Biceps'],
-    isPriority: false,
-    default1RM: 195,
-    alternatives: ['meadows_row', 'dumbbell_row', 'chin_ups']
-  },
-  {
-    id: 'dumbbell_row',
-    name: 'Single-Arm Dumbbell Row',
-    equipment: 'Dumbbell',
-    category: 'Compound Lift',
-    muscleGroup: 'Back',
-    specificMuscles: ['Lats', 'Upper Back / Rhomboids', 'Biceps'],
-    isPriority: false,
-    default1RM: 110,
-    alternatives: ['meadows_row', 'barbell_row', 'chin_ups']
-  },
-  {
-    id: 'front_squat',
-    name: 'Front Squat',
-    equipment: 'Barbell',
-    category: 'Compound Lift',
-    muscleGroup: 'Legs',
-    specificMuscles: ['Quadriceps', 'Glutes', 'Abs / Core'],
-    isPriority: false,
-    default1RM: 225,
-    alternatives: ['barbell_back_squat', 'split_squat', 'goblet_squat']
-  },
-  {
-    id: 'landmine_rdl',
-    name: 'Landmine RDL',
-    equipment: 'Landmine / Barbell',
-    category: 'Compound Lift',
-    muscleGroup: 'Legs',
-    specificMuscles: ['Hamstrings', 'Glutes', 'Lats'],
-    isPriority: false,
-    default1RM: 215,
-    alternatives: ['barbell_deadlift', 'dumbbell_rdl']
-  },
-  {
-    id: 'dumbbell_rdl',
-    name: 'Dumbbell RDL',
-    equipment: 'Dumbbell',
-    category: 'Compound Lift',
-    muscleGroup: 'Legs',
-    specificMuscles: ['Hamstrings', 'Glutes'],
-    isPriority: false,
-    default1RM: 175,
-    alternatives: ['landmine_rdl', 'barbell_deadlift']
-  },
-  {
-    id: 'split_squat',
-    name: 'Split Squat',
-    equipment: 'Dumbbell / Barbell',
-    category: 'Compound Lift',
-    muscleGroup: 'Legs',
-    specificMuscles: ['Quadriceps', 'Glutes', 'Hamstrings'],
-    isPriority: false,
-    default1RM: 155,
-    alternatives: ['front_squat', 'reverse_lunge', 'barbell_back_squat']
-  },
-  {
-    id: 'dumbbell_shoulder_press',
-    name: 'Dumbbell Shoulder Press',
-    equipment: 'Dumbbell',
-    category: 'Compound Lift',
-    muscleGroup: 'Shoulders',
-    specificMuscles: ['Anterior Deltoid', 'Lateral Deltoid', 'Triceps'],
-    isPriority: false,
-    default1RM: 125,
-    alternatives: ['overhead_press', 'incline_bench_press']
-  },
-  {
-    id: 'goblet_squat',
-    name: 'Dumbbell Goblet Squat',
-    equipment: 'Dumbbell',
-    category: 'Compound Lift',
-    muscleGroup: 'Legs',
-    specificMuscles: ['Quadriceps', 'Glutes'],
-    isPriority: false,
-    default1RM: 120,
-    alternatives: ['front_squat', 'split_squat']
-  },
-  {
-    id: 'reverse_lunge',
-    name: 'Reverse Lunge',
-    equipment: 'Dumbbell / Barbell',
-    category: 'Accessories',
-    muscleGroup: 'Legs',
-    specificMuscles: ['Quadriceps', 'Glutes', 'Hamstrings'],
-    isPriority: false,
-    default1RM: 135,
-    alternatives: ['split_squat', 'pistol_squats']
-  },
-  {
-    id: 'front_flies',
-    name: 'Front Flies',
-    equipment: 'Dumbbell',
-    category: 'Accessories',
-    muscleGroup: 'Chest',
-    specificMuscles: ['Mid Pectorals', 'Upper Pectorals', 'Anterior Deltoid'],
-    isPriority: false,
-    default1RM: 65,
-    alternatives: ['reverse_flies', 'dumbbell_press']
-  },
-  {
-    id: 'pistol_squats',
-    name: 'Pistol Squats',
-    equipment: 'Bodyweight / Dumbbell',
-    category: 'Accessories',
-    muscleGroup: 'Legs',
-    specificMuscles: ['Quadriceps', 'Glutes'],
-    isPriority: false,
-    default1RM: 95,
-    alternatives: ['reverse_lunge', 'split_squat']
-  },
-  {
-    id: 'reverse_flies',
-    name: 'Reverse Flies',
-    equipment: 'Dumbbell',
-    category: 'Accessories',
-    muscleGroup: 'Shoulders',
-    specificMuscles: ['Posterior Deltoid', 'Upper Back / Rhomboids'],
-    isPriority: false,
-    default1RM: 55,
-    alternatives: ['band_pulldown', 'side_raise_dumbbell']
-  },
-  {
-    id: 'band_pulldown',
-    name: 'Band Pulldown',
-    equipment: 'Band',
-    category: 'Accessories',
-    muscleGroup: 'Back',
-    specificMuscles: ['Lats', 'Upper Back / Rhomboids', 'Triceps'],
-    isPriority: false,
-    default1RM: 90,
-    alternatives: ['chin_ups', 'reverse_flies']
-  },
-  {
-    id: 'front_raise_ez_bar',
-    name: 'Front Raise EZ Bar',
-    equipment: 'EZ Bar / Barbell',
-    category: 'Accessories',
-    muscleGroup: 'Shoulders',
-    specificMuscles: ['Anterior Deltoid', 'Upper Pectorals'],
-    isPriority: false,
-    default1RM: 65,
-    alternatives: ['side_raise_dumbbell', 'dumbbell_shoulder_press']
-  },
-  {
-    id: 'side_raise_dumbbell',
-    name: 'Side Raise Dumbbell',
-    equipment: 'Dumbbell',
-    category: 'Accessories',
-    muscleGroup: 'Shoulders',
-    specificMuscles: ['Lateral Deltoid'],
-    isPriority: false,
-    default1RM: 45,
-    alternatives: ['front_raise_ez_bar', 'reverse_flies']
-  },
-  {
-    id: 'barbell_bicep_curl',
-    name: 'Barbell Bicep Curl',
-    equipment: 'Barbell',
-    category: 'Accessories',
-    muscleGroup: 'Arms',
-    specificMuscles: ['Biceps', 'Forearms'],
-    isPriority: false,
-    default1RM: 95,
-    alternatives: ['dumbbell_hammer_curl', 'tricep_skullcrusher']
-  },
-  {
-    id: 'dumbbell_hammer_curl',
-    name: 'Dumbbell Hammer Curl',
-    equipment: 'Dumbbell',
-    category: 'Accessories',
-    muscleGroup: 'Arms',
-    specificMuscles: ['Biceps', 'Forearms'],
-    isPriority: false,
-    default1RM: 80,
-    alternatives: ['barbell_bicep_curl', 'tricep_skullcrusher']
-  },
-  {
-    id: 'tricep_skullcrusher',
-    name: 'EZ-Bar Skullcrusher',
-    equipment: 'Barbell / EZ Bar',
-    category: 'Accessories',
-    muscleGroup: 'Arms',
-    specificMuscles: ['Triceps'],
-    isPriority: false,
-    default1RM: 95,
-    alternatives: ['dumbbell_overhead_extension', 'barbell_bicep_curl']
-  },
-  {
-    id: 'dumbbell_overhead_extension',
-    name: 'Dumbbell Tricep Extension',
-    equipment: 'Dumbbell',
-    category: 'Accessories',
-    muscleGroup: 'Arms',
-    specificMuscles: ['Triceps'],
-    isPriority: false,
-    default1RM: 75,
-    alternatives: ['tricep_skullcrusher', 'dumbbell_hammer_curl']
-  },
-  {
-    id: 'warmup_12_step',
-    name: '12-Step Mobility & Activation Warm-Up',
-    equipment: 'Bodyweight / Band',
-    category: 'Warm-Up Routine',
-    muscleGroup: 'Core',
-    specificMuscles: ['Abs / Core', 'Anterior Deltoid', 'Posterior Deltoid', 'Hamstrings'],
-    isPriority: false,
-    default1RM: 0,
-    alternatives: []
-  },
-  {
-    id: 'hollow_holds',
-    name: 'Hollow Holds (45s)',
-    equipment: 'Bodyweight',
-    category: 'Abs',
-    muscleGroup: 'Core',
-    specificMuscles: ['Abs / Core'],
-    isPriority: false,
-    default1RM: 45,
-    alternatives: ['hanging_leg_raises', 'weighted_plank']
-  },
-  {
-    id: 'hanging_leg_raises',
-    name: 'Hanging Leg Raises',
-    equipment: 'Bodyweight',
-    category: 'Abs',
-    muscleGroup: 'Core',
-    specificMuscles: ['Abs / Core'],
-    isPriority: false,
-    default1RM: 50,
-    alternatives: ['hollow_holds', 'weighted_plank']
-  },
-  {
-    id: 'weighted_plank',
-    name: 'Weighted Plank (60s)',
-    equipment: 'Plate / Bodyweight',
-    category: 'Abs',
-    muscleGroup: 'Core',
-    specificMuscles: ['Abs / Core'],
-    isPriority: false,
-    default1RM: 60,
-    alternatives: ['hollow_holds', 'hanging_leg_raises']
+const DEFAULT_GYM_EQUIPMENT_PRESETS = [
+  { id: '', name: 'Full Gym (All)' },
+  { id: 'preset_barbells_only', name: 'Barbells Only' },
+  { id: 'preset_dumbbells_only', name: 'Dumbells Only' },
+  { id: 'preset_bodyweight_only', name: 'Bodyweight Only' }
+];
+
+const formatTodayYMD = () => {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, '0');
+  const d = String(now.getDate()).padStart(2, '0');
+  return `${y}/${m}/${d}`;
+};
+
+const getDefaultSessionName = () => `${formatTodayYMD()} - Session`;
+const getDefaultAutoSessionName = () => `${formatTodayYMD()} - Auto Session`;
+
+const formatTodayShortDate = () =>
+  new Date().toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+
+const formatTitleWithDate = baseTitle => {
+  if (!baseTitle || baseTitle.trim() === 'SESSION' || baseTitle.trim() === 'Custom Kinetic Routine') {
+    return getDefaultSessionName();
   }
+  const ymd = formatTodayYMD();
+  const dateStr = formatTodayShortDate();
+  const clean = baseTitle.trim();
+  if (clean.includes(ymd) || clean.toUpperCase().includes(dateStr.toUpperCase())) return clean;
+  return `${ymd} - ${clean}`;
+};
+
+const isExerciseCompatibleWithGymSelection = (ex, gymSelectionId, customGyms = []) => {
+  if (!ex) return false;
+  if (!gymSelectionId) return true;
+  const eqText = (ex.equipment || '').toLowerCase();
+  const reqEq = ex.requiredEquipment || [];
+
+  if (gymSelectionId === 'preset_barbells_only') {
+    return eqText.includes('barbell') || reqEq.includes('Barbell');
+  }
+  if (gymSelectionId === 'preset_dumbbells_only') {
+    return eqText.includes('dumbbell') || reqEq.includes('Dumbbell');
+  }
+  if (gymSelectionId === 'preset_bodyweight_only') {
+    return eqText.includes('bodyweight') || reqEq.length === 0;
+  }
+
+  const foundGym = (customGyms || []).find(g => g.id === gymSelectionId);
+  if (!foundGym) return true;
+  const availEq = new Set(foundGym.equipment || GYM_EQUIPMENT_OPTIONS);
+  if (reqEq.length === 0) return true;
+  return reqEq.every(req => availEq.has(req));
+};
+
+const getGymSelectionLabel = (gymSelectionId, customGyms = []) => {
+  const preset = DEFAULT_GYM_EQUIPMENT_PRESETS.find(p => p.id === (gymSelectionId || ''));
+  if (preset) return preset.name;
+  const custom = (customGyms || []).find(g => g.id === gymSelectionId);
+  return custom ? custom.name : 'Full Gym (All)';
+};
+
+const mkEx = (id, name, equipment, requiredEquipment, category, muscleGroup, specificMuscles, isPriority, default1RM, alternatives) => ({
+  id, name, equipment, requiredEquipment, category, muscleGroup, specificMuscles, isPriority, default1RM, alternatives
+});
+
+const EXERCISE_LIBRARY = [
+  mkEx('barbell_bench_press', 'Barbell Bench Press', 'Barbell', ['Barbell', 'Flat / Incline Bench', 'Weight Plates'], 'Compound Lift', 'Chest', ['Mid Pectorals', 'Anterior Deltoid', 'Triceps'], true, 225, ['dumbbell_press', 'incline_bench_press', 'dumbbell_incline_press']),
+  mkEx('barbell_back_squat', 'Barbell Back Squat', 'Barbell', ['Barbell', 'Squat Rack', 'Weight Plates'], 'Compound Lift', 'Legs', ['Quadriceps', 'Glutes', 'Hamstrings'], true, 285, ['front_squat', 'split_squat', 'goblet_squat']),
+  mkEx('barbell_deadlift', 'Barbell Deadlift', 'Barbell', ['Barbell', 'Weight Plates'], 'Compound Lift', 'Back', ['Hamstrings', 'Glutes', 'Lats', 'Upper Back / Rhomboids'], true, 335, ['landmine_rdl', 'dumbbell_rdl', 'barbell_row']),
+  mkEx('overhead_press', 'Barbell Overhead Press', 'Barbell', ['Barbell', 'Weight Plates'], 'Compound Lift', 'Shoulders', ['Anterior Deltoid', 'Lateral Deltoid', 'Triceps'], true, 145, ['dumbbell_shoulder_press', 'incline_bench_press']),
+  mkEx('incline_bench_press', 'Incline Bench Press', 'Barbell', ['Barbell', 'Flat / Incline Bench', 'Weight Plates'], 'Compound Lift', 'Chest', ['Upper Pectorals', 'Anterior Deltoid', 'Triceps'], true, 195, ['dumbbell_incline_press', 'dumbbell_press', 'barbell_bench_press']),
+  mkEx('chin_ups', 'Chin-Ups / Pull-Ups', 'Bodyweight / Weighted', ['Pull-Up Bar'], 'Compound Lift', 'Back', ['Lats', 'Biceps', 'Upper Back / Rhomboids'], true, 210, ['meadows_row', 'barbell_row', 'dumbbell_row']),
+  mkEx('dumbbell_press', 'Dumbbell Press', 'Dumbbell', ['Dumbbell', 'Flat / Incline Bench'], 'Compound Lift', 'Chest', ['Mid Pectorals', 'Anterior Deltoid', 'Triceps'], false, 180, ['barbell_bench_press', 'incline_bench_press', 'dumbbell_incline_press']),
+  mkEx('dumbbell_incline_press', 'Dumbbell Incline Press', 'Dumbbell', ['Dumbbell', 'Flat / Incline Bench'], 'Compound Lift', 'Chest', ['Upper Pectorals', 'Anterior Deltoid', 'Triceps'], false, 160, ['incline_bench_press', 'dumbbell_press', 'barbell_bench_press']),
+  mkEx('meadows_row', "Meadow's Row", 'Landmine / Barbell', ['Landmine', 'Barbell', 'Weight Plates'], 'Compound Lift', 'Back', ['Lats', 'Upper Back / Rhomboids', 'Posterior Deltoid', 'Biceps'], false, 165, ['barbell_row', 'dumbbell_row', 'chin_ups']),
+  mkEx('barbell_row', 'Barbell Bent-Over Row', 'Barbell', ['Barbell', 'Weight Plates'], 'Compound Lift', 'Back', ['Upper Back / Rhomboids', 'Lats', 'Biceps'], false, 195, ['meadows_row', 'dumbbell_row', 'chin_ups']),
+  mkEx('dumbbell_row', 'Single-Arm Dumbbell Row', 'Dumbbell', ['Dumbbell'], 'Compound Lift', 'Back', ['Lats', 'Upper Back / Rhomboids', 'Biceps'], false, 110, ['meadows_row', 'barbell_row', 'chin_ups']),
+  mkEx('front_squat', 'Front Squat', 'Barbell', ['Barbell', 'Squat Rack', 'Weight Plates'], 'Compound Lift', 'Legs', ['Quadriceps', 'Glutes', 'Abs / Core'], false, 225, ['barbell_back_squat', 'split_squat', 'goblet_squat']),
+  mkEx('landmine_rdl', 'Landmine RDL', 'Landmine / Barbell', ['Landmine', 'Barbell', 'Weight Plates'], 'Compound Lift', 'Legs', ['Hamstrings', 'Glutes', 'Lats'], false, 215, ['barbell_deadlift', 'dumbbell_rdl']),
+  mkEx('dumbbell_rdl', 'Dumbbell RDL', 'Dumbbell', ['Dumbbell'], 'Compound Lift', 'Legs', ['Hamstrings', 'Glutes'], false, 175, ['landmine_rdl', 'barbell_deadlift']),
+  mkEx('split_squat', 'Split Squat', 'Dumbbell / Barbell', ['Dumbbell'], 'Compound Lift', 'Legs', ['Quadriceps', 'Glutes', 'Hamstrings'], false, 155, ['front_squat', 'reverse_lunge', 'barbell_back_squat']),
+  mkEx('dumbbell_shoulder_press', 'Dumbbell Shoulder Press', 'Dumbbell', ['Dumbbell'], 'Compound Lift', 'Shoulders', ['Anterior Deltoid', 'Lateral Deltoid', 'Triceps'], false, 125, ['overhead_press', 'incline_bench_press']),
+  mkEx('goblet_squat', 'Dumbbell Goblet Squat', 'Dumbbell', ['Dumbbell'], 'Compound Lift', 'Legs', ['Quadriceps', 'Glutes'], false, 120, ['front_squat', 'split_squat']),
+  mkEx('reverse_lunge', 'Reverse Lunge', 'Dumbbell / Barbell', ['Dumbbell'], 'Accessories', 'Legs', ['Quadriceps', 'Glutes', 'Hamstrings'], false, 135, ['split_squat', 'pistol_squats']),
+  mkEx('front_flies', 'Front Flies', 'Dumbbell', ['Dumbbell'], 'Accessories', 'Chest', ['Mid Pectorals', 'Upper Pectorals', 'Anterior Deltoid'], false, 65, ['reverse_flies', 'dumbbell_press']),
+  mkEx('pistol_squats', 'Pistol Squats', 'Bodyweight / Dumbbell', [], 'Accessories', 'Legs', ['Quadriceps', 'Glutes'], false, 95, ['reverse_lunge', 'split_squat']),
+  mkEx('reverse_flies', 'Reverse Flies', 'Dumbbell', ['Dumbbell'], 'Accessories', 'Shoulders', ['Posterior Deltoid', 'Upper Back / Rhomboids'], false, 55, ['band_pulldown', 'side_raise_dumbbell']),
+  mkEx('band_pulldown', 'Band Pulldown', 'Band', ['Resistance Bands'], 'Accessories', 'Back', ['Lats', 'Upper Back / Rhomboids', 'Triceps'], false, 90, ['chin_ups', 'reverse_flies']),
+  mkEx('front_raise_ez_bar', 'Front Raise EZ Bar', 'EZ Bar / Barbell', ['EZ Bar'], 'Accessories', 'Shoulders', ['Anterior Deltoid', 'Upper Pectorals'], false, 65, ['side_raise_dumbbell', 'dumbbell_shoulder_press']),
+  mkEx('side_raise_dumbbell', 'Side Raise Dumbbell', 'Dumbbell', ['Dumbbell'], 'Accessories', 'Shoulders', ['Lateral Deltoid'], false, 45, ['front_raise_ez_bar', 'reverse_flies']),
+  mkEx('barbell_bicep_curl', 'Barbell Bicep Curl', 'Barbell', ['Barbell'], 'Accessories', 'Arms', ['Biceps', 'Forearms'], false, 95, ['dumbbell_hammer_curl', 'tricep_skullcrusher']),
+  mkEx('dumbbell_hammer_curl', 'Dumbbell Hammer Curl', 'Dumbbell', ['Dumbbell'], 'Accessories', 'Arms', ['Biceps', 'Forearms'], false, 80, ['barbell_bicep_curl', 'tricep_skullcrusher']),
+  mkEx('tricep_skullcrusher', 'EZ-Bar Skullcrusher', 'Barbell / EZ Bar', ['EZ Bar'], 'Accessories', 'Arms', ['Triceps'], false, 95, ['dumbbell_overhead_extension', 'barbell_bicep_curl']),
+  mkEx('dumbbell_overhead_extension', 'Dumbbell Tricep Extension', 'Dumbbell', ['Dumbbell'], 'Accessories', 'Arms', ['Triceps'], false, 75, ['tricep_skullcrusher', 'dumbbell_hammer_curl']),
+  mkEx('hollow_holds', 'Hollow Holds (45s)', 'Bodyweight', [], 'Abs', 'Core', ['Abs / Core'], false, 45, ['hanging_leg_raises', 'weighted_plank']),
+  mkEx('hanging_leg_raises', 'Hanging Leg Raises', 'Bodyweight', ['Pull-Up Bar'], 'Abs', 'Core', ['Abs / Core'], false, 50, ['hollow_holds', 'weighted_plank']),
+  mkEx('weighted_plank', 'Weighted Plank (60s)', 'Plate / Bodyweight', [], 'Abs', 'Core', ['Abs / Core'], false, 60, ['hollow_holds', 'hanging_leg_raises'])
 ];
 
 const EXERCISE_MAP = Object.fromEntries(EXERCISE_LIBRARY.map(ex => [ex.id, ex]));
 
-const roundTo5 = (val) => Math.max(5, Math.round(val / 5) * 5);
-
-// Deterministic ID counter so SSR / Prerendering never calls Date.now() or Math.random() during build
-let deterministicCounter = 1;
-const nextDeterministicId = (prefix = 'id') => {
-  deterministicCounter += 1;
-  return `${prefix}_${deterministicCounter}`;
+const filterAddSlotExercises = (gymFilterId, category, customGyms = []) => {
+  const byGym = EXERCISE_LIBRARY.filter(ex =>
+    isExerciseCompatibleWithGymSelection(ex, gymFilterId, customGyms)
+  );
+  const gymBase = byGym.length > 0 ? byGym : EXERCISE_LIBRARY;
+  if (!category || category === 'Supersets') {
+    const nonCompound = gymBase.filter(ex => ex.category === 'Accessories' || ex.category === 'Compound Lift');
+    return nonCompound.length > 0 ? nonCompound : gymBase;
+  }
+  const byCatAndGym = byGym.filter(ex => ex.category === category);
+  if (byCatAndGym.length > 0) return byCatAndGym;
+  const byCatOnly = EXERCISE_LIBRARY.filter(ex => ex.category === category);
+  return byCatOnly.length > 0 ? byCatOnly : gymBase;
 };
 
-const generateSetsForScheme = (scheme, oneRepMax, category = 'Compound Lift', exerciseId = '') => {
-  const base1RM = oneRepMax || (EXERCISE_MAP[exerciseId]?.default1RM ?? 135);
-  const ts = nextDeterministicId('s');
+const getFilteredExercisesForSlotInline = (slot, selectedGymId, customGyms = []) => {
+  const currentEx = EXERCISE_MAP[slot.exerciseId] || EXERCISE_LIBRARY[0];
+  const targetFamily = slot.familyMuscleGroup || currentEx.muscleGroup || 'Chest';
+  const equipmentFilteredLibrary = EXERCISE_LIBRARY.filter(ex =>
+    isExerciseCompatibleWithGymSelection(ex, selectedGymId, customGyms)
+  );
+  const activePoolBase = equipmentFilteredLibrary.length > 0 ? equipmentFilteredLibrary : EXERCISE_LIBRARY;
 
-  if (category === 'Warm-Up Routine' || exerciseId === 'warmup_12_step') {
-    return WARMUP_MOVEMENTS.map((stepName, idx) => ({
-      id: `set_${ts}_wu_${idx}`,
-      setNumber: idx + 1,
-      type: stepName,
-      reps: null,
-      weight: 0,
-      completed: false,
-      completedAt: null,
-      restLoggedSeconds: null,
-      interLiftSeconds: null
-    }));
+  if (slot.category === 'Abs') {
+    const absMatches = activePoolBase.filter(e => e.category === 'Abs');
+    return absMatches.length > 0 ? absMatches : EXERCISE_LIBRARY.filter(e => e.category === 'Abs');
   }
+  if (slot.category === 'Compound Lift') {
+    const sameFamily = activePoolBase.filter(e => e.category === 'Compound Lift' && e.muscleGroup === targetFamily);
+    const others = activePoolBase.filter(e => e.category === 'Compound Lift' && e.muscleGroup !== targetFamily);
+    const combined = [...sameFamily, ...others];
+    return combined.length > 0 ? combined : activePoolBase;
+  }
+  if (slot.category === 'Accessories') {
+    const sameFamily = activePoolBase.filter(e => e.category === 'Accessories' && e.muscleGroup === targetFamily);
+    const sameFamilyAll = activePoolBase.filter(e => e.muscleGroup === targetFamily);
+    if (sameFamily.length > 0) return sameFamily;
+    if (sameFamilyAll.length > 0) return sameFamilyAll;
+    return activePoolBase;
+  }
+  const sameFamily = activePoolBase.filter(e => e.muscleGroup === targetFamily);
+  const others = activePoolBase.filter(e => e.muscleGroup !== targetFamily);
+  return [...sameFamily, ...others];
+};
+
+const getNextIncompleteSetInfo = slots => {
+  if (!Array.isArray(slots) || slots.length === 0) {
+    return { topLine: 'NO EXERCISES QUEUED', bottomLine: 'ADD AN EXERCISE TO BEGIN' };
+  }
+  for (const slot of slots) {
+    if (slot.category === 'Supersets' && Array.isArray(slot.supersetSetsByExercise)) {
+      const ids = slot.supersetExerciseIds || [slot.exerciseId, slot.secondaryExerciseId].filter(Boolean);
+      const maxLen = Math.max(0, ...slot.supersetSetsByExercise.map(l => (l ? l.length : 0)));
+      for (let sIdx = 0; sIdx < maxLen; sIdx++) {
+        for (let exIdx = 0; exIdx < Math.min(2, slot.supersetSetsByExercise.length); exIdx++) {
+          const st = slot.supersetSetsByExercise[exIdx]?.[sIdx];
+          if (st && !st.completed) {
+            const exName = EXERCISE_MAP[ids[exIdx]]?.name || ids[exIdx] || 'Lift';
+            return {
+              topLine: `NEXT: ${exName.toUpperCase()}`,
+              bottomLine: `SET #${st.setNumber} • ${st.weight} LB × ${st.reps} REPS`
+            };
+          }
+        }
+      }
+    } else if (Array.isArray(slot.sets)) {
+      for (const st of slot.sets) {
+        if (st && !st.completed) {
+          const exName = EXERCISE_MAP[slot.exerciseId]?.name || slot.exerciseId || 'Lift';
+          const loadStr = slot.category === 'Abs' ? `${st.reps} SEC` : `${st.weight} LB × ${st.reps} REPS`;
+          return {
+            topLine: `NEXT: ${exName.toUpperCase()}`,
+            bottomLine: `SET #${st.setNumber} • ${loadStr}`
+          };
+        }
+      }
+    }
+  }
+  return { topLine: 'ALL SETS COMPLETE ✓', bottomLine: 'READY TO SAVE SESSION' };
+};
+
+const BIG_FOUR_IDS = ['barbell_bench_press', 'barbell_back_squat', 'barbell_deadlift', 'overhead_press'];
+const EXRX_CLASSES = ['Untrained', 'Novice', 'Intermediate', 'Advanced', 'Elite'];
+
+const EXRX_RATIOS = {
+  barbell_bench_press: { Untrained: 0.61, Novice: 0.79, Intermediate: 0.98, Advanced: 1.34, Elite: 1.66 },
+  barbell_back_squat: { Untrained: 0.57, Novice: 1.05, Intermediate: 1.29, Advanced: 1.75, Elite: 2.27 },
+  barbell_deadlift: { Untrained: 0.71, Novice: 1.31, Intermediate: 1.50, Advanced: 2.11, Elite: 2.61 },
+  overhead_press: { Untrained: 0.40, Novice: 0.55, Intermediate: 0.69, Advanced: 0.87, Elite: 1.16 }
+};
+
+const roundTo5 = val => Math.max(5, Math.round(val / 5) * 5);
+const roundToIncrement = val => Math.max(0, Math.round((Number(val) || 0) * 4) / 4);
+
+const getExRxTargetForLift = (liftId, targetClass, bodyweightLbs = 220, heightInches = 70, customGoals = {}) => {
+  if (targetClass === 'Custom' && customGoals && customGoals[liftId]) {
+    return Number(customGoals[liftId]);
+  }
+  const ratios = EXRX_RATIOS[liftId] || EXRX_RATIOS.barbell_bench_press;
+  const ratio = ratios[targetClass] || ratios.Intermediate;
+  const heightAdj = 1 + (70 - (heightInches || 70)) * 0.003;
+  return roundTo5((bodyweightLbs || 220) * ratio * heightAdj);
+};
+
+const getExRxCurrentClass = (liftId, current1RM, bodyweightLbs = 220, heightInches = 70) => {
+  let matched = 'Below Untrained';
+  for (const cls of EXRX_CLASSES) {
+    const threshold = getExRxTargetForLift(liftId, cls, bodyweightLbs, heightInches);
+    if (current1RM >= threshold) matched = cls;
+  }
+  return matched;
+};
+
+// ============================================================================
+// 4. WORKOUT, 1RM EQUIVALENT & SUPERSET GENERATION ENGINE
+// ============================================================================
+
+const SET_TYPES_LIST = ['Warmup Set', 'Working Set', 'Top Out Set', 'Burn Out Set', '1 Rep Max'];
+
+const getHistoricalCalculated1RM = (exerciseId, history = [], oneRepMaxes = {}) => {
+  let best = Number(oneRepMaxes?.[exerciseId]) || 0;
+  (history || []).forEach(w => {
+    (w.slots || []).forEach(slot => {
+      if (slot.category === 'Supersets' && Array.isArray(slot.supersetSetsByExercise)) {
+        const ids = slot.supersetExerciseIds || [slot.exerciseId, slot.secondaryExerciseId].filter(Boolean);
+        ids.forEach((id, idx) => {
+          if (id === exerciseId) {
+            (slot.supersetSetsByExercise[idx] || []).forEach(st => {
+              if (st.completed && Number(st.weight) > 0) {
+                const reps = Math.max(1, Number(st.reps) || 1);
+                const est = reps === 1 ? Number(st.weight) : Math.round(Number(st.weight) * (1 + reps / 30));
+                if (est > best) best = est;
+              }
+            });
+          }
+        });
+      } else if (slot.exerciseId === exerciseId) {
+        (slot.sets || []).forEach(st => {
+          if (st.completed && Number(st.weight) > 0) {
+            const reps = Math.max(1, Number(st.reps) || 1);
+            const est = reps === 1 ? Number(st.weight) : Math.round(Number(st.weight) * (1 + reps / 30));
+            if (est > best) best = est;
+          }
+        });
+      }
+    });
+  });
+  return best > 0 ? best : EXERCISE_MAP[exerciseId]?.default1RM ?? 135;
+};
+
+const calculateLastEquivalentWeightForSet = (base1RM, setItem, totalSetsCount = 5, category = 'Compound Lift') => {
+  if (category === 'Abs') return 0;
+  const max1RM = Math.max(5, Number(base1RM) || 135);
+  const sType = setItem?.type || 'Working Set';
+  const reps = Math.max(1, Number(setItem?.reps) || 8);
+
+  if (sType === '1 Rep Max') return roundTo5(max1RM);
+
+  const repPct = 1 / (1 + reps / 30);
+  let typeMultiplier = 0.96;
+  if (sType === 'Warmup Set') typeMultiplier = 0.72;
+  else if (sType === 'Top Out Set') typeMultiplier = 1.04;
+  else if (sType === 'Burn Out Set') typeMultiplier = 0.82;
+
+  const extraSets = Math.max(0, totalSetsCount - 5);
+  const fatigueDiscount = Math.max(0.74, 1 - extraSets * 0.025);
+
+  const rawWeight = max1RM * Math.min(1, repPct * typeMultiplier * fatigueDiscount);
+  return roundTo5(rawWeight);
+};
+
+const getIncrementInLbs = (goalIncrement = 1.25, goalUnit = 'lb', goalType = 'Strength') => {
+  if (goalType === 'Maintain') return 0;
+  const inc = Number(goalIncrement) || 0;
+  return goalUnit === 'kg' ? roundToIncrement(inc * 2.20462) : roundToIncrement(inc);
+};
+
+const generateSetsForScheme = (scheme, oneRepMax, category = 'Compound Lift', exerciseId = '', incrementLbs = 0) => {
+  const base1RM = oneRepMax || (EXERCISE_MAP[exerciseId]?.default1RM ?? 135);
+  const ts = Date.now() + Math.floor(Math.random() * 10000);
 
   if (category === 'Abs' || exerciseId === 'hollow_holds') {
     return [
-      {
-        id: `set_${ts}_abs1`,
-        setNumber: 1,
-        type: 'Timed Hold',
-        reps: 45,
-        weight: 0,
-        completed: false,
-        completedAt: null,
-        restLoggedSeconds: null,
-        interLiftSeconds: null
-      },
-      {
-        id: `set_${ts}_abs2`,
-        setNumber: 2,
-        type: 'Timed Hold',
-        reps: 45,
-        weight: 0,
-        completed: false,
-        completedAt: null,
-        restLoggedSeconds: null,
-        interLiftSeconds: null
-      }
+      { id: `set_${ts}_abs1`, setNumber: 1, type: 'Working Set', reps: 45, lastWeight: 0, weight: 0, completed: false },
+      { id: `set_${ts}_abs2`, setNumber: 2, type: 'Working Set', reps: 45, lastWeight: 0, weight: 0, completed: false }
     ];
   }
 
+  const buildWithLastAndTarget = rawSets => {
+    const totalCount = rawSets.length;
+    return rawSets.map((s, idx) => {
+      const lastW =
+        s.lastWeight !== undefined
+          ? s.lastWeight
+          : calculateLastEquivalentWeightForSet(base1RM, s, totalCount, category);
+      const targetW =
+        s.type === '1 Rep Max' ? roundTo5(base1RM) : roundToIncrement(lastW + incrementLbs);
+      return {
+        id: `set_${ts}_${idx}_${Math.random().toString(36).slice(2, 5)}`,
+        setNumber: idx + 1,
+        type: s.type,
+        reps: s.reps,
+        lastWeight: lastW,
+        weight: targetW,
+        completed: false
+      };
+    });
+  };
+
   switch (scheme) {
-    case '5x5': {
-      const wu1 = roundTo5(base1RM * 0.55);
-      const wu2 = roundTo5(base1RM * 0.70);
-      const working = roundTo5(base1RM * 0.82);
-      const cfg5x5 = [
-        { reps: 5, weight: wu1, label: 'Warmup 1' },
-        { reps: 5, weight: wu2, label: 'Warmup 2' },
-        { reps: 5, weight: working, label: 'Working 1' },
-        { reps: 5, weight: working, label: 'Working 2' },
-        { reps: 5, weight: working, label: 'Working 3' }
-      ];
-      return cfg5x5.map((cfg, idx) => ({
-        id: `set_${ts}_${idx}`,
-        setNumber: idx + 1,
-        type: cfg.label,
-        reps: cfg.reps,
-        weight: cfg.weight,
-        completed: false,
-        completedAt: null,
-        restLoggedSeconds: null,
-        interLiftSeconds: null
-      }));
-    }
-    case '3x5': {
-      const working = roundTo5(base1RM * 0.85);
-      return Array.from({ length: 3 }, (_, idx) => ({
-        id: `set_${ts}_${idx}`,
-        setNumber: idx + 1,
-        type: `Working ${idx + 1}`,
-        reps: 5,
-        weight: working,
-        completed: false,
-        completedAt: null,
-        restLoggedSeconds: null,
-        interLiftSeconds: null
-      }));
-    }
-    case 'Pyramid': {
-      const pyramidConfig = [
-        { reps: 8, pct: 0.70, label: 'Pyramid 8x' },
-        { reps: 5, pct: 0.80, label: 'Pyramid 5x' },
-        { reps: 3, pct: 0.88, label: 'Pyramid 3x' },
-        { reps: 2, pct: 0.92, label: 'Pyramid 2x' },
-        { reps: 1, pct: 0.96, label: 'Peak 1x' }
-      ];
-      return pyramidConfig.map((cfg, idx) => ({
-        id: `set_${ts}_${idx}`,
-        setNumber: idx + 1,
-        type: cfg.label,
-        reps: cfg.reps,
-        weight: roundTo5(base1RM * cfg.pct),
-        completed: false,
-        completedAt: null,
-        restLoggedSeconds: null,
-        interLiftSeconds: null
-      }));
-    }
-    case 'Reverse Pyramid': {
-      const warmupWeight = roundTo5(base1RM * 0.50);
-      const topSetWeight = roundTo5(base1RM * 0.85);
-      const set3Weight = roundTo5(topSetWeight * 0.90);
-      const set4Weight = roundTo5(set3Weight * 0.90);
-      const set5Weight = roundTo5(set4Weight * 0.90);
-      const rptConfig = [
-        { reps: 8, weight: warmupWeight, label: 'Light Warmup' },
-        { reps: 4, weight: topSetWeight, label: 'Top Set' },
-        { reps: 6, weight: set3Weight, label: 'Drop -10%' },
-        { reps: 8, weight: set4Weight, label: 'Drop -10%' },
-        { reps: 10, weight: set5Weight, label: 'Drop -10%' }
-      ];
-      return rptConfig.map((cfg, idx) => ({
-        id: `set_${ts}_${idx}`,
-        setNumber: idx + 1,
-        type: cfg.label,
-        reps: cfg.reps,
-        weight: cfg.weight,
-        completed: false,
-        completedAt: null,
-        restLoggedSeconds: null,
-        interLiftSeconds: null
-      }));
-    }
+    case '5x5':
+      return buildWithLastAndTarget(Array.from({ length: 5 }, () => ({ type: 'Working Set', reps: 5 })));
+    case '8x8':
+      return buildWithLastAndTarget(Array.from({ length: 8 }, () => ({ type: 'Working Set', reps: 8 })));
+    case 'Pyramid':
+      return buildWithLastAndTarget([
+        { reps: 8, type: 'Warmup Set' },
+        { reps: 5, type: 'Working Set' },
+        { reps: 3, type: 'Working Set' },
+        { reps: 2, type: 'Working Set' },
+        { reps: 1, type: 'Top Out Set' }
+      ]);
+    case 'Reverse Pyramid':
+      return buildWithLastAndTarget([
+        { reps: 8, type: 'Warmup Set' },
+        { reps: 4, type: 'Top Out Set' },
+        { reps: 6, type: 'Working Set' },
+        { reps: 8, type: 'Working Set' },
+        { reps: 10, type: 'Working Set' }
+      ]);
     case '5x8':
-    default: {
-      const wu1 = roundTo5(base1RM * 0.50);
-      const wu2 = roundTo5(base1RM * 0.65);
-      const working = roundTo5(base1RM * 0.75);
-      const defaultConfig = [
-        { reps: 8, weight: wu1, label: 'Warmup 1' },
-        { reps: 8, weight: wu2, label: 'Warmup 2' },
-        { reps: 8, weight: working, label: 'Working 1' },
-        { reps: 8, weight: working, label: 'Working 2' },
-        { reps: 8, weight: working, label: 'Working 3' }
-      ];
-      return defaultConfig.map((cfg, idx) => ({
-        id: `set_${ts}_${idx}`,
-        setNumber: idx + 1,
-        type: cfg.label,
-        reps: cfg.reps,
-        weight: cfg.weight,
-        completed: false,
-        completedAt: null,
-        restLoggedSeconds: null,
-        interLiftSeconds: null
-      }));
-    }
+    default:
+      return buildWithLastAndTarget(Array.from({ length: 5 }, () => ({ type: 'Working Set', reps: 8 })));
   }
 };
 
 const createWorkoutSlot = ({
-  category,
-  slotLabel,
-  exerciseId,
-  secondaryExerciseId = null,
-  scheme = '5x8',
-  oneRepMaxes = {},
-  restSeconds = 90
+  category, slotLabel, exerciseId, secondaryExerciseId = null, supersetExerciseIds = null,
+  scheme = '5x8', oneRepMaxes = {}, history = [], incrementLbs = 0, restSeconds = 90
 }) => {
-  const ex1 = EXERCISE_MAP[exerciseId] || EXERCISE_LIBRARY[0];
-  const ex2 = secondaryExerciseId ? EXERCISE_MAP[secondaryExerciseId] : null;
-  const uid = nextDeterministicId('slot');
+  const uid = `slot_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
 
-  const sets1 = generateSetsForScheme(
-    scheme,
-    oneRepMaxes[ex1.id] ?? ex1.default1RM,
-    category,
-    ex1.id
-  );
-  const sets2 = ex2
-    ? generateSetsForScheme(
-        scheme,
-        oneRepMaxes[ex2.id] ?? ex2.default1RM,
-        category,
-        ex2.id
-      )
-    : [];
+  if (category === 'Supersets') {
+    const rawIds =
+      Array.isArray(supersetExerciseIds) && supersetExerciseIds.length > 0
+        ? supersetExerciseIds
+        : [exerciseId, secondaryExerciseId].filter(Boolean);
+    const exA = rawIds[0] || 'reverse_lunge';
+    const exB = rawIds[1] || (exA === 'reverse_lunge' ? 'front_flies' : 'reverse_lunge');
+    const cleanIds = [exA, exB];
+
+    const setsByExercise = cleanIds.map(id => {
+      const calcMax = getHistoricalCalculated1RM(id, history, oneRepMaxes);
+      return generateSetsForScheme(scheme, calcMax, 'Supersets', id, incrementLbs);
+    });
+    return {
+      id: uid, category: 'Supersets', slotLabel: slotLabel || 'Superset', scheme, restSeconds,
+      exerciseId: cleanIds[0], secondaryExerciseId: cleanIds[1], supersetExerciseIds: cleanIds,
+      supersetSetsByExercise: setsByExercise, sets: setsByExercise[0] || [], secondarySets: setsByExercise[1] || []
+    };
+  }
+
+  const ex1 = EXERCISE_MAP[exerciseId] || EXERCISE_LIBRARY[0];
+  const calcMax1 = getHistoricalCalculated1RM(ex1.id, history, oneRepMaxes);
+  const sets1 = generateSetsForScheme(scheme, calcMax1, category, ex1.id, incrementLbs);
 
   return {
-    id: uid,
-    category,
-    slotLabel,
-    scheme,
-    restSeconds,
-    exerciseId: ex1.id,
-    secondaryExerciseId: ex2 ? ex2.id : null,
-    sets: sets1,
-    secondarySets: sets2
+    id: uid, category, slotLabel: slotLabel || category, scheme, restSeconds,
+    exerciseId: ex1.id, secondaryExerciseId: null, supersetExerciseIds: [ex1.id],
+    supersetSetsByExercise: [sets1], sets: sets1, secondarySets: []
   };
 };
 
-const normalizeSlotLabels = (slots) => {
+const normalizeSlotLabels = slots => {
   let compoundCount = 0;
   let supersetCount = 0;
-  return (slots || []).map(slot => {
-    const isCompound = slot.category === 'Compound Lift' || slot.category === 'Compound Lifts';
-    if (isCompound) {
-      compoundCount += 1;
-      return {
-        ...slot,
-        category: 'Compound Lift',
-        slotLabel: `Compound Lift ${compoundCount}`
-      };
-    }
-    if (slot.category === 'Supersets') {
-      supersetCount += 1;
-      return {
-        ...slot,
-        slotLabel: `Superset ${supersetCount}`
-      };
-    }
-    return slot;
-  });
+  return (slots || [])
+    .filter(slot => slot && slot.category !== 'Warm-Up Routine' && slot.exerciseId !== 'warmup_12_step')
+    .map(slot => {
+      if (slot.category === 'Compound Lift' || slot.category === 'Compound Lifts') {
+        compoundCount += 1;
+        return { ...slot, category: 'Compound Lift', slotLabel: `Compound Lift ${compoundCount}` };
+      }
+      if (slot.category === 'Supersets') {
+        supersetCount += 1;
+        const rawIds =
+          Array.isArray(slot.supersetExerciseIds) && slot.supersetExerciseIds.length > 0
+            ? slot.supersetExerciseIds
+            : [slot.exerciseId, slot.secondaryExerciseId].filter(Boolean);
+        const exA = rawIds[0] || 'reverse_lunge';
+        const exB = rawIds[1] || (exA === 'reverse_lunge' ? 'front_flies' : 'reverse_lunge');
+        return {
+          ...slot, slotLabel: `Superset ${supersetCount}`,
+          exerciseId: exA, secondaryExerciseId: exB, supersetExerciseIds: [exA, exB]
+        };
+      }
+      return slot;
+    });
 };
 
-const buildPresetSlots = (presetKey, oneRepMaxes) => {
+const DEFAULT_ROUTINES = [
+  { key: 'full_body_a', label: 'Generic Full Body A' },
+  { key: 'full_body_b', label: 'Generic Full Body B' },
+  { key: 'arms_only', label: 'Generic Arms Only' }
+];
+
+const buildPresetSlots = (presetKey, oneRepMaxes, history = [], incrementLbs = 0) => {
   switch (presetKey) {
+    case 'full_body_a':
     case 'mon_tue':
-    case 'fri_sat':
       return normalizeSlotLabels([
-        createWorkoutSlot({
-          category: 'Warm-Up Routine',
-          slotLabel: 'Warm-Up Routine',
-          exerciseId: 'warmup_12_step',
-          scheme: '5x8',
-          oneRepMaxes
-        }),
-        createWorkoutSlot({
-          category: 'Compound Lift',
-          slotLabel: 'Compound Lift 1',
-          exerciseId: 'dumbbell_press',
-          scheme: '5x8',
-          oneRepMaxes
-        }),
-        createWorkoutSlot({
-          category: 'Compound Lift',
-          slotLabel: 'Compound Lift 2',
-          exerciseId: 'meadows_row',
-          scheme: '5x8',
-          oneRepMaxes
-        }),
-        createWorkoutSlot({
-          category: 'Compound Lift',
-          slotLabel: 'Compound Lift 3',
-          exerciseId: 'front_squat',
-          scheme: '5x8',
-          oneRepMaxes
-        }),
-        createWorkoutSlot({
-          category: 'Supersets',
-          slotLabel: 'Superset 1',
-          exerciseId: 'reverse_lunge',
-          secondaryExerciseId: 'front_flies',
-          scheme: '5x8',
-          oneRepMaxes
-        }),
-        createWorkoutSlot({
-          category: 'Abs',
-          slotLabel: 'Abs',
-          exerciseId: 'hollow_holds',
-          scheme: '5x8',
-          oneRepMaxes
-        })
+        createWorkoutSlot({ category: 'Compound Lift', slotLabel: 'Compound Lift 1', exerciseId: 'barbell_bench_press', scheme: '5x8', oneRepMaxes, history, incrementLbs }),
+        createWorkoutSlot({ category: 'Compound Lift', slotLabel: 'Compound Lift 2', exerciseId: 'barbell_back_squat', scheme: '5x8', oneRepMaxes, history, incrementLbs }),
+        createWorkoutSlot({ category: 'Supersets', slotLabel: 'Superset 1', supersetExerciseIds: ['reverse_lunge', 'front_flies'], scheme: '5x8', oneRepMaxes, history, incrementLbs }),
+        createWorkoutSlot({ category: 'Abs', slotLabel: 'Abs Slot', exerciseId: 'hollow_holds', oneRepMaxes, history, incrementLbs })
       ]);
+    case 'full_body_b':
     case 'wed_thu':
       return normalizeSlotLabels([
-        createWorkoutSlot({
-          category: 'Warm-Up Routine',
-          slotLabel: 'Warm-Up Routine',
-          exerciseId: 'warmup_12_step',
-          scheme: '5x8',
-          oneRepMaxes
-        }),
-        createWorkoutSlot({
-          category: 'Compound Lift',
-          slotLabel: 'Compound Lift 1',
-          exerciseId: 'incline_bench_press',
-          scheme: '5x8',
-          oneRepMaxes
-        }),
-        createWorkoutSlot({
-          category: 'Compound Lift',
-          slotLabel: 'Compound Lift 2',
-          exerciseId: 'landmine_rdl',
-          scheme: '5x8',
-          oneRepMaxes
-        }),
-        createWorkoutSlot({
-          category: 'Compound Lift',
-          slotLabel: 'Compound Lift 3',
-          exerciseId: 'split_squat',
-          scheme: '5x8',
-          oneRepMaxes
-        }),
-        createWorkoutSlot({
-          category: 'Supersets',
-          slotLabel: 'Superset 1',
-          exerciseId: 'pistol_squats',
-          secondaryExerciseId: 'reverse_flies',
-          scheme: '5x8',
-          oneRepMaxes
-        }),
-        createWorkoutSlot({
-          category: 'Abs',
-          slotLabel: 'Abs',
-          exerciseId: 'hollow_holds',
-          scheme: '5x8',
-          oneRepMaxes
-        })
+        createWorkoutSlot({ category: 'Compound Lift', slotLabel: 'Compound Lift 1', exerciseId: 'barbell_deadlift', scheme: '5x8', oneRepMaxes, history, incrementLbs }),
+        createWorkoutSlot({ category: 'Compound Lift', slotLabel: 'Compound Lift 2', exerciseId: 'overhead_press', scheme: '5x8', oneRepMaxes, history, incrementLbs }),
+        createWorkoutSlot({ category: 'Supersets', slotLabel: 'Superset 1', supersetExerciseIds: ['pistol_squats', 'reverse_flies'], scheme: '5x8', oneRepMaxes, history, incrementLbs }),
+        createWorkoutSlot({ category: 'Abs', slotLabel: 'Abs Slot', exerciseId: 'hollow_holds', oneRepMaxes, history, incrementLbs })
       ]);
+    case 'arms_only':
     case 'arms_pump':
       return normalizeSlotLabels([
-        createWorkoutSlot({
-          category: 'Warm-Up Routine',
-          slotLabel: 'Warm-Up Routine',
-          exerciseId: 'warmup_12_step',
-          scheme: '5x8',
-          oneRepMaxes
-        }),
-        createWorkoutSlot({
-          category: 'Compound Lift',
-          slotLabel: 'Compound Lift 1',
-          exerciseId: 'meadows_row',
-          scheme: '5x8',
-          oneRepMaxes
-        }),
-        createWorkoutSlot({
-          category: 'Compound Lift',
-          slotLabel: 'Compound Lift 2',
-          exerciseId: 'incline_bench_press',
-          scheme: '5x8',
-          oneRepMaxes
-        }),
-        createWorkoutSlot({
-          category: 'Supersets',
-          slotLabel: 'Superset 1',
-          exerciseId: 'reverse_flies',
-          secondaryExerciseId: 'band_pulldown',
-          scheme: '5x8',
-          oneRepMaxes
-        }),
-        createWorkoutSlot({
-          category: 'Supersets',
-          slotLabel: 'Superset 2',
-          exerciseId: 'front_raise_ez_bar',
-          secondaryExerciseId: 'side_raise_dumbbell',
-          scheme: '5x8',
-          oneRepMaxes
-        })
+        createWorkoutSlot({ category: 'Compound Lift', slotLabel: 'Compound Lift 1', exerciseId: 'chin_ups', scheme: '5x8', oneRepMaxes, history, incrementLbs }),
+        createWorkoutSlot({ category: 'Compound Lift', slotLabel: 'Compound Lift 2', exerciseId: 'incline_bench_press', scheme: '5x8', oneRepMaxes, history, incrementLbs }),
+        createWorkoutSlot({ category: 'Supersets', slotLabel: 'Superset 1', supersetExerciseIds: ['barbell_bicep_curl', 'tricep_skullcrusher'], scheme: '5x8', oneRepMaxes, history, incrementLbs }),
+        createWorkoutSlot({ category: 'Supersets', slotLabel: 'Supersets', supersetExerciseIds: ['dumbbell_hammer_curl', 'side_raise_dumbbell'], scheme: '5x8', oneRepMaxes, history, incrementLbs })
       ]);
-    case 'legs_pump':
     default:
       return [];
   }
 };
-
-const STORAGE_KEYS = {
-  USER: 'ironpulse_user_v1',
-  MAXES: 'ironpulse_1rm_v1',
-  HISTORY: 'ironpulse_history_v1',
-  ACTIVE_SESSION: 'ironpulse_active_session_v1',
-  CUSTOM_PRESETS: 'ironpulse_custom_presets_v1'
-};
-
-const BUILTIN_PRESETS = [
-  { key: 'mon_tue', label: 'LS Mon/Tue Oct/Nov' },
-  { key: 'wed_thu', label: 'LS Wed/Thu Oct/Nov' },
-  { key: 'fri_sat', label: 'LS Fri/Sat Oct/Nov' },
-  { key: 'arms_pump', label: 'LS Arms Pump Oct/Nov' },
-  { key: 'legs_pump', label: 'LS Legs Pump Oct/Nov' }
-];
 
 const getInitial1RMs = () => {
   const map = {};
@@ -1247,178 +771,21 @@ const getInitial1RMs = () => {
   return map;
 };
 
-// Uses static ISO strings so Next.js 16 Prerendering / Cache Components never fails on new Date()
-const getInitialSeedHistory = (oneRepMaxes) => {
-  const yesterday = '2025-02-20T18:00:00.000Z';
-  const fourDaysAgo = '2025-02-17T18:00:00.000Z';
-
-  const slotsYesterday = normalizeSlotLabels([
-    createWorkoutSlot({
-      category: 'Warm-Up Routine',
-      slotLabel: 'Warm-Up Routine',
-      exerciseId: 'warmup_12_step',
-      oneRepMaxes
-    }),
-    createWorkoutSlot({
-      category: 'Compound Lift',
-      slotLabel: 'Compound Lift 1',
-      exerciseId: 'barbell_bench_press',
-      scheme: 'Pyramid',
-      oneRepMaxes
-    }),
-    createWorkoutSlot({
-      category: 'Compound Lift',
-      slotLabel: 'Compound Lift 2',
-      exerciseId: 'incline_bench_press',
-      scheme: '5x8',
-      oneRepMaxes
-    }),
-    createWorkoutSlot({
-      category: 'Abs',
-      slotLabel: 'Abs',
-      exerciseId: 'hollow_holds',
-      oneRepMaxes
-    })
-  ]).map(slot => ({
-    ...slot,
-    sets: slot.sets.map(s => ({
-      ...s,
-      completed: true,
-      completedAt: yesterday,
-      restLoggedSeconds: 92,
-      interLiftSeconds: 130
-    }))
-  }));
-
-  const slotsFourDaysAgo = buildPresetSlots('wed_thu', oneRepMaxes).map((slot, sIdx) => ({
-    ...slot,
-    sets: slot.sets.map((s, idx) => {
-      const isLeftIncomplete = sIdx === 2 && idx >= 3;
-      return {
-        ...s,
-        completed: !isLeftIncomplete,
-        completedAt: !isLeftIncomplete ? fourDaysAgo : null,
-        restLoggedSeconds: !isLeftIncomplete ? 95 : null,
-        interLiftSeconds: !isLeftIncomplete ? 140 : null
-      };
-    }),
-    secondarySets: (slot.secondarySets || []).map(s => ({
-      ...s,
-      completed: true,
-      completedAt: fourDaysAgo,
-      restLoggedSeconds: 88,
-      interLiftSeconds: 115
-    }))
-  }));
-
-  return [
-    {
-      id: 'hist_yesterday_push',
-      title: 'Upper Push & Barbell Bench Session',
-      presetUsed: 'Custom Push',
-      startedAt: yesterday,
-      updatedAt: yesterday,
-      defaultRestSeconds: 90,
-      isComplete: true,
-      verifiedByUser: true,
-      slots: slotsYesterday
-    },
-    {
-      id: 'hist_4days_wed_thu',
-      title: 'LS Wed/Thu Oct/Nov',
-      presetUsed: 'wed_thu',
-      startedAt: fourDaysAgo,
-      updatedAt: fourDaysAgo,
-      defaultRestSeconds: 90,
-      isComplete: false,
-      verifiedByUser: false,
-      slots: slotsFourDaysAgo
-    }
-  ];
-};
-
-const checkIsWorkoutComplete = (slots) => {
+const checkIsWorkoutComplete = slots => {
   if (!slots || slots.length === 0) return false;
   for (const slot of slots) {
-    if (!slot.sets || slot.sets.length === 0) return false;
-    if (slot.sets.some(s => !s.completed)) return false;
-    if (slot.secondaryExerciseId && slot.secondarySets?.some(s => !s.completed)) {
-      return false;
+    if (slot.category === 'Supersets' && Array.isArray(slot.supersetSetsByExercise)) {
+      for (const list of slot.supersetSetsByExercise) {
+        if (!list || list.some(s => !s.completed)) return false;
+      }
+    } else {
+      if (!slot.sets || slot.sets.length === 0 || slot.sets.some(s => !s.completed)) return false;
     }
   }
   return true;
 };
 
-const calculateUpdated1RMsFromWorkouts = (workouts, currentMaxes) => {
-  const updated = { ...currentMaxes };
-  let changesCount = 0;
-
-  workouts.forEach(workout => {
-    if (!workout.isComplete && !workout.verifiedByUser) return;
-    (workout.slots || []).forEach(slot => {
-      if (slot.category === 'Warm-Up Routine' || slot.category === 'Abs') return;
-      const processSetList = (exId, sets) => {
-        if (!exId || !sets) return;
-        sets.forEach(s => {
-          if (s.completed && s.weight > 0 && s.reps > 0) {
-            const estimated = Math.round(s.weight * (1 + s.reps / 30));
-            const current = updated[exId] || 0;
-            if (estimated > current) {
-              updated[exId] = roundTo5(estimated);
-              changesCount++;
-            }
-          }
-        });
-      };
-      processSetList(slot.exerciseId, slot.sets);
-      if (slot.secondaryExerciseId) {
-        processSetList(slot.secondaryExerciseId, slot.secondarySets);
-      }
-    });
-  });
-
-  return { updatedMaxes: updated, changesCount };
-};
-
-const playTimerDing = () => {
-  try {
-    const AudioCtx = window.AudioContext || window.webkitAudioContext;
-    if (!AudioCtx) return;
-    const ctx = new AudioCtx();
-    const now = ctx.currentTime;
-    const osc1 = ctx.createOscillator();
-    const osc2 = ctx.createOscillator();
-    const gain1 = ctx.createGain();
-    const gain2 = ctx.createGain();
-
-    osc1.type = 'sine';
-    osc1.frequency.setValueAtTime(880, now);
-    osc1.frequency.exponentialRampToValueAtTime(1318.5, now + 0.12);
-
-    osc2.type = 'triangle';
-    osc2.frequency.setValueAtTime(1760, now);
-
-    gain1.gain.setValueAtTime(0.35, now);
-    gain1.gain.exponentialRampToValueAtTime(0.0001, now + 1.4);
-
-    gain2.gain.setValueAtTime(0.18, now);
-    gain2.gain.exponentialRampToValueAtTime(0.0001, now + 0.8);
-
-    osc1.connect(gain1);
-    osc2.connect(gain2);
-    gain1.connect(ctx.destination);
-    gain2.connect(ctx.destination);
-
-    osc1.start(now);
-    osc2.start(now);
-    osc1.stop(now + 1.45);
-    osc2.stop(now + 0.85);
-  } catch {
-    // Ignore audio context autoplay errors
-  }
-};
-
-const formatTimerSeconds = (sec) => {
+const formatTimerSeconds = sec => {
   const isNeg = sec < 0;
   const abs = Math.abs(sec);
   const mins = Math.floor(abs / 60);
@@ -1427,295 +794,483 @@ const formatTimerSeconds = (sec) => {
   return isNeg ? `-${formatted}` : formatted;
 };
 
-// ============================================================================
-// 3. NATIVE iOS 17/18 UIKIT / SWIFTUI PRIMITIVES (INSET GROUPED LIST, SHEETS)
-// ============================================================================
+const cloneSlots = slots => {
+  if (!Array.isArray(slots)) return [];
+  if (typeof structuredClone === 'function') {
+    try {
+      return structuredClone(slots);
+    } catch {
+      // Fallback below
+    }
+  }
+  return JSON.parse(JSON.stringify(slots));
+};
 
-const IOSListSection = ({ header, footer, children, colors }) => (
-  <section style={{ marginBottom: '24px', paddingLeft: '16px', paddingRight: '16px' }}>
-    {header && (
-      <div
-        style={{
-          ...IOS_TEXT.footnote,
-          color: colors.secondaryLabel,
-          textTransform: 'uppercase',
-          paddingLeft: '16px',
-          paddingRight: '16px',
-          paddingBottom: '6px'
-        }}
-      >
-        {header}
-      </div>
-    )}
-    <div
-      style={{
-        backgroundColor: colors.secondarySystemGroupedBackground,
-        borderRadius: '10px',
-        overflow: 'hidden'
-      }}
-    >
-      {children}
-    </div>
-    {footer && (
-      <div
-        style={{
-          ...IOS_TEXT.footnote,
-          color: colors.secondaryLabel,
-          paddingLeft: '16px',
-          paddingRight: '16px',
-          paddingTop: '6px'
-        }}
-      >
-        {footer}
-      </div>
-    )}
-  </section>
-);
+const SessionRestTimerBar = React.memo(function SessionRestTimerBar({
+  defaultRestSeconds = 90,
+  timerTrigger,
+  nextLiftInfo = { topLine: '', bottomLine: '' },
+  onChangeDefaultRest,
+  onStopTimer
+}) {
+  const [remaining, setRemaining] = useState(defaultRestSeconds);
 
-const IOSListRow = ({
-  children,
-  onClick,
-  isLast = false,
-  colors,
-  minHeight = '44px',
-  padding = '11px 16px'
-}) => (
-  <div
-    onClick={onClick}
-    style={{
-      position: 'relative',
-      minHeight,
-      padding,
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      gap: '12px',
-      cursor: onClick ? 'pointer' : 'default',
-      WebkitTapHighlightColor: 'transparent'
-    }}
-  >
-    {children}
-    {!isLast && (
-      <div
-        style={{
-          position: 'absolute',
-          bottom: 0,
-          left: '16px',
-          right: 0,
-          height: '0.5px',
-          backgroundColor: colors.separator
-        }}
-      />
-    )}
-  </div>
-);
+  useEffect(() => {
+    if (!timerTrigger.isRunning || !timerTrigger.startedAtMs) {
+      setRemaining(timerTrigger.targetSeconds || defaultRestSeconds);
+      return;
+    }
+    const update = () => {
+      const elapsed = Math.floor((Date.now() - timerTrigger.startedAtMs) / 1000);
+      setRemaining(timerTrigger.targetSeconds - elapsed);
+    };
+    update();
+    const id = setInterval(update, 250);
+    return () => clearInterval(id);
+  }, [timerTrigger, defaultRestSeconds]);
 
-const IOSSegmentedControl = ({ options, value, onChange, colors }) => (
-  <div
-    style={{
-      backgroundColor: colors.tertiarySystemFill,
-      borderRadius: '8.9px',
-      padding: '2px',
-      display: 'grid',
-      gridTemplateColumns: `repeat(${options.length}, minmax(0, 1fr))`,
-      gap: '2px'
-    }}
-  >
-    {options.map(opt => {
-      const active = opt.value === value;
-      return (
-        <button
-          key={opt.value}
-          type="button"
-          onClick={() => onChange(opt.value)}
-          style={{
-            ...IOS_TEXT.footnote,
-            fontWeight: active ? 600 : 500,
-            color: colors.label,
-            backgroundColor: active ? colors.tertiarySystemBackground : 'transparent',
-            border: 'none',
-            borderRadius: '6.9px',
-            padding: '6px 8px',
-            cursor: 'pointer',
-            boxShadow: active ? '0 1px 3px rgba(0,0,0,0.18)' : 'none',
-            transition: 'all 0.15s ease'
-          }}
-        >
-          {opt.label}
-        </button>
-      );
-    })}
-  </div>
-);
-
-const IOSSheet = ({ isOpen, onClose, title, leftLabel = 'Cancel', rightLabel, onRightAction, colors, children }) => {
-  if (!isOpen) return null;
   return (
     <div
       style={{
-        position: 'fixed',
-        inset: 0,
-        zIndex: 60,
-        backgroundColor: 'rgba(0, 0, 0, 0.45)',
-        display: 'flex',
-        alignItems: 'flex-end',
-        justifyContent: 'center'
+        marginTop: '10px', paddingTop: '10px', borderTop: '2px solid var(--dp-color-rule)',
+        display: 'grid', gridTemplateColumns: 'auto minmax(0, 1fr)', alignItems: 'stretch', gap: '8px'
       }}
     >
-      <div
-        style={{
-          width: '100%',
-          maxWidth: '430px',
-          maxHeight: '88vh',
-          backgroundColor: colors.systemGroupedBackground,
-          borderTopLeftRadius: '14px',
-          borderTopRightRadius: '14px',
-          display: 'flex',
-          flexDirection: 'column',
-          overflow: 'hidden',
-          boxShadow: '0 -8px 30px rgba(0,0,0,0.35)'
-        }}
-      >
-        <div style={{ paddingTop: '6px', paddingBottom: '4px', display: 'flex', justifyContent: 'center' }}>
-          <div
-            style={{
-              width: '36px',
-              height: '5px',
-              borderRadius: '2.5px',
-              backgroundColor: colors.systemFill
-            }}
-          />
-        </div>
-
-        <div
+      {timerTrigger.isRunning ? (
+        <button
+          type="button"
+          onClick={onStopTimer}
+          title="Tap to stop rest timer"
+          className="kinetic-btn"
           style={{
-            minHeight: '44px',
-            padding: '4px 16px 10px',
-            display: 'grid',
-            gridTemplateColumns: '80px 1fr 80px',
-            alignItems: 'center',
-            borderBottom: `0.5px solid ${colors.separator}`
+            backgroundColor: '#FF3B30', color: '#FFFFFF', border: '2px solid #FFFFFF',
+            padding: '6px 12px', display: 'flex', alignItems: 'center', gap: '6px',
+            fontSize: '13px', fontWeight: 800, textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap'
           }}
         >
-          <button
-            type="button"
-            onClick={onClose}
+          <SFSymbol name="clock" size={14} color="#FFFFFF" />
+          <span>{formatTimerSeconds(remaining)}</span>
+        </button>
+      ) : (
+        <div
+          style={{
+            display: 'flex', alignItems: 'center', gap: '6px',
+            backgroundColor: '#101010', border: '2px solid var(--dp-color-rule)', padding: '4px 8px'
+          }}
+        >
+          <SFSymbol name="clock" size={14} color="var(--dp-color-accent)" />
+          <select
+            value={defaultRestSeconds}
+            onChange={e => onChangeDefaultRest(Number(e.target.value))}
             style={{
-              ...IOS_TEXT.body,
-              color: colors.systemBlue,
-              background: 'none',
-              border: 'none',
-              textAlign: 'left',
-              padding: 0,
-              cursor: 'pointer'
+              backgroundColor: '#101010', color: '#FFFFFF', border: 'none',
+              fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', outline: 'none', cursor: 'pointer'
             }}
           >
-            {leftLabel}
-          </button>
-
-          <div
-            style={{
-              ...IOS_TEXT.headline,
-              color: colors.label,
-              textAlign: 'center',
-              whiteSpace: 'nowrap',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis'
-            }}
-          >
-            {title}
-          </div>
-
-          <div style={{ textAlign: 'right' }}>
-            {rightLabel && (
-              <button
-                type="button"
-                onClick={onRightAction}
-                style={{
-                  ...IOS_TEXT.headline,
-                  color: colors.systemBlue,
-                  background: 'none',
-                  border: 'none',
-                  padding: 0,
-                  cursor: 'pointer'
-                }}
-              >
-                {rightLabel}
-              </button>
-            )}
-          </div>
+            <option value={60}>REST 1:00</option>
+            <option value={90}>REST 1:30</option>
+            <option value={120}>REST 2:00</option>
+            <option value={180}>REST 3:00</option>
+          </select>
         </div>
+      )}
 
-        <div style={{ overflowY: 'auto', paddingTop: '16px', paddingBottom: '28px' }}>
-          {children}
+      <div
+        style={{
+          minWidth: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center',
+          padding: '5px 10px', backgroundColor: 'var(--dp-color-accent)', color: '#101010',
+          border: '2px solid var(--dp-color-rule)'
+        }}
+      >
+        <div
+          style={{
+            fontSize: '11px', fontWeight: 800, lineHeight: 1.15,
+            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', textTransform: 'uppercase'
+          }}
+        >
+          {nextLiftInfo.topLine || 'NO EXERCISES QUEUED'}
+        </div>
+        <div
+          style={{
+            fontSize: '10px', fontWeight: 800, lineHeight: 1.15, opacity: 0.9,
+            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+            textTransform: 'uppercase', marginTop: '2px'
+          }}
+        >
+          {nextLiftInfo.bottomLine || ''}
         </div>
       </div>
     </div>
   );
+});
+
+// ============================================================================
+// 5. UPDATE-RESILIENT PERSISTENCE & SCHEMA MIGRATION ENGINE (V3)
+// ============================================================================
+
+const PERSISTENCE_KEY = 'yccih_app_state_v3';
+const CURRENT_SCHEMA_VERSION = 3;
+
+const DEFAULT_SETTINGS_V2 = {
+  schemaVersion: CURRENT_SCHEMA_VERSION,
+  bodyMetrics: { bodyweightLbs: 220, heightFeet: 5, heightInches: 10 },
+  goals: {
+    goalType: 'Strength', goalIncrement: 1.25, goalUnit: 'lb',
+    chartMetric: 'weight', targetStandardClass: 'Intermediate', customGoalWeights: {}
+  },
+  stimulus: { greenDays: 2, yellowDays: 4 },
+  routinePreferences: ['Compounds', 'Compounds', 'Supersets', 'Supersets', 'Abs'],
+  social: { shareStatsWithFriends: true, shareRoutinesWithFriends: true },
+  selectedGymId: ''
+};
+
+const normalizeSlotFromStorage = slot => {
+  if (!slot || slot.category === 'Warm-Up Routine' || slot.exerciseId === 'warmup_12_step') return null;
+  const ex1 = EXERCISE_MAP[slot.exerciseId] || EXERCISE_LIBRARY[0];
+  const familyMuscleGroup = slot.familyMuscleGroup || ex1?.muscleGroup || 'Chest';
+  const sets = Array.isArray(slot.sets) ? slot.sets : [];
+
+  if (slot.category === 'Supersets') {
+    const supIds =
+      Array.isArray(slot.supersetExerciseIds) && slot.supersetExerciseIds.length > 0
+        ? slot.supersetExerciseIds
+        : [slot.exerciseId, slot.secondaryExerciseId].filter(Boolean);
+    const exA = supIds[0] || 'reverse_lunge';
+    const exB = supIds[1] || (exA === 'reverse_lunge' ? 'front_flies' : 'reverse_lunge');
+    const cleanSupIds = [exA, exB];
+    const supSets =
+      Array.isArray(slot.supersetSetsByExercise) && slot.supersetSetsByExercise.length >= 2
+        ? [slot.supersetSetsByExercise[0], slot.supersetSetsByExercise[1]]
+        : [sets, Array.isArray(slot.secondarySets) && slot.secondarySets.length > 0 ? slot.secondarySets : cloneSlots(sets)];
+
+    return {
+      ...slot,
+      exerciseId: cleanSupIds[0],
+      secondaryExerciseId: cleanSupIds[1],
+      familyMuscleGroup,
+      exerciseNameSnapshot: slot.exerciseNameSnapshot || ex1?.name || slot.exerciseId,
+      supersetExerciseIds: cleanSupIds,
+      supersetSetsByExercise: supSets,
+      sets: supSets[0] || sets,
+      secondarySets: supSets[1] || []
+    };
+  }
+
+  return {
+    ...slot,
+    exerciseId: ex1.id,
+    familyMuscleGroup,
+    exerciseNameSnapshot: slot.exerciseNameSnapshot || ex1.name,
+    supersetExerciseIds: [ex1.id],
+    supersetSetsByExercise: [sets],
+    sets
+  };
+};
+
+const normalizeWorkoutFromStorage = workout => {
+  if (!workout) return null;
+  const rawSlots = Array.isArray(workout.slots) ? workout.slots : [];
+  const normalizedSlots = normalizeSlotLabels(rawSlots.map(normalizeSlotFromStorage).filter(Boolean));
+  return { ...workout, schemaVersion: CURRENT_SCHEMA_VERSION, slots: normalizedSlots };
+};
+
+const loadHydratedAppState = () => {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = window.localStorage.getItem(PERSISTENCE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object') return null;
+
+    const initialMaxes = getInitial1RMs();
+    const mergedMaxes = { ...initialMaxes, ...(parsed.oneRepMaxes || {}) };
+
+    const cleanedRoutinePrefs = Array.isArray(parsed.settings?.routinePreferences)
+      ? parsed.settings.routinePreferences.filter(p => p !== 'Warmup')
+      : [];
+
+    const mergedSettings = {
+      ...DEFAULT_SETTINGS_V2,
+      ...(parsed.settings || {}),
+      bodyMetrics: { ...DEFAULT_SETTINGS_V2.bodyMetrics, ...(parsed.settings?.bodyMetrics || {}) },
+      goals: {
+        ...DEFAULT_SETTINGS_V2.goals,
+        ...(parsed.settings?.goals || {}),
+        customGoalWeights: {
+          ...DEFAULT_SETTINGS_V2.goals.customGoalWeights,
+          ...(parsed.settings?.goals?.customGoalWeights || {})
+        }
+      },
+      stimulus: { ...DEFAULT_SETTINGS_V2.stimulus, ...(parsed.settings?.stimulus || {}) },
+      social: { ...DEFAULT_SETTINGS_V2.social, ...(parsed.settings?.social || {}) },
+      routinePreferences: cleanedRoutinePrefs.length > 0 ? cleanedRoutinePrefs : DEFAULT_SETTINGS_V2.routinePreferences
+    };
+
+    const hydratedHistory = Array.isArray(parsed.history)
+      ? parsed.history.map(normalizeWorkoutFromStorage).filter(Boolean)
+      : [];
+
+    const hydratedSavedRoutines = Array.isArray(parsed.savedRoutines)
+      ? parsed.savedRoutines.map(r => ({
+        ...r,
+        slots: normalizeSlotLabels((r.slots || []).map(normalizeSlotFromStorage).filter(Boolean))
+      }))
+      : [];
+
+    const hydratedSharedRoutines = Array.isArray(parsed.sharedRoutines)
+      ? parsed.sharedRoutines.map(r => ({
+        ...r,
+        slots: normalizeSlotLabels((r.slots || []).map(normalizeSlotFromStorage).filter(Boolean))
+      }))
+      : [];
+
+    return {
+      user: parsed.user !== undefined ? parsed.user : null,
+      oneRepMaxes: mergedMaxes,
+      history: hydratedHistory,
+      activeSession: parsed.activeSession ? normalizeWorkoutFromStorage(parsed.activeSession) : null,
+      savedRoutines: hydratedSavedRoutines,
+      sharedRoutines: hydratedSharedRoutines,
+      gyms: Array.isArray(parsed.gyms) ? parsed.gyms : [],
+      friendsList: Array.isArray(parsed.friendsList) ? parsed.friendsList : [],
+      pendingIncomingRequests: Array.isArray(parsed.pendingIncomingRequests) ? parsed.pendingIncomingRequests : [],
+      outgoingInvites: Array.isArray(parsed.outgoingInvites) ? parsed.outgoingInvites : [],
+      settings: mergedSettings
+    };
+  } catch (err) {
+    console.warn('State hydration warning, falling back to defaults:', err);
+    return null;
+  }
 };
 
 // ============================================================================
-// 4. MAIN NATIVE iOS 17/18 APPLICATION
+// 6. MAIN KINETIC APPLICATION COMPONENT
 // ============================================================================
 
 export default function App() {
-  const [isDarkMode, setIsDarkMode] = useState(true);
-  const colors = useMemo(() => getSystemColors(isDarkMode), [isDarkMode]);
+  const colors = IOS_DARK;
 
-  const [isRealMobileViewport, setIsRealMobileViewport] = useState(false);
-  useEffect(() => {
-    const checkViewport = () => {
-      setIsRealMobileViewport(window.innerWidth <= 480);
-    };
-    checkViewport();
-    window.addEventListener('resize', checkViewport);
-    return () => window.removeEventListener('resize', checkViewport);
-  }, []);
+  const hydratedRef = useRef(undefined);
+  if (hydratedRef.current === undefined) {
+    hydratedRef.current = loadHydratedAppState();
+  }
+  const initialHydrated = hydratedRef.current;
 
-  // SSR-Safe Deterministic Initial States (Hydrated on Mount in useEffect)
-  const [hasHydratedStorage, setHasHydratedStorage] = useState(false);
-  const [user, setUser] = useState(() =>
-    supabaseCloud.isConfigured ? null : { email: 'athlete@ironpulse.app', id: 'usr_demo_01' }
-  );
-  const [authMode, setAuthMode] = useState('login');
-  const [authName, setAuthName] = useState('');
-  const [authEmail, setAuthEmail] = useState('');
-  const [authPassword, setAuthPassword] = useState('');
-  const [authConfirmPassword, setAuthConfirmPassword] = useState('');
-  const [authLoading, setAuthLoading] = useState(false);
-
-  const [oneRepMaxes, setOneRepMaxes] = useState(() => getInitial1RMs());
-  const [history, setHistory] = useState(() => getInitialSeedHistory(getInitial1RMs()));
-  const [activeSession, setActiveSession] = useState(null);
-  const [historicalDraft, setHistoricalDraft] = useState(null);
+  // --- Navigation & Drawer State ---
   const [currentView, setCurrentView] = useState('home');
+  const [showHamburgerDrawer, setShowHamburgerDrawer] = useState(false);
+  const [marqueePaused, setMarqueePaused] = useState(false);
+  const importBackupInputRef = useRef(null);
 
-  const [bannerMessage, setBannerMessage] = useState(null);
-  const triggerBanner = (msg, type = 'info') => {
-    setBannerMessage({ msg, type });
-    setTimeout(() => {
-      setBannerMessage(prev => (prev?.msg === msg ? null : prev));
-    }, 4000);
-  };
+  // --- User & Auth State ---
+  const [user, setUser] = useState(() => (initialHydrated?.user !== undefined ? initialHydrated.user : null));
+  const [authMode, setAuthMode] = useState('login');
+  const [authUsername, setAuthUsername] = useState(() => initialHydrated?.user?.username || '');
+  const [authEmail, setAuthEmail] = useState(() => initialHydrated?.user?.email || '');
+  const [authPassword, setAuthPassword] = useState('');
+  const [signupUsername, setSignupUsername] = useState('');
+  const [signupEmail, setSignupEmail] = useState('');
+  const [signupPassword, setSignupPassword] = useState('');
+  const [signupBetaCode, setSignupBetaCode] = useState('');
+  const fileInputRef = useRef(null);
 
-  const [selectedSlotIds, setSelectedSlotIds] = useState([]);
-  const [collapsedSlotIds, setCollapsedSlotIds] = useState([]);
-  const toggleCollapseSlot = (slotId) => {
-    setCollapsedSlotIds(prev =>
-      prev.includes(slotId) ? prev.filter(id => id !== slotId) : [...prev, slotId]
-    );
-  };
+  // --- 1RM & History State ---
+  const [oneRepMaxes, setOneRepMaxes] = useState(() => initialHydrated?.oneRepMaxes || getInitial1RMs());
+  const [history, setHistory] = useState(() => initialHydrated?.history || []);
 
-  const [customPresets, setCustomPresets] = useState([]);
-  const [showSavePresetModal, setShowSavePresetModal] = useState(false);
-  const [newPresetName, setNewPresetName] = useState('Custom Workout');
+  // --- Active Session, Historical Entry, Routine Editor & Preview State ---
+  const [activeSession, setActiveSession] = useState(() => initialHydrated?.activeSession || null);
+  const [historicalDraft, setHistoricalDraft] = useState(null);
+  const [routineDraft, setRoutineDraft] = useState(null);
+  const [previewRoutineDraft, setPreviewRoutineDraft] = useState(null);
+  const [routineSelectReturnView, setRoutineSelectReturnView] = useState(null);
+  const [isCurrentEditorShared, setIsCurrentEditorShared] = useState(false);
 
+  // --- Delete Confirmation Modal State (for Exercise Slot or Individual Set) ---
+  const [deleteConfirmTarget, setDeleteConfirmTarget] = useState(null);
+
+  // --- Add Exercise Modal State ---
   const [showAddSlotModal, setShowAddSlotModal] = useState(false);
+  const [addSlotGymFilter, setAddSlotGymFilter] = useState('');
   const [newSlotCategory, setNewSlotCategory] = useState('Compound Lift');
   const [newSlotEx1, setNewSlotEx1] = useState('barbell_bench_press');
-  const [newSlotEx2, setNewSlotEx2] = useState('reverse_flies');
+  const [newSlotSupersetIds, setNewSlotSupersetIds] = useState(['reverse_lunge', 'front_flies']);
   const [newSlotScheme, setNewSlotScheme] = useState('5x8');
 
+  // --- Saved & Shared Routines State ---
+  const [savedRoutines, setSavedRoutines] = useState(() => initialHydrated?.savedRoutines || []);
+  const [sharedRoutines, setSharedRoutines] = useState(() => initialHydrated?.sharedRoutines || []);
+
+  // --- Gyms & Gym Editor State ---
+  const [gyms, setGyms] = useState(() => initialHydrated?.gyms || []);
+  const [selectedGymId, setSelectedGymId] = useState(() => initialHydrated?.settings?.selectedGymId || '');
+  const [gymDraft, setGymDraft] = useState(null);
+
+  // --- Goals, Standards & Settings State ---
+  const [goalType, setGoalType] = useState(() => initialHydrated?.settings?.goals?.goalType || 'Strength');
+  const [goalIncrement, setGoalIncrement] = useState(() => initialHydrated?.settings?.goals?.goalIncrement || 1.25);
+  const [goalUnit, setGoalUnit] = useState(() => initialHydrated?.settings?.goals?.goalUnit || 'lb');
+  const [chartMetric, setChartMetric] = useState(() => initialHydrated?.settings?.goals?.chartMetric || 'weight');
+  const [selectedChartLift, setSelectedChartLift] = useState('ALL');
+  const [targetStandardClass, setTargetStandardClass] = useState(() => initialHydrated?.settings?.goals?.targetStandardClass || 'Intermediate');
+  const [customGoalWeights, setCustomGoalWeights] = useState(() => initialHydrated?.settings?.goals?.customGoalWeights || {});
+
+  const [userBodyweightLbs, setUserBodyweightLbs] = useState(() => initialHydrated?.settings?.bodyMetrics?.bodyweightLbs ?? 220);
+  const [userHeightFeet, setUserHeightFeet] = useState(() => initialHydrated?.settings?.bodyMetrics?.heightFeet ?? 5);
+  const [userHeightInches, setUserHeightInches] = useState(() => initialHydrated?.settings?.bodyMetrics?.heightInches ?? 10);
+  const [stimulusGreenDays, setStimulusGreenDays] = useState(() => initialHydrated?.settings?.stimulus?.greenDays ?? 2);
+  const [stimulusYellowDays, setStimulusYellowDays] = useState(() => initialHydrated?.settings?.stimulus?.yellowDays ?? 4);
+  const [routinePreferences, setRoutinePreferences] = useState(
+    () => initialHydrated?.settings?.routinePreferences || ['Compounds', 'Compounds', 'Supersets', 'Supersets', 'Abs']
+  );
+  const [shareStatsWithFriends, setShareStatsWithFriends] = useState(
+    () => initialHydrated?.settings?.social?.shareStatsWithFriends ?? true
+  );
+  const [shareRoutinesWithFriends, setShareRoutinesWithFriends] = useState(
+    () => initialHydrated?.settings?.social?.shareRoutinesWithFriends ?? true
+  );
+
+  // --- History Page Collapsible Sections State ---
+  const [historySessionsExpanded, setHistorySessionsExpanded] = useState(true);
+  const [historyPRsExpanded, setHistoryPRsExpanded] = useState(true);
+  const [expandedHistoryWorkoutId, setExpandedHistoryWorkoutId] = useState(null);
+
+  // --- Social & Friends State ---
+  const [friendSearchQuery, setFriendSearchQuery] = useState('');
+  const [friendsList, setFriendsList] = useState(() => initialHydrated?.friendsList || []);
+  const [pendingIncomingRequests, setPendingIncomingRequests] = useState(() => initialHydrated?.pendingIncomingRequests || []);
+  const [outgoingInvites, setOutgoingInvites] = useState(() => initialHydrated?.outgoingInvites || []);
+  const [viewingFriendProfile, setViewingFriendProfile] = useState(null);
+
+  const currentIncrementLbs = useMemo(
+    () => getIncrementInLbs(goalIncrement, goalUnit, goalType),
+    [goalIncrement, goalUnit, goalType]
+  );
+
+  // --- Debounced Automatic Versioned Persistence Effect (300ms) ---
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const debounceTimer = setTimeout(() => {
+      try {
+        const payload = {
+          schemaVersion: CURRENT_SCHEMA_VERSION,
+          updatedAt: new Date().toISOString(),
+          user, oneRepMaxes, history, activeSession, savedRoutines, sharedRoutines,
+          gyms, friendsList, pendingIncomingRequests, outgoingInvites,
+          settings: {
+            schemaVersion: CURRENT_SCHEMA_VERSION,
+            bodyMetrics: { bodyweightLbs: userBodyweightLbs, heightFeet: userHeightFeet, heightInches: userHeightInches },
+            goals: { goalType, goalIncrement, goalUnit, chartMetric, targetStandardClass, customGoalWeights },
+            stimulus: { greenDays: stimulusGreenDays, yellowDays: stimulusYellowDays },
+            routinePreferences,
+            social: { shareStatsWithFriends, shareRoutinesWithFriends },
+            selectedGymId
+          }
+        };
+        window.localStorage.setItem(PERSISTENCE_KEY, JSON.stringify(payload));
+      } catch (err) {
+        console.warn('Failed to save state to localStorage:', err);
+      }
+    }, 300);
+
+    return () => clearTimeout(debounceTimer);
+  }, [
+    user, oneRepMaxes, history, activeSession, savedRoutines, sharedRoutines,
+    gyms, friendsList, pendingIncomingRequests, outgoingInvites, userBodyweightLbs,
+    userHeightFeet, userHeightInches, goalType, goalIncrement, goalUnit, chartMetric,
+    targetStandardClass, customGoalWeights, stimulusGreenDays, stimulusYellowDays,
+    routinePreferences, shareStatsWithFriends, shareRoutinesWithFriends, selectedGymId
+  ]);
+
+  const handleExportBackupJSON = () => {
+    try {
+      const raw = window.localStorage.getItem(PERSISTENCE_KEY);
+      if (!raw) return;
+      const blob = new Blob([raw], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `you-cant-cry-in-here-backup-${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch {
+      // ignore
+    }
+  };
+
+  const handleImportBackupJSON = event => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = ev => {
+      try {
+        const parsed = JSON.parse(ev.target?.result || '{}');
+        if (!parsed || typeof parsed !== 'object') return;
+        window.localStorage.setItem(PERSISTENCE_KEY, JSON.stringify(parsed));
+        const rehydrated = loadHydratedAppState();
+        if (rehydrated) {
+          setUser(rehydrated.user);
+          setOneRepMaxes(rehydrated.oneRepMaxes);
+          setHistory(rehydrated.history);
+          setActiveSession(rehydrated.activeSession);
+          if (rehydrated.savedRoutines) setSavedRoutines(rehydrated.savedRoutines);
+          if (rehydrated.sharedRoutines) setSharedRoutines(rehydrated.sharedRoutines);
+          if (rehydrated.gyms) setGyms(rehydrated.gyms);
+          if (rehydrated.friendsList) setFriendsList(rehydrated.friendsList);
+          setUserBodyweightLbs(rehydrated.settings.bodyMetrics.bodyweightLbs);
+          setUserHeightFeet(rehydrated.settings.bodyMetrics.heightFeet);
+          setUserHeightInches(rehydrated.settings.bodyMetrics.heightInches);
+          setGoalType(rehydrated.settings.goals.goalType);
+          setGoalIncrement(rehydrated.settings.goals.goalIncrement);
+          setGoalUnit(rehydrated.settings.goals.goalUnit);
+          setTargetStandardClass(rehydrated.settings.goals.targetStandardClass);
+          setCustomGoalWeights(rehydrated.settings.goals.customGoalWeights);
+          setStimulusGreenDays(rehydrated.settings.stimulus.greenDays);
+          setStimulusYellowDays(rehydrated.settings.stimulus.yellowDays);
+          setRoutinePreferences(rehydrated.settings.routinePreferences);
+          setShareStatsWithFriends(rehydrated.settings.social.shareStatsWithFriends);
+          setShareRoutinesWithFriends(rehydrated.settings.social.shareRoutinesWithFriends);
+          setSelectedGymId(rehydrated.settings.selectedGymId);
+        }
+      } catch {
+        // ignore
+      }
+    };
+    reader.readAsText(file);
+    event.target.value = '';
+  };
+
+  const handleResetToDemoDefaults = () => {
+    const freshMaxes = getInitial1RMs();
+    setUser(null);
+    setOneRepMaxes(freshMaxes);
+    setHistory([]);
+    setActiveSession(null);
+    setSavedRoutines([]);
+    setSharedRoutines([]);
+    setGyms([]);
+    setFriendsList([]);
+    setPendingIncomingRequests([]);
+    setOutgoingInvites([]);
+    setUserBodyweightLbs(220);
+    setUserHeightFeet(5);
+    setUserHeightInches(10);
+    setGoalType('Strength');
+    setGoalIncrement(1.25);
+    setGoalUnit('lb');
+    setTargetStandardClass('Intermediate');
+    setCustomGoalWeights({});
+    setStimulusGreenDays(2);
+    setStimulusYellowDays(4);
+    setRoutinePreferences(['Compounds', 'Compounds', 'Supersets', 'Supersets', 'Abs']);
+    setShareStatsWithFriends(true);
+    setShareRoutinesWithFriends(true);
+    setSelectedGymId('');
+  };
+
+  // --- Plate & Weight Calculator Modal State ---
   const [plateCalcTarget, setPlateCalcTarget] = useState(null);
   const [calcUnit, setCalcUnit] = useState('lb');
   const [calcMode, setCalcMode] = useState('per_side');
@@ -1723,372 +1278,122 @@ export default function App() {
   const [calcPlatesPerSide, setCalcPlatesPerSide] = useState([]);
   const [calcDirectTotal, setCalcDirectTotal] = useState(135);
 
-  const [confirmAction, setConfirmAction] = useState(null);
-
-  const [soundEnabled, setSoundEnabled] = useState(true);
-  const [timerState, setTimerState] = useState({
+  // --- Isolated Rest Timer Trigger State ---
+  const [timerTrigger, setTimerTrigger] = useState({
     isRunning: false,
     targetSeconds: 90,
-    remainingSeconds: 90,
-    startedAtMs: null,
-    dingPlayed: false,
-    activeLabel: null
+    startedAtMs: null
   });
-  const lastCompletedSetTimestampRef = useRef(null);
 
-  const [historyFilterLift, setHistoryFilterLift] = useState('ALL');
-  const [historyFilterMuscleGroup, setHistoryFilterMuscleGroup] = useState('ALL');
-  const [historyFilterSpecificMuscle, setHistoryFilterSpecificMuscle] = useState('ALL');
-  const [expandedHistoryId, setExpandedHistoryId] = useState('hist_4days_wed_thu');
+  // ============================================================================
+  // 7. COMPUTED TELEMETRY, STIMULUS MAP & PROGRESSION SERIES
+  // ============================================================================
 
-  const [maxCalcTarget, setMaxCalcTarget] = useState(null);
-  const [maxCalcMode, setMaxCalcMode] = useState('scheme');
-  const [maxCalcScheme, setMaxCalcScheme] = useState('5x8');
-  const [maxCalcSets, setMaxCalcSets] = useState([]);
-  const [maxCalcDirectValue, setMaxCalcDirectValue] = useState('225');
-  const [showAllMaxes, setShowAllMaxes] = useState(false);
+  const totalHeightInches = useMemo(() => {
+    return (Number(userHeightFeet) || 5) * 12 + (Number(userHeightInches) || 10);
+  }, [userHeightFeet, userHeightInches]);
 
-  const openMaxCalculatorModal = (ex, currentMax) => {
-    setMaxCalcTarget({
-      id: ex.id,
-      name: ex.name,
-      equipment: ex.equipment,
-      currentMax
-    });
-    setMaxCalcMode('scheme');
-    setMaxCalcScheme('5x8');
-    setMaxCalcSets(generateSetsForScheme('5x8', currentMax, ex.category, ex.id));
-    setMaxCalcDirectValue(String(currentMax));
-  };
+  const muscleStimulusStatus = useMemo(() => {
+    const groups = ['Chest', 'Back', 'Shoulders', 'Legs', 'Arms', 'Core'];
+    const now = Date.now();
+    const result = {};
 
-  const handleMaxCalcSchemeChange = (scm) => {
-    setMaxCalcScheme(scm);
-    const baseMax = maxCalcTarget?.currentMax || 185;
-    setMaxCalcSets(
-      generateSetsForScheme(scm, baseMax, maxCalcTarget?.category || 'Compound Lift', maxCalcTarget?.id || '')
-    );
-  };
-
-  const handleUpdateMaxCalcSet = (setId, field, rawVal) => {
-    const val = Math.max(0, Number(rawVal) || 0);
-    setMaxCalcSets(prev =>
-      prev.map(st => (st.id === setId ? { ...st, [field]: val } : st))
-    );
-  };
-
-  const computedModal1RM = useMemo(() => {
-    if (maxCalcMode === 'direct') {
-      return Math.max(5, roundTo5(Number(maxCalcDirectValue) || 0));
-    }
-    if (!maxCalcSets || maxCalcSets.length === 0) return maxCalcTarget?.currentMax || 135;
-
-    let highest1RM = 0;
-    maxCalcSets.forEach(s => {
-      const w = Number(s.weight) || 0;
-      const r = Number(s.reps) || 0;
-      if (w > 0 && r > 0) {
-        const est = r === 1 ? w : w * (1 + r / 30);
-        if (est > highest1RM) highest1RM = est;
-      }
-    });
-    return highest1RM > 0 ? roundTo5(highest1RM) : maxCalcTarget?.currentMax || 135;
-  }, [maxCalcMode, maxCalcDirectValue, maxCalcSets, maxCalcTarget]);
-
-  // Client-Side Hydration Effect (Runs only in Browser after mount)
-  useEffect(() => {
-    try {
-      const savedUser = localStorage.getItem(STORAGE_KEYS.USER);
-      if (savedUser) setUser(JSON.parse(savedUser));
-
-      const savedMaxes = localStorage.getItem(STORAGE_KEYS.MAXES);
-      if (savedMaxes) setOneRepMaxes(JSON.parse(savedMaxes));
-
-      const savedHist = localStorage.getItem(STORAGE_KEYS.HISTORY);
-      if (savedHist) setHistory(JSON.parse(savedHist));
-
-      const savedActive = localStorage.getItem(STORAGE_KEYS.ACTIVE_SESSION);
-      if (savedActive) setActiveSession(JSON.parse(savedActive));
-
-      const savedCustom = localStorage.getItem(STORAGE_KEYS.CUSTOM_PRESETS);
-      if (savedCustom) setCustomPresets(JSON.parse(savedCustom));
-
-      setNewPresetName(
-        new Date().toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
-      );
-    } catch {}
-    setHasHydratedStorage(true);
-  }, []);
-
-  // Persistence Effects & Cloud Hydration
-  useEffect(() => {
-    if (!hasHydratedStorage) return;
-    try {
-      if (user) localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(user));
-      else localStorage.removeItem(STORAGE_KEYS.USER);
-    } catch {}
-  }, [user, hasHydratedStorage]);
-
-  useEffect(() => {
-    if (!user?.id || !user?.accessToken || !supabaseCloud.isConfigured) return;
-    let isMounted = true;
-    supabaseCloud
-      .fetchUserData(user.id, user.accessToken)
-      .then(cloud => {
-        if (!isMounted) return;
-        if (cloud.oneRepMaxes && Object.keys(cloud.oneRepMaxes).length > 0) {
-          setOneRepMaxes(prev => ({ ...prev, ...cloud.oneRepMaxes }));
-        }
-        if (cloud.history && cloud.history.length > 0) {
-          setHistory(cloud.history);
-        }
-        if (cloud.customPresets && cloud.customPresets.length > 0) {
-          setCustomPresets(cloud.customPresets);
-        }
-      })
-      .catch(() => {});
-    return () => {
-      isMounted = false;
-    };
-  }, [user?.id, user?.accessToken]);
-
-  useEffect(() => {
-    if (!hasHydratedStorage) return;
-    try {
-      localStorage.setItem(STORAGE_KEYS.MAXES, JSON.stringify(oneRepMaxes));
-      if (user?.accessToken && supabaseCloud.isConfigured) {
-        supabaseCloud.upsertProfile(user, oneRepMaxes);
-      }
-    } catch {}
-  }, [oneRepMaxes, user, hasHydratedStorage]);
-
-  useEffect(() => {
-    if (!hasHydratedStorage) return;
-    try {
-      localStorage.setItem(STORAGE_KEYS.HISTORY, JSON.stringify(history));
-    } catch {}
-  }, [history, hasHydratedStorage]);
-
-  useEffect(() => {
-    if (!hasHydratedStorage) return;
-    try {
-      if (activeSession) localStorage.setItem(STORAGE_KEYS.ACTIVE_SESSION, JSON.stringify(activeSession));
-      else localStorage.removeItem(STORAGE_KEYS.ACTIVE_SESSION);
-    } catch {}
-  }, [activeSession, hasHydratedStorage]);
-
-  useEffect(() => {
-    if (!hasHydratedStorage) return;
-    try {
-      localStorage.setItem(STORAGE_KEYS.CUSTOM_PRESETS, JSON.stringify(customPresets));
-    } catch {}
-  }, [customPresets, hasHydratedStorage]);
-
-  // Timer Countdown & Negative Overtime Engine
-  useEffect(() => {
-    if (!timerState.isRunning || !timerState.startedAtMs) return;
-    const interval = setInterval(() => {
-      const elapsedSec = Math.floor((Date.now() - timerState.startedAtMs) / 1000);
-      const nextRemaining = timerState.targetSeconds - elapsedSec;
-
-      setTimerState(prev => {
-        const shouldDing = nextRemaining <= 0 && !prev.dingPlayed;
-        if (shouldDing && soundEnabled) playTimerDing();
-        return {
-          ...prev,
-          remainingSeconds: nextRemaining,
-          dingPlayed: prev.dingPlayed || nextRemaining <= 0
-        };
-      });
-    }, 250);
-
-    return () => clearInterval(interval);
-  }, [timerState.isRunning, timerState.startedAtMs, timerState.targetSeconds, soundEnabled]);
-
-  const startRestTimer = (targetSeconds = 90, label = 'Rest Period') => {
-    setTimerState({
-      isRunning: true,
-      targetSeconds,
-      remainingSeconds: targetSeconds,
-      startedAtMs: Date.now(),
-      dingPlayed: false,
-      activeLabel: label
-    });
-  };
-
-  const stopRestTimer = () => {
-    setTimerState(prev => ({
-      ...prev,
-      isRunning: false,
-      startedAtMs: null
-    }));
-  };
-
-  const incompleteWorkoutsCount = useMemo(
-    () => history.filter(w => !w.isComplete && !w.verifiedByUser).length,
-    [history]
-  );
-
-  const allMuscleGroups = useMemo(() => {
-    const groups = new Set(['ALL']);
-    EXERCISE_LIBRARY.forEach(ex => {
-      if (ex.muscleGroup) groups.add(ex.muscleGroup);
-    });
-    return Array.from(groups);
-  }, []);
-
-  const allSpecificMuscles = useMemo(() => {
-    const muscles = new Set(['ALL']);
-    EXERCISE_LIBRARY.forEach(ex => {
-      (ex.specificMuscles || []).forEach(m => muscles.add(m));
-    });
-    return Array.from(muscles);
-  }, []);
-
-  const filteredHistory = useMemo(() => {
-    return [...history]
-      .sort((a, b) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime())
-      .filter(workout => {
-        const slots = workout.slots || [];
-        if (
-          historyFilterLift === 'ALL' &&
-          historyFilterMuscleGroup === 'ALL' &&
-          historyFilterSpecificMuscle === 'ALL'
-        ) {
-          return true;
-        }
-        return slots.some(slot => {
-          const exIds = [slot.exerciseId, slot.secondaryExerciseId].filter(Boolean);
-          return exIds.some(id => {
+    groups.forEach(g => {
+      let minDays = 99;
+      history.forEach(w => {
+        const daysAgo = Math.max(0, Math.floor((now - new Date(w.startedAt).getTime()) / 86400000));
+        (w.slots || []).forEach(slot => {
+          const ids =
+            slot.category === 'Supersets' && slot.supersetExerciseIds
+              ? slot.supersetExerciseIds
+              : [slot.exerciseId, slot.secondaryExerciseId].filter(Boolean);
+          ids.forEach(id => {
             const ex = EXERCISE_MAP[id];
-            if (!ex) return false;
-            if (historyFilterLift !== 'ALL' && ex.id !== historyFilterLift) return false;
-            if (historyFilterMuscleGroup !== 'ALL' && ex.muscleGroup !== historyFilterMuscleGroup) {
-              return false;
+            if (ex && ex.muscleGroup === g && daysAgo < minDays) {
+              minDays = daysAgo;
             }
-            if (
-              historyFilterSpecificMuscle !== 'ALL' &&
-              !(ex.specificMuscles || []).includes(historyFilterSpecificMuscle)
-            ) {
-              return false;
-            }
-            return true;
           });
         });
       });
-  }, [history, historyFilterLift, historyFilterMuscleGroup, historyFilterSpecificMuscle]);
 
-  const syncSessionToHistory = (sessionToSync) => {
-    if (!user) return;
-    if (!sessionToSync || !sessionToSync.slots || sessionToSync.slots.length === 0) return;
-    const isComp = checkIsWorkoutComplete(sessionToSync.slots);
-    const updatedSession = {
-      ...sessionToSync,
-      updatedAt: new Date().toISOString(),
-      isComplete: isComp
-    };
-
-    supabaseCloud.upsertWorkoutHistory(user, updatedSession);
-
-    setHistory(prev => {
-      const exists = prev.some(w => w.id === updatedSession.id);
-      const nextHistory = exists
-        ? prev.map(w => (w.id === updatedSession.id ? updatedSession : w))
-        : [updatedSession, ...prev];
-
-      if (isComp) {
-        const { updatedMaxes } = calculateUpdated1RMsFromWorkouts(nextHistory, oneRepMaxes);
-        setOneRepMaxes(updatedMaxes);
-      }
-      return nextHistory;
-    });
-  };
-
-  const handleOpenNewSession = () => {
-    if (!activeSession) {
-      setActiveSession({
-        id: `session_${Date.now()}`,
-        title: `Workout — ${new Date().toLocaleDateString(undefined, {
-          month: 'short',
-          day: 'numeric'
-        })}`,
-        presetUsed: null,
-        startedAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        defaultRestSeconds: 90,
-        isComplete: false,
-        verifiedByUser: false,
-        suggestionReason: null,
-        slots: []
-      });
-    }
-    setCurrentView('session');
-  };
-
-  const handleBackToHomeFromSession = () => {
-    if (activeSession && activeSession.slots.length > 0) {
-      if (user) {
-        syncSessionToHistory(activeSession);
-        triggerBanner('Session auto-saved to History.', 'success');
+      const greenMax = Number(stimulusGreenDays) || 2;
+      const yellowMax = Number(stimulusYellowDays) || 4;
+      let statusColor = '#FF3B30';
+      let statusLabel = `${yellowMax + 1}+ DAYS`;
+      if (minDays <= greenMax) {
+        statusColor = '#30D158';
+        statusLabel = `${minDays}D AGO (FRESH)`;
+      } else if (minDays <= yellowMax) {
+        statusColor = '#FFD60A';
+        statusLabel = `${minDays}D AGO (READY)`;
+      } else if (minDays < 99) {
+        statusLabel = `${minDays}D AGO (DUE)`;
       } else {
-        triggerBanner('Session saved locally. Sign in to store in History.', 'info');
+        statusLabel = 'UNLOGGED';
       }
-    }
-    setCurrentView('home');
-  };
 
-  const handleOpenHistoricalEntry = () => {
-    if (!user) {
-      triggerBanner('Sign in to store historical workouts.', 'warning');
-      setCurrentView('auth');
-      return;
-    }
-    const yesterdayDate = new Date(Date.now() - 86400000).toISOString().split('T')[0];
-    setHistoricalDraft({
-      id: `hist_manual_${Date.now()}`,
-      title: 'Past Workout Log',
-      workoutDate: yesterdayDate,
-      presetUsed: null,
-      defaultRestSeconds: 90,
-      isComplete: true,
-      verifiedByUser: true,
-      slots: []
-    });
-    setCurrentView('historical_entry');
-  };
-
-  const handleSaveHistoricalDraft = () => {
-    if (!historicalDraft || historicalDraft.slots.length === 0) {
-      triggerBanner('Add at least one exercise before saving.', 'warning');
-      return;
-    }
-    const isoDate = new Date(`${historicalDraft.workoutDate}T12:00:00`).toISOString();
-    const completedSlots = normalizeSlotLabels(historicalDraft.slots);
-    const finalizedWorkout = {
-      ...historicalDraft,
-      startedAt: isoDate,
-      updatedAt: new Date().toISOString(),
-      isComplete: checkIsWorkoutComplete(completedSlots),
-      verifiedByUser: checkIsWorkoutComplete(completedSlots),
-      slots: completedSlots
-    };
-
-    supabaseCloud.upsertWorkoutHistory(user, finalizedWorkout);
-
-    setHistory(prev => {
-      const next = [finalizedWorkout, ...prev];
-      const { updatedMaxes } = calculateUpdated1RMsFromWorkouts(next, oneRepMaxes);
-      setOneRepMaxes(updatedMaxes);
-      return next;
+      result[g] = { daysAgo: minDays, color: statusColor, label: statusLabel };
     });
 
-    setHistoricalDraft(null);
-    setCurrentView('history');
-    triggerBanner('Historical workout saved.', 'success');
+    return result;
+  }, [history, stimulusGreenDays, stimulusYellowDays]);
+
+  const progressionSeriesByLift = useMemo(() => {
+    const sorted = [...history].sort((a, b) => new Date(a.startedAt).getTime() - new Date(b.startedAt).getTime());
+    const map = {};
+    BIG_FOUR_IDS.forEach(liftId => {
+      const points = [];
+      sorted.forEach(w => {
+        let topWeight = 0;
+        let totalVol = 0;
+        (w.slots || []).forEach(slot => {
+          if (slot.exerciseId === liftId) {
+            (slot.sets || []).forEach(s => {
+              if (s.completed && s.weight > 0) {
+                if (s.weight > topWeight) topWeight = s.weight;
+                totalVol += (Number(s.weight) || 0) * (Number(s.reps) || 0);
+              }
+            });
+          }
+        });
+        if (topWeight > 0 || totalVol > 0) {
+          points.push({
+            dateLabel: new Date(w.startedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
+            weight: topWeight,
+            volume: totalVol
+          });
+        }
+      });
+      map[liftId] = points;
+    });
+    return map;
+  }, [history]);
+
+  // ============================================================================
+  // 8. ROUTINE EDITOR & WORKOUT MUTATION HANDLERS
+  // ============================================================================
+
+  const getCurrentEditorWorkout = () => {
+    if (currentView === 'historical_entry') return historicalDraft;
+    if (currentView === 'routine_editor') return routineDraft;
+    if (currentView === 'routine_preview') return previewRoutineDraft;
+    return activeSession;
   };
 
-  const updateCurrentWorkoutState = (updater) => {
+  const updateCurrentWorkoutState = updater => {
+    setIsCurrentEditorShared(false);
     if (currentView === 'historical_entry') {
       setHistoricalDraft(prev => {
+        const next = updater(prev);
+        return next ? { ...next, slots: normalizeSlotLabels(next.slots) } : next;
+      });
+    } else if (currentView === 'routine_editor') {
+      setRoutineDraft(prev => {
+        const next = updater(prev);
+        return next ? { ...next, slots: normalizeSlotLabels(next.slots) } : next;
+      });
+    } else if (currentView === 'routine_preview') {
+      setPreviewRoutineDraft(prev => {
         const next = updater(prev);
         return next ? { ...next, slots: normalizeSlotLabels(next.slots) } : next;
       });
@@ -2100,462 +1405,726 @@ export default function App() {
     }
   };
 
-  const handleLoadPreset = (presetKey, label) => {
-    if (!presetKey) return;
-    const customMatch = customPresets.find(cp => cp.key === presetKey);
-    const ts = Date.now();
-    const slots = customMatch
-      ? normalizeSlotLabels(
-          (customMatch.slots || []).map((slot, sIdx) => {
-            const ex2 = slot.secondaryExerciseId ? EXERCISE_MAP[slot.secondaryExerciseId] : null;
-            return {
-              ...slot,
-              id: `slot_${ts}_${sIdx}`,
-              sets: (slot.sets || []).map((st, idx) => ({
-                ...st,
-                id: `set_${ts}_${sIdx}_1_${idx}`,
-                completed: currentView === 'historical_entry',
-                completedAt: null,
-                restLoggedSeconds: null,
-                interLiftSeconds: null
-              })),
-              secondarySets: ex2
-                ? (slot.secondarySets || []).map((st, idx) => ({
-                    ...st,
-                    id: `set_${ts}_${sIdx}_2_${idx}`,
-                    completed: currentView === 'historical_entry',
-                    completedAt: null,
-                    restLoggedSeconds: null,
-                    interLiftSeconds: null
-                  }))
-                : []
-            };
-          })
-        )
-      : buildPresetSlots(presetKey, oneRepMaxes);
+  const buildGeneratedAutoSlots = () => {
+    const compatiblePool = EXERCISE_LIBRARY.filter(ex =>
+      isExerciseCompatibleWithGymSelection(ex, selectedGymId, gyms)
+    );
+    const fallbackPool = compatiblePool.length > 0 ? compatiblePool : EXERCISE_LIBRARY;
 
-    const resolvedLabel =
-      label ||
-      customMatch?.label ||
-      BUILTIN_PRESETS.find(p => p.key === presetKey)?.label ||
-      'Workout Session';
+    const compatCompounds = compatiblePool.filter(e => e.category === 'Compound Lift');
+    const compatAccessories = compatiblePool.filter(e => e.category === 'Accessories');
+    const compatAbs = compatiblePool.filter(e => e.category === 'Abs');
 
-    updateCurrentWorkoutState(prev => ({
-      ...(prev || {
+    let compIdx = 0;
+    let accIdx = 0;
+
+    const generatedSlots = routinePreferences
+      .filter(pref => pref !== 'Warmup')
+      .map(pref => {
+        if (pref === 'Compounds') {
+          const pool = compatCompounds.length > 0 ? compatCompounds : fallbackPool;
+          const pick = pool[compIdx % Math.max(1, pool.length)] || EXERCISE_MAP.dumbbell_press;
+          compIdx += 1;
+          return createWorkoutSlot({
+            category: 'Compound Lift',
+            slotLabel: `Compound Lift ${compIdx}`,
+            exerciseId: pick.id,
+            scheme: '5x8',
+            oneRepMaxes,
+            history,
+            incrementLbs: currentIncrementLbs
+          });
+        }
+        if (pref === 'Supersets') {
+          const pool = compatAccessories.length > 0 ? compatAccessories : fallbackPool;
+          const a1 = pool[accIdx % Math.max(1, pool.length)] || EXERCISE_MAP.reverse_lunge;
+          const a2 = pool[(accIdx + 1) % Math.max(1, pool.length)] || EXERCISE_MAP.front_flies;
+          accIdx += 2;
+          return createWorkoutSlot({
+            category: 'Supersets',
+            slotLabel: 'Superset',
+            supersetExerciseIds: [a1.id, a2.id],
+            scheme: '5x8',
+            oneRepMaxes,
+            history,
+            incrementLbs: currentIncrementLbs
+          });
+        }
+        if (pref === 'Accessories') {
+          const pool = compatAccessories.length > 0 ? compatAccessories : fallbackPool;
+          const pick = pool[accIdx % Math.max(1, pool.length)] || EXERCISE_MAP.dumbbell_hammer_curl;
+          accIdx += 1;
+          return createWorkoutSlot({
+            category: 'Accessories',
+            slotLabel: 'Accessories',
+            exerciseId: pick.id,
+            scheme: '5x8',
+            oneRepMaxes,
+            history,
+            incrementLbs: currentIncrementLbs
+          });
+        }
+        const absPick =
+          compatAbs[0] ||
+          fallbackPool.find(e => e.category === 'Abs') ||
+          fallbackPool[0] ||
+          EXERCISE_MAP.hollow_holds;
+        return createWorkoutSlot({
+          category: 'Abs',
+          slotLabel: 'Abs',
+          exerciseId: absPick.id,
+          oneRepMaxes,
+          history,
+          incrementLbs: currentIncrementLbs
+        });
+      });
+
+    return normalizeSlotLabels(generatedSlots);
+  };
+
+  const handleOpenNewSession = () => {
+    if (!activeSession) {
+      setActiveSession({
         id: `session_${Date.now()}`,
+        title: getDefaultSessionName(),
+        loadedRoutineTitle: 'MANUAL',
         startedAt: new Date().toISOString(),
-        verifiedByUser: false
-      }),
-      title: resolvedLabel,
-      presetUsed: presetKey,
-      defaultRestSeconds: 90,
-      updatedAt: new Date().toISOString(),
-      suggestionReason: null,
-      slots
-    }));
-    setSelectedSlotIds([]);
-    setCollapsedSlotIds([]);
-    if (currentView === 'session') {
-      setTimerState(prev => ({
+        updatedAt: new Date().toISOString(),
+        defaultRestSeconds: 90,
+        gymId: selectedGymId,
+        slots: []
+      });
+    } else {
+      setActiveSession(prev => ({
         ...prev,
-        targetSeconds: 90,
-        remainingSeconds: prev.isRunning ? prev.remainingSeconds : 90
+        title: prev.title || getDefaultSessionName(),
+        loadedRoutineTitle: prev.loadedRoutineTitle || 'MANUAL'
       }));
     }
-    if (presetKey === 'legs_pump') {
-      triggerBanner('Legs Pump is empty — tap Add Exercise below.', 'info');
-    } else {
-      triggerBanner(`Loaded ${resolvedLabel}.`, 'success');
-    }
+    setIsCurrentEditorShared(false);
+    setCurrentView('session');
   };
 
-  const handleOpenSavePresetModal = () => {
-    const currentWorkout = currentView === 'historical_entry' ? historicalDraft : activeSession;
-    if (!currentWorkout || !currentWorkout.slots || currentWorkout.slots.length === 0) {
-      triggerBanner('Add at least one exercise before saving a workout.', 'warning');
-      return;
-    }
-    const defaultDateName = new Date().toLocaleDateString(undefined, {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric'
-    });
-    setNewPresetName(defaultDateName);
-    setShowSavePresetModal(true);
-  };
-
-  const handleSaveNewPreset = () => {
-    const currentWorkout = currentView === 'historical_entry' ? historicalDraft : activeSession;
-    if (!currentWorkout || !currentWorkout.slots || currentWorkout.slots.length === 0) {
-      triggerBanner('Add at least one exercise before saving a workout.', 'warning');
-      return;
-    }
-    const defaultDateName = new Date().toLocaleDateString(undefined, {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric'
-    });
-    const finalName = (newPresetName || '').trim() || defaultDateName;
-    const newKey = `custom_${Date.now()}`;
-    const cleanSlots = normalizeSlotLabels(currentWorkout.slots).map(slot => ({
-      ...slot,
-      sets: (slot.sets || []).map(s => ({
-        ...s,
-        completed: false,
-        completedAt: null,
-        restLoggedSeconds: null,
-        interLiftSeconds: null
-      })),
-      secondarySets: (slot.secondarySets || []).map(s => ({
-        ...s,
-        completed: false,
-        completedAt: null,
-        restLoggedSeconds: null,
-        interLiftSeconds: null
-      }))
-    }));
-
-    const newPresetObj = {
-      key: newKey,
-      label: finalName,
-      createdAt: new Date().toISOString(),
-      slots: cleanSlots
-    };
-
-    supabaseCloud.upsertCustomPreset(user, newPresetObj);
-
-    setCustomPresets(prev => [newPresetObj, ...prev]);
-    updateCurrentWorkoutState(prev => (prev ? { ...prev, presetUsed: newKey, title: finalName } : prev));
-    setNewPresetName(defaultDateName);
-    setShowSavePresetModal(false);
-    triggerBanner(`Saved workout "${finalName}".`, 'success');
-  };
-
-  const handleSuggestWorkoutFromHistory = () => {
-    const sorted = [...history].sort(
-      (a, b) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime()
-    );
-    const lastWorkout = sorted[0];
-    const recentGroups = new Set();
-
-    if (lastWorkout) {
-      (lastWorkout.slots || []).forEach(slot => {
-        const ex1 = EXERCISE_MAP[slot.exerciseId];
-        const ex2 = slot.secondaryExerciseId ? EXERCISE_MAP[slot.secondaryExerciseId] : null;
-        if (ex1?.muscleGroup) recentGroups.add(ex1.muscleGroup);
-        if (ex2?.muscleGroup) recentGroups.add(ex2.muscleGroup);
-      });
-    }
-
-    let c1 = 'barbell_back_squat';
-    let c2 = 'overhead_press';
-    let c3 = 'chin_ups';
-    let reason = 'Prioritizing Big 3 + OHP & Chin-Ups.';
-
-    if (recentGroups.has('Chest')) {
-      c1 = 'barbell_back_squat';
-      c2 = 'barbell_deadlift';
-      c3 = 'chin_ups';
-      reason = `Last session hit Chest (${lastWorkout?.title}). Switching to Squat, Deadlift & Chin-Ups.`;
-    } else if (recentGroups.has('Legs')) {
-      c1 = 'barbell_bench_press';
-      c2 = 'overhead_press';
-      c3 = 'chin_ups';
-      reason = `Last session hit Legs. Prioritizing Barbell Bench, Overhead Press & Chin-Ups.`;
-    } else {
-      c1 = 'barbell_bench_press';
-      c2 = 'barbell_back_squat';
-      c3 = 'barbell_deadlift';
-      reason = 'Balanced Big 3 session (Bench, Squat, Deadlift).';
-    }
-
-    const suggestedSlots = normalizeSlotLabels([
-      createWorkoutSlot({
-        category: 'Warm-Up Routine',
-        slotLabel: 'Warm-Up Routine',
-        exerciseId: 'warmup_12_step',
-        oneRepMaxes
-      }),
-      createWorkoutSlot({
-        category: 'Compound Lift',
-        slotLabel: 'Compound Lift 1',
-        exerciseId: c1,
-        scheme: '5x8',
-        oneRepMaxes
-      }),
-      createWorkoutSlot({
-        category: 'Compound Lift',
-        slotLabel: 'Compound Lift 2',
-        exerciseId: c2,
-        scheme: '5x8',
-        oneRepMaxes
-      }),
-      createWorkoutSlot({
-        category: 'Compound Lift',
-        slotLabel: 'Compound Lift 3',
-        exerciseId: c3,
-        scheme: '5x8',
-        oneRepMaxes
-      }),
-      createWorkoutSlot({
-        category: 'Supersets',
-        slotLabel: 'Superset 1',
-        exerciseId: 'reverse_flies',
-        secondaryExerciseId: 'barbell_bicep_curl',
-        scheme: '5x8',
-        oneRepMaxes
-      }),
-      createWorkoutSlot({
-        category: 'Abs',
-        slotLabel: 'Abs',
-        exerciseId: 'hollow_holds',
-        oneRepMaxes
-      })
-    ]);
-
-    setActiveSession(prev => ({
-      ...(prev || { id: `session_${Date.now()}`, startedAt: new Date().toISOString() }),
-      title: 'Suggested Priority Session',
-      presetUsed: 'suggested',
-      defaultRestSeconds: 90,
+  // Home Page "New Auto" shortcut: skips preview and automatically applies the generated workout
+  const handleOpenNewAutoSession = () => {
+    const autoSlots = buildGeneratedAutoSlots();
+    const autoTitle = getDefaultAutoSessionName();
+    setActiveSession({
+      id: `session_${Date.now()}`,
+      title: autoTitle,
+      loadedRoutineTitle: 'AUTO',
+      startedAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
-      suggestionReason: reason,
-      slots: suggestedSlots
-    }));
-    setSelectedSlotIds([]);
-    triggerBanner('Suggested workout generated from history.', 'success');
-  };
-
-  const toggleSelectSlot = (slotId) => {
-    setSelectedSlotIds(prev =>
-      prev.includes(slotId) ? prev.filter(id => id !== slotId) : [...prev, slotId]
-    );
-  };
-
-  const handleSuggestAlternativesForSelected = () => {
-    if (!activeSession || selectedSlotIds.length === 0) return;
-
-    setActiveSession(prev => {
-      const nextSlots = prev.slots.map(slot => {
-        if (!selectedSlotIds.includes(slot.id)) return slot;
-        const currentEx = EXERCISE_MAP[slot.exerciseId];
-        if (!currentEx) return slot;
-
-        const altPool =
-          currentEx.alternatives && currentEx.alternatives.length > 0
-            ? currentEx.alternatives
-            : EXERCISE_LIBRARY.filter(
-                e => e.muscleGroup === currentEx.muscleGroup && e.id !== currentEx.id
-              ).map(e => e.id);
-
-        const nextExId =
-          altPool.length > 0
-            ? altPool[Math.floor(Math.random() * altPool.length)]
-            : currentEx.id;
-
-        const nextEx = EXERCISE_MAP[nextExId] || currentEx;
-        const newSets = generateSetsForScheme(
-          slot.scheme,
-          oneRepMaxes[nextEx.id] ?? nextEx.default1RM,
-          slot.category,
-          nextEx.id
-        );
-
-        return {
-          ...slot,
-          exerciseId: nextEx.id,
-          sets: newSets
-        };
-      });
-
-      return {
-        ...prev,
-        updatedAt: new Date().toISOString(),
-        slots: nextSlots
-      };
+      defaultRestSeconds: 90,
+      gymId: selectedGymId,
+      slots: autoSlots
     });
-
-    triggerBanner(`Replaced ${selectedSlotIds.length} selected exercise(s).`, 'success');
-    setSelectedSlotIds([]);
+    setIsCurrentEditorShared(false);
+    setCurrentView('session');
   };
 
-  const handleUpdateSlotExerciseOrScheme = (slotId, changes) => {
+  const handleOpenPreviewRoutine = (routineObj, returnToView = 'routines') => {
+    setPreviewRoutineDraft({
+      key: routineObj.key,
+      title: formatTitleWithDate(routineObj.label),
+      baseRoutineLabel: routineObj.label,
+      loadedRoutineTitle: routineObj.label,
+      defaultRestSeconds: 90,
+      slots: normalizeSlotLabels(
+        cloneSlots(
+          routineObj.slots ||
+          buildPresetSlots(routineObj.key, oneRepMaxes, history, currentIncrementLbs)
+        )
+      )
+    });
+    setRoutineSelectReturnView(returnToView);
+    setCurrentView('routine_preview');
+  };
+
+  const handleDirectLoadRoutine = (routineObj, returnToView = 'session') => {
+    const builtSlots = normalizeSlotLabels(
+      cloneSlots(
+        routineObj.slots ||
+        buildPresetSlots(routineObj.key, oneRepMaxes, history, currentIncrementLbs)
+      )
+    );
+    const datedTitle = formatTitleWithDate(routineObj.label);
+    const routineLabel = routineObj.label || datedTitle;
+
+    if (returnToView === 'historical_entry') {
+      setHistoricalDraft(prev => ({
+        ...(prev || { id: `hist_${Date.now()}`, workoutDate: new Date().toISOString().split('T')[0] }),
+        title: datedTitle,
+        loadedRoutineTitle: routineLabel,
+        slots: builtSlots
+      }));
+      setRoutineSelectReturnView(null);
+      setCurrentView('historical_entry');
+    } else if (returnToView === 'routine_editor') {
+      setRoutineDraft(prev => ({
+        ...(prev || { key: `routine_${Date.now()}`, isEditingExisting: false, defaultRestSeconds: 90 }),
+        title: datedTitle,
+        loadedRoutineTitle: routineLabel,
+        slots: builtSlots
+      }));
+      setRoutineSelectReturnView(null);
+      setCurrentView('routine_editor');
+    } else {
+      setActiveSession(prev => ({
+        ...(prev || { id: `session_${Date.now()}`, startedAt: new Date().toISOString(), defaultRestSeconds: 90 }),
+        title: datedTitle,
+        loadedRoutineTitle: routineLabel,
+        updatedAt: new Date().toISOString(),
+        slots: builtSlots
+      }));
+      setRoutineSelectReturnView(null);
+      setCurrentView('session');
+    }
+  };
+
+  const handleApplyPreviewRoutine = () => {
+    if (!previewRoutineDraft) return;
+    const clonedSlots = normalizeSlotLabels(cloneSlots(previewRoutineDraft.slots));
+    const datedTitle = previewRoutineDraft.title || getDefaultSessionName();
+    const routineLabel = previewRoutineDraft.baseRoutineLabel || previewRoutineDraft.title || datedTitle;
+
+    if (routineSelectReturnView === 'historical_entry') {
+      setHistoricalDraft(prev => ({
+        ...(prev || { id: `hist_${Date.now()}`, workoutDate: new Date().toISOString().split('T')[0] }),
+        title: datedTitle,
+        loadedRoutineTitle: routineLabel,
+        slots: clonedSlots
+      }));
+      setRoutineSelectReturnView(null);
+      setCurrentView('historical_entry');
+    } else if (routineSelectReturnView === 'routine_editor') {
+      setRoutineDraft(prev => ({
+        ...(prev || { key: `routine_${Date.now()}`, isEditingExisting: false, defaultRestSeconds: 90 }),
+        title: datedTitle,
+        loadedRoutineTitle: routineLabel,
+        slots: clonedSlots
+      }));
+      setRoutineSelectReturnView(null);
+      setCurrentView('routine_editor');
+    } else {
+      setActiveSession(prev => ({
+        ...(prev || { id: `session_${Date.now()}`, startedAt: new Date().toISOString(), defaultRestSeconds: 90 }),
+        title: datedTitle,
+        loadedRoutineTitle: routineLabel,
+        updatedAt: new Date().toISOString(),
+        slots: clonedSlots
+      }));
+      setRoutineSelectReturnView(null);
+      setCurrentView('session');
+    }
+  };
+
+  const handleAutoBuildWorkout = () => {
+    const generatedSlots = buildGeneratedAutoSlots();
+    const autoTitle = getDefaultAutoSessionName();
+    const returnTarget =
+      currentView === 'historical_entry' ||
+        currentView === 'routine_editor' ||
+        currentView === 'session'
+        ? currentView
+        : routineSelectReturnView || 'session';
+
+    setPreviewRoutineDraft({
+      key: `auto_${Date.now()}`,
+      title: autoTitle,
+      baseRoutineLabel: 'AUTO',
+      loadedRoutineTitle: 'AUTO',
+      defaultRestSeconds: 90,
+      slots: generatedSlots
+    });
+    setRoutineSelectReturnView(returnTarget);
+    setCurrentView('routine_preview');
+  };
+
+  const handleSaveCurrentEditor = () => {
+    const currentWorkout = getCurrentEditorWorkout();
+    if (!currentWorkout || !currentWorkout.slots || currentWorkout.slots.length === 0) {
+      return;
+    }
+
+    if (currentView === 'routine_editor') {
+      const routineItem = {
+        key: currentWorkout.key || `routine_${Date.now()}`,
+        label: currentWorkout.title || 'Saved Routine',
+        author: user?.username || 'test_lifter',
+        slots: normalizeSlotLabels(currentWorkout.slots)
+      };
+      setSavedRoutines(prev => {
+        const exists = prev.some(r => r.key === routineItem.key);
+        return exists ? prev.map(r => (r.key === routineItem.key ? routineItem : r)) : [routineItem, ...prev];
+      });
+      setCurrentView('routines');
+      return;
+    }
+
+    if (currentView === 'historical_entry') {
+      const iso = new Date(`${currentWorkout.workoutDate || '2026-10-28'}T12:00:00`).toISOString();
+      const entry = {
+        ...currentWorkout,
+        id: currentWorkout.id || `hist_${Date.now()}`,
+        startedAt: iso,
+        updatedAt: new Date().toISOString(),
+        isComplete: true,
+        verifiedByUser: true,
+        slots: normalizeSlotLabels(currentWorkout.slots)
+      };
+      setHistory(prev => [entry, ...prev]);
+      setHistoricalDraft(null);
+      setCurrentView('history');
+      return;
+    }
+
+    const entry = {
+      ...currentWorkout,
+      updatedAt: new Date().toISOString(),
+      isComplete: checkIsWorkoutComplete(currentWorkout.slots),
+      verifiedByUser: true
+    };
+    setHistory(prev => {
+      const exists = prev.some(w => w.id === entry.id);
+      return exists ? prev.map(w => (w.id === entry.id ? entry : w)) : [entry, ...prev];
+    });
+    // Clear activeSession after saving so clicking "New Session" again opens a clean, empty page
+    setActiveSession(null);
+    setCurrentView('home');
+  };
+
+  const handleShareCurrentEditor = () => {
+    const currentWorkout = getCurrentEditorWorkout();
+    if (!currentWorkout || !currentWorkout.slots || currentWorkout.slots.length === 0) return;
+    const sharedItem = {
+      key: `shared_${currentWorkout.id || currentWorkout.key || Date.now()}`,
+      label: currentWorkout.title || 'Shared Routine',
+      author: user?.username || 'test_lifter',
+      slots: normalizeSlotLabels(cloneSlots(currentWorkout.slots))
+    };
+    setSharedRoutines(prev => {
+      const exists = prev.some(r => r.label === sharedItem.label);
+      return exists ? prev.map(r => (r.label === sharedItem.label ? sharedItem : r)) : [sharedItem, ...prev];
+    });
+    setIsCurrentEditorShared(true);
+  };
+
+  const handleResetCurrentEditor = () => {
+    updateCurrentWorkoutState(prev => ({
+      ...prev,
+      loadedRoutineTitle: 'MANUAL',
+      slots: []
+    }));
+  };
+
+  const handleConfirmDeleteAction = () => {
+    if (!deleteConfirmTarget) return;
+    if (deleteConfirmTarget.type === 'slot') {
+      updateCurrentWorkoutState(prev => ({
+        ...prev,
+        slots: (prev?.slots || []).filter(s => s.id !== deleteConfirmTarget.slotId)
+      }));
+    } else if (deleteConfirmTarget.type === 'set') {
+      const { slotId, exIdx, setId } = deleteConfirmTarget;
+      updateCurrentWorkoutState(prev => {
+        if (!prev) return prev;
+        const nextSlots = prev.slots.map(slot => {
+          if (slot.id !== slotId) return slot;
+          if (slot.category === 'Supersets' && Array.isArray(slot.supersetSetsByExercise)) {
+            const nextMatrix = slot.supersetSetsByExercise.map((list, idx) =>
+              idx === exIdx
+                ? (list || []).filter(st => st.id !== setId).map((st, i) => ({ ...st, setNumber: i + 1 }))
+                : list
+            );
+            return {
+              ...slot,
+              supersetSetsByExercise: nextMatrix,
+              sets: nextMatrix[0] || [],
+              secondarySets: nextMatrix[1] || []
+            };
+          }
+          const nextSets = (slot.sets || [])
+            .filter(st => st.id !== setId)
+            .map((st, i) => ({ ...st, setNumber: i + 1 }));
+          return { ...slot, sets: nextSets, supersetSetsByExercise: [nextSets] };
+        });
+        return { ...prev, slots: nextSlots };
+      });
+    }
+    setDeleteConfirmTarget(null);
+  };
+
+  const handleUpdateSlotCategoryOrExercise = (slotId, changes) => {
     updateCurrentWorkoutState(prev => {
       if (!prev) return prev;
       const nextSlots = prev.slots.map(slot => {
         if (slot.id !== slotId) return slot;
-        const updatedExId = changes.exerciseId ?? slot.exerciseId;
-        const updatedSecExId =
-          changes.secondaryExerciseId !== undefined
-            ? changes.secondaryExerciseId
-            : slot.secondaryExerciseId;
-        const updatedScheme = changes.scheme ?? slot.scheme;
+        const currentEx = EXERCISE_MAP[slot.exerciseId] || EXERCISE_LIBRARY[0];
+        const targetMuscleGroup =
+          changes.exerciseId && EXERCISE_MAP[changes.exerciseId]
+            ? EXERCISE_MAP[changes.exerciseId].muscleGroup
+            : slot.familyMuscleGroup || currentEx.muscleGroup || 'Chest';
 
-        const ex1 = EXERCISE_MAP[updatedExId] || EXERCISE_LIBRARY[0];
-        const ex2 = updatedSecExId ? EXERCISE_MAP[updatedSecExId] : null;
+        const nextCategory = changes.category ?? slot.category;
+        const nextScheme = changes.scheme ?? slot.scheme;
+        let nextExId = changes.exerciseId ?? slot.exerciseId;
+        let nextSupersetIds =
+          changes.supersetExerciseIds ??
+          slot.supersetExerciseIds ??
+          [nextExId, slot.secondaryExerciseId].filter(Boolean);
 
-        const newSets1 = generateSetsForScheme(
-          updatedScheme,
-          oneRepMaxes[ex1.id] ?? ex1.default1RM,
-          slot.category,
-          ex1.id
-        );
-        const newSets2 = ex2
-          ? generateSetsForScheme(
-              updatedScheme,
-              oneRepMaxes[ex2.id] ?? ex2.default1RM,
-              slot.category,
-              ex2.id
-            )
-          : [];
+        if (
+          slot.category === 'Supersets' &&
+          nextCategory === 'Supersets' &&
+          changes.supersetExerciseIds &&
+          !changes.scheme &&
+          !changes.category
+        ) {
+          const cleanIds = [
+            changes.supersetExerciseIds[0] || slot.exerciseId || 'reverse_lunge',
+            changes.supersetExerciseIds[1] || slot.secondaryExerciseId || 'front_flies'
+          ];
+          const prevMatrix = slot.supersetSetsByExercise || [slot.sets || [], slot.secondarySets || []];
+          const updatedMatrix = cleanIds.map((id, idx) => {
+            const existingList =
+              Array.isArray(prevMatrix[idx]) && prevMatrix[idx].length > 0
+                ? prevMatrix[idx]
+                : prevMatrix[0] || [];
+            const calcMax = getHistoricalCalculated1RM(id, history, oneRepMaxes);
+            const totalCount = existingList.length || 5;
+            return existingList.map((st, sIdx) => {
+              const lastW = calculateLastEquivalentWeightForSet(calcMax, st, totalCount, 'Supersets');
+              const nextW = st.type === '1 Rep Max' ? roundTo5(calcMax) : roundToIncrement(lastW + currentIncrementLbs);
+              return { ...st, setNumber: sIdx + 1, lastWeight: lastW, weight: nextW };
+            });
+          });
 
-        return {
-          ...slot,
-          exerciseId: ex1.id,
-          secondaryExerciseId: ex2 ? ex2.id : null,
-          scheme: updatedScheme,
-          sets: newSets1,
-          secondarySets: newSets2
-        };
-      });
+          return {
+            ...slot,
+            exerciseId: cleanIds[0],
+            secondaryExerciseId: cleanIds[1],
+            supersetExerciseIds: cleanIds,
+            supersetSetsByExercise: updatedMatrix,
+            sets: updatedMatrix[0] || [],
+            secondarySets: updatedMatrix[1] || []
+          };
+        }
 
-      return { ...prev, updatedAt: new Date().toISOString(), slots: nextSlots };
-    });
-  };
-
-  const handleRemoveSlot = (slotId) => {
-    updateCurrentWorkoutState(prev => {
-      if (!prev) return prev;
-      return {
-        ...prev,
-        updatedAt: new Date().toISOString(),
-        slots: prev.slots.filter(s => s.id !== slotId)
-      };
-    });
-    setSelectedSlotIds(prev => prev.filter(id => id !== slotId));
-  };
-
-  const handleAddManualSlot = () => {
-    const targetSession = currentView === 'historical_entry' ? historicalDraft : activeSession;
-    const newSlot = createWorkoutSlot({
-      category: newSlotCategory,
-      slotLabel: newSlotCategory,
-      exerciseId: newSlotCategory === 'Warm-Up Routine' ? 'warmup_12_step' : newSlotEx1,
-      secondaryExerciseId: newSlotCategory === 'Supersets' ? newSlotEx2 : null,
-      scheme: newSlotScheme,
-      oneRepMaxes,
-      restSeconds: targetSession?.defaultRestSeconds || 90
-    });
-
-    const slotToInsert =
-      currentView === 'historical_entry'
-        ? {
-            ...newSlot,
-            sets: newSlot.sets.map(s => ({ ...s, completed: true })),
-            secondarySets: (newSlot.secondarySets || []).map(s => ({ ...s, completed: true }))
+        if (changes.category && !changes.exerciseId) {
+          if (nextCategory === 'Abs') {
+            const absMatch = EXERCISE_LIBRARY.find(e => e.category === 'Abs');
+            nextExId = absMatch ? absMatch.id : 'hollow_holds';
+          } else if (nextCategory === 'Accessories') {
+            const sameFamilyAcc = EXERCISE_LIBRARY.filter(e => e.category === 'Accessories' && e.muscleGroup === targetMuscleGroup);
+            const fallbackAcc = EXERCISE_LIBRARY.filter(e => e.category === 'Accessories');
+            nextExId = (sameFamilyAcc[0] || fallbackAcc[0] || currentEx).id;
+          } else if (nextCategory === 'Compound Lift') {
+            const sameFamilyComp = EXERCISE_LIBRARY.filter(e => e.category === 'Compound Lift' && e.muscleGroup === targetMuscleGroup);
+            const fallbackComp = EXERCISE_LIBRARY.filter(e => e.category === 'Compound Lift');
+            nextExId = (sameFamilyComp[0] || fallbackComp[0] || currentEx).id;
+          } else if (nextCategory === 'Supersets') {
+            const sameFamilyPool = EXERCISE_LIBRARY.filter(e => e.muscleGroup === targetMuscleGroup);
+            const secondPick =
+              sameFamilyPool.find(e => e.id !== nextExId) ||
+              EXERCISE_LIBRARY.find(e => e.category === 'Accessories' && e.id !== nextExId) ||
+              EXERCISE_MAP.front_flies;
+            nextSupersetIds = [nextExId, secondPick.id].filter(Boolean);
           }
-        : newSlot;
+        }
 
-    updateCurrentWorkoutState(prev => ({
-      ...(prev || {
-        id: `session_${Date.now()}`,
-        title: 'Custom Session',
-        startedAt: new Date().toISOString(),
-        defaultRestSeconds: 90
-      }),
-      updatedAt: new Date().toISOString(),
-      slots: [...(prev?.slots || []), slotToInsert]
-    }));
-    setShowAddSlotModal(false);
-    triggerBanner(`Added ${newSlotCategory}.`, 'success');
+        const rebuiltSlot = createWorkoutSlot({
+          category: nextCategory,
+          slotLabel: nextCategory,
+          exerciseId: nextExId,
+          supersetExerciseIds: nextCategory === 'Supersets' ? nextSupersetIds.slice(0, 2) : [nextExId],
+          scheme: nextScheme,
+          oneRepMaxes,
+          history,
+          incrementLbs: currentIncrementLbs,
+          restSeconds: slot.restSeconds || 90
+        });
+
+        return { ...rebuiltSlot, id: slot.id, familyMuscleGroup: targetMuscleGroup };
+      });
+      return { ...prev, slots: nextSlots };
+    });
   };
 
-  const handleUpdateSet = (slotId, isSecondary, setId, field, rawVal) => {
+  const handleUpdateSetField = (slotId, exIndex, setId, field, rawVal) => {
     const val = Math.max(0, Number(rawVal) || 0);
     updateCurrentWorkoutState(prev => {
       if (!prev) return prev;
       const nextSlots = prev.slots.map(slot => {
         if (slot.id !== slotId) return slot;
-        const targetKey = isSecondary ? 'secondarySets' : 'sets';
-        const updatedList = (slot[targetKey] || []).map(st =>
-          st.id === setId ? { ...st, [field]: val } : st
-        );
-        return { ...slot, [targetKey]: updatedList };
+        if (slot.category === 'Supersets' && Array.isArray(slot.supersetSetsByExercise)) {
+          const nextMatrix = slot.supersetSetsByExercise.map((list, idx) =>
+            idx === exIndex ? list.map(st => (st.id === setId ? { ...st, [field]: val } : st)) : list
+          );
+          return {
+            ...slot,
+            supersetSetsByExercise: nextMatrix,
+            sets: nextMatrix[0] || [],
+            secondarySets: nextMatrix[1] || []
+          };
+        }
+        const nextSets = (slot.sets || []).map(st => (st.id === setId ? { ...st, [field]: val } : st));
+        return { ...slot, sets: nextSets };
       });
-      return { ...prev, updatedAt: new Date().toISOString(), slots: nextSlots };
+      return { ...prev, slots: nextSlots };
     });
   };
 
-  const handleAddSetToSlot = (slotId, isSecondary = false) => {
+  const handleUpdateSetType = (slotId, exIndex, setId, newType) => {
     updateCurrentWorkoutState(prev => {
       if (!prev) return prev;
       const nextSlots = prev.slots.map(slot => {
         if (slot.id !== slotId) return slot;
-        const addOne = (list) => {
-          const lastSet = list[list.length - 1] || { weight: 135, reps: 8, type: 'Working' };
-          return [
-            ...list,
-            {
-              id: nextDeterministicId('set'),
-              setNumber: list.length + 1,
-              type: `Set ${list.length + 1}`,
-              reps: lastSet.reps ?? 8,
-              weight: lastSet.weight ?? 135,
-              completed: currentView === 'historical_entry',
-              completedAt: null,
-              restLoggedSeconds: null,
-              interLiftSeconds: null
-            }
-          ];
+
+        const updateSingleSet = (st, exId, totalCount) => {
+          if (st.id !== setId) return st;
+          const calc1RM = getHistoricalCalculated1RM(exId, history, oneRepMaxes);
+          if (newType === '1 Rep Max') {
+            return {
+              ...st,
+              type: newType,
+              reps: 1,
+              lastWeight: roundTo5(calc1RM),
+              weight: roundTo5(calc1RM)
+            };
+          }
+          const updatedSet = { ...st, type: newType };
+          const lastW = calculateLastEquivalentWeightForSet(calc1RM, updatedSet, totalCount, slot.category);
+          return {
+            ...updatedSet,
+            lastWeight: lastW,
+            weight: roundToIncrement(lastW + currentIncrementLbs)
+          };
         };
 
-        if (slot.category === 'Supersets' && slot.secondaryExerciseId) {
+        if (slot.category === 'Supersets' && Array.isArray(slot.supersetSetsByExercise)) {
+          const supIds = slot.supersetExerciseIds || [slot.exerciseId, slot.secondaryExerciseId];
+          const nextMatrix = slot.supersetSetsByExercise.map((list, idx) =>
+            idx === exIndex
+              ? list.map(st => updateSingleSet(st, supIds[idx] || slot.exerciseId, list.length))
+              : list
+          );
           return {
             ...slot,
-            sets: addOne(slot.sets || []),
-            secondarySets: addOne(slot.secondarySets || [])
+            supersetSetsByExercise: nextMatrix,
+            sets: nextMatrix[0] || [],
+            secondarySets: nextMatrix[1] || []
           };
         }
-
-        const key = isSecondary ? 'secondarySets' : 'sets';
-        return { ...slot, [key]: addOne(slot[key] || []) };
+        const totalLen = (slot.sets || []).length;
+        const nextSets = (slot.sets || []).map(st => updateSingleSet(st, slot.exerciseId, totalLen));
+        return { ...slot, sets: nextSets };
       });
-      return { ...prev, updatedAt: new Date().toISOString(), slots: nextSlots };
+      return { ...prev, slots: nextSlots };
     });
   };
 
-  const handleRemoveLastSetFromSlot = (slotId, isSecondary = false) => {
+  const handleInsertSetAtPosition = (slotId, position = 'bottom') => {
+    const isTop = position === 'top';
+    const defaultSetType = isTop ? 'Warmup Set' : 'Burn Out Set';
+    const ts = Date.now() + Math.floor(Math.random() * 10000);
+
     updateCurrentWorkoutState(prev => {
       if (!prev) return prev;
       const nextSlots = prev.slots.map(slot => {
         if (slot.id !== slotId) return slot;
-        if (slot.category === 'Supersets' && slot.secondaryExerciseId) {
+
+        const insertIntoList = (list, exId) => {
+          const currentList = Array.isArray(list) ? list : [];
+          const refSet = isTop ? currentList[0] : currentList[currentList.length - 1];
+          const base1RM = getHistoricalCalculated1RM(exId, history, oneRepMaxes);
+          const nextCount = currentList.length + 1;
+          const newReps = refSet ? refSet.reps : slot.category === 'Abs' ? 45 : 8;
+          const draftSet = {
+            id: `set_${ts}_${Math.random().toString(36).slice(2, 6)}`,
+            setNumber: 1,
+            type: defaultSetType,
+            reps: newReps,
+            completed: false
+          };
+          const lastW =
+            slot.category === 'Abs'
+              ? 0
+              : calculateLastEquivalentWeightForSet(base1RM, draftSet, nextCount, slot.category);
+          const newSet = {
+            ...draftSet,
+            lastWeight: lastW,
+            weight: slot.category === 'Abs' ? 0 : roundToIncrement(lastW + currentIncrementLbs)
+          };
+          const combined = isTop ? [newSet, ...currentList] : [...currentList, newSet];
+          return combined.map((st, idx) => ({ ...st, setNumber: idx + 1 }));
+        };
+
+        if (slot.category === 'Supersets' && Array.isArray(slot.supersetSetsByExercise)) {
+          const supIds = slot.supersetExerciseIds || [slot.exerciseId, slot.secondaryExerciseId];
+          const nextMatrix = slot.supersetSetsByExercise.map((list, idx) =>
+            insertIntoList(list, supIds[idx] || slot.exerciseId)
+          );
           return {
             ...slot,
-            sets: (slot.sets || []).length > 1 ? slot.sets.slice(0, -1) : slot.sets,
-            secondarySets:
-              (slot.secondarySets || []).length > 1
-                ? slot.secondarySets.slice(0, -1)
-                : slot.secondarySets
+            supersetSetsByExercise: nextMatrix,
+            sets: nextMatrix[0] || [],
+            secondarySets: nextMatrix[1] || []
           };
         }
-        const key = isSecondary ? 'secondarySets' : 'sets';
-        const list = slot[key] || [];
-        if (list.length <= 1) return slot;
-        return { ...slot, [key]: list.slice(0, -1) };
+
+        const nextSets = insertIntoList(slot.sets || [], slot.exerciseId);
+        return { ...slot, sets: nextSets, supersetSetsByExercise: [nextSets] };
       });
-      return { ...prev, updatedAt: new Date().toISOString(), slots: nextSlots };
+      return { ...prev, slots: nextSlots };
     });
   };
 
-  const openPlateCalculator = (slotId, isSecondary, setItem, exerciseName) => {
-    const initialWeight = Number(setItem.weight) || 135;
+  // Recalculate weights; if the last set is "1 Rep Max", turns all previous sets into Warmup Sets ramping up to the 1RM
+  const handleRecalculateSlotWeights = slotId => {
+    updateCurrentWorkoutState(prev => {
+      if (!prev) return prev;
+      const nextSlots = prev.slots.map(slot => {
+        if (slot.id !== slotId) return slot;
+
+        const recalcList = (list, exId) => {
+          const currentList = Array.isArray(list) ? list : [];
+          const totalCount = currentList.length;
+          const calc1RM = getHistoricalCalculated1RM(exId, history, oneRepMaxes);
+
+          if (slot.category === 'Abs') {
+            return currentList.map((st, idx) => ({ ...st, setNumber: idx + 1, lastWeight: 0, weight: 0 }));
+          }
+
+          const lastSetIs1RM =
+            totalCount > 1 && currentList[totalCount - 1]?.type === '1 Rep Max';
+
+          if (lastSetIs1RM) {
+            const warmupCount = totalCount - 1;
+            const maxW = roundTo5(calc1RM);
+            return currentList.map((st, idx) => {
+              if (idx === totalCount - 1) {
+                return {
+                  ...st,
+                  setNumber: idx + 1,
+                  type: '1 Rep Max',
+                  reps: 1,
+                  lastWeight: maxW,
+                  weight: roundToIncrement(maxW + currentIncrementLbs)
+                };
+              }
+              const pct =
+                warmupCount === 1
+                  ? 0.70
+                  : 0.50 + (idx / (warmupCount - 1)) * 0.35;
+              const warmupReps = Math.max(1, Math.round(8 - (idx / Math.max(1, warmupCount - 1)) * 6));
+              const warmupW = roundTo5(calc1RM * pct);
+              return {
+                ...st,
+                setNumber: idx + 1,
+                type: 'Warmup Set',
+                reps: warmupReps,
+                lastWeight: warmupW,
+                weight: warmupW
+              };
+            });
+          }
+
+          return currentList.map((st, idx) => {
+            if (st.type === '1 Rep Max') {
+              const maxW = roundTo5(calc1RM);
+              return { ...st, setNumber: idx + 1, reps: 1, lastWeight: maxW, weight: maxW };
+            }
+            const lastW = calculateLastEquivalentWeightForSet(calc1RM, st, totalCount, slot.category);
+            const targetW = roundToIncrement(lastW + currentIncrementLbs);
+            return { ...st, setNumber: idx + 1, lastWeight: lastW, weight: targetW };
+          });
+        };
+
+        if (slot.category === 'Supersets' && Array.isArray(slot.supersetSetsByExercise)) {
+          const supIds = slot.supersetExerciseIds || [slot.exerciseId, slot.secondaryExerciseId];
+          const nextMatrix = slot.supersetSetsByExercise.map((list, idx) =>
+            recalcList(list, supIds[idx] || slot.exerciseId)
+          );
+          return {
+            ...slot,
+            supersetSetsByExercise: nextMatrix,
+            sets: nextMatrix[0] || [],
+            secondarySets: nextMatrix[1] || []
+          };
+        }
+
+        const nextSets = recalcList(slot.sets || [], slot.exerciseId);
+        return { ...slot, sets: nextSets, supersetSetsByExercise: [nextSets] };
+      });
+      return { ...prev, slots: nextSlots };
+    });
+  };
+
+  const handleToggleSetDone = (slot, exIndex, setItem) => {
+    const markingDone = !setItem.completed;
+    if (markingDone && isRoutineEditorView) {
+      setTimerTrigger({
+        isRunning: true,
+        targetSeconds: slot.restSeconds || currentEditorWorkout?.defaultRestSeconds || 90,
+        startedAtMs: Date.now()
+      });
+    }
+    updateCurrentWorkoutState(prev => {
+      if (!prev) return prev;
+      const nextSlots = prev.slots.map(s => {
+        if (s.id !== slot.id) return s;
+        if (s.category === 'Supersets' && Array.isArray(s.supersetSetsByExercise)) {
+          const nextMatrix = s.supersetSetsByExercise.map((list, idx) =>
+            idx === exIndex
+              ? list.map(st => (st.id === setItem.id ? { ...st, completed: markingDone } : st))
+              : list
+          );
+          return {
+            ...s,
+            supersetSetsByExercise: nextMatrix,
+            sets: nextMatrix[0] || [],
+            secondarySets: nextMatrix[1] || []
+          };
+        }
+        return {
+          ...s,
+          sets: (s.sets || []).map(st => (st.id === setItem.id ? { ...st, completed: markingDone } : st))
+        };
+      });
+      return { ...prev, slots: nextSlots };
+    });
+  };
+
+  const handleAddManualSlot = () => {
+    const newSlot = createWorkoutSlot({
+      category: newSlotCategory,
+      slotLabel: newSlotCategory,
+      exerciseId: newSlotEx1,
+      supersetExerciseIds:
+        newSlotCategory === 'Supersets'
+          ? newSlotSupersetIds.length >= 2
+            ? newSlotSupersetIds.slice(0, 2)
+            : ['reverse_lunge', 'front_flies']
+          : [newSlotEx1],
+      scheme: newSlotScheme,
+      oneRepMaxes,
+      history,
+      incrementLbs: currentIncrementLbs
+    });
+    updateCurrentWorkoutState(prev => ({
+      ...(prev || { id: `session_${Date.now()}`, title: getDefaultSessionName(), slots: [] }),
+      slots: [...(prev?.slots || []), newSlot]
+    }));
+    setShowAddSlotModal(false);
+  };
+
+  const decomposeWeightToPlates = initialWeight => {
     const defaultBar = 45;
     setCalcUnit('lb');
     setCalcBarWeight(defaultBar);
     setCalcDirectTotal(initialWeight);
-
-    const availableLbPlates = [45, 35, 25, 10, 5, 2.5];
+    const availableLbPlates = [45, 35, 25, 10, 5, 2.5, 1.25];
     let remPerSide = Math.max(0, (initialWeight - defaultBar) / 2);
     const initialPlates = [];
     availableLbPlates.forEach(plate => {
@@ -2564,22 +2133,29 @@ export default function App() {
         remPerSide = Math.round((remPerSide - plate) * 100) / 100;
       }
     });
-
-    setCalcPlatesPerSide(initialPlates);
+    setCalcPlatesPerSide(initialPlates.sort((a, b) => b - a));
     setCalcMode('per_side');
+  };
+
+  const openPlateCalculatorForSet = (slotId, exIndex, setItem, exerciseName) => {
+    decomposeWeightToPlates(Number(setItem.weight) || 135);
     setPlateCalcTarget({
-      slotId,
-      isSecondary,
-      setId: setItem.id,
-      setNumber: setItem.setNumber,
-      exerciseName
+      mode: 'set', slotId, exIndex, setId: setItem.id, setNumber: setItem.setNumber, exerciseName
     });
   };
 
+  const openPlateCalculatorForPR = (exerciseId, exerciseName, currentWeight) => {
+    decomposeWeightToPlates(Number(currentWeight) || 225);
+    setPlateCalcTarget({ mode: 'pr', exerciseId, exerciseName });
+  };
+
+  const openPlateCalculatorForGoal = (exerciseId, exerciseName, currentGoalWeight) => {
+    decomposeWeightToPlates(Number(currentGoalWeight) || 225);
+    setPlateCalcTarget({ mode: 'goal', exerciseId, exerciseName });
+  };
+
   const computedPlateCalculatorTotal = useMemo(() => {
-    if (calcMode === 'total') {
-      return Math.max(0, Number(calcDirectTotal) || 0);
-    }
+    if (calcMode === 'total') return Math.max(0, Number(calcDirectTotal) || 0);
     const oneSideSum = calcPlatesPerSide.reduce((acc, p) => acc + p, 0);
     return Math.round((calcBarWeight + oneSideSum * 2) * 100) / 100;
   }, [calcMode, calcDirectTotal, calcPlatesPerSide, calcBarWeight]);
@@ -2588,2837 +2164,2966 @@ export default function App() {
     if (!plateCalcTarget) return;
     const finalWeightLbs =
       calcUnit === 'kg'
-        ? Math.round(computedPlateCalculatorTotal * 2.20462 * 2) / 2
+        ? Math.round(computedPlateCalculatorTotal * 2.20462 * 4) / 4
         : computedPlateCalculatorTotal;
 
-    if (plateCalcTarget.slotId === '__MAX_CALC__') {
-      handleUpdateMaxCalcSet(plateCalcTarget.setId, 'weight', finalWeightLbs);
-      setPlateCalcTarget(null);
-      return;
+    if (plateCalcTarget.mode === 'set') {
+      handleUpdateSetField(
+        plateCalcTarget.slotId,
+        plateCalcTarget.exIndex,
+        plateCalcTarget.setId,
+        'weight',
+        finalWeightLbs
+      );
+    } else if (plateCalcTarget.mode === 'pr') {
+      setOneRepMaxes(prev => ({
+        ...prev,
+        [plateCalcTarget.exerciseId]: roundTo5(finalWeightLbs)
+      }));
+    } else if (plateCalcTarget.mode === 'goal') {
+      setCustomGoalWeights(prev => ({
+        ...prev,
+        [plateCalcTarget.exerciseId]: roundTo5(finalWeightLbs)
+      }));
+      setTargetStandardClass('Custom');
     }
-
-    handleUpdateSet(
-      plateCalcTarget.slotId,
-      plateCalcTarget.isSecondary,
-      plateCalcTarget.setId,
-      'weight',
-      finalWeightLbs
-    );
     setPlateCalcTarget(null);
   };
 
-  const handleToggleSetDone = (slot, isSecondary, setItem) => {
-    const nowMs = Date.now();
-    const markingDone = !setItem.completed;
-
-    if (currentView === 'historical_entry') {
-      updateCurrentWorkoutState(prev => {
-        if (!prev) return prev;
-        const nextSlots = prev.slots.map(s => {
-          if (s.id !== slot.id) return s;
-          const key = isSecondary ? 'secondarySets' : 'sets';
-          const nextList = (s[key] || []).map(st =>
-            st.id === setItem.id
-              ? {
-                  ...st,
-                  completed: markingDone,
-                  completedAt: markingDone ? new Date(nowMs).toISOString() : null
-                }
-              : st
-          );
-          return { ...s, [key]: nextList };
-        });
-        return { ...prev, slots: nextSlots };
-      });
-      return;
-    }
-
-    let loggedRestSec = null;
-    if (markingDone && timerState.startedAtMs) {
-      loggedRestSec = Math.floor((nowMs - timerState.startedAtMs) / 1000);
-    }
-
-    let interLiftSec = null;
-    if (markingDone && lastCompletedSetTimestampRef.current) {
-      interLiftSec = Math.floor((nowMs - lastCompletedSetTimestampRef.current) / 1000);
-    }
-
-    if (markingDone) {
-      lastCompletedSetTimestampRef.current = nowMs;
-      startRestTimer(
-        slot.restSeconds || activeSession?.defaultRestSeconds || 90,
-        `${EXERCISE_MAP[slot.exerciseId]?.name || 'Lift'} Set ${setItem.setNumber}`
-      );
-    }
-
-    setActiveSession(prev => {
-      if (!prev) return prev;
-      const nextSlots = prev.slots.map(s => {
-        if (s.id !== slot.id) return s;
-        const key = isSecondary ? 'secondarySets' : 'sets';
-        const nextList = (s[key] || []).map(st =>
-          st.id === setItem.id
-            ? {
-                ...st,
-                completed: markingDone,
-                completedAt: markingDone ? new Date(nowMs).toISOString() : null,
-                restLoggedSeconds: markingDone ? loggedRestSec : null,
-                interLiftSeconds: markingDone ? interLiftSec : null
-              }
-            : st
-        );
-        return { ...s, [key]: nextList };
-      });
-
-      const updatedSession = {
-        ...prev,
-        updatedAt: new Date(nowMs).toISOString(),
-        isComplete: checkIsWorkoutComplete(nextSlots),
-        slots: nextSlots
-      };
-
-      syncSessionToHistory(updatedSession);
-      return updatedSession;
-    });
-  };
-
-  const handleConfirmResetSession = () => {
-    stopRestTimer();
-    setActiveSession(prev => {
-      if (!prev) return prev;
-      return {
-        ...prev,
-        presetUsed: null,
-        suggestionReason: null,
-        isComplete: false,
-        updatedAt: new Date().toISOString(),
-        slots: []
-      };
-    });
-    setSelectedSlotIds([]);
-    setConfirmAction(null);
-    triggerBanner('Session cleared and reset.', 'info');
-  };
-
-  const handleConfirmCancelSession = () => {
-    stopRestTimer();
-    if (activeSession) {
-      supabaseCloud.deleteWorkoutHistory(user, activeSession.id);
-      setHistory(prev => prev.filter(w => w.id !== activeSession.id));
-    }
-    setActiveSession(null);
-    setSelectedSlotIds([]);
-    setConfirmAction(null);
-    setCurrentView('home');
-    triggerBanner('Workout session cancelled.', 'info');
-  };
-
-  const handleVerifyAndCompleteHistoryWorkout = (workoutId) => {
-    setHistory(prev => {
-      const next = prev.map(w => {
-        if (w.id !== workoutId) return w;
-        const completedSlots = (w.slots || []).map(slot => ({
-          ...slot,
-          sets: (slot.sets || []).map(s => ({
-            ...s,
-            completed: true,
-            completedAt: s.completedAt || new Date().toISOString()
-          })),
-          secondarySets: (slot.secondarySets || []).map(s => ({
-            ...s,
-            completed: true,
-            completedAt: s.completedAt || new Date().toISOString()
-          }))
-        }));
-        const verifiedWorkout = {
-          ...w,
-          isComplete: true,
-          verifiedByUser: true,
-          updatedAt: new Date().toISOString(),
-          slots: completedSlots
-        };
-        supabaseCloud.upsertWorkoutHistory(user, verifiedWorkout);
-        return verifiedWorkout;
-      });
-
-      const { updatedMaxes } = calculateUpdated1RMsFromWorkouts(next, oneRepMaxes);
-      setOneRepMaxes(updatedMaxes);
-      return next;
-    });
-    triggerBanner('Workout verified & 1RMs updated.', 'success');
-  };
-
-  const handleToggleHistorySet = (workoutId, slotId, isSecondary, setId) => {
-    setHistory(prev => {
-      const next = prev.map(w => {
-        if (w.id !== workoutId) return w;
-        const nextSlots = (w.slots || []).map(slot => {
-          if (slot.id !== slotId) return slot;
-          const key = isSecondary ? 'secondarySets' : 'sets';
-          const updatedSets = (slot[key] || []).map(st =>
-            st.id === setId ? { ...st, completed: !st.completed } : st
-          );
-          return { ...slot, [key]: updatedSets };
-        });
-        const nowComplete = checkIsWorkoutComplete(nextSlots);
-        const updatedW = {
-          ...w,
-          isComplete: nowComplete,
-          verifiedByUser: nowComplete ? true : w.verifiedByUser,
-          slots: nextSlots
-        };
-        supabaseCloud.upsertWorkoutHistory(user, updatedW);
-        return updatedW;
-      });
-
-      const { updatedMaxes } = calculateUpdated1RMsFromWorkouts(next, oneRepMaxes);
-      setOneRepMaxes(updatedMaxes);
-      return next;
-    });
-  };
-
   // ============================================================================
-  // 5. RENDER NATIVE iOS 17/18 VIEWPORT (FULLSCREEN ON MOBILE, FRAMED ON DESKTOP)
+  // 9. RENDER KINETIC INTERFACE
   // ============================================================================
 
-  const navTitle =
-    currentView === 'home'
-      ? "You Can't Cry in Here"
-      : currentView === 'session'
-      ? 'Workout Session'
-      : currentView === 'history'
-      ? 'History'
-      : currentView === 'historical_entry'
-      ? 'Log Past Workout'
-      : 'Account';
+  const isRoutineEditorView =
+    currentView === 'session' ||
+    currentView === 'historical_entry' ||
+    currentView === 'routine_editor' ||
+    currentView === 'routine_preview';
+
+  const currentEditorWorkout = getCurrentEditorWorkout();
 
   return (
-    <div
-      style={{
-        minHeight: '100dvh',
-        backgroundColor: isRealMobileViewport
-          ? colors.systemGroupedBackground
-          : isDarkMode
-          ? '#111113'
-          : '#E5E5EA',
-        display: 'flex',
-        alignItems: isRealMobileViewport ? 'stretch' : 'center',
-        justifyContent: 'center',
-        fontFamily:
-          '-apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Helvetica Neue", sans-serif',
-        WebkitFontSmoothing: 'antialiased',
-        color: colors.label
-      }}
-    >
+    <div className="kinetic-app min-h-screen flex justify-center bg-[#080808] text-white">
+      <style>{KINETIC_CSS}</style>
+
       <div
         style={{
-          width: '100%',
-          maxWidth: isRealMobileViewport ? '100%' : '393px',
-          height: isRealMobileViewport ? '100dvh' : '852px',
-          backgroundColor: colors.systemGroupedBackground,
-          borderRadius: isRealMobileViewport ? '0px' : '44px',
-          border: isRealMobileViewport
-            ? 'none'
-            : isDarkMode
-            ? '6px solid rgb(44, 44, 46)'
-            : '6px solid rgb(199, 199, 204)',
-          boxShadow: isRealMobileViewport ? 'none' : '0 24px 60px rgba(0, 0, 0, 0.45)',
-          display: 'flex',
-          flexDirection: 'column',
-          overflow: 'hidden',
-          position: 'relative'
+          width: '100%', maxWidth: '480px', minHeight: '100vh',
+          backgroundColor: 'var(--dp-color-ground)',
+          borderLeft: '2px solid var(--dp-color-rule)',
+          borderRight: '2px solid var(--dp-color-rule)',
+          display: 'flex', flexDirection: 'column', position: 'relative', containerType: 'inline-size'
         }}
       >
-        {!isRealMobileViewport && (
-          <div
-            style={{
-              height: '44px',
-              paddingLeft: '24px',
-              paddingRight: '20px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              backgroundColor: colors.chromeMaterial,
-              backdropFilter: 'blur(20px)',
-              WebkitBackdropFilter: 'blur(20px)',
-              zIndex: 40,
-              flexShrink: 0
-            }}
-          >
-            <span style={{ ...IOS_TEXT.footnote, fontWeight: 600, color: colors.label }}>9:41</span>
+        {/* TOP NAVIGATION BAR */}
+        <header
+          style={{
+            position: 'sticky', top: 0, zIndex: 30,
+            backgroundColor: 'var(--dp-color-ground)',
+            borderBottom: '2px solid var(--dp-color-rule)',
+            padding: '12px var(--dp-spacing-gutter)'
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px' }}>
+            {currentView === 'home' ? (
+              <button
+                type="button"
+                aria-label="Open navigation menu"
+                onClick={() => setShowHamburgerDrawer(true)}
+                className="kinetic-btn"
+                style={{
+                  width: '40px', height: '40px', backgroundColor: '#161616',
+                  border: '2px solid var(--dp-color-rule)', color: '#FFFFFF',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer'
+                }}
+              >
+                <SFSymbol name="line.3.horizontal" size={20} color="#FFFFFF" />
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => {
+                  if (currentView === 'friend_profile') setCurrentView('social');
+                  else if (currentView === 'gym_editor') setCurrentView('gyms');
+                  else if (currentView === 'routine_editor') setCurrentView('routines');
+                  else if (currentView === 'routine_preview') setCurrentView(routineSelectReturnView || 'routines');
+                  else if (currentView === 'routines' && routineSelectReturnView) {
+                    const ret = routineSelectReturnView;
+                    setRoutineSelectReturnView(null);
+                    setCurrentView(ret);
+                  } else setCurrentView('home');
+                }}
+                className="kinetic-btn"
+                style={{
+                  padding: '8px 12px', backgroundColor: '#161616', border: '2px solid var(--dp-color-rule)',
+                  color: '#FFFFFF', display: 'flex', alignItems: 'center', gap: '6px',
+                  fontSize: '12px', fontWeight: 800, textTransform: 'uppercase', cursor: 'pointer'
+                }}
+              >
+                <SFSymbol name="chevron.backward" size={16} color="var(--dp-color-accent)" />
+                <span>BACK</span>
+              </button>
+            )}
 
             <div
               style={{
-                width: '120px',
-                height: '28px',
-                borderRadius: '999px',
-                backgroundColor: 'rgb(0, 0, 0)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '6px',
-                padding: '0 10px'
+                fontSize: '14px', fontWeight: 800, letterSpacing: '-0.03em',
+                textTransform: 'uppercase', color: '#FFFFFF', textAlign: 'center', flex: 1,
+                whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'
               }}
             >
-              {timerState.isRunning && (
-                <>
-                  <SFSymbol
-                    name="timer"
-                    size={12}
-                    color={timerState.remainingSeconds < 0 ? colors.systemRed : colors.systemGreen}
-                  />
-                  <span
-                    style={{
-                      ...IOS_TEXT.caption2,
-                      fontWeight: 700,
-                      fontVariantNumeric: 'tabular-nums',
-                      color: timerState.remainingSeconds < 0 ? colors.systemRed : colors.systemGreen
-                    }}
-                  >
-                    {formatTimerSeconds(timerState.remainingSeconds)}
-                  </span>
-                </>
-              )}
+              {currentView !== 'home' ? "You Can't Cry in Here" : ''}
             </div>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <button
-                type="button"
-                onClick={() => setIsDarkMode(prev => !prev)}
-                title="Toggle iOS Light / Dark System Appearance"
+            <div style={{ width: '40px' }} />
+          </div>
+
+          {isRoutineEditorView && currentEditorWorkout && (
+            <SessionRestTimerBar
+              defaultRestSeconds={currentEditorWorkout.defaultRestSeconds || 90}
+              timerTrigger={timerTrigger}
+              nextLiftInfo={getNextIncompleteSetInfo(currentEditorWorkout.slots)}
+              onChangeDefaultRest={sec => {
+                updateCurrentWorkoutState(prev => ({ ...prev, defaultRestSeconds: sec }));
+                setTimerTrigger(prev => ({ ...prev, targetSeconds: sec }));
+              }}
+              onStopTimer={() => setTimerTrigger(prev => ({ ...prev, isRunning: false, startedAtMs: null }))}
+            />
+          )}
+        </header>
+
+        {/* SLIDE-OUT HAMBURGER DRAWER */}
+        {showHamburgerDrawer && (
+          <div
+            style={{
+              position: 'fixed', inset: 0, zIndex: 60,
+              backgroundColor: 'rgba(0,0,0,0.8)', display: 'flex'
+            }}
+            onClick={() => setShowHamburgerDrawer(false)}
+          >
+            <div
+              onClick={e => e.stopPropagation()}
+              style={{
+                width: '300px', maxWidth: '82vw', height: '100%', backgroundColor: '#101010',
+                borderRight: '2px solid var(--dp-color-rule)', padding: '20px 16px',
+                display: 'flex', flexDirection: 'column', justifyContent: 'space-between'
+              }}
+            >
+              <div>
+                <div
+                  style={{
+                    fontSize: '24px', fontWeight: 800, letterSpacing: '-0.045em', textTransform: 'uppercase',
+                    borderBottom: '2px solid var(--dp-color-rule)', paddingBottom: '12px', marginBottom: '16px',
+                    display: 'flex', justifyContent: 'space-between', alignItems: 'center'
+                  }}
+                >
+                  <span>MENU</span>
+                  <button
+                    type="button"
+                    onClick={() => setShowHamburgerDrawer(false)}
+                    style={{
+                      background: 'var(--dp-color-accent)', color: '#101010', border: 'none',
+                      padding: '4px 8px', fontSize: '12px', fontWeight: 800, cursor: 'pointer'
+                    }}
+                  >
+                    ✕
+                  </button>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowHamburgerDrawer(false);
+                      setCurrentView(user ? 'profile' : 'auth');
+                    }}
+                    className="kinetic-btn"
+                    style={UI.drawerBtn(true)}
+                  >
+                    <span>{user ? `00 / PROFILE (@${user.username})` : '00 / SIGN IN'}</span>
+                    <span>→</span>
+                  </button>
+
+                  {[
+                    { id: 'routines', label: '01 / ROUTINES', clearReturn: true },
+                    { id: 'gyms', label: '02 / GYMS/EQUIPMENT' },
+                    { id: 'goals', label: '03 / GOALS' },
+                    { id: 'settings', label: '04 / SETTINGS' },
+                    { id: 'info', label: '05 / INFO' }
+                  ].map(nav => (
+                    <button
+                      key={nav.id}
+                      type="button"
+                      onClick={() => {
+                        setShowHamburgerDrawer(false);
+                        if (nav.clearReturn) setRoutineSelectReturnView(null);
+                        setCurrentView(nav.id);
+                      }}
+                      className="kinetic-btn"
+                      style={UI.drawerBtn(false)}
+                    >
+                      <span>{nav.label}</span>
+                      <span>→</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div
                 style={{
-                  background: 'none',
-                  border: 'none',
-                  padding: '2px',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center'
+                  borderTop: '2px solid var(--dp-color-rule)', paddingTop: '12px',
+                  fontSize: '11px', color: '#888888', fontWeight: 700, textTransform: 'uppercase'
                 }}
               >
-                <SFSymbol
-                  name={isDarkMode ? 'moon.fill' : 'sun.max.fill'}
-                  size={15}
-                  color={isDarkMode ? colors.systemYellow : colors.systemOrange}
-                />
-              </button>
-              <span style={{ ...IOS_TEXT.caption2, fontWeight: 600, color: colors.label }}>100%</span>
+                LOGGED IN: {user ? user.email : 'OFFLINE'}
+              </div>
             </div>
           </div>
         )}
 
-        <header
-          style={{
-            position: 'sticky',
-            top: 0,
-            zIndex: 35,
-            paddingTop: isRealMobileViewport ? 'env(safe-area-inset-top, 0px)' : '0px',
-            backgroundColor: colors.chromeMaterial,
-            backdropFilter: 'blur(20px)',
-            WebkitBackdropFilter: 'blur(20px)',
-            borderBottom: `0.5px solid ${colors.separator}`,
-            flexShrink: 0
-          }}
-        >
+        {/* PERSISTENT LOGGED-OUT ORANGE NOTIFICATION BAR */}
+        {!user && (
           <div
             style={{
-              height: '44px',
-              paddingLeft: '8px',
-              paddingRight: '16px',
-              display: 'grid',
-              gridTemplateColumns: '90px 1fr 110px',
-              alignItems: 'center'
+              margin: '12px var(--dp-spacing-gutter) 0', padding: '12px 14px',
+              backgroundColor: 'var(--dp-color-accent)', color: '#101010', border: '2px solid #FFFFFF',
+              fontWeight: 800, fontSize: '12px', textTransform: 'uppercase',
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', flexWrap: 'wrap'
             }}
           >
-            <div>
-              {currentView !== 'home' && (
-                <button
-                  type="button"
-                  onClick={
-                    currentView === 'session'
-                      ? handleBackToHomeFromSession
-                      : currentView === 'historical_entry'
-                      ? () => setCurrentView('history')
-                      : () => setCurrentView('home')
-                  }
-                  style={{
-                    ...IOS_TEXT.body,
-                    color: colors.systemBlue,
-                    background: 'none',
-                    border: 'none',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '2px',
-                    padding: '4px 6px',
-                    cursor: 'pointer'
-                  }}
-                >
-                  <SFSymbol name="chevron.backward" size={20} color={colors.systemBlue} />
-                  <span>Back</span>
-                </button>
-              )}
-            </div>
-
-            <div
-              style={{
-                ...IOS_TEXT.headline,
-                color: colors.label,
-                textAlign: 'center',
-                whiteSpace: 'nowrap',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis'
-              }}
-            >
-              {currentView === 'home' ? '' : navTitle}
-            </div>
-
-            <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '10px' }}>
-              {isRealMobileViewport && (
-                <button
-                  type="button"
-                  onClick={() => setIsDarkMode(prev => !prev)}
-                  title="Toggle Light / Dark Mode"
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    padding: '2px',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center'
-                  }}
-                >
-                  <SFSymbol
-                    name={isDarkMode ? 'moon.fill' : 'sun.max.fill'}
-                    size={16}
-                    color={isDarkMode ? colors.systemYellow : colors.systemOrange}
-                  />
-                </button>
-              )}
+            <span>NOT SIGNED IN</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
               <button
                 type="button"
-                onClick={() => setCurrentView('auth')}
+                onClick={() => {
+                  setAuthMode('login');
+                  setCurrentView('auth');
+                }}
+                className="kinetic-btn"
                 style={{
-                  ...IOS_TEXT.subheadline,
-                  fontWeight: 600,
-                  color: colors.systemBlue,
-                  background: 'none',
-                  border: 'none',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '4px',
-                  padding: '4px 0',
-                  cursor: 'pointer'
+                  background: '#101010', color: '#FFFFFF', border: '2px solid #101010',
+                  padding: '5px 10px', fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', cursor: 'pointer'
                 }}
               >
-                <SFSymbol name="person.crop.circle" size={19} color={colors.systemBlue} />
-                <span
-                  style={{
-                    maxWidth: '64px',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap'
-                  }}
-                >
-                  {user ? user.email.split('@')[0] : 'Sign In'}
-                </span>
+                SIGN IN
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setAuthMode('signup');
+                  setCurrentView('auth');
+                }}
+                className="kinetic-btn"
+                style={{
+                  background: '#FFFFFF', color: '#101010', border: '2px solid #101010',
+                  padding: '5px 10px', fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', cursor: 'pointer'
+                }}
+              >
+                CREATE ACCOUNT
               </button>
             </div>
           </div>
+        )}
 
-          {currentView === 'session' && activeSession && (
-            <div
-              style={{
-                padding: '8px 16px',
-                borderTop: `0.5px solid ${colors.separator}`,
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '8px'
-              }}
-            >
-              <div
+        {/* MAIN VIEWPORT CONTENT */}
+        <div style={{ flex: 1, paddingBottom: '48px' }}>
+          {/* ================================================================== */}
+          {/* VIEW: HOME SCREEN                                                  */}
+          {/* ================================================================== */}
+          {currentView === 'home' && (
+            <div>
+              <section
                 style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  gap: '8px'
+                  padding: '18px var(--dp-spacing-gutter) 16px',
+                  borderBottom: '2px solid var(--dp-color-rule)'
                 }}
               >
                 <div
                   style={{
-                    backgroundColor: colors.tertiarySystemFill,
-                    borderRadius: '8px',
-                    padding: '5px 8px',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '4px'
+                    fontSize: 'clamp(40px, 12.5cqw, 58px)', fontWeight: 800,
+                    lineHeight: 0.92, letterSpacing: '-0.045em', textTransform: 'uppercase'
                   }}
                 >
-                  <SFSymbol name="timer" size={14} color={colors.systemBlue} />
-                  <select
-                    value={activeSession.defaultRestSeconds || 90}
-                    onChange={e => {
-                      const sec = Number(e.target.value);
-                      setActiveSession(prev => ({
-                        ...prev,
-                        defaultRestSeconds: sec,
-                        slots: prev.slots.map(s => ({ ...s, restSeconds: sec }))
-                      }));
-                      setTimerState(prev => ({
-                        ...prev,
-                        targetSeconds: sec,
-                        remainingSeconds: prev.isRunning ? prev.remainingSeconds : sec
-                      }));
-                    }}
+                  <div style={{ textAlign: 'left', marginBottom: '6px' }}>YOU CAN'T</div>
+                  <div
                     style={{
-                      ...IOS_TEXT.footnote,
-                      fontWeight: 600,
-                      color: colors.label,
-                      background: 'transparent',
-                      border: 'none',
-                      outline: 'none',
-                      cursor: 'pointer'
+                      backgroundColor: 'var(--dp-color-accent)', color: '#101010',
+                      padding: '4px 12px', margin: '6px 0', textAlign: 'right'
                     }}
                   >
-                    <option value={60}>Rest 1:00</option>
-                    <option value={90}>Rest 1:30</option>
-                    <option value={120}>Rest 2:00</option>
-                    <option value={180}>Rest 3:00</option>
-                    <option value={10}>Rest 0:10</option>
-                  </select>
+                    CRY
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '6px' }}>
+                    <span>IN HERE</span>
+                    <span style={{ color: 'var(--dp-color-accent)' }}>↘</span>
+                  </div>
                 </div>
 
+                {/* Primary Actions: NEW SESSION, NEW AUTO, HISTORY */}
                 <div
                   style={{
-                    flex: 1,
-                    backgroundColor:
-                      timerState.isRunning && timerState.remainingSeconds < 0
-                        ? 'rgba(255, 69, 58, 0.18)'
-                        : timerState.isRunning
-                        ? 'rgba(48, 209, 88, 0.16)'
-                        : colors.tertiarySystemFill,
-                    borderRadius: '8px',
-                    padding: '5px 10px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between'
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+                    gap: '8px',
+                    marginTop: '16px'
                   }}
                 >
-                  <span
+                  <button
+                    type="button"
+                    onClick={handleOpenNewSession}
+                    className="kinetic-btn"
                     style={{
-                      ...IOS_TEXT.caption1,
-                      fontWeight: 600,
-                      color:
-                        timerState.isRunning && timerState.remainingSeconds < 0
-                          ? colors.systemRed
-                          : colors.secondaryLabel
+                      padding: '14px 10px', backgroundColor: 'var(--dp-color-accent)', color: '#101010',
+                      border: '2px solid #FFFFFF', fontWeight: 800, fontSize: '13px',
+                      textTransform: 'uppercase', display: 'flex', alignItems: 'center',
+                      justifyContent: 'space-between', cursor: 'pointer'
                     }}
                   >
-                    {timerState.isRunning && timerState.remainingSeconds < 0 ? 'OVERTIME' : 'REST'}
-                  </span>
-
-                  <span
-                    style={{
-                      ...IOS_TEXT.headline,
-                      fontVariantNumeric: 'tabular-nums',
-                      color:
-                        timerState.isRunning && timerState.remainingSeconds < 0
-                          ? colors.systemRed
-                          : timerState.isRunning
-                          ? colors.systemGreen
-                          : colors.label
-                    }}
-                  >
-                    {formatTimerSeconds(timerState.remainingSeconds)}
-                  </span>
+                    <span>NEW SESSION</span>
+                    <span>→</span>
+                  </button>
 
                   <button
                     type="button"
-                    onClick={() =>
-                      timerState.isRunning
-                        ? stopRestTimer()
-                        : startRestTimer(activeSession.defaultRestSeconds || 90, 'Manual Rest')
-                    }
+                    onClick={handleOpenNewAutoSession}
+                    className="kinetic-btn"
                     style={{
-                      ...IOS_TEXT.caption1,
-                      fontWeight: 600,
-                      color: timerState.isRunning ? colors.systemRed : colors.systemBlue,
-                      background: 'none',
-                      border: 'none',
-                      padding: 0,
-                      cursor: 'pointer'
+                      padding: '14px 10px', backgroundColor: '#FFFFFF', color: '#101010',
+                      border: '2px solid var(--dp-color-accent)', fontWeight: 800, fontSize: '13px',
+                      textTransform: 'uppercase', display: 'flex', alignItems: 'center',
+                      justifyContent: 'space-between', cursor: 'pointer'
                     }}
                   >
-                    {timerState.isRunning ? 'Stop' : 'Start'}
+                    <span>NEW AUTO</span>
+                    <span>⚡</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setCurrentView('history')}
+                    className="kinetic-btn"
+                    style={{
+                      padding: '14px 10px', backgroundColor: '#161616', color: '#FFFFFF',
+                      border: '2px solid var(--dp-color-rule)', fontWeight: 800, fontSize: '13px',
+                      textTransform: 'uppercase', display: 'flex', alignItems: 'center',
+                      justifyContent: 'space-between', cursor: 'pointer'
+                    }}
+                  >
+                    <span>HISTORY</span>
+                    <span style={{ color: 'var(--dp-color-accent)' }}>↗</span>
                   </button>
                 </div>
+              </section>
 
-                <button
-                  type="button"
-                  onClick={() => setSoundEnabled(prev => !prev)}
-                  style={{
-                    width: '32px',
-                    height: '32px',
-                    borderRadius: '8px',
-                    backgroundColor: colors.tertiarySystemFill,
-                    border: 'none',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    cursor: 'pointer'
-                  }}
-                >
-                  <SFSymbol
-                    name={soundEnabled ? 'speaker.wave.2.fill' : 'speaker.slash.fill'}
-                    size={15}
-                    color={soundEnabled ? colors.systemBlue : colors.secondaryLabel}
-                  />
-                </button>
-              </div>
-
-              {selectedSlotIds.length > 0 && (
-                <button
-                  type="button"
-                  onClick={handleSuggestAlternativesForSelected}
-                  style={{
-                    ...IOS_TEXT.subheadline,
-                    fontWeight: 600,
-                    width: '100%',
-                    padding: '7px 12px',
-                    borderRadius: '8px',
-                    border: 'none',
-                    backgroundColor: colors.systemOrange,
-                    color: '#FFFFFF',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '6px',
-                    cursor: 'pointer'
-                  }}
-                >
-                  <SFSymbol name="sparkles" size={15} color="#FFFFFF" />
-                  <span>Suggest Alternative ({selectedSlotIds.length} Selected)</span>
-                </button>
-              )}
-            </div>
-          )}
-        </header>
-
-        <div
-          style={{
-            flex: 1,
-            overflowY: 'auto',
-            overflowX: 'hidden',
-            paddingTop: '8px',
-            paddingBottom: '32px'
-          }}
-        >
-          {bannerMessage && (
-            <div style={{ padding: '0 16px 12px' }}>
+              {/* REPEATED-TEXT MARQUEE BAND */}
               <div
+                className={marqueePaused ? 'kinetic-marquee-paused' : ''}
                 style={{
-                  backgroundColor: colors.secondarySystemGroupedBackground,
-                  borderRadius: '12px',
-                  padding: '10px 14px',
-                  border: `0.5px solid ${colors.separator}`,
-                  boxShadow: '0 4px 16px rgba(0,0,0,0.15)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  gap: '10px'
+                  borderBottom: '2px solid var(--dp-color-rule)', backgroundColor: '#141414',
+                  display: 'flex', alignItems: 'center', overflow: 'hidden', marginBottom: '22px'
                 }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <SFSymbol
-                    name={
-                      bannerMessage.type === 'warning'
-                        ? 'exclamationmark.circle.fill'
-                        : 'checkmark.circle.fill'
-                    }
-                    size={18}
-                    color={
-                      bannerMessage.type === 'warning' ? colors.systemOrange : colors.systemGreen
-                    }
-                  />
-                  <span style={{ ...IOS_TEXT.subheadline, color: colors.label }}>
-                    {bannerMessage.msg}
-                  </span>
+                <div style={{ flex: 1, overflow: 'hidden', padding: '8px 0' }}>
+                  {(() => {
+                    const friendsTickerText =
+                      friendsList.length > 0
+                        ? friendsList
+                          .map(
+                            f =>
+                              `@${f.username.toUpperCase()}: BENCH 1RM ${f.prs?.barbell_bench_press || 185} LB • SQUAT 1RM ${f.prs?.barbell_back_squat || 265} LB • DEADLIFT 1RM ${f.prs?.barbell_deadlift || 315} LB • OHP 1RM ${f.prs?.overhead_press || 115} LB`
+                          )
+                          .join('   ///   ') + '   ///   '
+                        : 'ADD FRIENDS IN SOCIAL TO STREAM LIVE 1RM UPDATES   ///   ';
+
+                    return (
+                      <div
+                        className="kinetic-marquee-track"
+                        style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase' }}
+                      >
+                        <span style={{ paddingRight: '32px' }}>{friendsTickerText}</span>
+                        <span aria-hidden="true" style={{ paddingRight: '32px' }}>{friendsTickerText}</span>
+                      </div>
+                    );
+                  })()}
                 </div>
+                <button
+                  type="button"
+                  onClick={() => setMarqueePaused(p => !p)}
+                  style={{
+                    backgroundColor: '#101010', color: '#FFFFFF', border: 'none',
+                    borderLeft: '2px solid var(--dp-color-rule)', padding: '8px 10px',
+                    fontSize: '10px', fontWeight: 800, cursor: 'pointer'
+                  }}
+                >
+                  {marqueePaused ? 'PLAY' : 'PAUSE'}
+                </button>
               </div>
+
+              {/* STATS SECTION ON HOME SCREEN */}
+              <IOSListSection header="STATS" colors={colors}>
+                {[
+                  { id: 'progression_chart', idx: '01', title: 'PROGRESSION CHART', sub: 'Big 3 + OHP Weight & Volume Graphed Trends', num: '01' },
+                  { id: 'stimulus_map', idx: '02', title: 'STIMULUS MAP', sub: 'Recovery Windows & Muscle Readiness', num: '02' },
+                  { id: 'leaderboard', idx: '03', title: 'LEADERBOARD', sub: 'Big 3 + OHP Community Standings', num: '03' },
+                  { id: 'social', idx: '04', title: 'SOCIAL', sub: `${friendsList.length} Friends • ${pendingIncomingRequests.length} Pending Request`, num: '04' }
+                ].map((item, i, arr) => (
+                  <IOSListRow
+                    key={item.id}
+                    indexLabel={item.idx}
+                    bgNumeral={item.num}
+                    isLast={i === arr.length - 1}
+                    colors={colors}
+                    onClick={() => {
+                      setRoutineSelectReturnView(null);
+                      setCurrentView(item.id);
+                    }}
+                  >
+                    <div>
+                      <div style={{ fontSize: '18px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '-0.03em' }}>
+                        {item.title}
+                      </div>
+                      <div className="kinetic-sub" style={{ fontSize: '12px', color: '#A0A0A0', fontWeight: 600 }}>
+                        {item.sub}
+                      </div>
+                    </div>
+                    <span style={{ fontSize: '20px', fontWeight: 800 }}>→</span>
+                  </IOSListRow>
+                ))}
+              </IOSListSection>
             </div>
           )}
 
-          {currentView === 'home' && (
-            <div>
-              <IOSListSection colors={colors}>
-                <IOSListRow onClick={handleOpenNewSession} colors={colors}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                    <div
-                      style={{
-                        width: '30px',
-                        height: '30px',
-                        borderRadius: '7px',
-                        backgroundColor: colors.systemBlue,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center'
-                      }}
-                    >
-                      <SFSymbol name="play.fill" size={15} color="#FFFFFF" />
-                    </div>
-                    <span style={{ ...IOS_TEXT.body, fontWeight: 600, color: colors.label }}>
-                      New Session
-                    </span>
-                  </div>
-                  <SFSymbol name="chevron.forward" size={16} color={colors.tertiaryLabel} />
-                </IOSListRow>
-
-                <IOSListRow onClick={() => setCurrentView('history')} isLast colors={colors}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                    <div
-                      style={{
-                        width: '30px',
-                        height: '30px',
-                        borderRadius: '7px',
-                        backgroundColor: colors.systemIndigo,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center'
-                      }}
-                    >
-                      <SFSymbol name="clock.arrow.circlepath" size={16} color="#FFFFFF" />
-                    </div>
-                    <span style={{ ...IOS_TEXT.body, fontWeight: 600, color: colors.label }}>
-                      History
-                    </span>
-                  </div>
-
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    {incompleteWorkoutsCount > 0 && (
-                      <span
-                        title={`${incompleteWorkoutsCount} incomplete workout(s)`}
-                        style={{
-                          width: '10px',
-                          height: '10px',
-                          borderRadius: '5px',
-                          backgroundColor: colors.systemRed,
-                          display: 'inline-block'
-                        }}
-                      />
-                    )}
-                    <SFSymbol name="chevron.forward" size={16} color={colors.tertiaryLabel} />
-                  </div>
-                </IOSListRow>
-              </IOSListSection>
-
-              {activeSession && activeSession.slots && activeSession.slots.length > 0 && (
-                <IOSListSection header="In Progress" colors={colors}>
-                  <IOSListRow onClick={() => setCurrentView('session')} isLast colors={colors}>
-                    <div>
-                      <div style={{ ...IOS_TEXT.headline, color: colors.label }}>
-                        {activeSession.title}
-                      </div>
-                      <div style={{ ...IOS_TEXT.footnote, color: colors.secondaryLabel }}>
-                        {activeSession.slots.length} exercises configured
-                      </div>
-                    </div>
-                    <span style={{ ...IOS_TEXT.subheadline, fontWeight: 600, color: colors.systemBlue }}>
-                      Resume
-                    </span>
-                  </IOSListRow>
-                </IOSListSection>
-              )}
-
+          {/* ================================================================== */}
+          {/* VIEW: ROUTINE EDITOR (SESSION / HISTORICAL / ROUTINE / PREVIEW)    */}
+          {/* ================================================================== */}
+          {isRoutineEditorView && currentEditorWorkout && (
+            <div style={{ paddingTop: '14px' }}>
               <IOSListSection
                 header={
+                  currentView === 'routine_editor'
+                    ? 'ROUTINE BUILDER'
+                    : currentView === 'routine_preview'
+                      ? 'PREVIEW ROUTINE'
+                      : currentView === 'historical_entry'
+                        ? 'LOG PAST WORKOUT'
+                        : 'ROUTINE EDITOR'
+                }
+                headerRight={
+                  currentView === 'routine_preview' ? (
+                    <button
+                      type="button"
+                      onClick={handleApplyPreviewRoutine}
+                      className="kinetic-btn"
+                      style={{
+                        padding: '6px 10px',
+                        backgroundColor: 'var(--dp-color-accent)',
+                        color: '#101010',
+                        border: '2px solid #FFFFFF',
+                        fontSize: '11px',
+                        fontWeight: 800,
+                        textTransform: 'uppercase',
+                        cursor: 'pointer',
+                        whiteSpace: 'nowrap'
+                      }}
+                    >
+                      APPLY ROUTINE TO WORKOUT →
+                    </button>
+                  ) : null
+                }
+                colors={colors}
+              >
+                {/* Compact Session Name Row */}
+                <IOSListRow colors={colors} style={{ padding: '6px 10px' }}>
                   <div
                     style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between'
+                      width: '100%', backgroundColor: '#101010', border: '2px solid var(--dp-color-rule)',
+                      padding: '5px 8px', display: 'flex', flexDirection: 'column', justifyContent: 'center'
                     }}
                   >
-                    <span>1RM</span>
+                    <div
+                      style={{
+                        fontSize: '9px', fontWeight: 800, color: 'var(--dp-color-accent)',
+                        textTransform: 'uppercase', lineHeight: 1.1
+                      }}
+                    >
+                      SESSION NAME
+                    </div>
+                    <input
+                      type="text"
+                      value={currentEditorWorkout.title || ''}
+                      onChange={e => updateCurrentWorkoutState(prev => ({ ...prev, title: e.target.value }))}
+                      style={{
+                        width: '100%', backgroundColor: 'transparent', border: 'none', color: '#FFFFFF',
+                        fontSize: '13px', fontWeight: 800, textTransform: 'uppercase',
+                        outline: 'none', padding: 0, marginTop: '1px', lineHeight: 1.2
+                      }}
+                    />
+                  </div>
+                </IOSListRow>
+
+                {/* Historical Date Row if logging past workout */}
+                {currentView === 'historical_entry' && (
+                  <IOSListRow colors={colors} style={{ padding: '6px 10px' }}>
+                    <span style={{ fontSize: '12px', fontWeight: 800, textTransform: 'uppercase' }}>
+                      WORKOUT DATE
+                    </span>
+                    <input
+                      type="date"
+                      value={currentEditorWorkout.workoutDate || ''}
+                      onChange={e => setHistoricalDraft(prev => ({ ...prev, workoutDate: e.target.value }))}
+                      style={{
+                        backgroundColor: '#101010', color: '#FFFFFF',
+                        border: '2px solid var(--dp-color-rule)', padding: '4px 8px',
+                        fontSize: '11px', fontWeight: 800
+                      }}
+                    />
+                  </IOSListRow>
+                )}
+
+                {/* Top Action Row: Retained across all editor & preview modes (Routines, Gyms/Equipment, Auto) */}
+                <IOSListRow isLast={true} colors={colors} style={{ padding: '6px 10px' }}>
+                  <div
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+                      gap: '6px',
+                      width: '100%',
+                      alignItems: 'stretch'
+                    }}
+                  >
+                    {/* Column 1: Routines */}
                     <button
                       type="button"
                       onClick={() => {
-                        if (!user) {
-                          triggerBanner(
-                            'Sign in to auto-recalculate from History, or tap any lift below.',
-                            'warning'
-                          );
-                          return;
-                        }
-                        const { updatedMaxes, changesCount } = calculateUpdated1RMsFromWorkouts(
-                          history,
-                          oneRepMaxes
+                        setRoutineSelectReturnView(
+                          currentView === 'routine_preview' ? routineSelectReturnView || 'session' : currentView
                         );
-                        setOneRepMaxes(updatedMaxes);
-                        triggerBanner(
-                          changesCount > 0
-                            ? `Recalculated ${changesCount} 1RM record(s).`
-                            : '1RMs are up to date with verified history.',
-                          'success'
-                        );
+                        setCurrentView('routines');
                       }}
+                      className="kinetic-btn"
                       style={{
-                        ...IOS_TEXT.footnote,
-                        fontWeight: 600,
-                        color: colors.systemBlue,
-                        background: 'none',
-                        border: 'none',
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '4px',
-                        padding: 0,
-                        cursor: 'pointer',
-                        textTransform: 'none'
+                        width: '100%', padding: '6px 8px', backgroundColor: '#101010',
+                        border: '2px solid var(--dp-color-rule)', cursor: 'pointer',
+                        display: 'flex', flexDirection: 'column', justifyContent: 'center',
+                        alignItems: 'flex-start', textAlign: 'left', minWidth: 0
                       }}
                     >
-                      <SFSymbol
-                        name="arrow.triangle.2.circlepath"
-                        size={13}
-                        color={colors.systemBlue}
-                      />
-                      <span>Recalculate</span>
+                      <div style={{ fontSize: '9px', fontWeight: 800, color: 'var(--dp-color-accent)', textTransform: 'uppercase', lineHeight: 1.1 }}>
+                        ROUTINES ↗
+                      </div>
+                      <div
+                        style={{
+                          fontSize: '11px', fontWeight: 800, color: '#FFFFFF', textTransform: 'uppercase',
+                          whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', width: '100%', lineHeight: 1.2
+                        }}
+                      >
+                        {currentEditorWorkout.loadedRoutineTitle || 'MANUAL'}
+                      </div>
+                    </button>
+
+                    {/* Column 2: Gyms/Equipment */}
+                    <div
+                      style={{
+                        width: '100%', position: 'relative', backgroundColor: '#101010',
+                        border: '2px solid var(--dp-color-rule)', padding: '6px 8px',
+                        display: 'flex', flexDirection: 'column', justifyContent: 'center', minWidth: 0
+                      }}
+                    >
+                      <div style={{ fontSize: '9px', fontWeight: 800, color: 'var(--dp-color-accent)', textTransform: 'uppercase', lineHeight: 1.1 }}>
+                        GYMS/EQUIPMENT ▾
+                      </div>
+                      <div
+                        style={{
+                          fontSize: '11px', fontWeight: 800, color: '#FFFFFF', textTransform: 'uppercase',
+                          whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.2
+                        }}
+                      >
+                        {getGymSelectionLabel(selectedGymId, gyms)}
+                      </div>
+                      <select
+                        aria-label="Select Gyms/Equipment"
+                        value={selectedGymId}
+                        onChange={e => setSelectedGymId(e.target.value)}
+                        style={{
+                          position: 'absolute', inset: 0, width: '100%', height: '100%',
+                          opacity: 0, backgroundColor: '#101010', color: '#FFFFFF', cursor: 'pointer'
+                        }}
+                      >
+                        {DEFAULT_GYM_EQUIPMENT_PRESETS.map(preset => (
+                          <option key={preset.id || 'full_gym'} value={preset.id}>
+                            {preset.name.toUpperCase()}
+                          </option>
+                        ))}
+                        {gyms.map(g => (
+                          <option key={g.id} value={g.id}>
+                            {g.name.toUpperCase()}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Column 3: Auto */}
+                    <button
+                      type="button"
+                      onClick={handleAutoBuildWorkout}
+                      className="kinetic-btn"
+                      style={{
+                        width: '100%', padding: '6px 8px', backgroundColor: 'var(--dp-color-accent)',
+                        color: '#101010', border: '2px solid #FFFFFF', fontSize: '12px',
+                        fontWeight: 800, textTransform: 'uppercase', cursor: 'pointer',
+                        whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', justifyContent: 'center', minWidth: 0
+                      }}
+                    >
+                      AUTO ⚡
                     </button>
                   </div>
-                }
-                colors={colors}
-              >
-                {EXERCISE_LIBRARY.filter(
-                  ex =>
-                    ex.category !== 'Warm-Up Routine' &&
-                    ex.category !== 'Abs' &&
-                    (showAllMaxes || ex.isPriority)
-                ).map((ex) => {
-                  const currentMax = oneRepMaxes[ex.id] ?? ex.default1RM;
-                  return (
-                    <IOSListRow
-                      key={ex.id}
-                      onClick={() => openMaxCalculatorModal(ex, currentMax)}
-                      colors={colors}
-                    >
-                      <div style={{ minWidth: 0 }}>
-                        <div
-                          style={{
-                            ...IOS_TEXT.body,
-                            color: colors.label,
-                            whiteSpace: 'nowrap',
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis'
-                          }}
-                        >
-                          {ex.name}
-                        </div>
-                        <div style={{ ...IOS_TEXT.caption1, color: colors.secondaryLabel }}>
-                          {ex.equipment} • {ex.muscleGroup}
-                        </div>
-                      </div>
-
-                      <div
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '6px',
-                          flexShrink: 0
-                        }}
-                      >
-                        <span style={{ ...IOS_TEXT.body, color: colors.secondaryLabel }}>
-                          {currentMax} lb
-                        </span>
-                        <SFSymbol name="chevron.forward" size={14} color={colors.tertiaryLabel} />
-                      </div>
-                    </IOSListRow>
-                  );
-                })}
-
-                <IOSListRow
-                  onClick={() => setShowAllMaxes(prev => !prev)}
-                  isLast
-                  colors={colors}
-                >
-                  <span style={{ ...IOS_TEXT.body, color: colors.systemBlue }}>
-                    {showAllMaxes ? 'Show Priority Lifts Only' : 'Show All Lifts'}
-                  </span>
                 </IOSListRow>
               </IOSListSection>
-            </div>
-          )}
 
-          {(currentView === 'session' || currentView === 'historical_entry') &&
-            (currentView === 'session' ? activeSession : historicalDraft) && (() => {
-              const isHistoricalMode = currentView === 'historical_entry';
-              const currentWorkout = isHistoricalMode ? historicalDraft : activeSession;
+              {/* ALWAYS-EXPANDED WORKOUT SLOTS WITH LOCKED COLUMN SIZES & SET DELETE CONFIRMATION */}
+              <IOSListSection
+                header={`WORKOUT SLOTS (${(currentEditorWorkout.slots || []).length})`}
+                colors={colors}
+              >
+                {(currentEditorWorkout.slots || []).length === 0 ? null : (
+                  (currentEditorWorkout.slots || []).map((slot, sIdx) => {
+                    const ex1 = EXERCISE_MAP[slot.exerciseId] || EXERCISE_LIBRARY[0];
+                    const isSuperset = slot.category === 'Supersets';
+                    const inlineExercisePool = getFilteredExercisesForSlotInline(slot, selectedGymId, gyms);
 
-              return (
-                <div>
-                  <IOSListSection header="Session Details & Workouts" colors={colors}>
-                    <IOSListRow colors={colors}>
-                      <span style={{ ...IOS_TEXT.body, color: colors.secondaryLabel }}>Title</span>
-                      <input
-                        type="text"
-                        value={currentWorkout.title}
-                        onChange={e =>
-                          updateCurrentWorkoutState(prev => ({
-                            ...prev,
-                            title: e.target.value
-                          }))
+                    const supIds = isSuperset
+                      ? [
+                        slot.supersetExerciseIds?.[0] || slot.exerciseId || 'reverse_lunge',
+                        slot.supersetExerciseIds?.[1] || slot.secondaryExerciseId || 'front_flies'
+                      ]
+                      : [slot.exerciseId];
+
+                    const alternatingSupersetRows = [];
+                    if (isSuperset) {
+                      const listA = slot.supersetSetsByExercise?.[0] || slot.sets || [];
+                      const listB = slot.supersetSetsByExercise?.[1] || slot.secondarySets || [];
+                      const maxLen = Math.max(listA.length, listB.length);
+                      for (let i = 0; i < maxLen; i++) {
+                        if (listA[i]) {
+                          alternatingSupersetRows.push({
+                            exIdx: 0, exId: supIds[0], setItem: listA[i], totalExSets: listA.length
+                          });
                         }
-                        style={{
-                          ...IOS_TEXT.body,
-                          fontWeight: 600,
-                          color: colors.label,
-                          background: 'transparent',
-                          border: 'none',
-                          outline: 'none',
-                          textAlign: 'right',
-                          flex: 1
-                        }}
-                      />
-                    </IOSListRow>
+                        if (listB[i]) {
+                          alternatingSupersetRows.push({
+                            exIdx: 1, exId: supIds[1], setItem: listB[i], totalExSets: listB.length
+                          });
+                        }
+                      }
+                    }
 
-                    {isHistoricalMode && (
-                      <IOSListRow colors={colors}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <SFSymbol name="calendar" size={16} color={colors.systemBlue} />
-                          <span style={{ ...IOS_TEXT.body, color: colors.label }}>Workout Date</span>
-                        </div>
-                        <input
-                          type="date"
-                          value={currentWorkout.workoutDate}
-                          onChange={e =>
-                            setHistoricalDraft(prev => ({
-                              ...prev,
-                              workoutDate: e.target.value
-                            }))
-                          }
-                          style={{
-                            ...IOS_TEXT.subheadline,
-                            color: colors.systemBlue,
-                            backgroundColor: colors.tertiarySystemFill,
-                            border: 'none',
-                            borderRadius: '6px',
-                            padding: '4px 8px',
-                            outline: 'none'
-                          }}
-                        />
-                      </IOSListRow>
-                    )}
+                    const renderSingleSetRow = (st, exIdx, exId, totalExSets) => {
+                      const exObj = EXERCISE_MAP[exId] || EXERCISE_LIBRARY[0];
+                      const curType = SET_TYPES_LIST.includes(st.type) ? st.type : 'Working Set';
+                      const calc1RM = getHistoricalCalculated1RM(exId, history, oneRepMaxes);
+                      const lastW =
+                        st.lastWeight !== undefined
+                          ? st.lastWeight
+                          : calculateLastEquivalentWeightForSet(calc1RM, st, totalExSets, slot.category);
 
-                    <IOSListRow isLast={isHistoricalMode} colors={colors}>
-                      <span style={{ ...IOS_TEXT.body, color: colors.label, flexShrink: 0 }}>
-                        Workout
-                      </span>
-                      <div
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'flex-end',
-                          gap: '6px',
-                          flex: 1,
-                          minWidth: 0
-                        }}
-                      >
-                        <select
-                          value={currentWorkout.presetUsed || ''}
-                          onChange={e => {
-                            const val = e.target.value;
-                            if (!val) return;
-                            handleLoadPreset(val);
-                          }}
+                      return (
+                        <div
+                          key={`${exIdx}_${st.id}`}
                           style={{
-                            ...IOS_TEXT.body,
-                            color: colors.systemBlue,
-                            fontWeight: 600,
-                            background: 'transparent',
-                            border: 'none',
-                            outline: 'none',
-                            textAlign: 'right',
-                            width: '100%',
-                            maxWidth: '240px',
-                            cursor: 'pointer',
-                            textOverflow: 'ellipsis'
+                            display: 'grid',
+                            gridTemplateColumns: 'minmax(0, 1fr) 26px',
+                            gap: '6px',
+                            alignItems: 'center'
                           }}
                         >
-                          <option value="" disabled>
-                            Select a Workout...
-                          </option>
-                          <optgroup label="LS Workouts">
-                            {BUILTIN_PRESETS.map(p => (
-                              <option key={p.key} value={p.key}>
-                                {p.label}
-                              </option>
-                            ))}
-                          </optgroup>
-                          {customPresets.length > 0 && (
-                            <optgroup label="Saved Custom Workouts">
-                              {customPresets.map(cp => (
-                                <option key={cp.key} value={cp.key}>
-                                  {cp.label}
-                                </option>
-                              ))}
-                            </optgroup>
-                          )}
-                        </select>
-                        <SFSymbol
-                          name="chevron.up.chevron.down"
-                          size={14}
-                          color={colors.systemBlue}
-                        />
-                      </div>
-                    </IOSListRow>
-
-                    {!isHistoricalMode && (
-                      <IOSListRow
-                        onClick={handleSuggestWorkoutFromHistory}
-                        isLast
-                        colors={colors}
-                      >
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <SFSymbol name="sparkles" size={17} color={colors.systemIndigo} />
-                          <span
-                            style={{
-                              ...IOS_TEXT.body,
-                              fontWeight: 600,
-                              color: colors.systemIndigo
-                            }}
-                          >
-                            Suggest Workout
-                          </span>
-                        </div>
-                        <SFSymbol name="chevron.forward" size={15} color={colors.tertiaryLabel} />
-                      </IOSListRow>
-                    )}
-                  </IOSListSection>
-
-                  {currentWorkout.slots.map(slot => {
-                    const ex1 = EXERCISE_MAP[slot.exerciseId] || EXERCISE_LIBRARY[0];
-                    const ex2 = slot.secondaryExerciseId
-                      ? EXERCISE_MAP[slot.secondaryExerciseId]
-                      : null;
-                    const isSelected = selectedSlotIds.includes(slot.id);
-                    const isWarmup = slot.category === 'Warm-Up Routine';
-                    const isCollapsed = collapsedSlotIds.includes(slot.id);
-                    const completedCount = (slot.sets || []).filter(s => s.completed).length;
-                    const totalCount = (slot.sets || []).length;
-
-                    return (
-                      <IOSListSection
-                        key={slot.id}
-                        colors={colors}
-                        header={
+                          {/* Locked-down set containing box */}
                           <div
                             style={{
-                              display: 'flex',
+                              display: 'grid',
+                              gridTemplateColumns:
+                                slot.category === 'Abs'
+                                  ? '36px minmax(0, 1fr) 48px 32px'
+                                  : '36px minmax(0, 1fr) 44px 62px 48px 32px',
+                              gap: '4px',
                               alignItems: 'center',
-                              justifyContent: 'space-between'
+                              padding: '5px 6px',
+                              backgroundColor: st.completed ? '#172B1C' : '#161616',
+                              border: '2px solid var(--dp-color-rule)'
                             }}
                           >
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                              {!isWarmup && !isHistoricalMode && (
-                                <button
-                                  type="button"
-                                  onClick={() => toggleSelectSlot(slot.id)}
+                            {/* 1. Fixed Set Number */}
+                            <span
+                              style={{
+                                width: '36px',
+                                fontSize: '10px',
+                                fontWeight: 800,
+                                color: isSuperset
+                                  ? exIdx === 0
+                                    ? 'var(--dp-color-accent)'
+                                    : '#FFFFFF'
+                                  : '#A0A0A0',
+                                whiteSpace: 'nowrap',
+                                overflow: 'hidden'
+                              }}
+                            >
+                              {isSuperset ? `${exIdx === 0 ? 'A' : 'B'}#${st.setNumber}` : `#${st.setNumber}`}
+                            </span>
+
+                            {/* 2. Fixed/Flex Set Type Selector */}
+                            <div style={{ minWidth: 0 }}>
+                              {isSuperset && (
+                                <div
                                   style={{
-                                    background: 'none',
-                                    border: 'none',
-                                    padding: 0,
-                                    cursor: 'pointer',
-                                    display: 'flex',
-                                    alignItems: 'center'
+                                    fontSize: '9px', fontWeight: 800,
+                                    color: exIdx === 0 ? 'var(--dp-color-accent)' : '#A0A0A0',
+                                    textTransform: 'uppercase', whiteSpace: 'nowrap',
+                                    overflow: 'hidden', textOverflow: 'ellipsis', marginBottom: '2px'
                                   }}
-                                  title="Select for Suggest Alternative"
                                 >
-                                  <SFSymbol
-                                    name={isSelected ? 'checkmark.circle.fill' : 'circle'}
-                                    size={18}
-                                    color={isSelected ? colors.systemOrange : colors.secondaryLabel}
-                                  />
-                                </button>
+                                  {exObj.name}
+                                </div>
                               )}
-                              <button
-                                type="button"
-                                onClick={() => toggleCollapseSlot(slot.id)}
+                              <select
+                                aria-label="Set Type"
+                                value={curType}
+                                onChange={e => handleUpdateSetType(slot.id, exIdx, st.id, e.target.value)}
                                 style={{
-                                  background: 'none',
-                                  border: 'none',
-                                  padding: 0,
-                                  cursor: 'pointer',
-                                  display: 'inline-flex',
-                                  alignItems: 'center',
-                                  gap: '6px',
-                                  color: colors.secondaryLabel,
-                                  ...IOS_TEXT.footnote,
-                                  textTransform: 'uppercase',
-                                  fontWeight: 600
+                                  width: '100%', minWidth: 0, height: '26px',
+                                  backgroundColor: '#101010', color: '#FFFFFF',
+                                  border: '2px solid var(--dp-color-rule)', padding: '0 4px',
+                                  fontSize: '10px', fontWeight: 800, textTransform: 'uppercase', cursor: 'pointer'
                                 }}
                               >
-                                <span>{slot.slotLabel || slot.category}</span>
-                                <SFSymbol
-                                  name={isCollapsed ? 'chevron.forward' : 'chevron.down'}
-                                  size={13}
-                                  color={colors.secondaryLabel}
-                                />
-                              </button>
+                                {SET_TYPES_LIST.map(t => (
+                                  <option key={t} value={t}>
+                                    {t.toUpperCase()}
+                                  </option>
+                                ))}
+                              </select>
                             </div>
 
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                              <button
-                                type="button"
-                                onClick={() => toggleCollapseSlot(slot.id)}
-                                style={{
-                                  ...IOS_TEXT.caption1,
-                                  color: colors.systemBlue,
-                                  background: 'none',
-                                  border: 'none',
-                                  padding: 0,
-                                  cursor: 'pointer',
-                                  textTransform: 'none'
-                                }}
-                              >
-                                {isCollapsed ? `Show (${completedCount}/${totalCount})` : 'Collapse'}
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleRemoveSlot(slot.id)}
-                                style={{
-                                  background: 'none',
-                                  border: 'none',
-                                  padding: 0,
-                                  cursor: 'pointer',
-                                  display: 'flex',
-                                  alignItems: 'center'
-                                }}
-                                title="Remove Exercise"
-                              >
-                                <SFSymbol name="trash" size={15} color={colors.systemRed} />
-                              </button>
-                            </div>
-                          </div>
-                        }
-                      >
-                        {isCollapsed ? (
-                          <IOSListRow
-                            onClick={() => toggleCollapseSlot(slot.id)}
-                            isLast
-                            colors={colors}
-                          >
-                            <div style={{ minWidth: 0, flex: 1 }}>
+                            {/* 3. Fixed "LAST" Calculated Equivalent Weight Box */}
+                            {slot.category !== 'Abs' && (
                               <div
                                 style={{
-                                  ...IOS_TEXT.headline,
-                                  color: colors.label,
-                                  wordBreak: 'break-word'
+                                  width: '44px', height: '26px',
+                                  backgroundColor: '#101010', border: '2px solid var(--dp-color-rule)',
+                                  display: 'flex', flexDirection: 'column', alignItems: 'center',
+                                  justifyContent: 'center', userSelect: 'none', pointerEvents: 'none', whiteSpace: 'nowrap'
                                 }}
                               >
-                                {ex1.name}
-                                {slot.category === 'Supersets' && ex2 ? ` + ${ex2.name}` : ''}
+                                <span style={{ fontSize: '7px', fontWeight: 800, color: '#888888', lineHeight: 1 }}>
+                                  LAST
+                                </span>
+                                <span style={{ fontSize: '10px', fontWeight: 800, color: '#A0A0A0', lineHeight: 1.1 }}>
+                                  {lastW}
+                                </span>
                               </div>
-                              <div style={{ ...IOS_TEXT.footnote, color: colors.secondaryLabel }}>
-                                {completedCount} of {totalCount} sets completed
-                                {!isWarmup && slot.category !== 'Abs' ? ` • ${slot.scheme}` : ''}
-                              </div>
+                            )}
+
+                            {/* 4. Fixed Current Weight Button */}
+                            {slot.category !== 'Abs' && (
+                              <button
+                                type="button"
+                                onClick={() => openPlateCalculatorForSet(slot.id, exIdx, st, exObj.name)}
+                                style={{
+                                  width: '62px', height: '26px', padding: '0 4px',
+                                  backgroundColor: '#101010', color: 'var(--dp-color-accent)',
+                                  border: '2px solid var(--dp-color-rule)', fontSize: '10px',
+                                  fontWeight: 800, cursor: 'pointer', whiteSpace: 'nowrap',
+                                  overflow: 'hidden', textOverflow: 'ellipsis'
+                                }}
+                              >
+                                {st.weight} LB
+                              </button>
+                            )}
+
+                            {/* 5. Fixed Roomy Reps Input (tiny "R" removed) */}
+                            <input
+                              type="number"
+                              aria-label="Reps"
+                              value={st.reps}
+                              onChange={e => handleUpdateSetField(slot.id, exIdx, st.id, 'reps', e.target.value)}
+                              style={{
+                                width: '48px', height: '26px',
+                                backgroundColor: '#101010', color: '#FFFFFF',
+                                border: '2px solid var(--dp-color-rule)', padding: '0 4px',
+                                textAlign: 'center', fontSize: '12px', fontWeight: 800
+                              }}
+                            />
+
+                            {/* 6. Fixed Grey/Green Checkmark Button */}
+                            <button
+                              type="button"
+                              aria-label="Mark set complete"
+                              onClick={() => handleToggleSetDone(slot, exIdx, st)}
+                              style={{
+                                width: '32px', height: '26px', padding: 0,
+                                backgroundColor: st.completed ? '#30D158' : '#262626',
+                                color: st.completed ? '#101010' : '#777777',
+                                border: '2px solid var(--dp-color-rule)', fontSize: '12px',
+                                fontWeight: 800, cursor: 'pointer',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center'
+                              }}
+                            >
+                              ✓
+                            </button>
+                          </div>
+
+                          {/* Outside Red Set Delete "✕" Button aligned vertically with Exercise Delete "✕" */}
+                          <button
+                            type="button"
+                            aria-label="Delete set"
+                            onClick={() =>
+                              setDeleteConfirmTarget({
+                                type: 'set',
+                                slotId: slot.id,
+                                exIdx,
+                                setId: st.id,
+                                label: `${exObj.name} — Set #${st.setNumber}`
+                              })
+                            }
+                            className="kinetic-btn"
+                            style={UI.deleteXBtn}
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      );
+                    };
+
+                    return (
+                      <div
+                        key={slot.id}
+                        style={{
+                          borderBottom:
+                            sIdx === currentEditorWorkout.slots.length - 1
+                              ? 'none'
+                              : '2px solid var(--dp-color-rule)'
+                        }}
+                      >
+                        {/* Slot Header */}
+                        <div
+                          style={{
+                            padding: '12px 14px',
+                            backgroundColor: '#1C1C1C',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '8px'
+                          }}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                              <select
+                                aria-label="Slot Category"
+                                value={slot.category}
+                                onChange={e =>
+                                  handleUpdateSlotCategoryOrExercise(slot.id, { category: e.target.value })
+                                }
+                                style={{
+                                  fontSize: '10px', fontWeight: 800, padding: '4px 8px',
+                                  backgroundColor: 'var(--dp-color-accent)', color: '#101010',
+                                  border: '2px solid #FFFFFF', textTransform: 'uppercase', cursor: 'pointer'
+                                }}
+                              >
+                                {['Compound Lift', 'Supersets', 'Accessories', 'Abs'].map(cat => (
+                                  <option key={cat} value={cat}>{cat.toUpperCase()}</option>
+                                ))}
+                              </select>
+
+                              {slot.category !== 'Abs' && (
+                                <select
+                                  aria-label="Set and Rep Scheme"
+                                  value={slot.scheme || '5x8'}
+                                  onChange={e =>
+                                    handleUpdateSlotCategoryOrExercise(slot.id, { scheme: e.target.value })
+                                  }
+                                  style={{
+                                    fontSize: '10px', fontWeight: 800, padding: '4px 8px',
+                                    backgroundColor: '#101010', color: '#FFFFFF',
+                                    border: '2px solid var(--dp-color-rule)', textTransform: 'uppercase', cursor: 'pointer'
+                                  }}
+                                >
+                                  {['5x5', '5x8', '8x8', 'Pyramid', 'Reverse Pyramid'].map(scm => (
+                                    <option key={scm} value={scm}>{scm.toUpperCase()}</option>
+                                  ))}
+                                </select>
+                              )}
                             </div>
-                            <SFSymbol name="chevron.down" size={16} color={colors.tertiaryLabel} />
-                          </IOSListRow>
-                        ) : (
-                          <>
-                            {!isWarmup && (
-                              <>
-                                <IOSListRow colors={colors}>
+
+                            <button
+                              type="button"
+                              aria-label="Remove workout slot"
+                              onClick={() =>
+                                setDeleteConfirmTarget({
+                                  type: 'slot',
+                                  slotId: slot.id,
+                                  label: isSuperset
+                                    ? `${EXERCISE_MAP[supIds[0]]?.name || supIds[0]} / ${EXERCISE_MAP[supIds[1]]?.name || supIds[1]}`
+                                    : ex1.name
+                                })
+                              }
+                              className="kinetic-btn"
+                              style={UI.deleteXBtn}
+                            >
+                              ✕
+                            </button>
+                          </div>
+
+                          {/* Exercise Descriptor Dropdown(s) — Stars Removed */}
+                          {isSuperset ? (
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
+                              {[0, 1].map(idx => {
+                                const exId = supIds[idx];
+                                return (
                                   <select
-                                    value={slot.exerciseId}
-                                    onChange={e =>
-                                      handleUpdateSlotExerciseOrScheme(slot.id, {
-                                        exerciseId: e.target.value
-                                      })
-                                    }
+                                    key={idx}
+                                    aria-label={`Superset Exercise ${idx + 1}`}
+                                    value={exId}
+                                    onChange={e => {
+                                      const nextIds = [...supIds];
+                                      nextIds[idx] = e.target.value;
+                                      handleUpdateSlotCategoryOrExercise(slot.id, { supersetExerciseIds: nextIds });
+                                    }}
                                     style={{
-                                      ...IOS_TEXT.headline,
-                                      color: colors.label,
-                                      backgroundColor: 'transparent',
-                                      border: 'none',
-                                      outline: 'none',
-                                      width: '100%',
-                                      cursor: 'pointer'
+                                      width: '100%', minWidth: 0, backgroundColor: '#101010', color: '#FFFFFF',
+                                      border: '2px solid var(--dp-color-rule)', padding: '7px 8px',
+                                      fontSize: '12px', fontWeight: 800, textTransform: 'uppercase', cursor: 'pointer'
                                     }}
                                   >
-                                    {EXERCISE_LIBRARY.filter(
-                                      e => e.category !== 'Warm-Up Routine'
-                                    ).map(item => (
-                                      <option key={item.id} value={item.id}>
-                                        {item.name} ({item.equipment}) — 1RM:{' '}
-                                        {oneRepMaxes[item.id] ?? item.default1RM}
+                                    {inlineExercisePool.map(ex => (
+                                      <option key={ex.id} value={ex.id}>
+                                        {ex.name.toUpperCase()} ({ex.equipment.toUpperCase()})
                                       </option>
                                     ))}
                                   </select>
-                                </IOSListRow>
-
-                                {slot.category === 'Supersets' && (
-                                  <IOSListRow colors={colors}>
-                                    <select
-                                      value={slot.secondaryExerciseId || 'front_flies'}
-                                      onChange={e =>
-                                        handleUpdateSlotExerciseOrScheme(slot.id, {
-                                          secondaryExerciseId: e.target.value
-                                        })
-                                      }
-                                      style={{
-                                        ...IOS_TEXT.subheadline,
-                                        fontWeight: 600,
-                                        color: colors.systemOrange,
-                                        backgroundColor: 'transparent',
-                                        border: 'none',
-                                        outline: 'none',
-                                        width: '100%',
-                                        cursor: 'pointer'
-                                      }}
-                                    >
-                                      {EXERCISE_LIBRARY.filter(
-                                        e => e.category !== 'Warm-Up Routine'
-                                      ).map(item => (
-                                        <option key={item.id} value={item.id}>
-                                          + Superset: {item.name} ({item.equipment})
-                                        </option>
-                                      ))}
-                                    </select>
-                                  </IOSListRow>
-                                )}
-
-                                {slot.category !== 'Abs' && (
-                                  <IOSListRow colors={colors} minHeight="40px" padding="8px 16px">
-                                    <div
-                                      style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
-                                    >
-                                      <select
-                                        value={slot.scheme}
-                                        onChange={e =>
-                                          handleUpdateSlotExerciseOrScheme(slot.id, {
-                                            scheme: e.target.value
-                                          })
-                                        }
-                                        style={{
-                                          ...IOS_TEXT.subheadline,
-                                          fontWeight: 600,
-                                          color: colors.systemBlue,
-                                          backgroundColor: colors.tertiarySystemFill,
-                                          border: 'none',
-                                          borderRadius: '6px',
-                                          padding: '4px 8px',
-                                          outline: 'none',
-                                          cursor: 'pointer'
-                                        }}
-                                      >
-                                        <option value="5x8">5x8</option>
-                                        <option value="5x5">5x5</option>
-                                        <option value="3x5">3x5</option>
-                                        <option value="Pyramid">Pyramid</option>
-                                        <option value="Reverse Pyramid">Reverse Pyramid</option>
-                                      </select>
-                                    </div>
-
-                                    <div
-                                      style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
-                                    >
-                                      <button
-                                        type="button"
-                                        onClick={() => handleAddSetToSlot(slot.id, false)}
-                                        style={{
-                                          ...IOS_TEXT.footnote,
-                                          fontWeight: 600,
-                                          color: colors.systemBlue,
-                                          backgroundColor: colors.tertiarySystemFill,
-                                          border: 'none',
-                                          borderRadius: '6px',
-                                          padding: '4px 8px',
-                                          cursor: 'pointer'
-                                        }}
-                                      >
-                                        + Set
-                                      </button>
-                                      {slot.sets.length > 1 && (
-                                        <button
-                                          type="button"
-                                          onClick={() => handleRemoveLastSetFromSlot(slot.id, false)}
-                                          style={{
-                                            ...IOS_TEXT.footnote,
-                                            fontWeight: 600,
-                                            color: colors.secondaryLabel,
-                                            backgroundColor: colors.tertiarySystemFill,
-                                            border: 'none',
-                                            borderRadius: '6px',
-                                            padding: '4px 8px',
-                                            cursor: 'pointer'
-                                          }}
-                                        >
-                                          - Set
-                                        </button>
-                                      )}
-                                    </div>
-                                  </IOSListRow>
-                                )}
-                              </>
-                            )}
-
-                            {isWarmup ? (
-                              slot.sets.map((setItem, idx) => (
-                                <IOSListRow
-                                  key={setItem.id}
-                                  isLast={idx === slot.sets.length - 1}
-                                  colors={colors}
-                                >
-                                  <div
-                                    style={{ display: 'flex', alignItems: 'center', gap: '10px' }}
-                                  >
-                                    <span
-                                      style={{
-                                        ...IOS_TEXT.caption1,
-                                        fontWeight: 600,
-                                        color: colors.secondaryLabel,
-                                        width: '20px'
-                                      }}
-                                    >
-                                      {setItem.setNumber}.
-                                    </span>
-                                    <span style={{ ...IOS_TEXT.body, color: colors.label }}>
-                                      {setItem.type}
-                                    </span>
-                                  </div>
-
-                                  <button
-                                    type="button"
-                                    onClick={() => handleToggleSetDone(slot, false, setItem)}
-                                    style={{
-                                      ...IOS_TEXT.footnote,
-                                      fontWeight: 600,
-                                      backgroundColor: setItem.completed
-                                        ? colors.systemGreen
-                                        : colors.tertiarySystemFill,
-                                      color: setItem.completed ? '#FFFFFF' : colors.systemBlue,
-                                      border: 'none',
-                                      borderRadius: '999px',
-                                      padding: '5px 12px',
-                                      cursor: 'pointer'
-                                    }}
-                                  >
-                                    Done
-                                  </button>
-                                </IOSListRow>
-                              ))
-                            ) : (() => {
-                              const isSupersetWithEx2 = Boolean(slot.category === 'Supersets' && ex2);
-                              const combinedSets = [];
-                              if (isSupersetWithEx2) {
-                                const maxLen = Math.max(
-                                  slot.sets?.length || 0,
-                                  slot.secondarySets?.length || 0
                                 );
-                                for (let i = 0; i < maxLen; i++) {
-                                  if (slot.sets?.[i]) {
-                                    combinedSets.push({
-                                      setItem: slot.sets[i],
-                                      isSecondary: false,
-                                      ex: ex1,
-                                      prefix: `A1 #${slot.sets[i].setNumber}`
-                                    });
-                                  }
-                                  if (slot.secondarySets?.[i]) {
-                                    combinedSets.push({
-                                      setItem: slot.secondarySets[i],
-                                      isSecondary: true,
-                                      ex: ex2,
-                                      prefix: `A2 #${slot.secondarySets[i].setNumber}`
-                                    });
-                                  }
-                                }
-                              } else {
-                                (slot.sets || []).forEach(st => {
-                                  combinedSets.push({
-                                    setItem: st,
-                                    isSecondary: false,
-                                    ex: ex1,
-                                    prefix: `#${st.setNumber}`
-                                  });
-                                });
+                              })}
+                            </div>
+                          ) : (
+                            <select
+                              aria-label="Select Exercise"
+                              value={slot.exerciseId}
+                              onChange={e =>
+                                handleUpdateSlotCategoryOrExercise(slot.id, { exerciseId: e.target.value })
                               }
+                              style={{
+                                width: '100%', backgroundColor: '#101010', color: '#FFFFFF',
+                                border: '2px solid var(--dp-color-rule)', padding: '7px 10px',
+                                fontSize: '14px', fontWeight: 800, textTransform: 'uppercase', cursor: 'pointer'
+                              }}
+                            >
+                              {inlineExercisePool.map(ex => (
+                                <option key={ex.id} value={ex.id}>
+                                  {ex.name.toUpperCase()} ({ex.equipment.toUpperCase()})
+                                </option>
+                              ))}
+                            </select>
+                          )}
+                        </div>
 
-                              return combinedSets.map(({ setItem, isSecondary, ex, prefix }, idx) => (
-                                <IOSListRow
-                                  key={setItem.id}
-                                  isLast={idx === combinedSets.length - 1}
-                                  colors={colors}
-                                  padding="10px 16px"
-                                >
-                                  <div
-                                    style={{
-                                      width: '100%',
-                                      display: 'flex',
-                                      flexDirection: 'column',
-                                      gap: '8px'
-                                    }}
-                                  >
-                                    <div
-                                      style={{
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'space-between',
-                                        gap: '10px'
-                                      }}
-                                    >
-                                      <div style={{ minWidth: 0, flex: 1 }}>
-                                        <span
-                                          style={{
-                                            ...IOS_TEXT.subheadline,
-                                            fontWeight: 600,
-                                            color: isSecondary ? colors.systemOrange : colors.label,
-                                            wordBreak: 'break-word'
-                                          }}
-                                        >
-                                          {prefix} {ex.name}
-                                        </span>
-                                        <span
-                                          style={{
-                                            ...IOS_TEXT.caption1,
-                                            color: colors.secondaryLabel,
-                                            marginLeft: '6px'
-                                          }}
-                                        >
-                                          ({setItem.type})
-                                        </span>
-                                      </div>
+                        {/* Always-Expanded Sets Content */}
+                        <div
+                          style={{
+                            padding: '12px 14px 14px',
+                            backgroundColor: '#101010',
+                            borderTop: '2px solid var(--dp-color-rule)'
+                          }}
+                        >
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                            {isSuperset
+                              ? alternatingSupersetRows.map(row =>
+                                renderSingleSetRow(row.setItem, row.exIdx, row.exId, row.totalExSets)
+                              )
+                              : (slot.sets || []).map(st =>
+                                renderSingleSetRow(st, 0, slot.exerciseId, (slot.sets || []).length)
+                              )}
+                          </div>
 
-                                      <button
-                                        type="button"
-                                        onClick={() => handleToggleSetDone(slot, isSecondary, setItem)}
-                                        style={{
-                                          ...IOS_TEXT.caption1,
-                                          fontWeight: 600,
-                                          backgroundColor: setItem.completed
-                                            ? colors.systemGreen
-                                            : colors.tertiarySystemFill,
-                                          color: setItem.completed ? '#FFFFFF' : colors.systemBlue,
-                                          border: 'none',
-                                          borderRadius: '999px',
-                                          padding: '5px 12px',
-                                          cursor: 'pointer',
-                                          flexShrink: 0
-                                        }}
-                                      >
-                                        Done
-                                      </button>
-                                    </div>
-
-                                    <div
-                                      style={{
-                                        display: 'grid',
-                                        gridTemplateColumns: '1fr 1fr',
-                                        gap: '10px',
-                                        alignItems: 'center'
-                                      }}
-                                    >
-                                      <div
-                                        style={{
-                                          display: 'flex',
-                                          alignItems: 'center',
-                                          gap: '6px'
-                                        }}
-                                      >
-                                        <span
-                                          style={{
-                                            ...IOS_TEXT.caption1,
-                                            color: colors.secondaryLabel
-                                          }}
-                                        >
-                                          Weight
-                                        </span>
-                                        {slot.category !== 'Abs' ? (
-                                          <button
-                                            type="button"
-                                            onClick={() =>
-                                              openPlateCalculator(slot.id, isSecondary, setItem, ex.name)
-                                            }
-                                            title="Tap to calculate barbell / lift weight"
-                                            style={{
-                                              ...IOS_TEXT.subheadline,
-                                              fontWeight: 600,
-                                              color: colors.systemBlue,
-                                              backgroundColor: colors.tertiarySystemFill,
-                                              border: 'none',
-                                              borderRadius: '8px',
-                                              padding: '5px 10px',
-                                              minWidth: '84px',
-                                              textAlign: 'center',
-                                              cursor: 'pointer'
-                                            }}
-                                          >
-                                            {setItem.weight} lb
-                                          </button>
-                                        ) : (
-                                          <span
-                                            style={{
-                                              ...IOS_TEXT.subheadline,
-                                              fontWeight: 600,
-                                              color: colors.secondaryLabel,
-                                              backgroundColor: colors.tertiarySystemFill,
-                                              borderRadius: '8px',
-                                              padding: '5px 10px',
-                                              minWidth: '84px',
-                                              textAlign: 'center'
-                                            }}
-                                          >
-                                            BW
-                                          </span>
-                                        )}
-                                      </div>
-
-                                      <div
-                                        style={{
-                                          display: 'flex',
-                                          alignItems: 'center',
-                                          justifyContent: 'flex-end',
-                                          gap: '6px'
-                                        }}
-                                      >
-                                        <input
-                                          type="number"
-                                          value={setItem.reps}
-                                          onChange={e =>
-                                            handleUpdateSet(
-                                              slot.id,
-                                              isSecondary,
-                                              setItem.id,
-                                              'reps',
-                                              e.target.value
-                                            )
-                                          }
-                                          style={{
-                                            ...IOS_TEXT.subheadline,
-                                            fontWeight: 600,
-                                            color: colors.label,
-                                            backgroundColor: colors.tertiarySystemFill,
-                                            border: 'none',
-                                            borderRadius: '8px',
-                                            width: '54px',
-                                            padding: '5px 6px',
-                                            textAlign: 'center',
-                                            outline: 'none'
-                                          }}
-                                        />
-                                        <span
-                                          style={{
-                                            ...IOS_TEXT.caption1,
-                                            color: colors.secondaryLabel,
-                                            minWidth: '28px'
-                                          }}
-                                        >
-                                          {slot.category === 'Abs' ? 'sec' : 'reps'}
-                                        </span>
-                                      </div>
-                                    </div>
-                                  </div>
-                                </IOSListRow>
-                              ));
-                            })()}
-                          </>
-                        )}
-                      </IOSListSection>
-                    );
-                  })}
-
-                  <IOSListSection colors={colors}>
-                    <IOSListRow onClick={() => setShowAddSlotModal(true)} isLast colors={colors}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <SFSymbol name="plus.circle.fill" size={20} color={colors.systemBlue} />
-                        <span style={{ ...IOS_TEXT.body, fontWeight: 600, color: colors.systemBlue }}>
-                          Add Exercise
-                        </span>
+                          {/* Bottom Row: + Add Set Top, + Add Set Bottom, and Recalculate */}
+                          <div
+                            style={{
+                              display: 'grid',
+                              gridTemplateColumns: '1fr 1fr 1fr',
+                              gap: '6px',
+                              marginTop: '10px'
+                            }}
+                          >
+                            <button
+                              type="button"
+                              onClick={() => handleInsertSetAtPosition(slot.id, 'top')}
+                              className="kinetic-btn"
+                              style={{
+                                padding: '6px', backgroundColor: '#161616', color: '#FFFFFF',
+                                border: '2px dashed var(--dp-color-rule)', fontSize: '10px',
+                                fontWeight: 800, textTransform: 'uppercase', cursor: 'pointer'
+                              }}
+                            >
+                              + ADD SET TOP
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleInsertSetAtPosition(slot.id, 'bottom')}
+                              className="kinetic-btn"
+                              style={{
+                                padding: '6px', backgroundColor: '#161616', color: 'var(--dp-color-accent)',
+                                border: '2px dashed var(--dp-color-rule)', fontSize: '10px',
+                                fontWeight: 800, textTransform: 'uppercase', cursor: 'pointer'
+                              }}
+                            >
+                              + ADD SET BOTTOM
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleRecalculateSlotWeights(slot.id)}
+                              className="kinetic-btn"
+                              style={{
+                                padding: '6px', backgroundColor: '#101010', color: '#30D158',
+                                border: '2px solid var(--dp-color-rule)', fontSize: '10px',
+                                fontWeight: 800, textTransform: 'uppercase', cursor: 'pointer'
+                              }}
+                            >
+                              RECALCULATE
+                            </button>
+                          </div>
+                        </div>
                       </div>
-                    </IOSListRow>
-                  </IOSListSection>
+                    );
+                  })
+                )}
+              </IOSListSection>
 
-                  <IOSListSection colors={colors}>
-                    <IOSListRow onClick={handleOpenSavePresetModal} isLast colors={colors}>
-                      <span
-                        style={{
-                          ...IOS_TEXT.body,
-                          fontWeight: 600,
-                          color: colors.systemBlue,
-                          width: '100%',
-                          textAlign: 'center'
-                        }}
-                      >
-                        Save as New Workout
-                      </span>
-                    </IOSListRow>
-                  </IOSListSection>
-
-                  {isHistoricalMode ? (
-                    <IOSListSection colors={colors}>
-                      <IOSListRow onClick={handleSaveHistoricalDraft} colors={colors}>
-                        <span
-                          style={{
-                            ...IOS_TEXT.headline,
-                            color: colors.systemBlue,
-                            width: '100%',
-                            textAlign: 'center'
-                          }}
-                        >
-                          Save Historical Workout
-                        </span>
-                      </IOSListRow>
-                      <IOSListRow
-                        onClick={() => {
-                          setHistoricalDraft(null);
-                          setCurrentView('history');
-                        }}
-                        isLast
-                        colors={colors}
-                      >
-                        <span
-                          style={{
-                            ...IOS_TEXT.body,
-                            color: colors.systemRed,
-                            width: '100%',
-                            textAlign: 'center'
-                          }}
-                        >
-                          Cancel
-                        </span>
-                      </IOSListRow>
-                    </IOSListSection>
-                  ) : (
-                    <IOSListSection colors={colors}>
-                      <IOSListRow onClick={() => setConfirmAction('reset')} colors={colors}>
-                        <span
-                          style={{
-                            ...IOS_TEXT.body,
-                            color: colors.systemOrange,
-                            width: '100%',
-                            textAlign: 'center'
-                          }}
-                        >
-                          Reset
-                        </span>
-                      </IOSListRow>
-                      <IOSListRow onClick={() => setConfirmAction('cancel')} isLast colors={colors}>
-                        <span
-                          style={{
-                            ...IOS_TEXT.body,
-                            color: colors.systemRed,
-                            width: '100%',
-                            textAlign: 'center'
-                          }}
-                        >
-                          Cancel
-                        </span>
-                      </IOSListRow>
-                    </IOSListSection>
-                  )}
-                </div>
-              );
-            })()}
-
-          {currentView === 'history' && (
-            <div>
-              <IOSListSection
-                header={
-                  <div
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between'
+              {/* ADD EXERCISE & BOTTOM SAVE / SHARE / RESET OR APPLY ROUTINE CONTROLS */}
+              {currentView !== 'routine_preview' ? (
+                <div style={{ padding: '0 var(--dp-spacing-gutter)', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAddSlotGymFilter(selectedGymId);
+                      const avail = filterAddSlotExercises(selectedGymId, newSlotCategory, gyms);
+                      if (avail.length > 0) {
+                        setNewSlotEx1(avail[0].id);
+                        setNewSlotSupersetIds([avail[0].id, (avail[1] || avail[0]).id]);
+                      }
+                      setShowAddSlotModal(true);
                     }}
+                    className="kinetic-btn"
+                    style={UI.dashedBtn}
                   >
-                    <span>Filters</span>
-                    {(historyFilterLift !== 'ALL' ||
-                      historyFilterMuscleGroup !== 'ALL' ||
-                      historyFilterSpecificMuscle !== 'ALL') && (
+                    + ADD EXERCISE
+                  </button>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }}>
+                    <button
+                      type="button"
+                      onClick={handleSaveCurrentEditor}
+                      className="kinetic-btn"
+                      style={{ ...UI.primaryBtnCenter, padding: '14px 8px', fontSize: '13px' }}
+                    >
+                      SAVE
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={handleShareCurrentEditor}
+                      className="kinetic-btn"
+                      style={{
+                        ...UI.secondaryBtnCenter, padding: '14px 8px', fontSize: '13px',
+                        backgroundColor: isCurrentEditorShared ? '#30D158' : '#161616',
+                        color: isCurrentEditorShared ? '#101010' : '#FFFFFF'
+                      }}
+                    >
+                      {isCurrentEditorShared ? 'SHARED ✓' : 'SHARE'}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={handleResetCurrentEditor}
+                      className="kinetic-btn"
+                      style={{ ...UI.secondaryBtnCenter, padding: '14px 8px', fontSize: '13px', color: '#FF3B30' }}
+                    >
+                      RESET
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div style={{ padding: '0 var(--dp-spacing-gutter)', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAddSlotGymFilter(selectedGymId);
+                      const avail = filterAddSlotExercises(selectedGymId, newSlotCategory, gyms);
+                      if (avail.length > 0) {
+                        setNewSlotEx1(avail[0].id);
+                        setNewSlotSupersetIds([avail[0].id, (avail[1] || avail[0]).id]);
+                      }
+                      setShowAddSlotModal(true);
+                    }}
+                    className="kinetic-btn"
+                    style={UI.dashedBtn}
+                  >
+                    + ADD EXERCISE
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleApplyPreviewRoutine}
+                    className="kinetic-btn"
+                    style={UI.primaryBtnCenter}
+                  >
+                    APPLY ROUTINE TO WORKOUT →
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ================================================================== */}
+          {/* VIEW: ROUTINES (DEFAULT, SAVED, SHARED & FRIENDS' ROUTINES)        */}
+          {/* ================================================================== */}
+          {currentView === 'routines' && (
+            <div style={UI.pagePad}>
+              <IOSListSection header="DEFAULT ROUTINES" colors={colors}>
+                {DEFAULT_ROUTINES.map((r, i) => (
+                  <IOSListRow key={r.key} isLast={i === DEFAULT_ROUTINES.length - 1} colors={colors}>
+                    <span style={UI.rowTitle}>{r.label}</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
                       <button
                         type="button"
-                        onClick={() => {
-                          setHistoryFilterLift('ALL');
-                          setHistoryFilterMuscleGroup('ALL');
-                          setHistoryFilterSpecificMuscle('ALL');
-                        }}
+                        onClick={() => handleOpenPreviewRoutine(r, routineSelectReturnView || 'session')}
+                        className="kinetic-btn"
+                        style={UI.pillBtn(false)}
+                      >
+                        PREVIEW
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDirectLoadRoutine(r, routineSelectReturnView || 'session')}
+                        className="kinetic-btn"
+                        style={UI.pillBtn(true)}
+                      >
+                        LOAD →
+                      </button>
+                    </div>
+                  </IOSListRow>
+                ))}
+              </IOSListSection>
+
+              <IOSListSection header={`SAVED ROUTINES (${savedRoutines.length})`} colors={colors}>
+                {savedRoutines.length === 0 ? (
+                  <IOSListRow isLast={true} colors={colors}>
+                    <span style={UI.rowSub}>No custom routines saved yet.</span>
+                  </IOSListRow>
+                ) : (
+                  savedRoutines.map((r, i) => (
+                    <IOSListRow key={r.key} isLast={i === savedRoutines.length - 1} colors={colors}>
+                      <div>
+                        <div style={UI.rowTitle}>{r.label}</div>
+                        <div className="kinetic-sub" style={UI.rowSub}>{(r.slots || []).length} SLOTS</div>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+                        <button
+                          type="button"
+                          onClick={() => handleOpenPreviewRoutine(r, routineSelectReturnView || 'session')}
+                          className="kinetic-btn"
+                          style={UI.pillBtn(false)}
+                        >
+                          PREVIEW
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDirectLoadRoutine(r, routineSelectReturnView || 'session')}
+                          className="kinetic-btn"
+                          style={UI.pillBtn(true)}
+                        >
+                          LOAD →
+                        </button>
+                      </div>
+                    </IOSListRow>
+                  ))
+                )}
+              </IOSListSection>
+
+              <IOSListSection header={`SHARED ROUTINES (${sharedRoutines.length})`} colors={colors}>
+                {sharedRoutines.length === 0 ? (
+                  <IOSListRow isLast={true} colors={colors}>
+                    <span style={UI.rowSub}>No routines shared yet. Tap SHARE in Routine Editor.</span>
+                  </IOSListRow>
+                ) : (
+                  sharedRoutines.map((r, i) => (
+                    <IOSListRow key={r.key} isLast={i === sharedRoutines.length - 1} colors={colors}>
+                      <span style={UI.rowTitle}>{r.label}</span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+                        <button
+                          type="button"
+                          onClick={() => handleOpenPreviewRoutine(r, routineSelectReturnView || 'session')}
+                          className="kinetic-btn"
+                          style={UI.pillBtn(false)}
+                        >
+                          PREVIEW
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDirectLoadRoutine(r, routineSelectReturnView || 'session')}
+                          className="kinetic-btn"
+                          style={UI.pillBtn(true)}
+                        >
+                          LOAD →
+                        </button>
+                      </div>
+                    </IOSListRow>
+                  ))
+                )}
+              </IOSListSection>
+
+              <IOSListSection header="FRIENDS' ROUTINES" colors={colors}>
+                {friendsList.flatMap(f => (f.sharedRoutines || []).map(r => ({ ...r, friendName: f.username }))).length === 0 ? (
+                  <IOSListRow isLast={true} colors={colors}>
+                    <span style={UI.rowSub}>Add friends in Social to browse their shared routines.</span>
+                  </IOSListRow>
+                ) : (
+                  friendsList
+                    .flatMap(f => (f.sharedRoutines || []).map(r => ({ ...r, friendName: f.username })))
+                    .map((r, i, arr) => (
+                      <IOSListRow key={`${r.key}_${i}`} isLast={i === arr.length - 1} colors={colors}>
+                        <div>
+                          <div style={UI.rowTitle}>{r.label}</div>
+                          <div className="kinetic-sub" style={UI.rowSub}>BY @{r.friendName}</div>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+                          <button
+                            type="button"
+                            onClick={() => handleOpenPreviewRoutine(r, routineSelectReturnView || 'session')}
+                            className="kinetic-btn"
+                            style={UI.pillBtn(false)}
+                          >
+                            PREVIEW
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDirectLoadRoutine(r, routineSelectReturnView || 'session')}
+                            className="kinetic-btn"
+                            style={UI.pillBtn(true)}
+                          >
+                            LOAD →
+                          </button>
+                        </div>
+                      </IOSListRow>
+                    ))
+                )}
+              </IOSListSection>
+            </div>
+          )}
+
+          {/* ================================================================== */}
+          {/* VIEW: HISTORY                                                      */}
+          {/* ================================================================== */}
+          {currentView === 'history' && (
+            <div style={UI.pagePad}>
+              <div style={UI.gutterBottom}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
+                    setHistoricalDraft({
+                      id: `hist_${Date.now()}`,
+                      title: getDefaultSessionName(),
+                      loadedRoutineTitle: 'MANUAL',
+                      workoutDate: yesterday,
+                      defaultRestSeconds: 90,
+                      slots: []
+                    });
+                    setCurrentView('historical_entry');
+                  }}
+                  className="kinetic-btn"
+                  style={UI.primaryBtn}
+                >
+                  <span>+ LOG PAST WORKOUT</span>
+                  <span>→</span>
+                </button>
+              </div>
+
+              <IOSListSection header="LOGGED SESSIONS" colors={colors}>
+                <IOSListRow
+                  onClick={() => setHistorySessionsExpanded(p => !p)}
+                  isLast={!historySessionsExpanded || history.length === 0}
+                  colors={colors}
+                >
+                  <span style={{ fontSize: '14px', fontWeight: 800, textTransform: 'uppercase', color: 'var(--dp-color-accent)' }}>
+                    {historySessionsExpanded ? 'HIDE SESSIONS' : `SHOW SESSIONS (${history.length})`}
+                  </span>
+                  <span style={{ fontSize: '18px', fontWeight: 800 }}>
+                    {historySessionsExpanded ? '−' : '+'}
+                  </span>
+                </IOSListRow>
+
+                {historySessionsExpanded &&
+                  history.map((w, idx) => {
+                    const isExp = expandedHistoryWorkoutId === w.id;
+                    return (
+                      <div
+                        key={w.id}
                         style={{
-                          ...IOS_TEXT.footnote,
-                          color: colors.systemBlue,
-                          background: 'none',
-                          border: 'none',
-                          padding: 0,
-                          cursor: 'pointer',
-                          textTransform: 'none'
+                          borderBottom: idx === history.length - 1 ? 'none' : '2px solid var(--dp-color-rule)'
                         }}
                       >
-                        Reset
-                      </button>
-                    )}
+                        <div
+                          onClick={() => setExpandedHistoryWorkoutId(isExp ? null : w.id)}
+                          style={{
+                            padding: '14px 16px', backgroundColor: '#141414',
+                            display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer'
+                          }}
+                        >
+                          <div>
+                            <div style={{ fontSize: '15px', fontWeight: 800, textTransform: 'uppercase' }}>
+                              {w.title}
+                            </div>
+                            <div style={{ fontSize: '11px', color: '#A0A0A0', fontWeight: 600 }}>
+                              {new Date(w.startedAt).toLocaleDateString()} • {(w.slots || []).length} SLOTS
+                            </div>
+                          </div>
+                          <span style={{ fontSize: '18px', fontWeight: 800 }}>{isExp ? '−' : '+'}</span>
+                        </div>
+
+                        {isExp && (
+                          <div
+                            style={{
+                              padding: '12px 16px', backgroundColor: '#101010',
+                              borderTop: '2px solid var(--dp-color-rule)',
+                              display: 'flex', flexDirection: 'column', gap: '8px'
+                            }}
+                          >
+                            {(w.slots || []).map(s => (
+                              <div key={s.id} style={{ fontSize: '12px', fontWeight: 700 }}>
+                                <span style={{ color: 'var(--dp-color-accent)' }}>{s.slotLabel}:</span>{' '}
+                                {EXERCISE_MAP[s.exerciseId]?.name || s.exerciseId} ({(s.sets || []).length} sets)
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+              </IOSListSection>
+
+              <IOSListSection
+                header="PERSONAL RECORDS"
+                footer="Tap any Personal Record weight to edit it with the Plate & Weight Calculator."
+                colors={colors}
+              >
+                <IOSListRow
+                  onClick={() => setHistoryPRsExpanded(p => !p)}
+                  isLast={!historyPRsExpanded}
+                  colors={colors}
+                >
+                  <span style={{ fontSize: '14px', fontWeight: 800, textTransform: 'uppercase', color: 'var(--dp-color-accent)' }}>
+                    {historyPRsExpanded ? 'HIDE PERSONAL RECORDS' : 'SHOW PERSONAL RECORDS'}
+                  </span>
+                  <span style={{ fontSize: '18px', fontWeight: 800 }}>
+                    {historyPRsExpanded ? '−' : '+'}
+                  </span>
+                </IOSListRow>
+
+                {historyPRsExpanded &&
+                  EXERCISE_LIBRARY.filter(e => e.isPriority).map((ex, idx, arr) => {
+                    const currentMax = oneRepMaxes[ex.id] ?? ex.default1RM;
+                    const isBigFour = BIG_FOUR_IDS.includes(ex.id);
+                    const targetVal = isBigFour
+                      ? getExRxTargetForLift(ex.id, targetStandardClass, userBodyweightLbs, totalHeightInches, customGoalWeights)
+                      : null;
+                    const diffFromGoal = targetVal !== null ? targetVal - currentMax : null;
+
+                    return (
+                      <IOSListRow
+                        key={ex.id}
+                        isLast={idx === arr.length - 1}
+                        colors={colors}
+                        onClick={() => openPlateCalculatorForPR(ex.id, ex.name, currentMax)}
+                      >
+                        <div>
+                          <div style={{ fontSize: '15px', fontWeight: 800, textTransform: 'uppercase' }}>
+                            {ex.name}
+                          </div>
+                          {diffFromGoal !== null && (
+                            <div className="kinetic-sub" style={{ fontSize: '11px', color: '#A0A0A0', fontWeight: 700 }}>
+                              {diffFromGoal > 0
+                                ? `${diffFromGoal} lb from ${targetStandardClass}`
+                                : `Goal Achieved (+${Math.abs(diffFromGoal)} lb)`}
+                            </div>
+                          )}
+                        </div>
+                        <span
+                          style={{
+                            padding: '6px 10px', backgroundColor: '#101010',
+                            border: '2px solid var(--dp-color-rule)', color: 'var(--dp-color-accent)',
+                            fontSize: '14px', fontWeight: 800
+                          }}
+                        >
+                          {currentMax} LB ✎
+                        </span>
+                      </IOSListRow>
+                    );
+                  })}
+              </IOSListSection>
+            </div>
+          )}
+
+          {/* ================================================================== */}
+          {/* VIEW: GYMS/EQUIPMENT & EDITOR                                      */}
+          {/* ================================================================== */}
+          {currentView === 'gyms' && (
+            <div style={UI.pagePad}>
+              <div style={UI.gutterBottom}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setGymDraft({
+                      id: `gym_${Date.now()}`,
+                      name: 'New Gyms/Equipment Setup',
+                      equipment: ['Barbell', 'Dumbbell', 'Flat / Incline Bench', 'Weight Plates'],
+                      isNew: true
+                    });
+                    setCurrentView('gym_editor');
+                  }}
+                  className="kinetic-btn"
+                  style={UI.primaryBtn}
+                >
+                  <span>+ CREATE GYMS/EQUIPMENT</span>
+                  <span>→</span>
+                </button>
+              </div>
+
+              <IOSListSection
+                header="DEFAULT GYMS/EQUIPMENT PRESETS"
+                footer="Tap any preset to set it as your active Gyms/Equipment filter for Workout Slots and Auto."
+                colors={colors}
+              >
+                {DEFAULT_GYM_EQUIPMENT_PRESETS.map((preset, i) => {
+                  const isSelected = (selectedGymId || '') === preset.id;
+                  return (
+                    <IOSListRow
+                      key={preset.id || 'full_gym'}
+                      isLast={i === DEFAULT_GYM_EQUIPMENT_PRESETS.length - 1}
+                      colors={colors}
+                      onClick={() => setSelectedGymId(preset.id)}
+                    >
+                      <div>
+                        <div style={UI.rowTitle}>{preset.name}</div>
+                        <div className="kinetic-sub" style={UI.rowSub}>
+                          {preset.id === 'preset_barbells_only'
+                            ? 'FILTERS BARBELL EXERCISES ONLY'
+                            : preset.id === 'preset_dumbbells_only'
+                              ? 'FILTERS DUMBELL EXERCISES ONLY'
+                              : preset.id === 'preset_bodyweight_only'
+                                ? 'FILTERS BODYWEIGHT EXERCISES ONLY'
+                                : 'ALL EXERCISES & EQUIPMENT ENABLED'}
+                        </div>
+                      </div>
+                      <span style={UI.badge(isSelected)}>{isSelected ? 'ACTIVE ✓' : 'SELECT'}</span>
+                    </IOSListRow>
+                  );
+                })}
+              </IOSListSection>
+
+              <IOSListSection header="SAVED GYMS/EQUIPMENT" colors={colors}>
+                {gyms.length === 0 ? (
+                  <IOSListRow isLast={true} colors={colors}>
+                    <span style={UI.rowSub}>No custom Gyms/Equipment profiles saved yet.</span>
+                  </IOSListRow>
+                ) : (
+                  gyms.map((g, i) => (
+                    <IOSListRow
+                      key={g.id}
+                      isLast={i === gyms.length - 1}
+                      colors={colors}
+                      onClick={() => {
+                        setGymDraft({ ...g, isNew: false });
+                        setCurrentView('gym_editor');
+                      }}
+                    >
+                      <div>
+                        <div style={UI.rowTitle}>{g.name}</div>
+                        <div className="kinetic-sub" style={UI.rowSub}>
+                          {g.equipment.length} EQUIPMENT ITEMS AVAILABLE
+                        </div>
+                      </div>
+                      <span style={{ fontSize: '14px', fontWeight: 800, color: 'var(--dp-color-accent)' }}>
+                        EDIT →
+                      </span>
+                    </IOSListRow>
+                  ))
+                )}
+              </IOSListSection>
+            </div>
+          )}
+
+          {currentView === 'gym_editor' && gymDraft && (
+            <div style={UI.pagePad}>
+              <IOSListSection header="GYMS/EQUIPMENT PROFILE" colors={colors}>
+                <IOSListRow isLast={true} colors={colors}>
+                  <div style={{ width: '100%' }}>
+                    <div style={UI.fieldLabel}>GYMS/EQUIPMENT NAME</div>
+                    <input
+                      type="text"
+                      value={gymDraft.name}
+                      onChange={e => setGymDraft(prev => ({ ...prev, name: e.target.value }))}
+                      style={{ ...UI.textInputBare, fontSize: '18px', textTransform: 'uppercase', marginTop: '4px' }}
+                    />
                   </div>
-                }
+                </IOSListRow>
+              </IOSListSection>
+
+              <IOSListSection header="AVAILABLE EQUIPMENT" colors={colors}>
+                {GYM_EQUIPMENT_OPTIONS.map((eq, i) => {
+                  const hasEq = gymDraft.equipment.includes(eq);
+                  return (
+                    <IOSListRow
+                      key={eq}
+                      isLast={i === GYM_EQUIPMENT_OPTIONS.length - 1}
+                      colors={colors}
+                      onClick={() => {
+                        setGymDraft(prev => ({
+                          ...prev,
+                          equipment: hasEq ? prev.equipment.filter(x => x !== eq) : [...prev.equipment, eq]
+                        }));
+                      }}
+                    >
+                      <span style={{ fontSize: '14px', fontWeight: 800, textTransform: 'uppercase' }}>{eq}</span>
+                      <span style={UI.badge(hasEq)}>{hasEq ? 'INCLUDED ✓' : 'OFF'}</span>
+                    </IOSListRow>
+                  );
+                })}
+              </IOSListSection>
+
+              <div style={UI.gutterWrap}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setGyms(prev => {
+                      const exists = prev.some(g => g.id === gymDraft.id);
+                      return exists ? prev.map(g => (g.id === gymDraft.id ? gymDraft : g)) : [...prev, gymDraft];
+                    });
+                    setSelectedGymId(gymDraft.id);
+                    setCurrentView('gyms');
+                  }}
+                  className="kinetic-btn"
+                  style={UI.primaryBtnCenter}
+                >
+                  SAVE GYMS/EQUIPMENT SETUP
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* ================================================================== */}
+          {/* VIEW: GOALS                                                        */}
+          {/* ================================================================== */}
+          {currentView === 'goals' && (
+            <div style={{ paddingTop: '14px' }}>
+              <IOSListSection header="PRIMARY TRAINING GOAL" colors={colors}>
+                <IOSListRow isLast={goalType === 'Maintain'} colors={colors}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px', width: '100%' }}>
+                    {['Strength', 'Hypertrophy', 'Maintain'].map(opt => (
+                      <button
+                        key={opt}
+                        type="button"
+                        onClick={() => setGoalType(opt)}
+                        className="kinetic-btn"
+                        style={{
+                          padding: '10px 6px',
+                          backgroundColor: goalType === opt ? 'var(--dp-color-accent)' : '#101010',
+                          color: goalType === opt ? '#101010' : '#FFFFFF',
+                          border: '2px solid var(--dp-color-rule)',
+                          fontSize: '12px', fontWeight: 800, textTransform: 'uppercase', cursor: 'pointer'
+                        }}
+                      >
+                        {opt}
+                      </button>
+                    ))}
+                  </div>
+                </IOSListRow>
+
+                {(goalType === 'Strength' || goalType === 'Hypertrophy') && (
+                  <IOSListRow isLast={true} colors={colors}>
+                    <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <span style={{ fontSize: '12px', fontWeight: 800, textTransform: 'uppercase' }}>
+                          PROGRESSION INCREMENT
+                        </span>
+                        <div style={{ display: 'flex', gap: '4px' }}>
+                          {['lb', 'kg'].map(u => (
+                            <button
+                              key={u}
+                              type="button"
+                              onClick={() => setGoalUnit(u)}
+                              style={{
+                                padding: '4px 8px',
+                                backgroundColor: goalUnit === u ? 'var(--dp-color-accent)' : '#101010',
+                                color: goalUnit === u ? '#101010' : '#FFFFFF',
+                                border: '2px solid var(--dp-color-rule)',
+                                fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', cursor: 'pointer'
+                              }}
+                            >
+                              {u}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '6px' }}>
+                        {[1.25, 2.5, 5, 10].map(inc => (
+                          <button
+                            key={inc}
+                            type="button"
+                            onClick={() => setGoalIncrement(inc)}
+                            style={{
+                              padding: '8px 4px',
+                              backgroundColor: goalIncrement === inc ? 'var(--dp-color-accent)' : '#101010',
+                              color: goalIncrement === inc ? '#101010' : '#FFFFFF',
+                              border: '2px solid var(--dp-color-rule)',
+                              fontSize: '12px', fontWeight: 800, cursor: 'pointer'
+                            }}
+                          >
+                            +{inc} {goalUnit}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </IOSListRow>
+                )}
+              </IOSListSection>
+
+              <IOSListSection
+                header="STANDARDS (EXRX.NET)"
+                footer={`Cross-referenced with your Settings metrics (${userBodyweightLbs} lbs, ${userHeightFeet}'${userHeightInches}"). Tap any goal weight to customize it.`}
                 colors={colors}
               >
                 <IOSListRow colors={colors}>
-                  <span style={{ ...IOS_TEXT.body, color: colors.label }}>Lift</span>
+                  <span style={{ fontSize: '13px', fontWeight: 800, textTransform: 'uppercase' }}>
+                    TARGET STANDARD GOAL
+                  </span>
                   <select
-                    value={historyFilterLift}
-                    onChange={e => setHistoryFilterLift(e.target.value)}
+                    value={targetStandardClass}
+                    onChange={e => setTargetStandardClass(e.target.value)}
                     style={{
-                      ...IOS_TEXT.body,
-                      color: colors.secondaryLabel,
-                      background: 'transparent',
-                      border: 'none',
-                      outline: 'none',
-                      textAlign: 'right',
-                      maxWidth: '210px'
+                      backgroundColor: '#101010', color: 'var(--dp-color-accent)',
+                      border: '2px solid var(--dp-color-rule)', padding: '6px 10px',
+                      fontSize: '12px', fontWeight: 800, textTransform: 'uppercase'
                     }}
                   >
-                    <option value="ALL">All Lifts</option>
-                    {EXERCISE_LIBRARY.map(ex => (
-                      <option key={ex.id} value={ex.id}>
-                        {ex.name}
-                      </option>
+                    {EXRX_CLASSES.map(c => (
+                      <option key={c} value={c}>{c.toUpperCase()}</option>
                     ))}
+                    <option value="Custom">CUSTOM</option>
                   </select>
                 </IOSListRow>
 
-                <IOSListRow colors={colors}>
-                  <span style={{ ...IOS_TEXT.body, color: colors.label }}>Muscle Group</span>
-                  <select
-                    value={historyFilterMuscleGroup}
-                    onChange={e => setHistoryFilterMuscleGroup(e.target.value)}
-                    style={{
-                      ...IOS_TEXT.body,
-                      color: colors.secondaryLabel,
-                      background: 'transparent',
-                      border: 'none',
-                      outline: 'none',
-                      textAlign: 'right'
-                    }}
-                  >
-                    {allMuscleGroups.map(mg => (
-                      <option key={mg} value={mg}>
-                        {mg === 'ALL' ? 'All Groups' : mg}
-                      </option>
-                    ))}
-                  </select>
-                </IOSListRow>
-
-                <IOSListRow isLast colors={colors}>
-                  <span style={{ ...IOS_TEXT.body, color: colors.label }}>Specific Muscle</span>
-                  <select
-                    value={historyFilterSpecificMuscle}
-                    onChange={e => setHistoryFilterSpecificMuscle(e.target.value)}
-                    style={{
-                      ...IOS_TEXT.body,
-                      color: colors.secondaryLabel,
-                      background: 'transparent',
-                      border: 'none',
-                      outline: 'none',
-                      textAlign: 'right'
-                    }}
-                  >
-                    {allSpecificMuscles.map(sm => (
-                      <option key={sm} value={sm}>
-                        {sm === 'ALL' ? 'All Muscles' : sm}
-                      </option>
-                    ))}
-                  </select>
-                </IOSListRow>
-              </IOSListSection>
-
-              <IOSListSection colors={colors}>
-                <IOSListRow onClick={handleOpenHistoricalEntry} isLast colors={colors}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                    <SFSymbol name="plus.circle.fill" size={20} color={colors.systemBlue} />
-                    <span style={{ ...IOS_TEXT.body, fontWeight: 600, color: colors.systemBlue }}>
-                      Enter historical workout
-                    </span>
-                  </div>
-                  <SFSymbol name="chevron.forward" size={15} color={colors.tertiaryLabel} />
-                </IOSListRow>
-              </IOSListSection>
-
-              <IOSListSection header="Logged Workouts" colors={colors}>
-                {filteredHistory.map((workout, idx) => {
-                  const isExpanded = expandedHistoryId === workout.id;
-                  const needsVerification = !workout.isComplete && !workout.verifiedByUser;
+                {BIG_FOUR_IDS.map((liftId, idx) => {
+                  const ex = EXERCISE_MAP[liftId];
+                  const cur1RM = oneRepMaxes[liftId] ?? ex.default1RM;
+                  const curClass = getExRxCurrentClass(liftId, cur1RM, userBodyweightLbs, totalHeightInches);
+                  const goalWeight = getExRxTargetForLift(liftId, targetStandardClass, userBodyweightLbs, totalHeightInches, customGoalWeights);
+                  const distance = goalWeight - cur1RM;
 
                   return (
-                    <div key={workout.id}>
-                      <IOSListRow
-                        onClick={() => setExpandedHistoryId(isExpanded ? null : workout.id)}
-                        isLast={idx === filteredHistory.length - 1 && !isExpanded}
-                        colors={colors}
+                    <IOSListRow key={liftId} isLast={idx === BIG_FOUR_IDS.length - 1} colors={colors}>
+                      <div>
+                        <div style={{ fontSize: '15px', fontWeight: 800, textTransform: 'uppercase' }}>
+                          {ex.name}
+                        </div>
+                        <div style={{ fontSize: '11px', color: '#A0A0A0', fontWeight: 700 }}>
+                          1RM: <strong style={{ color: '#FFFFFF' }}>{cur1RM} LB</strong> • CLASS:{' '}
+                          <strong style={{ color: 'var(--dp-color-accent)' }}>{curClass.toUpperCase()}</strong>
+                        </div>
+                        <div style={{ fontSize: '11px', color: '#30D158', fontWeight: 700 }}>
+                          {distance > 0
+                            ? `${distance} lb from ${targetStandardClass}`
+                            : `Surpassed ${targetStandardClass} by ${Math.abs(distance)} lb`}
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => openPlateCalculatorForGoal(liftId, ex.name, goalWeight)}
+                        style={{
+                          padding: '6px 10px', backgroundColor: '#101010',
+                          color: 'var(--dp-color-accent)', border: '2px solid var(--dp-color-rule)',
+                          fontSize: '12px', fontWeight: 800, cursor: 'pointer', flexShrink: 0
+                        }}
                       >
-                        <div style={{ minWidth: 0 }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            {needsVerification && (
-                              <span
-                                style={{
-                                  width: '8px',
-                                  height: '8px',
-                                  borderRadius: '4px',
-                                  backgroundColor: colors.systemRed,
-                                  flexShrink: 0
-                                }}
-                              />
-                            )}
-                            <span
-                              style={{
-                                ...IOS_TEXT.headline,
-                                color: colors.label,
-                                whiteSpace: 'nowrap',
-                                overflow: 'hidden',
-                                textOverflow: 'ellipsis'
-                              }}
-                            >
-                              {workout.title}
-                            </span>
-                          </div>
-                          <div style={{ ...IOS_TEXT.footnote, color: colors.secondaryLabel }}>
-                            {new Date(workout.startedAt).toLocaleDateString('en-US', {
-                              month: 'short',
-                              day: 'numeric',
-                              year: 'numeric',
-                              timeZone: 'UTC'
-                            })}{' '}
-                            • {workout.slots?.length || 0} Exercises
-                          </div>
-                        </div>
-
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          {needsVerification && (
-                            <button
-                              type="button"
-                              onClick={e => {
-                                e.stopPropagation();
-                                handleVerifyAndCompleteHistoryWorkout(workout.id);
-                              }}
-                              style={{
-                                ...IOS_TEXT.caption1,
-                                fontWeight: 600,
-                                backgroundColor: colors.systemRed,
-                                color: '#FFFFFF',
-                                border: 'none',
-                                borderRadius: '999px',
-                                padding: '4px 10px',
-                                cursor: 'pointer'
-                              }}
-                            >
-                              Verify
-                            </button>
-                          )}
-                          <SFSymbol
-                            name={isExpanded ? 'chevron.up' : 'chevron.down'}
-                            size={16}
-                            color={colors.tertiaryLabel}
-                          />
-                        </div>
-                      </IOSListRow>
-
-                      {isExpanded && (
-                        <div
-                          style={{
-                            backgroundColor: colors.tertiarySystemGroupedBackground,
-                            padding: '8px 16px 12px',
-                            borderBottom:
-                              idx < filteredHistory.length - 1
-                                ? `0.5px solid ${colors.separator}`
-                                : 'none'
-                          }}
-                        >
-                          {(workout.slots || []).map(slot => {
-                            const ex1 = EXERCISE_MAP[slot.exerciseId];
-                            return (
-                              <div key={slot.id} style={{ marginTop: '8px' }}>
-                                <div style={{ ...IOS_TEXT.subheadline, fontWeight: 600, color: colors.label }}>
-                                  {ex1?.name || slot.exerciseId}
-                                </div>
-                                {(slot.sets || []).map(st => (
-                                  <div
-                                    key={st.id}
-                                    style={{
-                                      display: 'flex',
-                                      alignItems: 'center',
-                                      justifyContent: 'space-between',
-                                      padding: '4px 0'
-                                    }}
-                                  >
-                                    <span style={{ ...IOS_TEXT.footnote, color: colors.secondaryLabel }}>
-                                      Set {st.setNumber}: {st.weight} lb × {st.reps ?? 'Done'}
-                                    </span>
-                                    <button
-                                      type="button"
-                                      onClick={() =>
-                                        handleToggleHistorySet(workout.id, slot.id, false, st.id)
-                                      }
-                                      style={{
-                                        ...IOS_TEXT.caption1,
-                                        fontWeight: 600,
-                                        color: st.completed ? colors.systemGreen : colors.systemRed,
-                                        background: 'none',
-                                        border: 'none',
-                                        cursor: 'pointer'
-                                      }}
-                                    >
-                                      {st.completed ? 'Completed' : 'Verify Set'}
-                                    </button>
-                                  </div>
-                                ))}
-                              </div>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </div>
+                        GOAL: {goalWeight} LB ✎
+                      </button>
+                    </IOSListRow>
                   );
                 })}
               </IOSListSection>
             </div>
           )}
 
-          {currentView === 'auth' && (
-            <div>
-              {user && (
-                <IOSListSection header="Current Session" colors={colors}>
-                  <IOSListRow colors={colors}>
-                    <div>
-                      <div style={{ ...IOS_TEXT.headline, color: colors.label }}>{user.email}</div>
-                      <div style={{ ...IOS_TEXT.footnote, color: colors.secondaryLabel }}>
-                        {supabaseCloud.isConfigured && user.accessToken
-                          ? 'Connected to Supabase Cloud • Syncing History & 1RMs'
-                          : 'Signed In • Local Browser Storage Mode'}
+          {/* ================================================================== */}
+          {/* VIEW: PROGRESSION CHART                                            */}
+          {/* ================================================================== */}
+          {currentView === 'progression_chart' && (
+            <div style={{ paddingTop: '14px' }}>
+              <IOSListSection
+                header="PROGRESSION CHART (BIG 3 + OHP)"
+                footer="Toggle between Top Working Weight (lb) and Workout Volume (weight × reps × sets). Filter individual lifts or view all 4 together."
+                colors={colors}
+              >
+                <IOSListRow colors={colors}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', width: '100%' }}>
+                    <button
+                      type="button"
+                      onClick={() => setChartMetric('weight')}
+                      style={UI.pillBtn(chartMetric === 'weight')}
+                    >
+                      WEIGHT CHANGES (LB)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setChartMetric('volume')}
+                      style={UI.pillBtn(chartMetric === 'volume')}
+                    >
+                      VOLUME / WORKOUT
+                    </button>
+                  </div>
+                </IOSListRow>
+
+                <IOSListRow colors={colors}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '4px', width: '100%' }}>
+                    {[
+                      { id: 'ALL', label: 'ALL 4' },
+                      { id: 'barbell_bench_press', label: 'BENCH' },
+                      { id: 'barbell_back_squat', label: 'SQUAT' },
+                      { id: 'barbell_deadlift', label: 'DEAD' },
+                      { id: 'overhead_press', label: 'OHP' }
+                    ].map(f => (
+                      <button
+                        key={f.id}
+                        type="button"
+                        onClick={() => setSelectedChartLift(f.id)}
+                        style={{
+                          padding: '6px 4px',
+                          backgroundColor: selectedChartLift === f.id ? '#FFFFFF' : '#101010',
+                          color: selectedChartLift === f.id ? '#101010' : '#A0A0A0',
+                          border: '2px solid var(--dp-color-rule)',
+                          fontSize: '10px', fontWeight: 800, textTransform: 'uppercase', cursor: 'pointer'
+                        }}
+                      >
+                        {f.label}
+                      </button>
+                    ))}
+                  </div>
+                </IOSListRow>
+
+                <IOSListRow colors={colors}>
+                  {(() => {
+                    const liftMeta = {
+                      barbell_bench_press: { short: 'BENCH', color: '#FF6B00' },
+                      barbell_back_squat: { short: 'SQUAT', color: '#30D158' },
+                      barbell_deadlift: { short: 'DEADLIFT', color: '#FFD60A' },
+                      overhead_press: { short: 'OHP', color: '#00E5FF' }
+                    };
+
+                    const activeLifts = selectedChartLift === 'ALL' ? BIG_FOUR_IDS : [selectedChartLift];
+                    const allDates = Array.from(
+                      new Set(BIG_FOUR_IDS.flatMap(id => (progressionSeriesByLift[id] || []).map(pt => pt.dateLabel)))
+                    );
+                    const allVals = activeLifts.flatMap(id =>
+                      (progressionSeriesByLift[id] || []).map(pt => (chartMetric === 'weight' ? pt.weight : pt.volume))
+                    );
+
+                    const rawMin = allVals.length ? Math.min(...allVals) : 0;
+                    const rawMax = allVals.length ? Math.max(...allVals) : 300;
+                    const pad = Math.max(10, Math.round((rawMax - rawMin) * 0.15));
+                    const minVal = Math.max(0, rawMin - pad);
+                    const maxVal = rawMax + pad;
+
+                    const svgW = 360;
+                    const svgH = 210;
+                    const padL = 44;
+                    const padR = 18;
+                    const padT = 18;
+                    const padB = 30;
+                    const plotW = svgW - padL - padR;
+                    const plotH = svgH - padT - padB;
+
+                    const getX = (idx, count) => (count <= 1 ? padL + plotW / 2 : padL + (idx / (count - 1)) * plotW);
+                    const getY = val => padT + plotH - ((val - minVal) / Math.max(1, maxVal - minVal)) * plotH;
+                    const yTicks = [0, 0.25, 0.5, 0.75, 1].map(t => Math.round(minVal + t * (maxVal - minVal)));
+
+                    return (
+                      <div style={{ width: '100%' }}>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', marginBottom: '8px' }}>
+                          {activeLifts.map(id => (
+                            <div key={id} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                              <span style={{ width: '10px', height: '10px', backgroundColor: liftMeta[id].color, display: 'inline-block' }} />
+                              <span style={{ fontSize: '11px', fontWeight: 800, color: '#FFFFFF' }}>
+                                {liftMeta[id].short}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+
+                        <svg
+                          viewBox={`0 0 ${svgW} ${svgH}`}
+                          style={{
+                            width: '100%', height: 'auto', backgroundColor: '#101010',
+                            border: '2px solid var(--dp-color-rule)', display: 'block'
+                          }}
+                        >
+                          {yTicks.map((tickVal, idx) => {
+                            const y = getY(tickVal);
+                            return (
+                              <g key={idx}>
+                                <line x1={padL} y1={y} x2={svgW - padR} y2={y} stroke="#2A2A2A" strokeWidth="1" strokeDasharray="3 3" />
+                                <text x={padL - 6} y={y + 3} textAnchor="end" fill="#888888" fontSize="9" fontWeight="700">
+                                  {tickVal >= 1000 && chartMetric === 'volume' ? `${(tickVal / 1000).toFixed(1)}k` : tickVal}
+                                </text>
+                              </g>
+                            );
+                          })}
+
+                          {allDates.map((dLabel, idx) => {
+                            const x = getX(idx, allDates.length);
+                            return (
+                              <g key={dLabel}>
+                                <line x1={x} y1={padT} x2={x} y2={padT + plotH} stroke="#1E1E1E" strokeWidth="1" />
+                                <text x={x} y={svgH - 9} textAnchor="middle" fill="#A0A0A0" fontSize="9" fontWeight="800">
+                                  {dLabel.toUpperCase()}
+                                </text>
+                              </g>
+                            );
+                          })}
+
+                          {activeLifts.map(liftId => {
+                            const series = progressionSeriesByLift[liftId] || [];
+                            if (series.length === 0) return null;
+                            const color = liftMeta[liftId].color;
+
+                            const coords = series.map((pt, sIdx) => {
+                              const dateIdx = allDates.indexOf(pt.dateLabel);
+                              const x = dateIdx >= 0 ? getX(dateIdx, allDates.length) : getX(sIdx, series.length);
+                              const rawVal = chartMetric === 'weight' ? pt.weight : pt.volume;
+                              const y = getY(rawVal);
+                              return { x, y, rawVal, dateLabel: pt.dateLabel };
+                            });
+
+                            const polylinePoints = coords.map(c => `${c.x},${c.y}`).join(' ');
+                            const areaPoints =
+                              coords.length > 1
+                                ? `${coords[0].x},${padT + plotH} ${polylinePoints} ${coords[coords.length - 1].x},${padT + plotH}`
+                                : null;
+
+                            return (
+                              <g key={liftId}>
+                                {selectedChartLift !== 'ALL' && areaPoints && (
+                                  <polygon points={areaPoints} fill={color} fillOpacity="0.14" />
+                                )}
+                                <polyline fill="none" stroke={color} strokeWidth="2.75" points={polylinePoints} />
+                                {coords.map((c, cIdx) => (
+                                  <g key={`${liftId}_${cIdx}`}>
+                                    <rect x={c.x - 4} y={c.y - 4} width="8" height="8" fill="#101010" stroke={color} strokeWidth="2.2" />
+                                    {(selectedChartLift !== 'ALL' || cIdx === coords.length - 1) && (
+                                      <text x={c.x} y={c.y - 8} textAnchor="middle" fill={color} fontSize="9" fontWeight="800">
+                                        {c.rawVal}
+                                      </text>
+                                    )}
+                                  </g>
+                                ))}
+                              </g>
+                            );
+                          })}
+                        </svg>
                       </div>
+                    );
+                  })()}
+                </IOSListRow>
+
+                {BIG_FOUR_IDS.map((liftId, idx) => {
+                  const ex = EXERCISE_MAP[liftId];
+                  const cur1RM = oneRepMaxes[liftId] ?? ex.default1RM;
+                  const goalWeight = getExRxTargetForLift(liftId, targetStandardClass, userBodyweightLbs, totalHeightInches, customGoalWeights);
+                  const distance = goalWeight - cur1RM;
+                  const series = progressionSeriesByLift[liftId] || [];
+                  const firstVal = series.length ? (chartMetric === 'weight' ? series[0].weight : series[0].volume) : 0;
+                  const latestVal = series.length
+                    ? chartMetric === 'weight'
+                      ? series[series.length - 1].weight
+                      : series[series.length - 1].volume
+                    : 0;
+                  const delta = latestVal - firstVal;
+
+                  return (
+                    <IOSListRow
+                      key={liftId}
+                      isLast={idx === BIG_FOUR_IDS.length - 1}
+                      colors={colors}
+                      onClick={() => setSelectedChartLift(prev => (prev === liftId ? 'ALL' : liftId))}
+                    >
+                      <div style={{ width: '100%' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+                          <span style={{ fontSize: '14px', fontWeight: 800, textTransform: 'uppercase' }}>{ex.name}</span>
+                          <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--dp-color-accent)' }}>
+                            1RM {cur1RM} LB ({distance > 0 ? `${distance} lb from ${targetStandardClass}` : 'Goal Met'})
+                          </span>
+                        </div>
+                        <div
+                          className="kinetic-sub"
+                          style={{
+                            fontSize: '11px', color: '#A0A0A0', fontWeight: 700,
+                            marginTop: '3px', display: 'flex', justifyContent: 'space-between'
+                          }}
+                        >
+                          <span>
+                            START: {firstVal} {chartMetric === 'weight' ? 'LB' : 'VOL'} → LATEST: {latestVal}{' '}
+                            {chartMetric === 'weight' ? 'LB' : 'VOL'}
+                          </span>
+                          <span style={{ color: delta >= 0 ? '#30D158' : '#FF3B30' }}>
+                            {delta >= 0 ? `+${delta}` : delta} {chartMetric === 'weight' ? 'LB' : 'VOL'}
+                          </span>
+                        </div>
+                      </div>
+                    </IOSListRow>
+                  );
+                })}
+              </IOSListSection>
+            </div>
+          )}
+
+          {/* ================================================================== */}
+          {/* VIEW: STIMULUS MAP                                                 */}
+          {/* ================================================================== */}
+          {currentView === 'stimulus_map' && (
+            <div style={{ paddingTop: '14px' }}>
+              <IOSListSection
+                header="ANATOMICAL STIMULUS DIAGRAM"
+                footer={`Green: 0–${stimulusGreenDays}d • Yellow: ${Number(stimulusGreenDays) + 1}–${stimulusYellowDays}d • Red: ${Number(stimulusYellowDays) + 1}+ days since last logged stimulus.`}
+                colors={colors}
+              >
+                <IOSListRow isLast={true} colors={colors}>
+                  <div style={{ width: '100%', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', padding: '8px 0' }}>
+                    <div
+                      style={{
+                        border: '2px solid var(--dp-color-rule)', backgroundColor: '#101010',
+                        padding: '10px', display: 'flex', flexDirection: 'column', alignItems: 'center'
+                      }}
+                    >
+                      <div style={{ fontSize: '11px', fontWeight: 800, color: 'var(--dp-color-accent)', letterSpacing: '0.06em', marginBottom: '8px' }}>
+                        ANTERIOR // FRONT
+                      </div>
+                      <svg viewBox="0 0 120 230" style={{ width: '100%', maxWidth: '135px', height: 'auto' }}>
+                        <rect x="50" y="6" width="20" height="22" fill="#262626" stroke="#5C5C5C" strokeWidth="1.5" />
+                        <rect x="54" y="28" width="12" height="8" fill="#262626" />
+                        <rect x="22" y="36" width="16" height="22" fill={muscleStimulusStatus.Shoulders?.color || '#FF3B30'} stroke="#101010" strokeWidth="1.5" />
+                        <rect x="82" y="36" width="16" height="22" fill={muscleStimulusStatus.Shoulders?.color || '#FF3B30'} stroke="#101010" strokeWidth="1.5" />
+                        <rect x="38" y="36" width="21" height="28" fill={muscleStimulusStatus.Chest?.color || '#FF3B30'} stroke="#101010" strokeWidth="1.5" />
+                        <rect x="61" y="36" width="21" height="28" fill={muscleStimulusStatus.Chest?.color || '#FF3B30'} stroke="#101010" strokeWidth="1.5" />
+                        <rect x="18" y="60" width="15" height="48" fill={muscleStimulusStatus.Arms?.color || '#FF3B30'} stroke="#101010" strokeWidth="1.5" />
+                        <rect x="87" y="60" width="15" height="48" fill={muscleStimulusStatus.Arms?.color || '#FF3B30'} stroke="#101010" strokeWidth="1.5" />
+                        <rect x="40" y="66" width="40" height="46" fill={muscleStimulusStatus.Core?.color || '#FF3B30'} stroke="#101010" strokeWidth="1.5" />
+                        <line x1="60" y1="66" x2="60" y2="112" stroke="#101010" strokeWidth="1.5" />
+                        <line x1="40" y1="81" x2="80" y2="81" stroke="#101010" strokeWidth="1.5" />
+                        <line x1="40" y1="96" x2="80" y2="96" stroke="#101010" strokeWidth="1.5" />
+                        <rect x="38" y="116" width="20" height="58" fill={muscleStimulusStatus.Legs?.color || '#FF3B30'} stroke="#101010" strokeWidth="1.5" />
+                        <rect x="62" y="116" width="20" height="58" fill={muscleStimulusStatus.Legs?.color || '#FF3B30'} stroke="#101010" strokeWidth="1.5" />
+                        <rect x="40" y="177" width="16" height="44" fill={muscleStimulusStatus.Legs?.color || '#FF3B30'} stroke="#101010" strokeWidth="1.5" />
+                        <rect x="64" y="177" width="16" height="44" fill={muscleStimulusStatus.Legs?.color || '#FF3B30'} stroke="#101010" strokeWidth="1.5" />
+                      </svg>
                     </div>
-                    <SFSymbol name="checkmark.circle.fill" size={20} color={colors.systemGreen} />
+
+                    <div
+                      style={{
+                        border: '2px solid var(--dp-color-rule)', backgroundColor: '#101010',
+                        padding: '10px', display: 'flex', flexDirection: 'column', alignItems: 'center'
+                      }}
+                    >
+                      <div style={{ fontSize: '11px', fontWeight: 800, color: 'var(--dp-color-accent)', letterSpacing: '0.06em', marginBottom: '8px' }}>
+                        POSTERIOR // BACK
+                      </div>
+                      <svg viewBox="0 0 120 230" style={{ width: '100%', maxWidth: '135px', height: 'auto' }}>
+                        <rect x="50" y="6" width="20" height="22" fill="#262626" stroke="#5C5C5C" strokeWidth="1.5" />
+                        <rect x="54" y="28" width="12" height="8" fill="#262626" />
+                        <rect x="22" y="36" width="16" height="22" fill={muscleStimulusStatus.Shoulders?.color || '#FF3B30'} stroke="#101010" strokeWidth="1.5" />
+                        <rect x="82" y="36" width="16" height="22" fill={muscleStimulusStatus.Shoulders?.color || '#FF3B30'} stroke="#101010" strokeWidth="1.5" />
+                        <rect x="38" y="36" width="44" height="52" fill={muscleStimulusStatus.Back?.color || '#FF3B30'} stroke="#101010" strokeWidth="1.5" />
+                        <line x1="60" y1="36" x2="60" y2="88" stroke="#101010" strokeWidth="1.5" />
+                        <rect x="18" y="60" width="15" height="48" fill={muscleStimulusStatus.Arms?.color || '#FF3B30'} stroke="#101010" strokeWidth="1.5" />
+                        <rect x="87" y="60" width="15" height="48" fill={muscleStimulusStatus.Arms?.color || '#FF3B30'} stroke="#101010" strokeWidth="1.5" />
+                        <rect x="42" y="90" width="36" height="22" fill={muscleStimulusStatus.Back?.color || '#FF3B30'} stroke="#101010" strokeWidth="1.5" />
+                        <rect x="38" y="114" width="21" height="24" fill={muscleStimulusStatus.Legs?.color || '#FF3B30'} stroke="#101010" strokeWidth="1.5" />
+                        <rect x="61" y="114" width="21" height="24" fill={muscleStimulusStatus.Legs?.color || '#FF3B30'} stroke="#101010" strokeWidth="1.5" />
+                        <rect x="38" y="140" width="20" height="36" fill={muscleStimulusStatus.Legs?.color || '#FF3B30'} stroke="#101010" strokeWidth="1.5" />
+                        <rect x="62" y="140" width="20" height="36" fill={muscleStimulusStatus.Legs?.color || '#FF3B30'} stroke="#101010" strokeWidth="1.5" />
+                        <rect x="40" y="178" width="16" height="43" fill={muscleStimulusStatus.Legs?.color || '#FF3B30'} stroke="#101010" strokeWidth="1.5" />
+                        <rect x="64" y="178" width="16" height="43" fill={muscleStimulusStatus.Legs?.color || '#FF3B30'} stroke="#101010" strokeWidth="1.5" />
+                      </svg>
+                    </div>
+                  </div>
+                </IOSListRow>
+              </IOSListSection>
+
+              <IOSListSection header="MUSCLE GROUP TELEMETRY" colors={colors}>
+                {Object.entries(muscleStimulusStatus).map(([group, info], idx, arr) => (
+                  <IOSListRow key={group} isLast={idx === arr.length - 1} colors={colors}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                      <span style={{ width: '16px', height: '16px', backgroundColor: info.color, border: '2px solid #FFFFFF', display: 'inline-block' }} />
+                      <span style={{ fontSize: '16px', fontWeight: 800, textTransform: 'uppercase' }}>{group}</span>
+                    </div>
+                    <span style={{ fontSize: '12px', fontWeight: 800, color: info.color, textTransform: 'uppercase' }}>
+                      {info.label}
+                    </span>
                   </IOSListRow>
-                  <IOSListRow
-                    onClick={async () => {
-                      if (user?.accessToken && supabaseCloud.isConfigured) {
-                        await supabaseCloud.signOut(user.accessToken);
-                      }
-                      setUser(null);
-                      setAuthEmail('');
-                      setAuthPassword('');
-                      setAuthConfirmPassword('');
-                      triggerBanner('Signed out.', 'info');
+                ))}
+              </IOSListSection>
+            </div>
+          )}
+
+          {/* ================================================================== */}
+          {/* VIEW: LEADERBOARD                                                  */}
+          {/* ================================================================== */}
+          {currentView === 'leaderboard' && (
+            <div style={{ paddingTop: '14px' }}>
+              <IOSListSection header="COMMUNITY BIG 3 + OHP TOTAL" colors={colors}>
+                {[
+                  {
+                    name: user?.username || 'you (logged out)',
+                    total:
+                      (oneRepMaxes.barbell_bench_press || 225) +
+                      (oneRepMaxes.barbell_back_squat || 285) +
+                      (oneRepMaxes.barbell_deadlift || 335) +
+                      (oneRepMaxes.overhead_press || 145)
+                  },
+                  ...friendsList.map(f => ({
+                    name: f.username,
+                    total:
+                      (f.prs?.barbell_bench_press || 185) +
+                      (f.prs?.barbell_back_squat || 265) +
+                      (f.prs?.barbell_deadlift || 315) +
+                      (f.prs?.overhead_press || 115)
+                  }))
+                ]
+                  .sort((a, b) => b.total - a.total)
+                  .map((entry, idx, arr) => (
+                    <IOSListRow key={entry.name} indexLabel={`#0${idx + 1}`} isLast={idx === arr.length - 1} colors={colors}>
+                      <span style={{ fontSize: '16px', fontWeight: 800, textTransform: 'uppercase' }}>@{entry.name}</span>
+                      <span style={{ fontSize: '16px', fontWeight: 800, color: 'var(--dp-color-accent)' }}>{entry.total} LB</span>
+                    </IOSListRow>
+                  ))}
+              </IOSListSection>
+            </div>
+          )}
+
+          {/* ================================================================== */}
+          {/* VIEW: SOCIAL & PROFILE                                             */}
+          {/* ================================================================== */}
+          {currentView === 'social' && (
+            <div style={{ paddingTop: '14px' }}>
+              <IOSListSection header="FIND ATHLETES" colors={colors}>
+                <IOSListRow isLast={true} colors={colors}>
+                  <input
+                    type="text"
+                    placeholder="SEARCH USERNAME OR EMAIL..."
+                    value={friendSearchQuery}
+                    onChange={e => setFriendSearchQuery(e.target.value)}
+                    style={{
+                      width: '100%', backgroundColor: '#101010', color: '#FFFFFF',
+                      border: '2px solid var(--dp-color-rule)', padding: '10px 12px',
+                      fontSize: '13px', fontWeight: 800, textTransform: 'uppercase'
                     }}
-                    isLast
-                    colors={colors}
-                  >
-                    <span style={{ ...IOS_TEXT.body, color: colors.systemRed }}>Sign Out</span>
-                  </IOSListRow>
+                  />
+                </IOSListRow>
+              </IOSListSection>
+
+              {pendingIncomingRequests.length > 0 && (
+                <IOSListSection header="INCOMING REQUESTS" colors={colors}>
+                  {pendingIncomingRequests.map((req, idx) => (
+                    <IOSListRow key={req.id} isLast={idx === pendingIncomingRequests.length - 1} colors={colors}>
+                      <div>
+                        <div style={{ fontSize: '15px', fontWeight: 800, textTransform: 'uppercase' }}>@{req.username}</div>
+                        <div style={{ fontSize: '11px', color: '#A0A0A0' }}>{req.email}</div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setFriendsList(prev => [...prev, req]);
+                          setPendingIncomingRequests(prev => prev.filter(r => r.id !== req.id));
+                        }}
+                        style={{
+                          padding: '6px 12px', backgroundColor: 'var(--dp-color-accent)',
+                          color: '#101010', border: '2px solid #FFFFFF', fontSize: '11px', fontWeight: 800, cursor: 'pointer'
+                        }}
+                      >
+                        ACCEPT
+                      </button>
+                    </IOSListRow>
+                  ))}
                 </IOSListSection>
               )}
 
-              <div style={{ padding: '0 16px 16px' }}>
-                <IOSSegmentedControl
-                  options={[
-                    { label: 'Log In', value: 'login' },
-                    { label: 'Create New User', value: 'signup' }
-                  ]}
-                  value={authMode}
-                  onChange={setAuthMode}
-                  colors={colors}
-                />
-              </div>
-
-              <form
-                onSubmit={async e => {
-                  e.preventDefault();
-                  const trimmedEmail = authEmail.trim();
-                  if (!trimmedEmail) {
-                    triggerBanner('Enter a valid email address.', 'warning');
-                    return;
-                  }
-                  if (authMode === 'signup') {
-                    if (authPassword.length < 6) {
-                      triggerBanner('Password must be at least 6 characters.', 'warning');
-                      return;
-                    }
-                    if (authPassword !== authConfirmPassword) {
-                      triggerBanner('Passwords do not match.', 'warning');
-                      return;
-                    }
-                  }
-
-                  setAuthLoading(true);
-                  try {
-                    if (supabaseCloud.isConfigured) {
-                      if (authMode === 'signup') {
-                        const data = await supabaseCloud.signUp(
-                          trimmedEmail,
-                          authPassword,
-                          authName.trim() || trimmedEmail.split('@')[0]
-                        );
-                        const supaUser = data.user || data.session?.user;
-                        const token = data.access_token || data.session?.access_token;
-                        if (!token) {
-                          triggerBanner(
-                            'Check your email to confirm your account, or disable Confirm Email in Supabase Auth settings.',
-                            'info'
-                          );
-                          setAuthLoading(false);
-                          return;
-                        }
-                        const newUser = {
-                          id: supaUser.id,
-                          email: supaUser.email,
-                          name: authName.trim() || trimmedEmail.split('@')[0],
-                          accessToken: token
-                        };
-                        setUser(newUser);
-                        await supabaseCloud.upsertProfile(newUser, oneRepMaxes);
-                        setCurrentView('home');
-                        triggerBanner(`Cloud account created for ${newUser.email}.`, 'success');
-                      } else {
-                        const data = await supabaseCloud.signIn(trimmedEmail, authPassword);
-                        const loggedInUser = {
-                          id: data.user.id,
-                          email: data.user.email,
-                          name:
-                            data.user.user_metadata?.display_name ||
-                            trimmedEmail.split('@')[0],
-                          accessToken: data.access_token
-                        };
-                        setUser(loggedInUser);
-                        setCurrentView('home');
-                        triggerBanner(`Signed in as ${loggedInUser.email}.`, 'success');
-                      }
-                    } else {
-                      const localUser = {
-                        id: `usr_${Date.now()}`,
-                        email: trimmedEmail,
-                        name: authName.trim() || trimmedEmail.split('@')[0]
-                      };
-                      setUser(localUser);
-                      setCurrentView('home');
-                      triggerBanner(
-                        authMode === 'signup'
-                          ? `Account created for ${localUser.email}.`
-                          : `Signed in as ${localUser.email}.`,
-                        'success'
-                      );
-                    }
-                  } catch (err) {
-                    triggerBanner(err.message || 'Authentication error.', 'warning');
-                  } finally {
-                    setAuthLoading(false);
-                  }
-                }}
+              <IOSListSection
+                header={`FRIENDS (${friendsList.length})`}
+                footer="Tap any friend to open their Profile page and view their PRs and Shared Routines."
+                colors={colors}
               >
-                <IOSListSection
-                  header={authMode === 'login' ? 'Credentials' : 'New User Profile'}
-                  footer="Guest users can calculate 1RMs and run workouts freely. Signing in stores historical workouts and automatically recalculates 1RMs."
-                  colors={colors}
-                >
-                  {authMode === 'signup' && (
-                    <IOSListRow colors={colors}>
-                      <span style={{ ...IOS_TEXT.body, color: colors.label, width: '95px' }}>
-                        Name
-                      </span>
-                      <input
-                        type="text"
-                        placeholder="Optional"
-                        value={authName}
-                        onChange={e => setAuthName(e.target.value)}
-                        style={{
-                          ...IOS_TEXT.body,
-                          color: colors.label,
-                          background: 'transparent',
-                          border: 'none',
-                          outline: 'none',
-                          flex: 1
-                        }}
-                      />
+                {friendsList
+                  .filter(
+                    f =>
+                      !friendSearchQuery.trim() ||
+                      f.username.toLowerCase().includes(friendSearchQuery.toLowerCase()) ||
+                      f.email.toLowerCase().includes(friendSearchQuery.toLowerCase())
+                  )
+                  .map((friend, i, arr) => (
+                    <IOSListRow
+                      key={friend.id}
+                      isLast={i === arr.length - 1}
+                      colors={colors}
+                      onClick={() => {
+                        setViewingFriendProfile(friend);
+                        setCurrentView('friend_profile');
+                      }}
+                    >
+                      <div>
+                        <div style={{ fontSize: '16px', fontWeight: 800, textTransform: 'uppercase' }}>@{friend.username}</div>
+                        <div className="kinetic-sub" style={{ fontSize: '11px', color: '#A0A0A0' }}>{friend.email}</div>
+                      </div>
+                      <span style={{ fontSize: '14px', fontWeight: 800, color: 'var(--dp-color-accent)' }}>VIEW PROFILE →</span>
                     </IOSListRow>
-                  )}
+                  ))}
+              </IOSListSection>
+            </div>
+          )}
 
-                  <IOSListRow colors={colors}>
-                    <span style={{ ...IOS_TEXT.body, color: colors.label, width: '95px' }}>
-                      Email
-                    </span>
+          {(currentView === 'profile' || currentView === 'friend_profile') && (
+            <div style={{ paddingTop: '14px' }}>
+              {(() => {
+                const isFriend = currentView === 'friend_profile' && viewingFriendProfile;
+                const profUser = isFriend
+                  ? viewingFriendProfile
+                  : user || { username: 'guest', email: 'Not Signed In' };
+                const profPRs = isFriend ? viewingFriendProfile.prs || {} : oneRepMaxes;
+                const profRoutines = isFriend ? viewingFriendProfile.sharedRoutines || [] : sharedRoutines;
+
+                return (
+                  <>
+                    <IOSListSection header="ATHLETE IDENTITY" colors={colors}>
+                      <IOSListRow isLast={isFriend || !user} colors={colors}>
+                        <div>
+                          <div style={{ fontSize: '22px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '-0.03em' }}>
+                            @{profUser.username}
+                          </div>
+                          <div style={{ fontSize: '12px', color: '#A0A0A0', fontWeight: 700 }}>{profUser.email}</div>
+                        </div>
+
+                        {!isFriend && (
+                          <button
+                            type="button"
+                            onClick={() => fileInputRef.current?.click()}
+                            style={{
+                              padding: '8px 12px', backgroundColor: '#101010',
+                              color: 'var(--dp-color-accent)', border: '2px solid var(--dp-color-rule)',
+                              fontSize: '11px', fontWeight: 800, cursor: 'pointer'
+                            }}
+                          >
+                            PHOTO
+                          </button>
+                        )}
+                        <input ref={fileInputRef} type="file" accept="image/*" style={{ display: 'none' }} />
+                      </IOSListRow>
+
+                      {!isFriend && user && (
+                        <IOSListRow isLast={true} colors={colors}>
+                          <span style={{ fontSize: '12px', fontWeight: 700, color: '#A0A0A0' }}>ACTIVE ACCOUNT SESSION</span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setUser(null);
+                              setCurrentView('home');
+                            }}
+                            className="kinetic-btn"
+                            style={{
+                              padding: '6px 12px', backgroundColor: '#161616', color: '#FF3B30',
+                              border: '2px solid var(--dp-color-rule)', fontSize: '11px',
+                              fontWeight: 800, textTransform: 'uppercase', cursor: 'pointer'
+                            }}
+                          >
+                            SIGN OUT
+                          </button>
+                        </IOSListRow>
+                      )}
+                    </IOSListSection>
+
+                    <IOSListSection header="PRS (PERSONAL RECORDS)" colors={colors}>
+                      {EXERCISE_LIBRARY.filter(e => e.isPriority).map((ex, i, arr) => {
+                        const val = profPRs[ex.id] ?? ex.default1RM;
+                        return (
+                          <IOSListRow
+                            key={ex.id}
+                            isLast={i === arr.length - 1}
+                            colors={colors}
+                            onClick={!isFriend ? () => openPlateCalculatorForPR(ex.id, ex.name, val) : undefined}
+                          >
+                            <span style={{ fontSize: '14px', fontWeight: 800, textTransform: 'uppercase' }}>{ex.name}</span>
+                            <span style={{ fontSize: '15px', fontWeight: 800, color: 'var(--dp-color-accent)' }}>
+                              {val} LB {!isFriend && '✎'}
+                            </span>
+                          </IOSListRow>
+                        );
+                      })}
+                    </IOSListSection>
+
+                    <IOSListSection header="SHARED ROUTINES" colors={colors}>
+                      {profRoutines.length === 0 ? (
+                        <IOSListRow isLast={true} colors={colors}>
+                          <span style={{ fontSize: '12px', color: '#888888' }}>No routines shared yet.</span>
+                        </IOSListRow>
+                      ) : (
+                        profRoutines.map((r, i) => (
+                          <IOSListRow
+                            key={r.key}
+                            isLast={i === profRoutines.length - 1}
+                            colors={colors}
+                            onClick={() => handleOpenPreviewRoutine(r, 'session')}
+                          >
+                            <span style={{ fontSize: '15px', fontWeight: 800, textTransform: 'uppercase' }}>{r.label}</span>
+                            <span style={{ fontSize: '13px', fontWeight: 800, color: 'var(--dp-color-accent)' }}>PREVIEW →</span>
+                          </IOSListRow>
+                        ))
+                      )}
+                    </IOSListSection>
+                  </>
+                );
+              })()}
+            </div>
+          )}
+
+          {/* ================================================================== */}
+          {/* VIEW: SETTINGS                                                     */}
+          {/* ================================================================== */}
+          {currentView === 'settings' && (
+            <div style={UI.pagePad}>
+              <IOSListSection header="BODY METRICS" colors={colors}>
+                <IOSListRow colors={colors}>
+                  <span style={UI.rowTitle}>BODYWEIGHT (LBS)</span>
+                  <input
+                    type="number"
+                    value={userBodyweightLbs}
+                    onChange={e => setUserBodyweightLbs(Number(e.target.value) || 0)}
+                    style={UI.numInput('90px', 'var(--dp-color-accent)')}
+                  />
+                </IOSListRow>
+                <IOSListRow isLast={true} colors={colors}>
+                  <span style={UI.rowTitle}>HEIGHT (FT / IN)</span>
+                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                    <input
+                      type="number"
+                      value={userHeightFeet}
+                      onChange={e => setUserHeightFeet(Number(e.target.value) || 0)}
+                      style={UI.numInput('54px')}
+                    />
+                    <span style={{ fontSize: '12px', fontWeight: 800 }}>FT</span>
+                    <input
+                      type="number"
+                      value={userHeightInches}
+                      onChange={e => setUserHeightInches(Number(e.target.value) || 0)}
+                      style={UI.numInput('54px')}
+                    />
+                    <span style={{ fontSize: '12px', fontWeight: 800 }}>IN</span>
+                  </div>
+                </IOSListRow>
+              </IOSListSection>
+
+              <IOSListSection header="STIMULUS" footer="Red threshold is automatically set to Yellow + 1 day." colors={colors}>
+                <IOSListRow colors={colors}>
+                  <span style={{ fontSize: '14px', fontWeight: 800, color: '#30D158' }}>GREEN (RECOVERING)</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <input
+                      type="number"
+                      min="1"
+                      value={stimulusGreenDays}
+                      onChange={e => setStimulusGreenDays(Math.max(1, Number(e.target.value) || 1))}
+                      style={UI.numInput('58px')}
+                    />
+                    <span style={{ fontSize: '11px', fontWeight: 800 }}>DAYS</span>
+                  </div>
+                </IOSListRow>
+
+                <IOSListRow colors={colors}>
+                  <span style={{ fontSize: '14px', fontWeight: 800, color: '#FFD60A' }}>YELLOW (READY)</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <input
+                      type="number"
+                      min={Number(stimulusGreenDays) + 1}
+                      value={stimulusYellowDays}
+                      onChange={e =>
+                        setStimulusYellowDays(Math.max(Number(stimulusGreenDays) + 1, Number(e.target.value) || 4))
+                      }
+                      style={UI.numInput('58px')}
+                    />
+                    <span style={{ fontSize: '11px', fontWeight: 800 }}>DAYS</span>
+                  </div>
+                </IOSListRow>
+
+                <IOSListRow isLast={true} colors={colors} style={{ opacity: 0.5 }}>
+                  <span style={{ fontSize: '14px', fontWeight: 800, color: '#FF3B30' }}>RED (HIGH PRIORITY)</span>
+                  <span style={{ fontSize: '13px', fontWeight: 800, color: '#A0A0A0' }}>
+                    {Number(stimulusYellowDays) + 1}+ DAYS (AUTO)
+                  </span>
+                </IOSListRow>
+              </IOSListSection>
+
+              <IOSListSection header="GYMS/EQUIPMENT" colors={colors}>
+                <IOSListRow isLast={true} colors={colors} style={{ opacity: 0.45 }}>
+                  <div>
+                    <div style={UI.rowTitle}>SMART LOCATIONS</div>
+                    <div style={UI.rowSub}>COMING SOON</div>
+                  </div>
+                  <span style={UI.badge(false)}>LOCKED</span>
+                </IOSListRow>
+              </IOSListSection>
+
+              <IOSListSection
+                header="ROUTINE PREFERENCES"
+                footer="Controls the default structure generated when you tap AUTO in Routine Editor."
+                colors={colors}
+              >
+                {routinePreferences.map((comp, idx) => (
+                  <IOSListRow key={`${comp}_${idx}`} colors={colors}>
+                    <span style={UI.rowTitle}>0{idx + 1} / {comp}</span>
+                    <div style={{ display: 'flex', gap: '6px' }}>
+                      <button
+                        type="button"
+                        disabled={idx === 0}
+                        onClick={() =>
+                          setRoutinePreferences(prev => {
+                            const copy = [...prev];
+                            const tmp = copy[idx - 1];
+                            copy[idx - 1] = copy[idx];
+                            copy[idx] = tmp;
+                            return copy;
+                          })
+                        }
+                        style={UI.pillBtn(false)}
+                      >
+                        ↑
+                      </button>
+                      <button
+                        type="button"
+                        disabled={idx === routinePreferences.length - 1}
+                        onClick={() =>
+                          setRoutinePreferences(prev => {
+                            const copy = [...prev];
+                            const tmp = copy[idx + 1];
+                            copy[idx + 1] = copy[idx];
+                            copy[idx] = tmp;
+                            return copy;
+                          })
+                        }
+                        style={UI.pillBtn(false)}
+                      >
+                        ↓
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setRoutinePreferences(prev => prev.filter((_, i) => i !== idx))}
+                        style={{ ...UI.pillBtn(false), color: '#FF3B30' }}
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  </IOSListRow>
+                ))}
+
+                <IOSListRow isLast={true} colors={colors}>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', width: '100%' }}>
+                    {['Compounds', 'Supersets', 'Accessories', 'Abs'].map(type => (
+                      <button
+                        key={type}
+                        type="button"
+                        onClick={() => setRoutinePreferences(prev => [...prev, type])}
+                        style={{ ...UI.pillBtn(false), color: 'var(--dp-color-accent)' }}
+                      >
+                        + {type}
+                      </button>
+                    ))}
+                  </div>
+                </IOSListRow>
+              </IOSListSection>
+
+              <IOSListSection header="SOCIAL" colors={colors}>
+                <IOSListRow colors={colors} onClick={() => setShareStatsWithFriends(p => !p)}>
+                  <span style={UI.rowTitle}>SHARE STATS WITH FRIENDS</span>
+                  <span style={UI.badge(shareStatsWithFriends)}>{shareStatsWithFriends ? 'ON' : 'OFF'}</span>
+                </IOSListRow>
+
+                <IOSListRow isLast={true} colors={colors} onClick={() => setShareRoutinesWithFriends(p => !p)}>
+                  <span style={UI.rowTitle}>SHARE ROUTINES WITH FRIENDS</span>
+                  <span style={UI.badge(shareRoutinesWithFriends)}>{shareRoutinesWithFriends ? 'ON' : 'OFF'}</span>
+                </IOSListRow>
+              </IOSListSection>
+
+              <IOSListSection
+                header="DATA & BACKUP (SCHEMA V3)"
+                footer="Your workout history, PRs, routines, gyms, and settings are automatically saved to versioned local storage and retained across app updates."
+                colors={colors}
+              >
+                <IOSListRow colors={colors} onClick={handleExportBackupJSON}>
+                  <span style={UI.rowTitle}>EXPORT DATA BACKUP (.JSON)</span>
+                  <span style={UI.badge(true)}>DOWNLOAD ↓</span>
+                </IOSListRow>
+
+                <IOSListRow colors={colors} onClick={() => importBackupInputRef.current?.click()}>
+                  <span style={UI.rowTitle}>IMPORT DATA BACKUP (.JSON)</span>
+                  <span style={{ ...UI.badge(false), color: 'var(--dp-color-accent)' }}>UPLOAD ↑</span>
+                  <input
+                    ref={importBackupInputRef}
+                    type="file"
+                    accept="application/json,.json"
+                    onChange={handleImportBackupJSON}
+                    style={{ display: 'none' }}
+                  />
+                </IOSListRow>
+
+                <IOSListRow isLast={true} colors={colors} onClick={handleResetToDemoDefaults}>
+                  <span style={{ ...UI.rowTitle, color: '#FF3B30' }}>CLEAR & RESET ALL LOCAL DATA</span>
+                  <span style={{ ...UI.badge(false), color: '#FF3B30' }}>RESET ↺</span>
+                </IOSListRow>
+              </IOSListSection>
+            </div>
+          )}
+
+          {/* ================================================================== */}
+          {/* VIEW: INFO                                                         */}
+          {/* ================================================================== */}
+          {currentView === 'info' && (
+            <div style={UI.pagePad}>
+              <IOSListSection header="01 // SETUP: METRICS, GOALS & PRS" colors={colors}>
+                <IOSListRow isLast={true} colors={colors}>
+                  <div style={{ lineHeight: 1.5, fontSize: '14px', color: '#E0E0E0' }}>
+                    <p style={{ marginBottom: '10px' }}>
+                      <strong style={{ color: 'var(--dp-color-accent)' }}>1. BODY METRICS:</strong> Open{' '}
+                      <strong>MENU → SETTINGS</strong> to enter your current bodyweight and height.
+                    </p>
+                    <p style={{ marginBottom: '10px' }}>
+                      <strong style={{ color: 'var(--dp-color-accent)' }}>2. GOALS & STANDARDS:</strong> Open{' '}
+                      <strong>MENU → GOALS</strong> to choose your focus and select your target ExRx.net strength class.
+                    </p>
+                    <p>
+                      <strong style={{ color: 'var(--dp-color-accent)' }}>3. PERSONAL RECORDS:</strong> Open{' '}
+                      <strong>HISTORY → PERSONAL RECORDS</strong> and tap any lift to enter your current 1RM.
+                    </p>
+                  </div>
+                </IOSListRow>
+              </IOSListSection>
+
+              <IOSListSection header="02 // LOGGING & AUTO-BUILDING SESSIONS" colors={colors}>
+                <IOSListRow isLast={true} colors={colors}>
+                  <div style={{ lineHeight: 1.5, fontSize: '14px', color: '#E0E0E0' }}>
+                    <p style={{ marginBottom: '10px' }}>
+                      <strong style={{ color: 'var(--dp-color-accent)' }}>NEW AUTO SHORTCUT:</strong> Tap{' '}
+                      <strong>NEW AUTO</strong> on the Home screen to immediately start an automatically generated workout with calculated weight levels.
+                    </p>
+                    <p>
+                      <strong style={{ color: 'var(--dp-color-accent)' }}>MANUAL OVERRIDES:</strong> Tap any slot's category, scheme, or exercise dropdown to customize it, use <strong>RECALCULATE</strong> to scale weights to your set count or build warmups to a 1 Rep Max, or tap <strong>✕</strong> to delete a set or exercise.
+                    </p>
+                  </div>
+                </IOSListRow>
+              </IOSListSection>
+
+              <div style={UI.gutterWrap}>
+                <button
+                  type="button"
+                  onClick={() => setCurrentView('home')}
+                  className="kinetic-btn"
+                  style={UI.primaryBtnCenter}
+                >
+                  ENTER WORKSPACE →
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* ================================================================== */}
+          {/* VIEW: AUTH / SIGN IN & SIGN UP (BETA CODE: "imnotcrying")          */}
+          {/* ================================================================== */}
+          {currentView === 'auth' && (
+            <div style={UI.pagePad}>
+              <IOSListSection header="SIGN IN // EXISTING ACCOUNT" colors={colors}>
+                <IOSListRow colors={colors}>
+                  <div style={{ width: '100%' }}>
+                    <div style={UI.fieldLabel}>USERNAME</div>
+                    <input
+                      type="text"
+                      placeholder="YOUR USERNAME"
+                      value={authUsername}
+                      onChange={e => setAuthUsername(e.target.value)}
+                      style={UI.textInputBare}
+                    />
+                  </div>
+                </IOSListRow>
+                <IOSListRow colors={colors}>
+                  <div style={{ width: '100%' }}>
+                    <div style={UI.fieldLabel}>EMAIL</div>
                     <input
                       type="email"
-                      required
-                      placeholder="you@domain.com"
+                      placeholder="YOU@DOMAIN.COM"
                       value={authEmail}
                       onChange={e => setAuthEmail(e.target.value)}
-                      style={{
-                        ...IOS_TEXT.body,
-                        color: colors.label,
-                        background: 'transparent',
-                        border: 'none',
-                        outline: 'none',
-                        flex: 1
-                      }}
+                      style={UI.textInputBare}
                     />
-                  </IOSListRow>
-
-                  <IOSListRow isLast={authMode === 'login'} colors={colors}>
-                    <span style={{ ...IOS_TEXT.body, color: colors.label, width: '95px' }}>
-                      Password
-                    </span>
+                  </div>
+                </IOSListRow>
+                <IOSListRow isLast={true} colors={colors}>
+                  <div style={{ width: '100%' }}>
+                    <div style={UI.fieldLabel}>PASSWORD</div>
                     <input
                       type="password"
-                      required
-                      placeholder="Required"
+                      placeholder="••••••••"
                       value={authPassword}
                       onChange={e => setAuthPassword(e.target.value)}
-                      style={{
-                        ...IOS_TEXT.body,
-                        color: colors.label,
-                        background: 'transparent',
-                        border: 'none',
-                        outline: 'none',
-                        flex: 1
-                      }}
+                      style={UI.textInputBare}
                     />
-                  </IOSListRow>
+                  </div>
+                </IOSListRow>
+              </IOSListSection>
 
-                  {authMode === 'signup' && (
-                    <IOSListRow isLast colors={colors}>
-                      <span style={{ ...IOS_TEXT.body, color: colors.label, width: '95px' }}>
-                        Verify
-                      </span>
-                      <input
-                        type="password"
-                        required
-                        placeholder="Confirm password"
-                        value={authConfirmPassword}
-                        onChange={e => setAuthConfirmPassword(e.target.value)}
-                        style={{
-                          ...IOS_TEXT.body,
-                          color: colors.label,
-                          background: 'transparent',
-                          border: 'none',
-                          outline: 'none',
-                          flex: 1
-                        }}
-                      />
-                    </IOSListRow>
-                  )}
-                </IOSListSection>
+              <div style={{ padding: '0 var(--dp-spacing-gutter) 24px' }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const cleanEmail = authEmail.trim();
+                    const cleanUser = authUsername.trim() || cleanEmail.split('@')[0];
+                    if (!cleanEmail) return;
+                    setUser({ id: `usr_${Date.now()}`, username: cleanUser, email: cleanEmail });
+                    setCurrentView('home');
+                  }}
+                  className="kinetic-btn"
+                  style={UI.secondaryBtnCenter}
+                >
+                  SIGN IN →
+                </button>
+              </div>
 
-                <div style={{ padding: '0 16px' }}>
-                  <button
-                    type="submit"
-                    disabled={authLoading}
-                    style={{
-                      ...IOS_TEXT.headline,
-                      width: '100%',
-                      minHeight: '48px',
-                      backgroundColor: colors.systemBlue,
-                      color: '#FFFFFF',
-                      border: 'none',
-                      borderRadius: '12px',
-                      opacity: authLoading ? 0.65 : 1,
-                      cursor: authLoading ? 'wait' : 'pointer'
-                    }}
-                  >
-                    {authLoading
-                      ? 'Connecting...'
-                      : authMode === 'login'
-                      ? 'Log In'
-                      : 'Create New User'}
-                  </button>
-                </div>
-              </form>
+              <IOSListSection
+                header="SIGN UP // CREATE ACCOUNT"
+                footer="Beta tester access code is required to register a new account."
+                colors={colors}
+              >
+                <IOSListRow colors={colors}>
+                  <div style={{ width: '100%' }}>
+                    <div style={UI.fieldLabel}>CHOOSE USERNAME</div>
+                    <input
+                      type="text"
+                      placeholder="E.G. IRON_LIFTER"
+                      value={signupUsername}
+                      onChange={e => setSignupUsername(e.target.value)}
+                      style={UI.textInputBare}
+                    />
+                  </div>
+                </IOSListRow>
+
+                <IOSListRow colors={colors}>
+                  <div style={{ width: '100%' }}>
+                    <div style={UI.fieldLabel}>EMAIL ADDRESS</div>
+                    <input
+                      type="email"
+                      placeholder="YOU@DOMAIN.COM"
+                      value={signupEmail}
+                      onChange={e => setSignupEmail(e.target.value)}
+                      style={UI.textInputBare}
+                    />
+                  </div>
+                </IOSListRow>
+
+                <IOSListRow colors={colors}>
+                  <div style={{ width: '100%' }}>
+                    <div style={UI.fieldLabel}>CREATE PASSWORD</div>
+                    <input
+                      type="password"
+                      placeholder="••••••••"
+                      value={signupPassword}
+                      onChange={e => setSignupPassword(e.target.value)}
+                      style={UI.textInputBare}
+                    />
+                  </div>
+                </IOSListRow>
+
+                <IOSListRow isLast={true} colors={colors}>
+                  <div style={{ width: '100%' }}>
+                    <div style={UI.fieldLabel}>BETA TESTER CODE (REQUIRED)</div>
+                    <input
+                      type="text"
+                      placeholder="ENTER BETA CODE"
+                      value={signupBetaCode}
+                      onChange={e => setSignupBetaCode(e.target.value)}
+                      style={UI.textInputBare}
+                    />
+                  </div>
+                </IOSListRow>
+              </IOSListSection>
+
+              <div style={UI.gutterWrap}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (signupBetaCode.trim().toLowerCase() !== 'imnotcrying') return;
+                    const cleanEmail = signupEmail.trim();
+                    const cleanUser = signupUsername.trim() || (cleanEmail ? cleanEmail.split('@')[0] : '');
+                    if (!cleanEmail || !cleanUser) return;
+                    const newUser = { id: `usr_${Date.now()}`, username: cleanUser, email: cleanEmail };
+                    setUser(newUser);
+                    setAuthUsername(cleanUser);
+                    setAuthEmail(cleanEmail);
+                    setSignupPassword('');
+                    setSignupBetaCode('');
+                    setCurrentView('info');
+                  }}
+                  className="kinetic-btn"
+                  style={UI.primaryBtnCenter}
+                >
+                  CREATE ACCOUNT →
+                </button>
+              </div>
             </div>
           )}
         </div>
 
-        {!isRealMobileViewport && (
-          <div
-            style={{
-              height: '22px',
-              backgroundColor: colors.systemGroupedBackground,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              flexShrink: 0
-            }}
-          >
-            <div
-              style={{
-                width: '134px',
-                height: '5px',
-                borderRadius: '2.5px',
-                backgroundColor: colors.label,
-                opacity: 0.25
-              }}
-            />
-          </div>
-        )}
-
-        {confirmAction && (
-          <div
-            onClick={() => setConfirmAction(null)}
-            style={{
-              position: 'absolute',
-              inset: 0,
-              zIndex: 70,
-              backgroundColor: 'rgba(0, 0, 0, 0.45)',
-              display: 'flex',
-              flexDirection: 'column',
-              justifyContent: 'flex-end',
-              padding: '12px'
-            }}
-          >
-            <div onClick={e => e.stopPropagation()} style={{ display: 'grid', gap: '8px' }}>
-              <div
-                style={{
-                  backgroundColor: colors.secondarySystemGroupedBackground,
-                  borderRadius: '14px',
-                  overflow: 'hidden',
-                  textAlign: 'center'
-                }}
-              >
-                <div
-                  style={{
-                    padding: '12px 16px',
-                    borderBottom: `0.5px solid ${colors.separator}`
-                  }}
-                >
-                  <div style={{ ...IOS_TEXT.footnote, fontWeight: 600, color: colors.secondaryLabel }}>
-                    {confirmAction === 'reset'
-                      ? 'Clear and reset all exercises from this session?'
-                      : 'Discard this workout session and return Home?'}
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={
-                    confirmAction === 'reset'
-                      ? handleConfirmResetSession
-                      : handleConfirmCancelSession
-                  }
-                  style={{
-                    ...IOS_TEXT.title3,
-                    color: colors.systemRed,
-                    width: '100%',
-                    padding: '14px',
-                    background: 'none',
-                    border: 'none',
-                    cursor: 'pointer'
-                  }}
-                >
-                  {confirmAction === 'reset' ? 'Reset Session' : 'Discard Workout'}
+        {/* ==================================================================== */}
+        {/* MODAL: DELETE CONFIRMATION (EXERCISE SLOT OR INDIVIDUAL SET)         */}
+        {/* ==================================================================== */}
+        {deleteConfirmTarget && (
+          <div style={{ ...UI.modalBackdrop, zIndex: 90 }} onClick={() => setDeleteConfirmTarget(null)}>
+            <div onClick={e => e.stopPropagation()} style={UI.modalCard('360px')}>
+              <div style={UI.modalHeader}>
+                <span>
+                  {deleteConfirmTarget.type === 'slot' ? 'DELETE EXERCISE?' : 'DELETE SET?'}
+                </span>
+                <button type="button" onClick={() => setDeleteConfirmTarget(null)} style={UI.closeXBtn}>
+                  ✕
                 </button>
               </div>
 
-              <button
-                type="button"
-                onClick={() => setConfirmAction(null)}
+              <div style={{ fontSize: '13px', fontWeight: 700, color: '#E0E0E0', marginBottom: '16px', lineHeight: 1.4 }}>
+                Are you sure you want to delete{' '}
+                <strong style={{ color: 'var(--dp-color-accent)' }}>{deleteConfirmTarget.label}</strong>?
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                <button
+                  type="button"
+                  onClick={() => setDeleteConfirmTarget(null)}
+                  className="kinetic-btn"
+                  style={{ ...UI.secondaryBtnCenter, padding: '12px', fontSize: '12px' }}
+                >
+                  CANCEL
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmDeleteAction}
+                  className="kinetic-btn"
+                  style={{
+                    ...UI.primaryBtnCenter,
+                    padding: '12px',
+                    fontSize: '12px',
+                    backgroundColor: '#FF3B30',
+                    color: '#FFFFFF'
+                  }}
+                >
+                  DELETE ✕
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ==================================================================== */}
+        {/* MODAL: "+" ADD EXERCISE MODAL                                        */}
+        {/* ==================================================================== */}
+        {showAddSlotModal &&
+          (() => {
+            const modalPool = filterAddSlotExercises(addSlotGymFilter, newSlotCategory, gyms);
+
+            return (
+              <div style={UI.modalBackdrop} onClick={() => setShowAddSlotModal(false)}>
+                <div onClick={e => e.stopPropagation()} style={UI.modalCard('400px')}>
+                  <div style={UI.modalHeader}>
+                    <span>ADD WORKOUT SLOT</span>
+                    <button type="button" onClick={() => setShowAddSlotModal(false)} style={UI.closeXBtn}>
+                      ✕
+                    </button>
+                  </div>
+
+                  <div style={{ marginBottom: '12px' }}>
+                    <div style={UI.stepLabel}>1. GYMS/EQUIPMENT</div>
+                    <select
+                      value={addSlotGymFilter}
+                      onChange={e => {
+                        const nextFilter = e.target.value;
+                        setAddSlotGymFilter(nextFilter);
+                        const nextAvail = filterAddSlotExercises(nextFilter, newSlotCategory, gyms);
+                        if (nextAvail.length > 0) {
+                          if (!nextAvail.some(x => x.id === newSlotEx1)) setNewSlotEx1(nextAvail[0].id);
+                          setNewSlotSupersetIds(prev => [
+                            nextAvail.some(x => x.id === prev[0]) ? prev[0] : nextAvail[0].id,
+                            nextAvail.some(x => x.id === prev[1]) ? prev[1] : (nextAvail[1] || nextAvail[0]).id
+                          ]);
+                        }
+                      }}
+                      style={{ ...UI.select, textTransform: 'uppercase' }}
+                    >
+                      {DEFAULT_GYM_EQUIPMENT_PRESETS.map(preset => (
+                        <option key={preset.id || 'full_gym'} value={preset.id}>
+                          {preset.name.toUpperCase()}
+                        </option>
+                      ))}
+                      {gyms.map(g => (
+                        <option key={g.id} value={g.id}>{g.name.toUpperCase()}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div style={{ marginBottom: '12px' }}>
+                    <div style={UI.stepLabel}>2. SLOT CATEGORY</div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
+                      {['Compound Lift', 'Supersets', 'Accessories', 'Abs'].map(cat => (
+                        <button
+                          key={cat}
+                          type="button"
+                          onClick={() => {
+                            setNewSlotCategory(cat);
+                            const nextAvail = filterAddSlotExercises(addSlotGymFilter, cat, gyms);
+                            if (nextAvail.length > 0) {
+                              if (!nextAvail.some(x => x.id === newSlotEx1)) setNewSlotEx1(nextAvail[0].id);
+                              setNewSlotSupersetIds(prev => [
+                                nextAvail.some(x => x.id === prev[0]) ? prev[0] : nextAvail[0].id,
+                                nextAvail.some(x => x.id === prev[1]) ? prev[1] : (nextAvail[1] || nextAvail[0]).id
+                              ]);
+                            }
+                          }}
+                          style={UI.pillBtn(newSlotCategory === cat)}
+                        >
+                          {cat}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {newSlotCategory !== 'Supersets' ? (
+                    <div style={{ marginBottom: '12px' }}>
+                      <div style={UI.stepLabel}>3. SELECT EXERCISE</div>
+                      <select
+                        value={newSlotEx1}
+                        onChange={e => setNewSlotEx1(e.target.value)}
+                        style={UI.select}
+                      >
+                        {modalPool.map(ex => (
+                          <option key={ex.id} value={ex.id}>
+                            {ex.name} ({ex.equipment})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  ) : (
+                    <div style={{ marginBottom: '12px' }}>
+                      <div style={UI.stepLabel}>3. SELECT TWO SUPERSET EXERCISES</div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
+                        {[0, 1].map(idx => (
+                          <select
+                            key={idx}
+                            value={newSlotSupersetIds[idx] || modalPool[0]?.id}
+                            onChange={e => {
+                              const val = e.target.value;
+                              setNewSlotSupersetIds(prev => {
+                                const copy = [...prev];
+                                copy[idx] = val;
+                                return copy;
+                              });
+                            }}
+                            style={{ ...UI.select, padding: '8px' }}
+                          >
+                            {modalPool.map(ex => (
+                              <option key={ex.id} value={ex.id}>
+                                {ex.name} ({ex.equipment})
+                              </option>
+                            ))}
+                          </select>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {newSlotCategory !== 'Abs' && (
+                    <div style={{ marginBottom: '16px' }}>
+                      <div style={UI.stepLabel}>4. SET/REP SCHEME</div>
+                      <select
+                        value={newSlotScheme}
+                        onChange={e => setNewSlotScheme(e.target.value)}
+                        style={UI.select}
+                      >
+                        <option value="5x5">5X5</option>
+                        <option value="5x8">5X8</option>
+                        <option value="8x8">8X8</option>
+                        <option value="Pyramid">PYRAMID</option>
+                        <option value="Reverse Pyramid">REVERSE PYRAMID</option>
+                      </select>
+                    </div>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={handleAddManualSlot}
+                    className="kinetic-btn"
+                    style={{ ...UI.primaryBtnCenter, padding: '12px', fontSize: '13px' }}
+                  >
+                    ADD SLOT TO WORKOUT →
+                  </button>
+                </div>
+              </div>
+            );
+          })()}
+
+        {/* ==================================================================== */}
+        {/* MODAL: PLATE & WEIGHT CALCULATOR                                     */}
+        {/* ==================================================================== */}
+        {plateCalcTarget && (
+          <div style={{ ...UI.modalBackdrop, zIndex: 80 }} onClick={() => setPlateCalcTarget(null)}>
+            <div onClick={e => e.stopPropagation()} style={UI.modalCard('390px')}>
+              <div style={UI.modalHeader}>
+                <div>
+                  <div style={UI.fieldLabel}>
+                    {plateCalcTarget.mode === 'pr'
+                      ? 'EDIT PERSONAL RECORD'
+                      : plateCalcTarget.mode === 'goal'
+                        ? 'EDIT CUSTOM GOAL WEIGHT'
+                        : `SET #${plateCalcTarget.setNumber} WEIGHT`}
+                  </div>
+                  <div style={{ fontSize: '16px', fontWeight: 800, textTransform: 'uppercase' }}>
+                    {plateCalcTarget.exerciseName}
+                  </div>
+                </div>
+                <button type="button" onClick={() => setPlateCalcTarget(null)} style={UI.closeXBtn}>
+                  ✕
+                </button>
+              </div>
+
+              <div
                 style={{
-                  ...IOS_TEXT.title3,
-                  fontWeight: 600,
-                  color: colors.systemBlue,
-                  backgroundColor: colors.secondarySystemGroupedBackground,
-                  borderRadius: '14px',
-                  width: '100%',
-                  padding: '14px',
-                  border: 'none',
-                  cursor: 'pointer'
+                  backgroundColor: '#101010', border: '2px solid var(--dp-color-rule)',
+                  padding: '12px', textAlign: 'center', marginBottom: '12px'
                 }}
               >
-                Cancel
+                <div style={{ fontSize: '10px', fontWeight: 800, color: '#A0A0A0' }}>TOTAL WEIGHT</div>
+                <div style={{ fontSize: '30px', fontWeight: 800, color: 'var(--dp-color-accent)' }}>
+                  {computedPlateCalculatorTotal} {calcUnit.toUpperCase()}
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px', marginBottom: '12px' }}>
+                <button
+                  type="button"
+                  onClick={() => setCalcMode('per_side')}
+                  style={UI.pillBtn(calcMode === 'per_side')}
+                >
+                  PLATES PER SIDE
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCalcDirectTotal(computedPlateCalculatorTotal);
+                    setCalcMode('total');
+                  }}
+                  style={UI.pillBtn(calcMode === 'total')}
+                >
+                  DIRECT TOTAL
+                </button>
+              </div>
+
+              {calcMode === 'per_side' ? (
+                <div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '6px', marginBottom: '6px' }}>
+                    {[45, 35, 25].map(p => (
+                      <button
+                        key={p}
+                        type="button"
+                        onClick={() => setCalcPlatesPerSide(prev => [...prev, p].sort((a, b) => b - a))}
+                        style={{ ...UI.pillBtn(false), padding: '10px 4px', fontSize: '12px' }}
+                      >
+                        +{p} LB
+                      </button>
+                    ))}
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '6px', marginBottom: '10px' }}>
+                    {[10, 5, 2.5, 1.25].map(p => (
+                      <button
+                        key={p}
+                        type="button"
+                        onClick={() => setCalcPlatesPerSide(prev => [...prev, p].sort((a, b) => b - a))}
+                        style={{ ...UI.pillBtn(false), padding: '10px 2px', fontSize: '11px' }}
+                      >
+                        +{p} LB
+                      </button>
+                    ))}
+                  </div>
+
+                  <div
+                    style={{
+                      padding: '8px', backgroundColor: '#101010', border: '2px solid var(--dp-color-rule)',
+                      marginBottom: '12px', minHeight: '38px', display: 'flex', flexWrap: 'wrap', gap: '4px', alignItems: 'center'
+                    }}
+                  >
+                    {calcPlatesPerSide.length === 0 ? (
+                      <span style={{ fontSize: '11px', color: '#888888' }}>
+                        Barbell ({calcBarWeight} lb) — tap plates above
+                      </span>
+                    ) : (
+                      [...calcPlatesPerSide]
+                        .sort((a, b) => b - a)
+                        .map((p, idx) => (
+                          <button
+                            key={`${p}_${idx}`}
+                            type="button"
+                            onClick={() =>
+                              setCalcPlatesPerSide(prev => {
+                                const sorted = [...prev].sort((a, b) => b - a);
+                                return sorted.filter((_, i) => i !== idx);
+                              })
+                            }
+                            style={{
+                              padding: '2px 6px', backgroundColor: 'var(--dp-color-accent)',
+                              color: '#101010', border: 'none', fontSize: '11px', fontWeight: 800, cursor: 'pointer'
+                            }}
+                          >
+                            {p} ✕
+                          </button>
+                        ))
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div style={{ marginBottom: '12px' }}>
+                  <input
+                    type="number"
+                    step="1.25"
+                    value={calcDirectTotal}
+                    onChange={e => setCalcDirectTotal(e.target.value)}
+                    style={{ ...UI.numInput('100%'), padding: '10px', fontSize: '18px' }}
+                  />
+                </div>
+              )}
+
+              <button
+                type="button"
+                onClick={handleApplyCalculatedWeight}
+                className="kinetic-btn"
+                style={{ ...UI.primaryBtnCenter, padding: '12px', fontSize: '13px' }}
+              >
+                APPLY WEIGHT →
               </button>
             </div>
           </div>
         )}
       </div>
-
-      <IOSSheet
-        isOpen={showAddSlotModal}
-        onClose={() => setShowAddSlotModal(false)}
-        title="Add Exercise"
-        rightLabel="Add"
-        onRightAction={handleAddManualSlot}
-        colors={colors}
-      >
-        <IOSListSection header="Category" colors={colors}>
-          {['Warm-Up Routine', 'Compound Lift', 'Supersets', 'Accessories', 'Abs'].map(
-            (cat, idx, arr) => (
-              <IOSListRow
-                key={cat}
-                isLast={idx === arr.length - 1}
-                onClick={() => {
-                  setNewSlotCategory(cat);
-                  if (cat === 'Compound Lift') setNewSlotEx1('barbell_bench_press');
-                  if (cat === 'Supersets') {
-                    setNewSlotEx1('reverse_lunge');
-                    setNewSlotEx2('front_flies');
-                  }
-                  if (cat === 'Accessories') setNewSlotEx1('barbell_bicep_curl');
-                  if (cat === 'Abs') setNewSlotEx1('hollow_holds');
-                }}
-                colors={colors}
-              >
-                <span style={{ ...IOS_TEXT.body, color: colors.label }}>{cat}</span>
-                {newSlotCategory === cat && (
-                  <SFSymbol name="checkmark" size={17} color={colors.systemBlue} />
-                )}
-              </IOSListRow>
-            )
-          )}
-        </IOSListSection>
-
-        {newSlotCategory !== 'Warm-Up Routine' && (
-          <IOSListSection header="Exercise & Progression" colors={colors}>
-            <IOSListRow
-              isLast={newSlotCategory === 'Abs' && newSlotCategory !== 'Supersets'}
-              colors={colors}
-            >
-              <span style={{ ...IOS_TEXT.body, color: colors.label }}>Primary Lift</span>
-              <select
-                value={newSlotEx1}
-                onChange={e => setNewSlotEx1(e.target.value)}
-                style={{
-                  ...IOS_TEXT.body,
-                  color: colors.secondaryLabel,
-                  background: 'transparent',
-                  border: 'none',
-                  outline: 'none',
-                  textAlign: 'right',
-                  maxWidth: '200px'
-                }}
-              >
-                {EXERCISE_LIBRARY.filter(e =>
-                  newSlotCategory === 'Abs'
-                    ? e.category === 'Abs'
-                    : e.category !== 'Warm-Up Routine'
-                ).map(ex => (
-                  <option key={ex.id} value={ex.id}>
-                    {ex.name} ({ex.equipment})
-                  </option>
-                ))}
-              </select>
-            </IOSListRow>
-
-            {newSlotCategory === 'Supersets' && (
-              <IOSListRow colors={colors}>
-                <span style={{ ...IOS_TEXT.body, color: colors.label }}>Paired Lift</span>
-                <select
-                  value={newSlotEx2}
-                  onChange={e => setNewSlotEx2(e.target.value)}
-                  style={{
-                    ...IOS_TEXT.body,
-                    color: colors.secondaryLabel,
-                    background: 'transparent',
-                    border: 'none',
-                    outline: 'none',
-                    textAlign: 'right',
-                    maxWidth: '200px'
-                  }}
-                >
-                  {EXERCISE_LIBRARY.filter(e => e.category !== 'Warm-Up Routine').map(ex => (
-                    <option key={ex.id} value={ex.id}>
-                      {ex.name} ({ex.equipment})
-                    </option>
-                  ))}
-                </select>
-              </IOSListRow>
-            )}
-
-            {newSlotCategory !== 'Abs' && (
-              <IOSListRow isLast colors={colors}>
-                <span style={{ ...IOS_TEXT.body, color: colors.label }}>Scheme</span>
-                <select
-                  value={newSlotScheme}
-                  onChange={e => setNewSlotScheme(e.target.value)}
-                  style={{
-                    ...IOS_TEXT.body,
-                    color: colors.systemBlue,
-                    background: 'transparent',
-                    border: 'none',
-                    outline: 'none',
-                    textAlign: 'right'
-                  }}
-                >
-                  <option value="5x8">5x8</option>
-                  <option value="5x5">5x5</option>
-                  <option value="3x5">3x5</option>
-                  <option value="Pyramid">Pyramid</option>
-                  <option value="Reverse Pyramid">Reverse Pyramid</option>
-                </select>
-              </IOSListRow>
-            )}
-          </IOSListSection>
-        )}
-      </IOSSheet>
-
-      <IOSSheet
-        isOpen={showSavePresetModal}
-        onClose={() => setShowSavePresetModal(false)}
-        title="Save as New Workout"
-        rightLabel="Save"
-        onRightAction={handleSaveNewPreset}
-        colors={colors}
-      >
-        <IOSListSection
-          header="Workout Name"
-          footer="Enter a name for this workout (defaults to today's date). It will appear in the Workout dropdown menu at the top of the session page."
-          colors={colors}
-        >
-          <IOSListRow isLast colors={colors}>
-            <span style={{ ...IOS_TEXT.body, color: colors.secondaryLabel }}>Name</span>
-            <input
-              type="text"
-              value={newPresetName}
-              onChange={e => setNewPresetName(e.target.value)}
-              autoFocus
-              style={{
-                ...IOS_TEXT.body,
-                fontWeight: 600,
-                color: colors.label,
-                background: 'transparent',
-                border: 'none',
-                outline: 'none',
-                textAlign: 'right',
-                flex: 1
-              }}
-            />
-          </IOSListRow>
-        </IOSListSection>
-      </IOSSheet>
-
-      <IOSSheet
-        isOpen={Boolean(plateCalcTarget)}
-        onClose={() => setPlateCalcTarget(null)}
-        title={plateCalcTarget ? `${plateCalcTarget.exerciseName}` : 'Plate Calculator'}
-        rightLabel="Apply"
-        onRightAction={handleApplyCalculatedWeight}
-        colors={colors}
-      >
-        {plateCalcTarget && (
-          <>
-            <div style={{ padding: '0 16px 12px', display: 'grid', gap: '8px' }}>
-              <IOSSegmentedControl
-                options={[
-                  { label: 'LBS', value: 'lb' },
-                  { label: 'KILOS (KG)', value: 'kg' }
-                ]}
-                value={calcUnit}
-                onChange={u => {
-                  setCalcUnit(u);
-                  setCalcBarWeight(u === 'lb' ? 45 : 20);
-                  setCalcPlatesPerSide([]);
-                }}
-                colors={colors}
-              />
-
-              <IOSSegmentedControl
-                options={[
-                  { label: 'Each Side', value: 'per_side' },
-                  { label: 'Total Weight', value: 'total' }
-                ]}
-                value={calcMode}
-                onChange={m => {
-                  if (m === 'total') setCalcDirectTotal(computedPlateCalculatorTotal);
-                  setCalcMode(m);
-                }}
-                colors={colors}
-              />
-            </div>
-
-            <IOSListSection header="Calculated Total" colors={colors}>
-              <IOSListRow isLast colors={colors}>
-                <span style={{ ...IOS_TEXT.body, color: colors.secondaryLabel }}>
-                  Set #{plateCalcTarget.setNumber} Weight
-                </span>
-                <div style={{ textAlign: 'right' }}>
-                  <div style={{ ...IOS_TEXT.title2, color: colors.label }}>
-                    {computedPlateCalculatorTotal} {calcUnit.toUpperCase()}
-                  </div>
-                  {calcUnit === 'kg' && (
-                    <div style={{ ...IOS_TEXT.caption1, color: colors.secondaryLabel }}>
-                      ≈ {Math.round(computedPlateCalculatorTotal * 2.20462 * 2) / 2} lb
-                    </div>
-                  )}
-                </div>
-              </IOSListRow>
-            </IOSListSection>
-
-            {calcMode === 'per_side' ? (
-              <>
-                <IOSListSection header="Barbell Weight" colors={colors}>
-                  <IOSListRow isLast colors={colors}>
-                    <div style={{ display: 'flex', gap: '6px', width: '100%' }}>
-                      {(calcUnit === 'lb' ? [45, 35, 15, 0] : [20, 15, 10, 0]).map(bw => (
-                        <button
-                          key={bw}
-                          type="button"
-                          onClick={() => setCalcBarWeight(bw)}
-                          style={{
-                            ...IOS_TEXT.footnote,
-                            fontWeight: 600,
-                            flex: 1,
-                            padding: '8px 4px',
-                            borderRadius: '8px',
-                            border: 'none',
-                            backgroundColor:
-                              calcBarWeight === bw ? colors.systemBlue : colors.tertiarySystemFill,
-                            color: calcBarWeight === bw ? '#FFFFFF' : colors.label,
-                            cursor: 'pointer'
-                          }}
-                        >
-                          {bw} {calcUnit}
-                        </button>
-                      ))}
-                    </div>
-                  </IOSListRow>
-                </IOSListSection>
-
-                <IOSListSection header="Tap Plates to Add (Each Side)" colors={colors}>
-                  <IOSListRow colors={colors}>
-                    <div
-                      style={{
-                        display: 'grid',
-                        gridTemplateColumns: 'repeat(3, 1fr)',
-                        gap: '8px',
-                        width: '100%',
-                        padding: '4px 0'
-                      }}
-                    >
-                      {(calcUnit === 'lb'
-                        ? [
-                            { val: 45, sub: '20.4 kg' },
-                            { val: 35, sub: '15.9 kg' },
-                            { val: 25, sub: '11.3 kg' },
-                            { val: 10, sub: '4.5 kg' },
-                            { val: 5, sub: '2.25 kg' },
-                            { val: 2.5, sub: '1.25 kg' }
-                          ]
-                        : [
-                            { val: 20, sub: '45 lb' },
-                            { val: 15, sub: '35 lb' },
-                            { val: 10, sub: '25 lb' },
-                            { val: 5, sub: '10 lb' },
-                            { val: 2.5, sub: '5 lb' },
-                            { val: 1.25, sub: '2.5 lb' }
-                          ]
-                      ).map(plate => (
-                        <button
-                          key={plate.val}
-                          type="button"
-                          onClick={() => setCalcPlatesPerSide(prev => [...prev, plate.val])}
-                          style={{
-                            backgroundColor: colors.tertiarySystemFill,
-                            border: 'none',
-                            borderRadius: '10px',
-                            padding: '10px 6px',
-                            cursor: 'pointer',
-                            textAlign: 'center'
-                          }}
-                        >
-                          <div style={{ ...IOS_TEXT.headline, color: colors.label }}>
-                            +{plate.val}
-                          </div>
-                          <div style={{ ...IOS_TEXT.caption2, color: colors.secondaryLabel }}>
-                            {plate.sub}
-                          </div>
-                        </button>
-                      ))}
-                    </div>
-                  </IOSListRow>
-
-                  <IOSListRow isLast colors={colors}>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', flex: 1 }}>
-                      {calcPlatesPerSide.length === 0 ? (
-                        <span style={{ ...IOS_TEXT.footnote, color: colors.secondaryLabel }}>
-                          No plates loaded on each side
-                        </span>
-                      ) : (
-                        calcPlatesPerSide.map((p, idx) => (
-                          <button
-                            key={`${p}_${idx}`}
-                            type="button"
-                            onClick={() =>
-                              setCalcPlatesPerSide(prev => prev.filter((_, i) => i !== idx))
-                            }
-                            style={{
-                              ...IOS_TEXT.caption1,
-                              fontWeight: 600,
-                              backgroundColor: colors.systemBlue,
-                              color: '#FFFFFF',
-                              border: 'none',
-                              borderRadius: '6px',
-                              padding: '4px 8px',
-                              cursor: 'pointer'
-                            }}
-                          >
-                            {p} {calcUnit} ×
-                          </button>
-                        ))
-                      )}
-                    </div>
-                    {calcPlatesPerSide.length > 0 && (
-                      <button
-                        type="button"
-                        onClick={() => setCalcPlatesPerSide([])}
-                        style={{
-                          ...IOS_TEXT.footnote,
-                          color: colors.systemRed,
-                          background: 'none',
-                          border: 'none',
-                          cursor: 'pointer'
-                        }}
-                      >
-                        Clear
-                      </button>
-                    )}
-                  </IOSListRow>
-                </IOSListSection>
-              </>
-            ) : (
-              <IOSListSection header="Direct Weight Entry" colors={colors}>
-                <IOSListRow isLast colors={colors}>
-                  <span style={{ ...IOS_TEXT.body, color: colors.label }}>
-                    Total ({calcUnit.toUpperCase()})
-                  </span>
-                  <input
-                    type="number"
-                    step="2.5"
-                    value={calcDirectTotal}
-                    onChange={e => setCalcDirectTotal(e.target.value)}
-                    style={{
-                      ...IOS_TEXT.title3,
-                      color: colors.systemBlue,
-                      background: 'transparent',
-                      border: 'none',
-                      outline: 'none',
-                      textAlign: 'right',
-                      width: '120px'
-                    }}
-                  />
-                </IOSListRow>
-              </IOSListSection>
-            )}
-          </>
-        )}
-      </IOSSheet>
-
-      <IOSSheet
-        isOpen={Boolean(maxCalcTarget)}
-        onClose={() => setMaxCalcTarget(null)}
-        title={maxCalcTarget ? maxCalcTarget.name : '1RM Calculator'}
-        rightLabel="Save"
-        onRightAction={() => {
-          if (!maxCalcTarget) return;
-          const finalMax = Math.max(5, computedModal1RM || maxCalcTarget.currentMax);
-          setOneRepMaxes(prev => ({ ...prev, [maxCalcTarget.id]: finalMax }));
-          triggerBanner(`Saved ${maxCalcTarget.name} 1RM as ${finalMax} lb.`, 'success');
-          setMaxCalcTarget(null);
-        }}
-        colors={colors}
-      >
-        {maxCalcTarget && (
-          <>
-            <div style={{ padding: '0 16px 16px' }}>
-              <IOSSegmentedControl
-                options={[
-                  { label: 'From Scheme', value: 'scheme' },
-                  { label: 'Direct 1RM', value: 'direct' }
-                ]}
-                value={maxCalcMode}
-                onChange={m => {
-                  if (m === 'direct') {
-                    setMaxCalcDirectValue(String(computedModal1RM || maxCalcTarget.currentMax));
-                  }
-                  setMaxCalcMode(m);
-                }}
-                colors={colors}
-              />
-            </div>
-
-            <IOSListSection header="Estimated 1 Rep Max" colors={colors}>
-              <IOSListRow isLast colors={colors}>
-                <span style={{ ...IOS_TEXT.body, color: colors.label }}>Calculated 1RM</span>
-                <span style={{ ...IOS_TEXT.title2, color: colors.systemBlue }}>
-                  {computedModal1RM} lb
-                </span>
-              </IOSListRow>
-            </IOSListSection>
-
-            {maxCalcMode === 'scheme' ? (
-              <IOSListSection
-                header="Scheme & Set Entries"
-                footer="Select a scheme and enter specific weights and reps across sets (such as Pyramid or Reverse Pyramid). Tap any Weight box to use the Barbell Plate Calculator."
-                colors={colors}
-              >
-                <IOSListRow colors={colors}>
-                  <span style={{ ...IOS_TEXT.body, color: colors.label }}>Scheme</span>
-                  <select
-                    value={maxCalcScheme}
-                    onChange={e => handleMaxCalcSchemeChange(e.target.value)}
-                    style={{
-                      ...IOS_TEXT.body,
-                      color: colors.systemBlue,
-                      fontWeight: 600,
-                      background: 'transparent',
-                      border: 'none',
-                      outline: 'none',
-                      textAlign: 'right'
-                    }}
-                  >
-                    <option value="5x8">5x8</option>
-                    <option value="5x5">5x5</option>
-                    <option value="3x5">3x5</option>
-                    <option value="Pyramid">Pyramid</option>
-                    <option value="Reverse Pyramid">Reverse Pyramid</option>
-                  </select>
-                </IOSListRow>
-
-                {maxCalcSets.map((setItem, idx) => (
-                  <IOSListRow
-                    key={setItem.id}
-                    isLast={idx === maxCalcSets.length - 1}
-                    colors={colors}
-                    padding="10px 16px"
-                  >
-                    <div
-                      style={{
-                        width: '100%',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        gap: '8px'
-                      }}
-                    >
-                      <div
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'space-between'
-                        }}
-                      >
-                        <div>
-                          <span
-                            style={{
-                              ...IOS_TEXT.subheadline,
-                              fontWeight: 600,
-                              color: colors.label
-                            }}
-                          >
-                            #{setItem.setNumber} {maxCalcTarget.name}
-                          </span>
-                          <span
-                            style={{
-                              ...IOS_TEXT.caption1,
-                              color: colors.secondaryLabel,
-                              marginLeft: '6px'
-                            }}
-                          >
-                            ({setItem.type})
-                          </span>
-                        </div>
-                      </div>
-
-                      <div
-                        style={{
-                          display: 'grid',
-                          gridTemplateColumns: '1fr 1fr',
-                          gap: '10px',
-                          alignItems: 'center'
-                        }}
-                      >
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                          <span style={{ ...IOS_TEXT.caption1, color: colors.secondaryLabel }}>
-                            Weight
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              openPlateCalculator(
-                                '__MAX_CALC__',
-                                false,
-                                setItem,
-                                maxCalcTarget.name
-                              )
-                            }
-                            style={{
-                              ...IOS_TEXT.subheadline,
-                              fontWeight: 600,
-                              color: colors.systemBlue,
-                              backgroundColor: colors.tertiarySystemFill,
-                              border: 'none',
-                              borderRadius: '8px',
-                              padding: '5px 10px',
-                              minWidth: '84px',
-                              textAlign: 'center',
-                              cursor: 'pointer'
-                            }}
-                          >
-                            {setItem.weight} lb
-                          </button>
-                        </div>
-
-                        <div
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'flex-end',
-                            gap: '6px'
-                          }}
-                        >
-                          <input
-                            type="number"
-                            value={setItem.reps}
-                            onChange={e =>
-                              handleUpdateMaxCalcSet(setItem.id, 'reps', e.target.value)
-                            }
-                            style={{
-                              ...IOS_TEXT.subheadline,
-                              fontWeight: 600,
-                              color: colors.label,
-                              backgroundColor: colors.tertiarySystemFill,
-                              border: 'none',
-                              borderRadius: '8px',
-                              width: '54px',
-                              padding: '5px 6px',
-                              textAlign: 'center',
-                              outline: 'none'
-                            }}
-                          />
-                          <span
-                            style={{
-                              ...IOS_TEXT.caption1,
-                              color: colors.secondaryLabel,
-                              minWidth: '28px'
-                            }}
-                          >
-                            reps
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  </IOSListRow>
-                ))}
-              </IOSListSection>
-            ) : (
-              <IOSListSection header="Direct 1RM Entry" colors={colors}>
-                <IOSListRow isLast colors={colors}>
-                  <span style={{ ...IOS_TEXT.body, color: colors.label }}>1 Rep Max (lb)</span>
-                  <input
-                    type="number"
-                    step="5"
-                    value={maxCalcDirectValue}
-                    onChange={e => setMaxCalcDirectValue(e.target.value)}
-                    style={{
-                      ...IOS_TEXT.title3,
-                      color: colors.systemBlue,
-                      background: 'transparent',
-                      border: 'none',
-                      outline: 'none',
-                      textAlign: 'right',
-                      width: '100px'
-                    }}
-                  />
-                </IOSListRow>
-              </IOSListSection>
-            )}
-          </>
-        )}
-      </IOSSheet>
     </div>
   );
 }
