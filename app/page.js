@@ -1293,28 +1293,34 @@ export default function App() {
     return (Number(userHeightFeet) || 5) * 12 + (Number(userHeightInches) || 10);
   }, [userHeightFeet, userHeightInches]);
 
+  const [stimulusNowMs, setStimulusNowMs] = useState(null);
+  useEffect(() => {
+    setStimulusNowMs(Date.now());
+  }, [history]);
+
   const muscleStimulusStatus = useMemo(() => {
     const groups = ['Chest', 'Back', 'Shoulders', 'Legs', 'Arms', 'Core'];
-    const now = Date.now();
     const result = {};
 
     groups.forEach(g => {
       let minDays = 99;
-      history.forEach(w => {
-        const daysAgo = Math.max(0, Math.floor((now - new Date(w.startedAt).getTime()) / 86400000));
-        (w.slots || []).forEach(slot => {
-          const ids =
-            slot.category === 'Supersets' && slot.supersetExerciseIds
-              ? slot.supersetExerciseIds
-              : [slot.exerciseId, slot.secondaryExerciseId].filter(Boolean);
-          ids.forEach(id => {
-            const ex = EXERCISE_MAP[id];
-            if (ex && ex.muscleGroup === g && daysAgo < minDays) {
-              minDays = daysAgo;
-            }
+      if (stimulusNowMs !== null) {
+        history.forEach(w => {
+          const daysAgo = Math.max(0, Math.floor((stimulusNowMs - new Date(w.startedAt).getTime()) / 86400000));
+          (w.slots || []).forEach(slot => {
+            const ids =
+              slot.category === 'Supersets' && slot.supersetExerciseIds
+                ? slot.supersetExerciseIds
+                : [slot.exerciseId, slot.secondaryExerciseId].filter(Boolean);
+            ids.forEach(id => {
+              const ex = EXERCISE_MAP[id];
+              if (ex && ex.muscleGroup === g && daysAgo < minDays) {
+                minDays = daysAgo;
+              }
+            });
           });
         });
-      });
+      }
 
       const greenMax = Number(stimulusGreenDays) || 2;
       const yellowMax = Number(stimulusYellowDays) || 4;
@@ -1336,7 +1342,7 @@ export default function App() {
     });
 
     return result;
-  }, [history, stimulusGreenDays, stimulusYellowDays]);
+  }, [history, stimulusGreenDays, stimulusYellowDays, stimulusNowMs]);
 
   const progressionSeriesByLift = useMemo(() => {
     const sorted = [...history].sort((a, b) => new Date(a.startedAt).getTime() - new Date(b.startedAt).getTime());
