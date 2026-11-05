@@ -176,8 +176,15 @@ export const SessionRestTimerBar = React.memo(function SessionRestTimerBar({
   return (
     <div
       style={{
-        marginTop: '10px', paddingTop: '10px', borderTop: '2px solid var(--dp-color-rule)',
-        display: 'grid', gridTemplateColumns: 'auto minmax(0, 1fr)', alignItems: 'stretch', gap: '8px'
+        marginTop: '10px',
+        paddingTop: '10px',
+        borderTop: '2px solid var(--dp-color-rule)',
+        display: 'grid',
+        gridTemplateColumns: '112px minmax(0, 1fr)',
+        alignItems: 'stretch',
+        gap: '8px',
+        height: '54px',
+        boxSizing: 'border-box'
       }}
     >
       {timerTrigger.isRunning ? (
@@ -187,9 +194,25 @@ export const SessionRestTimerBar = React.memo(function SessionRestTimerBar({
           title="Tap to stop rest timer"
           className="kinetic-btn"
           style={{
-            backgroundColor: '#FF3B30', color: '#FFFFFF', border: '2px solid #FFFFFF',
-            padding: '6px 12px', display: 'flex', alignItems: 'center', gap: '6px',
-            fontSize: '13px', fontWeight: 800, textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap'
+            width: '100%',
+            height: '42px',
+            minHeight: '42px',
+            maxHeight: '42px',
+            boxSizing: 'border-box',
+            backgroundColor: '#FF3B30',
+            color: '#FFFFFF',
+            border: '2px solid #FFFFFF',
+            padding: '0 8px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '6px',
+            fontSize: '12px',
+            fontWeight: 800,
+            textTransform: 'uppercase',
+            cursor: 'pointer',
+            whiteSpace: 'nowrap',
+            overflow: 'hidden'
           }}
         >
           <SFSymbol name="clock" size={14} color="#FFFFFF" />
@@ -198,8 +221,19 @@ export const SessionRestTimerBar = React.memo(function SessionRestTimerBar({
       ) : (
         <div
           style={{
-            display: 'flex', alignItems: 'center', gap: '6px',
-            backgroundColor: '#101010', border: '2px solid var(--dp-color-rule)', padding: '4px 8px'
+            width: '100%',
+            height: '42px',
+            minHeight: '42px',
+            maxHeight: '42px',
+            boxSizing: 'border-box',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '6px',
+            backgroundColor: '#101010',
+            border: '2px solid var(--dp-color-rule)',
+            padding: '0 8px',
+            overflow: 'hidden'
           }}
         >
           <SFSymbol name="clock" size={14} color="var(--dp-color-accent)" />
@@ -207,8 +241,14 @@ export const SessionRestTimerBar = React.memo(function SessionRestTimerBar({
             value={defaultRestSeconds}
             onChange={e => onChangeDefaultRest(Number(e.target.value))}
             style={{
-              backgroundColor: '#101010', color: '#FFFFFF', border: 'none',
-              fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', outline: 'none', cursor: 'pointer'
+              backgroundColor: '#101010',
+              color: '#FFFFFF',
+              border: 'none',
+              fontSize: '11px',
+              fontWeight: 800,
+              textTransform: 'uppercase',
+              outline: 'none',
+              cursor: 'pointer'
             }}
           >
             <option value={60}>REST 1:00</option>
@@ -221,28 +261,52 @@ export const SessionRestTimerBar = React.memo(function SessionRestTimerBar({
 
       <div
         style={{
-          minWidth: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center',
-          padding: '5px 10px', backgroundColor: 'var(--dp-color-accent)', color: '#101010',
-          border: '2px solid var(--dp-color-rule)'
+          minWidth: 0,
+          width: '100%',
+          height: '42px',
+          minHeight: '42px',
+          maxHeight: '42px',
+          boxSizing: 'border-box',
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'center',
+          padding: '0 10px',
+          backgroundColor: 'var(--dp-color-accent)',
+          color: '#101010',
+          border: '2px solid var(--dp-color-rule)',
+          overflow: 'hidden'
         }}
       >
         <div
           style={{
-            fontSize: '11px', fontWeight: 800, lineHeight: 1.15,
-            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', textTransform: 'uppercase'
+            fontSize: '11px',
+            fontWeight: 800,
+            lineHeight: 1.15,
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            textTransform: 'uppercase'
           }}
         >
           {nextLiftInfo.topLine || 'NO EXERCISES QUEUED'}
         </div>
-        <div
-          style={{
-            fontSize: '10px', fontWeight: 800, lineHeight: 1.15, opacity: 0.9,
-            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-            textTransform: 'uppercase', marginTop: '2px'
-          }}
-        >
-          {nextLiftInfo.bottomLine || ''}
-        </div>
+        {nextLiftInfo.bottomLine ? (
+          <div
+            style={{
+              fontSize: '10px',
+              fontWeight: 800,
+              lineHeight: 1.15,
+              opacity: 0.9,
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              textTransform: 'uppercase',
+              marginTop: '2px'
+            }}
+          >
+            {nextLiftInfo.bottomLine}
+          </div>
+        ) : null}
       </div>
     </div>
   );

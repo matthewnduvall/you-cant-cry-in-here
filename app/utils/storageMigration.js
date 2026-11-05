@@ -2,11 +2,51 @@
 // UPDATE-RESILIENT PERSISTENCE & SCHEMA MIGRATION ENGINE (V3)
 // ============================================================================
 
-import { EXERCISE_LIBRARY, EXERCISE_MAP } from '../data/exerciseLibrary';
+import { EXERCISE_LIBRARY, EXERCISE_MAP, normalizeSlotCategory, isSupersetCategory } from '../data/exerciseLibrary';
 import { cloneSlots, getInitial1RMs, normalizeSlotLabels } from './workoutEngine';
+import { isLocallyVerifiedUser } from './supabaseAuth';
 
 export const PERSISTENCE_KEY = 'yccih_app_state_v3';
 export const CURRENT_SCHEMA_VERSION = 3;
+
+export const DEFAULT_MATT_FRIEND = {
+  id: 'friend_matt_default',
+  username: 'matt',
+  email: 'matthew.n.duvall@gmail.com',
+  bodyweightLbs: 205,
+  startingPrs: {
+    barbell_bench_press: 175,
+    barbell_back_squat: 215,
+    barbell_deadlift: 255,
+    overhead_press: 115,
+    incline_bench_press: 155,
+    chin_ups: 175,
+    barbell_row: 155,
+    barbell_bicep_curl: 70
+  },
+  prs: {
+    barbell_bench_press: 225,
+    barbell_back_squat: 285,
+    barbell_deadlift: 335,
+    overhead_press: 145,
+    incline_bench_press: 195,
+    chin_ups: 210,
+    barbell_row: 195,
+    barbell_bicep_curl: 95
+  },
+  sharedRoutines: []
+};
+
+export const ensureDefaultMattFriend = list => {
+  const arr = Array.isArray(list) ? list : [];
+  const hasMatt = arr.some(
+    f =>
+      f &&
+      ((f.email || '').trim().toLowerCase() === 'matthew.n.duvall@gmail.com' ||
+        (f.username || '').trim().toLowerCase() === 'matt')
+  );
+  return hasMatt ? arr : [DEFAULT_MATT_FRIEND, ...arr];
+};
 
 export const DEFAULT_SETTINGS_V2 = {
   schemaVersion: CURRENT_SCHEMA_VERSION,
@@ -16,18 +56,19 @@ export const DEFAULT_SETTINGS_V2 = {
     chartMetric: 'weight', targetStandardClass: 'Intermediate', customGoalWeights: {}
   },
   stimulus: { greenDays: 2, yellowDays: 4 },
-  routinePreferences: ['Compounds', 'Compounds', 'Supersets', 'Supersets', 'Abs'],
+  routinePreferences: ['Compound Lift', 'Compound Lift', 'Superset', 'Superset', 'Abs'],
   social: { shareStatsWithFriends: true, shareRoutinesWithFriends: true },
   selectedGymId: ''
 };
 
 export const normalizeSlotFromStorage = slot => {
   if (!slot || slot.category === 'Warm-Up Routine' || slot.exerciseId === 'warmup_12_step') return null;
+  const normCat = normalizeSlotCategory(slot.category);
   const ex1 = EXERCISE_MAP[slot.exerciseId] || EXERCISE_LIBRARY[0];
   const familyMuscleGroup = slot.familyMuscleGroup || ex1?.muscleGroup || 'Chest';
   const sets = Array.isArray(slot.sets) ? slot.sets : [];
 
-  if (slot.category === 'Supersets') {
+  if (isSupersetCategory(normCat)) {
     const supIds =
       Array.isArray(slot.supersetExerciseIds) && slot.supersetExerciseIds.length > 0
         ? slot.supersetExerciseIds
@@ -42,6 +83,8 @@ export const normalizeSlotFromStorage = slot => {
 
     return {
       ...slot,
+      category: 'Superset',
+      muscleGroupFilter: slot.muscleGroupFilter || EXERCISE_MAP[cleanSupIds[0]]?.muscleGroup || 'All Muscles',
       exerciseId: cleanSupIds[0],
       secondaryExerciseId: cleanSupIds[1],
       familyMuscleGroup,
@@ -55,6 +98,8 @@ export const normalizeSlotFromStorage = slot => {
 
   return {
     ...slot,
+    category: normCat,
+    muscleGroupFilter: slot.muscleGroupFilter || ex1?.muscleGroup || 'All Muscles',
     exerciseId: ex1.id,
     familyMuscleGroup,
     exerciseNameSnapshot: slot.exerciseNameSnapshot || ex1.name,
@@ -83,7 +128,9 @@ export const loadHydratedAppState = () => {
     const mergedMaxes = { ...initialMaxes, ...(parsed.oneRepMaxes || {}) };
 
     const cleanedRoutinePrefs = Array.isArray(parsed.settings?.routinePreferences)
-      ? parsed.settings.routinePreferences.filter(p => p !== 'Warmup')
+      ? parsed.settings.routinePreferences
+          .filter(p => p !== 'Warmup')
+          .map(p => normalizeSlotCategory(p))
       : [];
 
     const mergedSettings = {
@@ -122,14 +169,14 @@ export const loadHydratedAppState = () => {
       : [];
 
     return {
-      user: parsed.user !== undefined ? parsed.user : null,
+      user: isLocallyVerifiedUser(parsed.user) ? parsed.user : null,
       oneRepMaxes: mergedMaxes,
       history: hydratedHistory,
       activeSession: parsed.activeSession ? normalizeWorkoutFromStorage(parsed.activeSession) : null,
       savedRoutines: hydratedSavedRoutines,
       sharedRoutines: hydratedSharedRoutines,
       gyms: Array.isArray(parsed.gyms) ? parsed.gyms : [],
-      friendsList: Array.isArray(parsed.friendsList) ? parsed.friendsList : [],
+      friendsList: ensureDefaultMattFriend(parsed.friendsList),
       pendingIncomingRequests: Array.isArray(parsed.pendingIncomingRequests) ? parsed.pendingIncomingRequests : [],
       outgoingInvites: Array.isArray(parsed.outgoingInvites) ? parsed.outgoingInvites : [],
       settings: mergedSettings

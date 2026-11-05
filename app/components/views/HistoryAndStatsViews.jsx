@@ -1,8 +1,9 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { UI } from '../../styles/kineticTokens';
 import { IOSListSection, IOSListRow } from '../Primitives';
+import { RoutineEditorView } from './RoutineEditorView';
 import {
   BIG_FOUR_IDS,
   EXERCISE_LIBRARY,
@@ -20,12 +21,8 @@ import {
 export function HistoryView({
   colors,
   history,
-  historySessionsExpanded,
-  setHistorySessionsExpanded,
   expandedHistoryWorkoutId,
   setExpandedHistoryWorkoutId,
-  historyPRsExpanded,
-  setHistoryPRsExpanded,
   oneRepMaxes,
   targetStandardClass,
   userBodyweightLbs,
@@ -33,10 +30,111 @@ export function HistoryView({
   customGoalWeights,
   setHistoricalDraft,
   setCurrentView,
-  openPlateCalculatorForPR
+  openPlateCalculatorForPR,
+  handleSetPRUnknown,
+  buildHistoryWorkoutEditorProps
 }) {
+  const [showAllHistory, setShowAllHistory] = useState(false);
+  const [historyPage, setHistoryPage] = useState(0);
+
+  const PAGE_SIZE = 100;
+  const INITIAL_LIMIT = 10;
+  const totalSessions = (history || []).length;
+  const totalPages = Math.max(1, Math.ceil(totalSessions / PAGE_SIZE));
+
+  // If a linked workout is beyond the initial 10, automatically switch to See All and its 100-item page
+  useEffect(() => {
+    if (!expandedHistoryWorkoutId) return;
+    const idx = (history || []).findIndex(w => w?.id === expandedHistoryWorkoutId);
+    if (idx >= INITIAL_LIMIT) {
+      setShowAllHistory(true);
+      setHistoryPage(Math.floor(idx / PAGE_SIZE));
+    }
+  }, [expandedHistoryWorkoutId, history]);
+
+  const visibleHistory = showAllHistory
+    ? (history || []).slice(historyPage * PAGE_SIZE, (historyPage + 1) * PAGE_SIZE)
+    : (history || []).slice(0, INITIAL_LIMIT);
+
   return (
     <div style={UI.pagePad}>
+      <IOSListSection
+        header="PERSONAL RECORDS"
+        footer="Tap any Personal Record weight to edit it with the Plate & Weight Calculator, or tap UNKNOWN to clear it."
+        colors={colors}
+      >
+        {EXERCISE_LIBRARY.filter(e => e.isPriority).map((ex, idx, arr) => {
+          const rawMax = oneRepMaxes[ex.id];
+          const isUnknown = rawMax === 'unknown';
+          const currentMax = isUnknown ? ex.default1RM : (rawMax ?? ex.default1RM);
+          const isBigFour = BIG_FOUR_IDS.includes(ex.id);
+          const targetVal = isBigFour
+            ? getExRxTargetForLift(ex.id, targetStandardClass, userBodyweightLbs, totalHeightInches, customGoalWeights)
+            : null;
+          const diffFromGoal = !isUnknown && targetVal !== null ? targetVal - currentMax : null;
+
+          return (
+            <IOSListRow
+              key={ex.id}
+              isLast={idx === arr.length - 1}
+              colors={colors}
+              onClick={() => openPlateCalculatorForPR(ex.id, ex.name, currentMax)}
+            >
+              <div style={{ minWidth: 0, paddingRight: '8px' }}>
+                <div style={{ fontSize: '15px', fontWeight: 800, textTransform: 'uppercase' }}>
+                  {ex.name}
+                </div>
+                {isUnknown && targetVal !== null ? (
+                  <div className="kinetic-sub" style={{ fontSize: '11px', color: '#A0A0A0', fontWeight: 700 }}>
+                    Target ({targetStandardClass}): {targetVal} lb
+                  </div>
+                ) : (
+                  diffFromGoal !== null && (
+                    <div className="kinetic-sub" style={{ fontSize: '11px', color: '#A0A0A0', fontWeight: 700 }}>
+                      {diffFromGoal > 0
+                        ? `${diffFromGoal} lb from ${targetStandardClass}`
+                        : `Goal Achieved (+${Math.abs(diffFromGoal)} lb)`}
+                    </div>
+                  )
+                )}
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+                <button
+                  type="button"
+                  onClick={e => {
+                    e.stopPropagation();
+                    handleSetPRUnknown?.(ex.id);
+                  }}
+                  className="kinetic-btn"
+                  style={{
+                    padding: '6px 8px',
+                    backgroundColor: isUnknown ? 'var(--dp-color-accent)' : '#161616',
+                    border: '2px solid var(--dp-color-rule)',
+                    color: isUnknown ? '#101010' : '#A0A0A0',
+                    fontSize: '11px',
+                    fontWeight: 800,
+                    textTransform: 'uppercase',
+                    cursor: 'pointer'
+                  }}
+                >
+                  UNKNOWN
+                </button>
+                <span
+                  style={{
+                    padding: '6px 10px', backgroundColor: '#101010',
+                    border: '2px solid var(--dp-color-rule)', color: 'var(--dp-color-accent)',
+                    fontSize: '14px', fontWeight: 800
+                  }}
+                >
+                  {isUnknown ? 'UNKNOWN ✎' : `${currentMax} LB ✎`}
+                </span>
+              </div>
+            </IOSListRow>
+          );
+        })}
+      </IOSListSection>
+
       <div style={UI.gutterBottom}>
         <button
           type="button"
@@ -60,127 +158,130 @@ export function HistoryView({
         </button>
       </div>
 
-      <IOSListSection header="LOGGED SESSIONS" colors={colors}>
-        <IOSListRow
-          onClick={() => setHistorySessionsExpanded(p => !p)}
-          isLast={!historySessionsExpanded || history.length === 0}
-          colors={colors}
-        >
-          <span style={{ fontSize: '14px', fontWeight: 800, textTransform: 'uppercase', color: 'var(--dp-color-accent)' }}>
-            {historySessionsExpanded ? 'HIDE SESSIONS' : `SHOW SESSIONS (${history.length})`}
-          </span>
-          <span style={{ fontSize: '18px', fontWeight: 800 }}>
-            {historySessionsExpanded ? '−' : '+'}
-          </span>
-        </IOSListRow>
+      <IOSListSection header="HISTORY" colors={colors}>
+        {totalSessions === 0 ? (
+          <IOSListRow isLast={true} colors={colors}>
+            <span style={{ fontSize: '12px', color: '#888888', fontWeight: 700, textTransform: 'uppercase' }}>
+              NO SESSIONS LOGGED YET.
+            </span>
+          </IOSListRow>
+        ) : (
+          <>
+            {visibleHistory.map((w, idx) => {
+              const isExp = expandedHistoryWorkoutId === w.id;
+              const editorProps = isExp && buildHistoryWorkoutEditorProps ? buildHistoryWorkoutEditorProps(w) : null;
+              const isLastRow =
+                idx === visibleHistory.length - 1 &&
+                (showAllHistory ? totalPages <= 1 : totalSessions <= INITIAL_LIMIT);
 
-        {historySessionsExpanded &&
-          history.map((w, idx) => {
-            const isExp = expandedHistoryWorkoutId === w.id;
-            return (
-              <div
-                key={w.id}
-                style={{
-                  borderBottom: idx === history.length - 1 ? 'none' : '2px solid var(--dp-color-rule)'
-                }}
-              >
+              return (
                 <div
-                  onClick={() => setExpandedHistoryWorkoutId(isExp ? null : w.id)}
+                  id={`history-entry-${w.id}`}
+                  key={w.id}
                   style={{
-                    padding: '14px 16px', backgroundColor: '#141414',
-                    display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer'
+                    borderBottom: isLastRow ? 'none' : '2px solid var(--dp-color-rule)'
                   }}
                 >
-                  <div>
-                    <div style={{ fontSize: '15px', fontWeight: 800, textTransform: 'uppercase' }}>
-                      {w.title}
-                    </div>
-                    <div style={{ fontSize: '11px', color: '#A0A0A0', fontWeight: 600 }}>
-                      {new Date(w.startedAt).toLocaleDateString()} • {(w.slots || []).length} SLOTS
-                    </div>
-                  </div>
-                  <span style={{ fontSize: '18px', fontWeight: 800 }}>{isExp ? '−' : '+'}</span>
-                </div>
-
-                {isExp && (
                   <div
+                    onClick={() => setExpandedHistoryWorkoutId(isExp ? null : w.id)}
                     style={{
-                      padding: '12px 16px', backgroundColor: '#101010',
-                      borderTop: '2px solid var(--dp-color-rule)',
-                      display: 'flex', flexDirection: 'column', gap: '8px'
+                      padding: '14px 16px',
+                      backgroundColor: isExp ? '#1C1C1C' : '#141414',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      cursor: 'pointer'
                     }}
                   >
-                    {(w.slots || []).map(s => (
-                      <div key={s.id} style={{ fontSize: '12px', fontWeight: 700 }}>
-                        <span style={{ color: 'var(--dp-color-accent)' }}>{s.slotLabel}:</span>{' '}
-                        {EXERCISE_MAP[s.exerciseId]?.name || s.exerciseId} ({(s.sets || []).length} sets)
+                    <div>
+                      <div style={{ fontSize: '15px', fontWeight: 800, textTransform: 'uppercase' }}>
+                        {w.title}
                       </div>
-                    ))}
+                      <div style={{ fontSize: '11px', color: '#A0A0A0', fontWeight: 600 }}>
+                        {new Date(w.startedAt).toLocaleDateString()} • {(w.slots || []).length} EXERCISES
+                      </div>
+                    </div>
+                    <span style={{ fontSize: '18px', fontWeight: 800, color: isExp ? 'var(--dp-color-accent)' : '#FFFFFF' }}>
+                      {isExp ? '−' : '+'}
+                    </span>
                   </div>
-                )}
-              </div>
-            );
-          })}
-      </IOSListSection>
 
-      <IOSListSection
-        header="PERSONAL RECORDS"
-        footer="Tap any Personal Record weight to edit it with the Plate & Weight Calculator."
-        colors={colors}
-      >
-        <IOSListRow
-          onClick={() => setHistoryPRsExpanded(p => !p)}
-          isLast={!historyPRsExpanded}
-          colors={colors}
-        >
-          <span style={{ fontSize: '14px', fontWeight: 800, textTransform: 'uppercase', color: 'var(--dp-color-accent)' }}>
-            {historyPRsExpanded ? 'HIDE PERSONAL RECORDS' : 'SHOW PERSONAL RECORDS'}
-          </span>
-          <span style={{ fontSize: '18px', fontWeight: 800 }}>
-            {historyPRsExpanded ? '−' : '+'}
-          </span>
-        </IOSListRow>
-
-        {historyPRsExpanded &&
-          EXERCISE_LIBRARY.filter(e => e.isPriority).map((ex, idx, arr) => {
-            const currentMax = oneRepMaxes[ex.id] ?? ex.default1RM;
-            const isBigFour = BIG_FOUR_IDS.includes(ex.id);
-            const targetVal = isBigFour
-              ? getExRxTargetForLift(ex.id, targetStandardClass, userBodyweightLbs, totalHeightInches, customGoalWeights)
-              : null;
-            const diffFromGoal = targetVal !== null ? targetVal - currentMax : null;
-
-            return (
-              <IOSListRow
-                key={ex.id}
-                isLast={idx === arr.length - 1}
-                colors={colors}
-                onClick={() => openPlateCalculatorForPR(ex.id, ex.name, currentMax)}
-              >
-                <div>
-                  <div style={{ fontSize: '15px', fontWeight: 800, textTransform: 'uppercase' }}>
-                    {ex.name}
-                  </div>
-                  {diffFromGoal !== null && (
-                    <div className="kinetic-sub" style={{ fontSize: '11px', color: '#A0A0A0', fontWeight: 700 }}>
-                      {diffFromGoal > 0
-                        ? `${diffFromGoal} lb from ${targetStandardClass}`
-                        : `Goal Achieved (+${Math.abs(diffFromGoal)} lb)`}
+                  {isExp && editorProps && (
+                    <div
+                      style={{
+                        paddingBottom: '14px',
+                        backgroundColor: '#101010',
+                        borderTop: '2px solid var(--dp-color-rule)'
+                      }}
+                    >
+                      <RoutineEditorView {...editorProps} />
                     </div>
                   )}
                 </div>
-                <span
+              );
+            })}
+
+            {!showAllHistory && totalSessions > 0 && (
+              <IOSListRow isLast={true} colors={colors} style={{ padding: '10px 12px' }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowAllHistory(true);
+                    setHistoryPage(0);
+                  }}
+                  className="kinetic-btn"
                   style={{
-                    padding: '6px 10px', backgroundColor: '#101010',
-                    border: '2px solid var(--dp-color-rule)', color: 'var(--dp-color-accent)',
-                    fontSize: '14px', fontWeight: 800
+                    ...UI.secondaryBtnCenter,
+                    width: '100%',
+                    padding: '10px 12px',
+                    fontSize: '12px',
+                    color: 'var(--dp-color-accent)'
                   }}
                 >
-                  {currentMax} LB ✎
-                </span>
+                  SEE ALL ({totalSessions})
+                </button>
               </IOSListRow>
-            );
-          })}
+            )}
+
+            {showAllHistory && (
+              <IOSListRow isLast={true} colors={colors} style={{ padding: '10px 12px' }}>
+                <div style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+                  <button
+                    type="button"
+                    disabled={historyPage <= 0}
+                    onClick={() => setHistoryPage(p => Math.max(0, p - 1))}
+                    className="kinetic-btn"
+                    style={{
+                      ...UI.secondaryBtnCenter,
+                      padding: '8px 12px',
+                      fontSize: '11px',
+                      opacity: historyPage <= 0 ? 0.4 : 1
+                    }}
+                  >
+                    ← PREV 100
+                  </button>
+                  <span style={{ fontSize: '11px', fontWeight: 800, color: '#A0A0A0', textTransform: 'uppercase' }}>
+                    PAGE {historyPage + 1} OF {totalPages} ({historyPage * PAGE_SIZE + 1}–{Math.min(totalSessions, (historyPage + 1) * PAGE_SIZE)} OF {totalSessions})
+                  </span>
+                  <button
+                    type="button"
+                    disabled={historyPage >= totalPages - 1}
+                    onClick={() => setHistoryPage(p => Math.min(totalPages - 1, p + 1))}
+                    className="kinetic-btn"
+                    style={{
+                      ...UI.secondaryBtnCenter,
+                      padding: '8px 12px',
+                      fontSize: '11px',
+                      opacity: historyPage >= totalPages - 1 ? 0.4 : 1
+                    }}
+                  >
+                    NEXT 100 →
+                  </button>
+                </div>
+              </IOSListRow>
+            )}
+          </>
+        )}
       </IOSListSection>
     </div>
   );
@@ -306,7 +407,8 @@ export function GoalsView({
 
         {BIG_FOUR_IDS.map((liftId, idx) => {
           const ex = EXERCISE_MAP[liftId];
-          const cur1RM = oneRepMaxes[liftId] ?? ex.default1RM;
+          const isUnknown = oneRepMaxes[liftId] === 'unknown';
+          const cur1RM = isUnknown ? ex.default1RM : (oneRepMaxes[liftId] ?? ex.default1RM);
           const curClass = getExRxCurrentClass(liftId, cur1RM, userBodyweightLbs, totalHeightInches);
           const goalWeight = getExRxTargetForLift(liftId, targetStandardClass, userBodyweightLbs, totalHeightInches, customGoalWeights);
           const distance = goalWeight - cur1RM;
@@ -318,13 +420,15 @@ export function GoalsView({
                   {ex.name}
                 </div>
                 <div style={{ fontSize: '11px', color: '#A0A0A0', fontWeight: 700 }}>
-                  1RM: <strong style={{ color: '#FFFFFF' }}>{cur1RM} LB</strong> • CLASS:{' '}
-                  <strong style={{ color: 'var(--dp-color-accent)' }}>{curClass.toUpperCase()}</strong>
+                  1RM: <strong style={{ color: '#FFFFFF' }}>{isUnknown ? 'UNKNOWN' : `${cur1RM} LB`}</strong> • CLASS:{' '}
+                  <strong style={{ color: 'var(--dp-color-accent)' }}>{isUnknown ? 'UNKNOWN' : curClass.toUpperCase()}</strong>
                 </div>
                 <div style={{ fontSize: '11px', color: '#30D158', fontWeight: 700 }}>
-                  {distance > 0
-                    ? `${distance} lb from ${targetStandardClass}`
-                    : `Surpassed ${targetStandardClass} by ${Math.abs(distance)} lb`}
+                  {isUnknown
+                    ? `Target (${targetStandardClass}): ${goalWeight} lb`
+                    : distance > 0
+                      ? `${distance} lb from ${targetStandardClass}`
+                      : `Surpassed ${targetStandardClass} by ${Math.abs(distance)} lb`}
                 </div>
               </div>
 
@@ -535,7 +639,8 @@ export function ProgressionChartView({
 
         {BIG_FOUR_IDS.map((liftId, idx) => {
           const ex = EXERCISE_MAP[liftId];
-          const cur1RM = oneRepMaxes[liftId] ?? ex.default1RM;
+          const isUnknown = oneRepMaxes[liftId] === 'unknown';
+          const cur1RM = isUnknown ? ex.default1RM : (oneRepMaxes[liftId] ?? ex.default1RM);
           const goalWeight = getExRxTargetForLift(liftId, targetStandardClass, userBodyweightLbs, totalHeightInches, customGoalWeights);
           const distance = goalWeight - cur1RM;
           const series = progressionSeriesByLift[liftId] || [];
@@ -558,7 +663,9 @@ export function ProgressionChartView({
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
                   <span style={{ fontSize: '14px', fontWeight: 800, textTransform: 'uppercase' }}>{ex.name}</span>
                   <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--dp-color-accent)' }}>
-                    1RM {cur1RM} LB ({distance > 0 ? `${distance} lb from ${targetStandardClass}` : 'Goal Met'})
+                    {isUnknown
+                      ? `1RM UNKNOWN (TARGET ${goalWeight} LB)`
+                      : `1RM ${cur1RM} LB (${distance > 0 ? `${distance} lb from ${targetStandardClass}` : 'Goal Met'})`}
                   </span>
                 </div>
                 <div
@@ -611,21 +718,23 @@ export function StimulusMapView({
               </div>
               <svg viewBox="0 0 120 230" style={{ width: '100%', maxWidth: '135px', height: 'auto' }}>
                 <rect x="50" y="6" width="20" height="22" fill="#262626" stroke="#5C5C5C" strokeWidth="1.5" />
-                <rect x="54" y="28" width="12" height="8" fill="#262626" />
+                <rect x="54" y="28" width="12" height="8" fill={muscleStimulusStatus.Neck?.color || '#FF3B30'} stroke="#101010" strokeWidth="1" />
                 <rect x="22" y="36" width="16" height="22" fill={muscleStimulusStatus.Shoulders?.color || '#FF3B30'} stroke="#101010" strokeWidth="1.5" />
                 <rect x="82" y="36" width="16" height="22" fill={muscleStimulusStatus.Shoulders?.color || '#FF3B30'} stroke="#101010" strokeWidth="1.5" />
                 <rect x="38" y="36" width="21" height="28" fill={muscleStimulusStatus.Chest?.color || '#FF3B30'} stroke="#101010" strokeWidth="1.5" />
                 <rect x="61" y="36" width="21" height="28" fill={muscleStimulusStatus.Chest?.color || '#FF3B30'} stroke="#101010" strokeWidth="1.5" />
-                <rect x="18" y="60" width="15" height="48" fill={muscleStimulusStatus.Arms?.color || '#FF3B30'} stroke="#101010" strokeWidth="1.5" />
-                <rect x="87" y="60" width="15" height="48" fill={muscleStimulusStatus.Arms?.color || '#FF3B30'} stroke="#101010" strokeWidth="1.5" />
-                <rect x="40" y="66" width="40" height="46" fill={muscleStimulusStatus.Core?.color || '#FF3B30'} stroke="#101010" strokeWidth="1.5" />
+                <rect x="18" y="60" width="15" height="24" fill={muscleStimulusStatus['Upper Arms']?.color || '#FF3B30'} stroke="#101010" strokeWidth="1.5" />
+                <rect x="87" y="60" width="15" height="24" fill={muscleStimulusStatus['Upper Arms']?.color || '#FF3B30'} stroke="#101010" strokeWidth="1.5" />
+                <rect x="18" y="85" width="15" height="23" fill={muscleStimulusStatus.Forearms?.color || '#FF3B30'} stroke="#101010" strokeWidth="1.5" />
+                <rect x="87" y="85" width="15" height="23" fill={muscleStimulusStatus.Forearms?.color || '#FF3B30'} stroke="#101010" strokeWidth="1.5" />
+                <rect x="40" y="66" width="40" height="46" fill={muscleStimulusStatus.Waist?.color || '#FF3B30'} stroke="#101010" strokeWidth="1.5" />
                 <line x1="60" y1="66" x2="60" y2="112" stroke="#101010" strokeWidth="1.5" />
                 <line x1="40" y1="81" x2="80" y2="81" stroke="#101010" strokeWidth="1.5" />
                 <line x1="40" y1="96" x2="80" y2="96" stroke="#101010" strokeWidth="1.5" />
-                <rect x="38" y="116" width="20" height="58" fill={muscleStimulusStatus.Legs?.color || '#FF3B30'} stroke="#101010" strokeWidth="1.5" />
-                <rect x="62" y="116" width="20" height="58" fill={muscleStimulusStatus.Legs?.color || '#FF3B30'} stroke="#101010" strokeWidth="1.5" />
-                <rect x="40" y="177" width="16" height="44" fill={muscleStimulusStatus.Legs?.color || '#FF3B30'} stroke="#101010" strokeWidth="1.5" />
-                <rect x="64" y="177" width="16" height="44" fill={muscleStimulusStatus.Legs?.color || '#FF3B30'} stroke="#101010" strokeWidth="1.5" />
+                <rect x="38" y="116" width="20" height="58" fill={muscleStimulusStatus.Thighs?.color || '#FF3B30'} stroke="#101010" strokeWidth="1.5" />
+                <rect x="62" y="116" width="20" height="58" fill={muscleStimulusStatus.Thighs?.color || '#FF3B30'} stroke="#101010" strokeWidth="1.5" />
+                <rect x="40" y="177" width="16" height="44" fill={muscleStimulusStatus.Calves?.color || '#FF3B30'} stroke="#101010" strokeWidth="1.5" />
+                <rect x="64" y="177" width="16" height="44" fill={muscleStimulusStatus.Calves?.color || '#FF3B30'} stroke="#101010" strokeWidth="1.5" />
               </svg>
             </div>
 
@@ -640,20 +749,22 @@ export function StimulusMapView({
               </div>
               <svg viewBox="0 0 120 230" style={{ width: '100%', maxWidth: '135px', height: 'auto' }}>
                 <rect x="50" y="6" width="20" height="22" fill="#262626" stroke="#5C5C5C" strokeWidth="1.5" />
-                <rect x="54" y="28" width="12" height="8" fill="#262626" />
+                <rect x="54" y="28" width="12" height="8" fill={muscleStimulusStatus.Neck?.color || '#FF3B30'} stroke="#101010" strokeWidth="1" />
                 <rect x="22" y="36" width="16" height="22" fill={muscleStimulusStatus.Shoulders?.color || '#FF3B30'} stroke="#101010" strokeWidth="1.5" />
                 <rect x="82" y="36" width="16" height="22" fill={muscleStimulusStatus.Shoulders?.color || '#FF3B30'} stroke="#101010" strokeWidth="1.5" />
                 <rect x="38" y="36" width="44" height="52" fill={muscleStimulusStatus.Back?.color || '#FF3B30'} stroke="#101010" strokeWidth="1.5" />
                 <line x1="60" y1="36" x2="60" y2="88" stroke="#101010" strokeWidth="1.5" />
-                <rect x="18" y="60" width="15" height="48" fill={muscleStimulusStatus.Arms?.color || '#FF3B30'} stroke="#101010" strokeWidth="1.5" />
-                <rect x="87" y="60" width="15" height="48" fill={muscleStimulusStatus.Arms?.color || '#FF3B30'} stroke="#101010" strokeWidth="1.5" />
-                <rect x="42" y="90" width="36" height="22" fill={muscleStimulusStatus.Back?.color || '#FF3B30'} stroke="#101010" strokeWidth="1.5" />
-                <rect x="38" y="114" width="21" height="24" fill={muscleStimulusStatus.Legs?.color || '#FF3B30'} stroke="#101010" strokeWidth="1.5" />
-                <rect x="61" y="114" width="21" height="24" fill={muscleStimulusStatus.Legs?.color || '#FF3B30'} stroke="#101010" strokeWidth="1.5" />
-                <rect x="38" y="140" width="20" height="36" fill={muscleStimulusStatus.Legs?.color || '#FF3B30'} stroke="#101010" strokeWidth="1.5" />
-                <rect x="62" y="140" width="20" height="36" fill={muscleStimulusStatus.Legs?.color || '#FF3B30'} stroke="#101010" strokeWidth="1.5" />
-                <rect x="40" y="178" width="16" height="43" fill={muscleStimulusStatus.Legs?.color || '#FF3B30'} stroke="#101010" strokeWidth="1.5" />
-                <rect x="64" y="178" width="16" height="43" fill={muscleStimulusStatus.Legs?.color || '#FF3B30'} stroke="#101010" strokeWidth="1.5" />
+                <rect x="18" y="60" width="15" height="24" fill={muscleStimulusStatus['Upper Arms']?.color || '#FF3B30'} stroke="#101010" strokeWidth="1.5" />
+                <rect x="87" y="60" width="15" height="24" fill={muscleStimulusStatus['Upper Arms']?.color || '#FF3B30'} stroke="#101010" strokeWidth="1.5" />
+                <rect x="18" y="85" width="15" height="23" fill={muscleStimulusStatus.Forearms?.color || '#FF3B30'} stroke="#101010" strokeWidth="1.5" />
+                <rect x="87" y="85" width="15" height="23" fill={muscleStimulusStatus.Forearms?.color || '#FF3B30'} stroke="#101010" strokeWidth="1.5" />
+                <rect x="42" y="90" width="36" height="22" fill={muscleStimulusStatus.Waist?.color || '#FF3B30'} stroke="#101010" strokeWidth="1.5" />
+                <rect x="38" y="114" width="21" height="24" fill={muscleStimulusStatus.Hips?.color || '#FF3B30'} stroke="#101010" strokeWidth="1.5" />
+                <rect x="61" y="114" width="21" height="24" fill={muscleStimulusStatus.Hips?.color || '#FF3B30'} stroke="#101010" strokeWidth="1.5" />
+                <rect x="38" y="140" width="20" height="36" fill={muscleStimulusStatus.Thighs?.color || '#FF3B30'} stroke="#101010" strokeWidth="1.5" />
+                <rect x="62" y="140" width="20" height="36" fill={muscleStimulusStatus.Thighs?.color || '#FF3B30'} stroke="#101010" strokeWidth="1.5" />
+                <rect x="40" y="178" width="16" height="43" fill={muscleStimulusStatus.Calves?.color || '#FF3B30'} stroke="#101010" strokeWidth="1.5" />
+                <rect x="64" y="178" width="16" height="43" fill={muscleStimulusStatus.Calves?.color || '#FF3B30'} stroke="#101010" strokeWidth="1.5" />
               </svg>
             </div>
           </div>
@@ -677,38 +788,282 @@ export function StimulusMapView({
   );
 }
 
+const DEFAULT_STARTING_RATIO = 0.78;
+
+function formatRankLabel(rank) {
+  return `#${rank < 10 ? `0${rank}` : rank}`;
+}
+
+function buildTop10WithSelfSlot(sortedEntries) {
+  const ranked = sortedEntries.map((item, idx) => ({
+    ...item,
+    rank: idx + 1
+  }));
+  const top10 = ranked.slice(0, 10);
+  const selfInTop10 = top10.some(e => e.isSelf);
+  if (selfInTop10) {
+    return top10;
+  }
+  const bestSelfEntry = ranked.find(e => e.isSelf);
+  if (bestSelfEntry) {
+    return [...top10, bestSelfEntry];
+  }
+  return top10;
+}
+
 export function LeaderboardView({
   colors,
   user,
-  oneRepMaxes,
-  friendsList
+  oneRepMaxes = {},
+  friendsList = [],
+  userBodyweightLbs = 220,
+  history = []
 }) {
-  const entries = [
+  const curUsername = (user?.username || '').trim().toLowerCase();
+  const curEmail = (user?.email || '').trim().toLowerCase();
+  const selfName = user?.username || 'you (logged out)';
+  const selfBw = Math.max(50, Number(userBodyweightLbs) || 220);
+
+  const distinctFriends = (friendsList || []).filter(f => {
+    if (!f) return false;
+    const fUser = (f.username || '').trim().toLowerCase();
+    const fEmail = (f.email || '').trim().toLowerCase();
+    if (curEmail && fEmail && curEmail === fEmail) return false;
+    if (curUsername && fUser && curUsername === fUser) return false;
+    return true;
+  });
+
+  // 1. BIG 3 TOTAL (Bench + Squat + Deadlift)
+  const selfBig3Total =
+    (Number(oneRepMaxes.barbell_bench_press) || 225) +
+    (Number(oneRepMaxes.barbell_back_squat) || 285) +
+    (Number(oneRepMaxes.barbell_deadlift) || 335);
+
+  const rawAthletes = [
     {
-      name: user?.username || 'you (logged out)',
-      total:
-        (oneRepMaxes.barbell_bench_press || 225) +
-        (oneRepMaxes.barbell_back_squat || 285) +
-        (oneRepMaxes.barbell_deadlift || 335) +
-        (oneRepMaxes.overhead_press || 145)
+      id: user?.id || 'self_user',
+      name: selfName,
+      isSelf: true,
+      bw: selfBw,
+      total: selfBig3Total,
+      normalized: selfBig3Total / selfBw
     },
-    ...friendsList.map(f => ({
-      name: f.username,
-      total:
-        (f.prs?.barbell_bench_press || 185) +
-        (f.prs?.barbell_back_squat || 265) +
-        (f.prs?.barbell_deadlift || 315) +
-        (f.prs?.overhead_press || 115)
-    }))
-  ].sort((a, b) => b.total - a.total);
+    ...distinctFriends.map((f, i) => {
+      const fBw = Math.max(50, Number(f.bodyweightLbs || f.bodyweight) || 200);
+      const fTotal =
+        (Number(f.prs?.barbell_bench_press) || 185) +
+        (Number(f.prs?.barbell_back_squat) || 265) +
+        (Number(f.prs?.barbell_deadlift) || 315);
+      return {
+        id: f.id || `friend_${f.username}_${i}`,
+        name: f.username || `athlete_${i + 1}`,
+        isSelf: false,
+        bw: fBw,
+        total: fTotal,
+        normalized: fTotal / fBw
+      };
+    })
+  ];
+
+  const big3TotalEntries = buildTop10WithSelfSlot(
+    [...rawAthletes].sort((a, b) => b.total - a.total)
+  );
+
+  // 2. BIG 3 NORMALIZED (Big 3 Total / Bodyweight)
+  const big3NormalizedEntries = buildTop10WithSelfSlot(
+    [...rawAthletes].sort((a, b) => b.normalized - a.normalized)
+  );
+
+  // 3. MOST IMPROVED (Widest range of improvement across any lift, normalized by bodyweight)
+  const improvementEntries = [];
+
+  // Current user's lift improvements from logged history + current 1RMs
+  const selfLiftStats = {};
+  (history || []).forEach(workout => {
+    (workout?.slots || []).forEach(slot => {
+      const collectSets = (exId, setsList) => {
+        if (!exId || !Array.isArray(setsList)) return;
+        const exObj = EXERCISE_MAP[exId];
+        if (exObj?.isBodyweight) return;
+        setsList.forEach(st => {
+          const w = Number(st?.weight) || 0;
+          const r = Number(st?.reps) || 0;
+          if (w <= 0) return;
+          const est1rm = r > 1 ? Math.round(w * (1 + r / 30)) : w;
+          if (!selfLiftStats[exId]) {
+            selfLiftStats[exId] = { min1rm: est1rm, max1rm: est1rm };
+          } else {
+            selfLiftStats[exId].min1rm = Math.min(selfLiftStats[exId].min1rm, est1rm);
+            selfLiftStats[exId].max1rm = Math.max(selfLiftStats[exId].max1rm, est1rm);
+          }
+        });
+      };
+
+      if (Array.isArray(slot?.supersetExerciseIds) && Array.isArray(slot?.supersetSetsByExercise)) {
+        slot.supersetExerciseIds.slice(0, 2).forEach((exId, idx) => {
+          collectSets(exId, slot.supersetSetsByExercise[idx] || []);
+        });
+      } else {
+        collectSets(slot?.exerciseId, slot?.sets || []);
+      }
+    });
+  });
+
+  // Include current 1RMs for the user so they always have ranked lifts on the Most Improved board
+  Object.entries(oneRepMaxes || {}).forEach(([exId, prVal]) => {
+    const currentPr = Number(prVal) || 0;
+    if (currentPr <= 0) return;
+    const exObj = EXERCISE_MAP[exId];
+    if (!exObj || exObj.isBodyweight) return;
+    const existing = selfLiftStats[exId];
+    const startWeight = existing
+      ? Math.min(existing.min1rm, currentPr)
+      : Math.round((currentPr * DEFAULT_STARTING_RATIO) / 5) * 5;
+    const peakWeight = existing ? Math.max(existing.max1rm, currentPr) : currentPr;
+    const deltaLbs = Math.max(0, peakWeight - startWeight);
+    if (deltaLbs > 0) {
+      improvementEntries.push({
+        id: `self_imp_${exId}`,
+        name: selfName,
+        isSelf: true,
+        exerciseId: exId,
+        exerciseName: exObj.name,
+        startWeight,
+        peakWeight,
+        deltaLbs,
+        bw: selfBw,
+        normalizedGain: deltaLbs / selfBw
+      });
+    }
+  });
+
+  // Friends' lift improvements across all exercises in their PRs / startingPrs
+  distinctFriends.forEach((f, i) => {
+    const fBw = Math.max(50, Number(f.bodyweightLbs || f.bodyweight) || 200);
+    const fPrs = f.prs || {};
+    const fStartPrs = f.startingPrs || {};
+    Object.entries(fPrs).forEach(([exId, prVal]) => {
+      const peakWeight = Number(prVal) || 0;
+      if (peakWeight <= 0) return;
+      const exObj = EXERCISE_MAP[exId];
+      if (!exObj || exObj.isBodyweight) return;
+      const startWeight =
+        Number(fStartPrs[exId]) > 0
+          ? Number(fStartPrs[exId])
+          : Math.round((peakWeight * DEFAULT_STARTING_RATIO) / 5) * 5;
+      const deltaLbs = Math.max(0, peakWeight - startWeight);
+      if (deltaLbs > 0) {
+        improvementEntries.push({
+          id: `friend_${f.username}_${i}_${exId}`,
+          name: f.username || `athlete_${i + 1}`,
+          isSelf: false,
+          exerciseId: exId,
+          exerciseName: exObj.name,
+          startWeight,
+          peakWeight,
+          deltaLbs,
+          bw: fBw,
+          normalizedGain: deltaLbs / fBw
+        });
+      }
+    });
+  });
+
+  const mostImprovedEntries = buildTop10WithSelfSlot(
+    improvementEntries.sort((a, b) => b.normalizedGain - a.normalizedGain || b.deltaLbs - a.deltaLbs)
+  );
 
   return (
     <div style={{ paddingTop: '14px' }}>
-      <IOSListSection header="COMMUNITY BIG 3 + OHP TOTAL" colors={colors}>
-        {entries.map((entry, idx, arr) => (
-          <IOSListRow key={entry.name} indexLabel={`#0${idx + 1}`} isLast={idx === arr.length - 1} colors={colors}>
-            <span style={{ fontSize: '16px', fontWeight: 800, textTransform: 'uppercase' }}>@{entry.name}</span>
-            <span style={{ fontSize: '16px', fontWeight: 800, color: 'var(--dp-color-accent)' }}>{entry.total} LB</span>
+      <IOSListSection header="BIG 3 TOTAL" colors={colors}>
+        {big3TotalEntries.map((entry, idx, arr) => (
+          <IOSListRow
+            key={`big3_tot_${entry.id}_${idx}`}
+            indexLabel={formatRankLabel(entry.rank)}
+            isLast={idx === arr.length - 1}
+            colors={colors}
+          >
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+              <span
+                style={{
+                  fontSize: '16px',
+                  fontWeight: 800,
+                  textTransform: 'uppercase',
+                  color: entry.isSelf ? '#30D158' : '#FFFFFF'
+                }}
+              >
+                @{entry.name}
+              </span>
+              <span style={{ fontSize: '10px', fontWeight: 700, color: '#888888', textTransform: 'uppercase' }}>
+                BENCH + SQUAT + DEADLIFT
+              </span>
+            </div>
+            <span style={{ fontSize: '16px', fontWeight: 800, color: 'var(--dp-color-accent)' }}>
+              {entry.total} LB
+            </span>
+          </IOSListRow>
+        ))}
+      </IOSListSection>
+
+      <IOSListSection header="BIG 3 NORMALIZED" colors={colors}>
+        {big3NormalizedEntries.map((entry, idx, arr) => (
+          <IOSListRow
+            key={`big3_norm_${entry.id}_${idx}`}
+            indexLabel={formatRankLabel(entry.rank)}
+            isLast={idx === arr.length - 1}
+            colors={colors}
+          >
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+              <span
+                style={{
+                  fontSize: '16px',
+                  fontWeight: 800,
+                  textTransform: 'uppercase',
+                  color: entry.isSelf ? '#30D158' : '#FFFFFF'
+                }}
+              >
+                @{entry.name}
+              </span>
+              <span style={{ fontSize: '10px', fontWeight: 700, color: '#888888', textTransform: 'uppercase' }}>
+                {entry.total} LB TOTAL @ {entry.bw} LB BW
+              </span>
+            </div>
+            <span style={{ fontSize: '16px', fontWeight: 800, color: 'var(--dp-color-accent)' }}>
+              {entry.normalized.toFixed(2)}× BW
+            </span>
+          </IOSListRow>
+        ))}
+      </IOSListSection>
+
+      <IOSListSection header="MOST IMPROVED" colors={colors}>
+        {mostImprovedEntries.map((entry, idx, arr) => (
+          <IOSListRow
+            key={`most_imp_${entry.id}_${idx}`}
+            indexLabel={formatRankLabel(entry.rank)}
+            isLast={idx === arr.length - 1}
+            colors={colors}
+          >
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', minWidth: 0, paddingRight: '8px' }}>
+              <span
+                style={{
+                  fontSize: '14px',
+                  fontWeight: 800,
+                  textTransform: 'uppercase',
+                  color: entry.isSelf ? '#30D158' : '#FFFFFF',
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis'
+                }}
+              >
+                @{entry.name} • {entry.exerciseName}
+              </span>
+              <span style={{ fontSize: '10px', fontWeight: 700, color: '#888888', textTransform: 'uppercase' }}>
+                {entry.startWeight} LB → {entry.peakWeight} LB (+{entry.deltaLbs} LB @ {entry.bw} LB BW)
+              </span>
+            </div>
+            <span style={{ fontSize: '15px', fontWeight: 800, color: 'var(--dp-color-accent)', flexShrink: 0 }}>
+              +{entry.normalizedGain.toFixed(2)}× BW
+            </span>
           </IOSListRow>
         ))}
       </IOSListSection>
@@ -751,7 +1106,6 @@ export function SocialView({
             <IOSListRow key={req.id} isLast={idx === pendingIncomingRequests.length - 1} colors={colors}>
               <div>
                 <div style={{ fontSize: '15px', fontWeight: 800, textTransform: 'uppercase' }}>@{req.username}</div>
-                <div style={{ fontSize: '11px', color: '#A0A0A0' }}>{req.email}</div>
               </div>
               <button
                 type="button"
@@ -773,7 +1127,7 @@ export function SocialView({
 
       <IOSListSection
         header={`FRIENDS (${friendsList.length})`}
-        footer="Tap any friend to open their Profile page and view their PRs and Shared Routines."
+        footer="Tap any friend to open their Profile page and view their Personal Records and Shared Routines."
         colors={colors}
       >
         {friendsList
@@ -781,7 +1135,7 @@ export function SocialView({
             f =>
               !friendSearchQuery.trim() ||
               f.username.toLowerCase().includes(friendSearchQuery.toLowerCase()) ||
-              f.email.toLowerCase().includes(friendSearchQuery.toLowerCase())
+              (f.email || '').toLowerCase().includes(friendSearchQuery.toLowerCase())
           )
           .map((friend, i, arr) => (
             <IOSListRow
@@ -795,7 +1149,6 @@ export function SocialView({
             >
               <div>
                 <div style={{ fontSize: '16px', fontWeight: 800, textTransform: 'uppercase' }}>@{friend.username}</div>
-                <div className="kinetic-sub" style={{ fontSize: '11px', color: '#A0A0A0' }}>{friend.email}</div>
               </div>
               <span style={{ fontSize: '14px', fontWeight: 800, color: 'var(--dp-color-accent)' }}>VIEW PROFILE →</span>
             </IOSListRow>
@@ -816,7 +1169,8 @@ export function ProfileView({
   oneRepMaxes,
   sharedRoutines,
   openPlateCalculatorForPR,
-  handleOpenPreviewRoutine
+  handleOpenPreviewRoutine,
+  onJumpToPRHistoryEntry
 }) {
   const isFriend = currentView === 'friend_profile' && viewingFriendProfile;
   const profUser = isFriend
@@ -833,7 +1187,9 @@ export function ProfileView({
             <div style={{ fontSize: '22px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '-0.03em' }}>
               @{profUser.username}
             </div>
-            <div style={{ fontSize: '12px', color: '#A0A0A0', fontWeight: 700 }}>{profUser.email}</div>
+            {!isFriend && (
+              <div style={{ fontSize: '12px', color: '#A0A0A0', fontWeight: 700 }}>{profUser.email}</div>
+            )}
           </div>
 
           {!isFriend && (
@@ -874,9 +1230,11 @@ export function ProfileView({
         )}
       </IOSListSection>
 
-      <IOSListSection header="PRS (PERSONAL RECORDS)" colors={colors}>
+      <IOSListSection header="PERSONAL RECORDS" colors={colors}>
         {EXERCISE_LIBRARY.filter(e => e.isPriority).map((ex, i, arr) => {
-          const val = profPRs[ex.id] ?? ex.default1RM;
+          const rawVal = profPRs[ex.id];
+          const isUnknown = rawVal === 'unknown';
+          const val = isUnknown ? ex.default1RM : (rawVal ?? ex.default1RM);
           return (
             <IOSListRow
               key={ex.id}
@@ -885,9 +1243,11 @@ export function ProfileView({
               onClick={!isFriend ? () => openPlateCalculatorForPR(ex.id, ex.name, val) : undefined}
             >
               <span style={{ fontSize: '14px', fontWeight: 800, textTransform: 'uppercase' }}>{ex.name}</span>
-              <span style={{ fontSize: '15px', fontWeight: 800, color: 'var(--dp-color-accent)' }}>
-                {val} LB {!isFriend && '✎'}
-              </span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+                <span style={{ fontSize: '15px', fontWeight: 800, color: 'var(--dp-color-accent)' }}>
+                  {isUnknown ? 'UNKNOWN' : `${val} LB`} {!isFriend && '✎'}
+                </span>
+              </div>
             </IOSListRow>
           );
         })}
@@ -907,7 +1267,7 @@ export function ProfileView({
               onClick={() => handleOpenPreviewRoutine(r, 'session')}
             >
               <span style={{ fontSize: '15px', fontWeight: 800, textTransform: 'uppercase' }}>{r.label}</span>
-              <span style={{ fontSize: '13px', fontWeight: 800, color: 'var(--dp-color-accent)' }}>PREVIEW →</span>
+              <span style={{ fontSize: '13px', fontWeight: 800, color: 'var(--dp-color-accent)' }}>LOAD →</span>
             </IOSListRow>
           ))
         )}

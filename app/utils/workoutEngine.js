@@ -5,17 +5,32 @@
 import {
   EXERCISE_LIBRARY,
   EXERCISE_MAP,
+  normalizeSlotCategory,
+  isSupersetCategory,
   roundTo5,
   roundToIncrement
 } from '../data/exerciseLibrary';
 
-export const SET_TYPES_LIST = ['Warmup Set', 'Working Set', 'Top Out Set', 'Burn Out Set', '1 Rep Max'];
+export const SET_TYPES_LIST = ['Warmup', 'Working', 'Top Out', 'Burn Out', '1 Rep Max'];
+
+export const SCHEME_OPTIONS = ['5x5', '5x8', '8x8', 'Pyramid', 'Pyramid 1RM', 'Reverse Pyramid'];
+
+export const normalizeSetType = rawType => {
+  if (!rawType) return 'Working';
+  const t = String(rawType).trim();
+  if (t === 'Warmup Set' || t === 'Warmup') return 'Warmup';
+  if (t === 'Working Set' || t === 'Working') return 'Working';
+  if (t === 'Top Out Set' || t === 'Top Out') return 'Top Out';
+  if (t === 'Burn Out Set' || t === 'Burn Out') return 'Burn Out';
+  if (t === '1 Rep Max') return '1 Rep Max';
+  return 'Working';
+};
 
 export const getHistoricalCalculated1RM = (exerciseId, history = [], oneRepMaxes = {}) => {
   let best = Number(oneRepMaxes?.[exerciseId]) || 0;
   (history || []).forEach(w => {
     (w.slots || []).forEach(slot => {
-      if (slot.category === 'Supersets' && Array.isArray(slot.supersetSetsByExercise)) {
+      if (isSupersetCategory(slot.category) && Array.isArray(slot.supersetSetsByExercise)) {
         const ids = slot.supersetExerciseIds || [slot.exerciseId, slot.secondaryExerciseId].filter(Boolean);
         ids.forEach((id, idx) => {
           if (id === exerciseId) {
@@ -45,21 +60,20 @@ export const getHistoricalCalculated1RM = (exerciseId, history = [], oneRepMaxes
 export const calculateLastEquivalentWeightForSet = (base1RM, setItem, totalSetsCount = 5, category = 'Compound Lift') => {
   if (category === 'Abs') return 0;
   const max1RM = Math.max(5, Number(base1RM) || 135);
-  const sType = setItem?.type || 'Working Set';
+  const sType = normalizeSetType(setItem?.type);
   const reps = Math.max(1, Number(setItem?.reps) || 8);
 
-  if (sType === '1 Rep Max') return roundTo5(max1RM);
+  if (sType === '1 Rep Max' || totalSetsCount <= 1) return roundTo5(max1RM);
 
-  const repPct = 1 / (1 + reps / 30);
-  let typeMultiplier = 0.96;
-  if (sType === 'Warmup Set') typeMultiplier = 0.72;
-  else if (sType === 'Top Out Set') typeMultiplier = 1.04;
-  else if (sType === 'Burn Out Set') typeMultiplier = 0.82;
+  const repPct = 1 / (1 + Math.max(0, reps - 1) / 30);
+  let typeMultiplier = 0.98;
+  if (sType === 'Warmup') typeMultiplier = 0.74;
+  else if (sType === 'Top Out') typeMultiplier = 1.04;
+  else if (sType === 'Burn Out') typeMultiplier = 0.84;
 
-  const extraSets = Math.max(0, totalSetsCount - 5);
-  const fatigueDiscount = Math.max(0.74, 1 - extraSets * 0.025);
+  const setStressFactor = 1 / (1 + Math.max(0, totalSetsCount - 1) * 0.035);
 
-  const rawWeight = max1RM * Math.min(1, repPct * typeMultiplier * fatigueDiscount);
+  const rawWeight = max1RM * Math.min(1, repPct * typeMultiplier * setStressFactor);
   return roundTo5(rawWeight);
 };
 
@@ -75,26 +89,29 @@ export const generateSetsForScheme = (scheme, oneRepMax, category = 'Compound Li
 
   if (category === 'Abs' || exerciseId === 'hollow_holds') {
     return [
-      { id: `set_${ts}_abs1`, setNumber: 1, type: 'Working Set', reps: 45, lastWeight: 0, weight: 0, completed: false },
-      { id: `set_${ts}_abs2`, setNumber: 2, type: 'Working Set', reps: 45, lastWeight: 0, weight: 0, completed: false }
+      { id: `set_${ts}_abs1`, setNumber: 1, type: 'Working', reps: 45, lastWeight: 0, increment: 0, weight: 0, completed: false },
+      { id: `set_${ts}_abs2`, setNumber: 2, type: 'Working', reps: 45, lastWeight: 0, increment: 0, weight: 0, completed: false }
     ];
   }
 
   const buildWithLastAndTarget = rawSets => {
     const totalCount = rawSets.length;
     return rawSets.map((s, idx) => {
+      const normType = normalizeSetType(s.type);
       const lastW =
         s.lastWeight !== undefined
           ? s.lastWeight
-          : calculateLastEquivalentWeightForSet(base1RM, s, totalCount, category);
+          : calculateLastEquivalentWeightForSet(base1RM, { ...s, type: normType }, totalCount, category);
+      const setInc = normType === '1 Rep Max' ? 0 : incrementLbs;
       const targetW =
-        s.type === '1 Rep Max' ? roundTo5(base1RM) : roundToIncrement(lastW + incrementLbs);
+        normType === '1 Rep Max' ? roundTo5(base1RM) : roundToIncrement(lastW + setInc);
       return {
         id: `set_${ts}_${idx}_${Math.random().toString(36).slice(2, 5)}`,
         setNumber: idx + 1,
-        type: s.type,
+        type: normType,
         reps: s.reps,
         lastWeight: lastW,
+        increment: setInc,
         weight: targetW,
         completed: false
       };
@@ -103,28 +120,59 @@ export const generateSetsForScheme = (scheme, oneRepMax, category = 'Compound Li
 
   switch (scheme) {
     case '5x5':
-      return buildWithLastAndTarget(Array.from({ length: 5 }, () => ({ type: 'Working Set', reps: 5 })));
+      return buildWithLastAndTarget(Array.from({ length: 5 }, () => ({ type: 'Working', reps: 5 })));
     case '8x8':
-      return buildWithLastAndTarget(Array.from({ length: 8 }, () => ({ type: 'Working Set', reps: 8 })));
+      return buildWithLastAndTarget(Array.from({ length: 8 }, () => ({ type: 'Working', reps: 8 })));
     case 'Pyramid':
       return buildWithLastAndTarget([
-        { reps: 8, type: 'Warmup Set' },
-        { reps: 5, type: 'Working Set' },
-        { reps: 3, type: 'Working Set' },
-        { reps: 2, type: 'Working Set' },
-        { reps: 1, type: 'Top Out Set' }
+        { reps: 8, type: 'Warmup' },
+        { reps: 5, type: 'Working' },
+        { reps: 3, type: 'Working' },
+        { reps: 2, type: 'Working' },
+        { reps: 1, type: 'Top Out' }
       ]);
+    case 'Pyramid 1RM': {
+      const pyramidReps = [8, 5, 3, 2, 1];
+      const warmupCount = pyramidReps.length - 1;
+      const maxW = roundTo5(base1RM);
+      return pyramidReps.map((reps, idx) => {
+        if (idx === pyramidReps.length - 1) {
+          return {
+            id: `set_${ts}_${idx}_${Math.random().toString(36).slice(2, 5)}`,
+            setNumber: idx + 1,
+            type: '1 Rep Max',
+            reps: 1,
+            lastWeight: maxW,
+            increment: incrementLbs,
+            weight: roundToIncrement(maxW + incrementLbs),
+            completed: false
+          };
+        }
+        const pct = warmupCount <= 1 ? 0.70 : 0.50 + (idx / (warmupCount - 1)) * 0.35;
+        const warmupW = roundTo5(base1RM * pct);
+        return {
+          id: `set_${ts}_${idx}_${Math.random().toString(36).slice(2, 5)}`,
+          setNumber: idx + 1,
+          type: 'Warmup',
+          reps,
+          lastWeight: warmupW,
+          increment: 0,
+          weight: warmupW,
+          completed: false
+        };
+      });
+    }
     case 'Reverse Pyramid':
       return buildWithLastAndTarget([
-        { reps: 8, type: 'Warmup Set' },
-        { reps: 4, type: 'Top Out Set' },
-        { reps: 6, type: 'Working Set' },
-        { reps: 8, type: 'Working Set' },
-        { reps: 10, type: 'Working Set' }
+        { reps: 8, type: 'Warmup' },
+        { reps: 4, type: 'Top Out' },
+        { reps: 6, type: 'Working' },
+        { reps: 8, type: 'Working' },
+        { reps: 10, type: 'Working' }
       ]);
     case '5x8':
     default:
-      return buildWithLastAndTarget(Array.from({ length: 5 }, () => ({ type: 'Working Set', reps: 8 })));
+      return buildWithLastAndTarget(Array.from({ length: 5 }, () => ({ type: 'Working', reps: 8 })));
   }
 };
 
@@ -133,8 +181,9 @@ export const createWorkoutSlot = ({
   scheme = '5x8', oneRepMaxes = {}, history = [], incrementLbs = 0, restSeconds = 90
 }) => {
   const uid = `slot_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+  const normCat = normalizeSlotCategory(category);
 
-  if (category === 'Supersets') {
+  if (normCat === 'Superset') {
     const rawIds =
       Array.isArray(supersetExerciseIds) && supersetExerciseIds.length > 0
         ? supersetExerciseIds
@@ -145,10 +194,11 @@ export const createWorkoutSlot = ({
 
     const setsByExercise = cleanIds.map(id => {
       const calcMax = getHistoricalCalculated1RM(id, history, oneRepMaxes);
-      return generateSetsForScheme(scheme, calcMax, 'Supersets', id, incrementLbs);
+      return generateSetsForScheme(scheme, calcMax, 'Superset', id, incrementLbs);
     });
     return {
-      id: uid, category: 'Supersets', slotLabel: slotLabel || 'Superset', scheme, restSeconds,
+      id: uid, category: 'Superset', slotLabel: slotLabel || 'Superset', scheme, restSeconds,
+      muscleGroupFilter: EXERCISE_MAP[cleanIds[0]]?.muscleGroup || 'All Muscles',
       exerciseId: cleanIds[0], secondaryExerciseId: cleanIds[1], supersetExerciseIds: cleanIds,
       supersetSetsByExercise: setsByExercise, sets: setsByExercise[0] || [], secondarySets: setsByExercise[1] || []
     };
@@ -156,10 +206,11 @@ export const createWorkoutSlot = ({
 
   const ex1 = EXERCISE_MAP[exerciseId] || EXERCISE_LIBRARY[0];
   const calcMax1 = getHistoricalCalculated1RM(ex1.id, history, oneRepMaxes);
-  const sets1 = generateSetsForScheme(scheme, calcMax1, category, ex1.id, incrementLbs);
+  const sets1 = generateSetsForScheme(scheme, calcMax1, normCat, ex1.id, incrementLbs);
 
   return {
-    id: uid, category, slotLabel: slotLabel || category, scheme, restSeconds,
+    id: uid, category: normCat, slotLabel: slotLabel || normCat, scheme, restSeconds,
+    muscleGroupFilter: ex1.muscleGroup || 'All Muscles',
     exerciseId: ex1.id, secondaryExerciseId: null, supersetExerciseIds: [ex1.id],
     supersetSetsByExercise: [sets1], sets: sets1, secondarySets: []
   };
@@ -168,14 +219,16 @@ export const createWorkoutSlot = ({
 export const normalizeSlotLabels = slots => {
   let compoundCount = 0;
   let supersetCount = 0;
+  let accessoryCount = 0;
   return (slots || [])
     .filter(slot => slot && slot.category !== 'Warm-Up Routine' && slot.exerciseId !== 'warmup_12_step')
     .map(slot => {
-      if (slot.category === 'Compound Lift' || slot.category === 'Compound Lifts') {
+      const normCat = normalizeSlotCategory(slot.category);
+      if (normCat === 'Compound Lift') {
         compoundCount += 1;
         return { ...slot, category: 'Compound Lift', slotLabel: `Compound Lift ${compoundCount}` };
       }
-      if (slot.category === 'Supersets') {
+      if (normCat === 'Superset') {
         supersetCount += 1;
         const rawIds =
           Array.isArray(slot.supersetExerciseIds) && slot.supersetExerciseIds.length > 0
@@ -184,11 +237,15 @@ export const normalizeSlotLabels = slots => {
         const exA = rawIds[0] || 'reverse_lunge';
         const exB = rawIds[1] || (exA === 'reverse_lunge' ? 'front_flies' : 'reverse_lunge');
         return {
-          ...slot, slotLabel: `Superset ${supersetCount}`,
+          ...slot, category: 'Superset', slotLabel: `Superset ${supersetCount}`,
           exerciseId: exA, secondaryExerciseId: exB, supersetExerciseIds: [exA, exB]
         };
       }
-      return slot;
+      if (normCat === 'Accessory') {
+        accessoryCount += 1;
+        return { ...slot, category: 'Accessory', slotLabel: `Accessory ${accessoryCount}` };
+      }
+      return { ...slot, category: normCat };
     });
 };
 
@@ -199,7 +256,7 @@ export const buildPresetSlots = (presetKey, oneRepMaxes, history = [], increment
       return normalizeSlotLabels([
         createWorkoutSlot({ category: 'Compound Lift', slotLabel: 'Compound Lift 1', exerciseId: 'barbell_bench_press', scheme: '5x8', oneRepMaxes, history, incrementLbs }),
         createWorkoutSlot({ category: 'Compound Lift', slotLabel: 'Compound Lift 2', exerciseId: 'barbell_back_squat', scheme: '5x8', oneRepMaxes, history, incrementLbs }),
-        createWorkoutSlot({ category: 'Supersets', slotLabel: 'Superset 1', supersetExerciseIds: ['reverse_lunge', 'front_flies'], scheme: '5x8', oneRepMaxes, history, incrementLbs }),
+        createWorkoutSlot({ category: 'Superset', slotLabel: 'Superset 1', supersetExerciseIds: ['reverse_lunge', 'front_flies'], scheme: '5x8', oneRepMaxes, history, incrementLbs }),
         createWorkoutSlot({ category: 'Abs', slotLabel: 'Abs Slot', exerciseId: 'hollow_holds', oneRepMaxes, history, incrementLbs })
       ]);
     case 'full_body_b':
@@ -207,7 +264,7 @@ export const buildPresetSlots = (presetKey, oneRepMaxes, history = [], increment
       return normalizeSlotLabels([
         createWorkoutSlot({ category: 'Compound Lift', slotLabel: 'Compound Lift 1', exerciseId: 'barbell_deadlift', scheme: '5x8', oneRepMaxes, history, incrementLbs }),
         createWorkoutSlot({ category: 'Compound Lift', slotLabel: 'Compound Lift 2', exerciseId: 'overhead_press', scheme: '5x8', oneRepMaxes, history, incrementLbs }),
-        createWorkoutSlot({ category: 'Supersets', slotLabel: 'Superset 1', supersetExerciseIds: ['pistol_squats', 'reverse_flies'], scheme: '5x8', oneRepMaxes, history, incrementLbs }),
+        createWorkoutSlot({ category: 'Superset', slotLabel: 'Superset 1', supersetExerciseIds: ['pistol_squats', 'reverse_flies'], scheme: '5x8', oneRepMaxes, history, incrementLbs }),
         createWorkoutSlot({ category: 'Abs', slotLabel: 'Abs Slot', exerciseId: 'hollow_holds', oneRepMaxes, history, incrementLbs })
       ]);
     case 'arms_only':
@@ -215,8 +272,8 @@ export const buildPresetSlots = (presetKey, oneRepMaxes, history = [], increment
       return normalizeSlotLabels([
         createWorkoutSlot({ category: 'Compound Lift', slotLabel: 'Compound Lift 1', exerciseId: 'chin_ups', scheme: '5x8', oneRepMaxes, history, incrementLbs }),
         createWorkoutSlot({ category: 'Compound Lift', slotLabel: 'Compound Lift 2', exerciseId: 'incline_bench_press', scheme: '5x8', oneRepMaxes, history, incrementLbs }),
-        createWorkoutSlot({ category: 'Supersets', slotLabel: 'Superset 1', supersetExerciseIds: ['barbell_bicep_curl', 'tricep_skullcrusher'], scheme: '5x8', oneRepMaxes, history, incrementLbs }),
-        createWorkoutSlot({ category: 'Supersets', slotLabel: 'Supersets', supersetExerciseIds: ['dumbbell_hammer_curl', 'side_raise_dumbbell'], scheme: '5x8', oneRepMaxes, history, incrementLbs })
+        createWorkoutSlot({ category: 'Superset', slotLabel: 'Superset 1', supersetExerciseIds: ['barbell_bicep_curl', 'tricep_skullcrusher'], scheme: '5x8', oneRepMaxes, history, incrementLbs }),
+        createWorkoutSlot({ category: 'Superset', slotLabel: 'Superset 2', supersetExerciseIds: ['dumbbell_hammer_curl', 'side_raise_dumbbell'], scheme: '5x8', oneRepMaxes, history, incrementLbs })
       ]);
     default:
       return [];
@@ -234,7 +291,7 @@ export const getInitial1RMs = () => {
 export const checkIsWorkoutComplete = slots => {
   if (!slots || slots.length === 0) return false;
   for (const slot of slots) {
-    if (slot.category === 'Supersets' && Array.isArray(slot.supersetSetsByExercise)) {
+    if (isSupersetCategory(slot.category) && Array.isArray(slot.supersetSetsByExercise)) {
       for (const list of slot.supersetSetsByExercise) {
         if (!list || list.some(s => !s.completed)) return false;
       }
@@ -268,10 +325,13 @@ export const cloneSlots = slots => {
 
 export const getNextIncompleteSetInfo = slots => {
   if (!Array.isArray(slots) || slots.length === 0) {
-    return { topLine: 'NO EXERCISES QUEUED', bottomLine: 'ADD AN EXERCISE TO BEGIN' };
+    return {
+      topLine: 'NO EXERCISES QUEUED',
+      bottomLine: ''
+    };
   }
   for (const slot of slots) {
-    if (slot.category === 'Supersets' && Array.isArray(slot.supersetSetsByExercise)) {
+    if (isSupersetCategory(slot.category) && Array.isArray(slot.supersetSetsByExercise)) {
       const ids = slot.supersetExerciseIds || [slot.exerciseId, slot.secondaryExerciseId].filter(Boolean);
       const maxLen = Math.max(0, ...slot.supersetSetsByExercise.map(l => (l ? l.length : 0)));
       for (let sIdx = 0; sIdx < maxLen; sIdx++) {

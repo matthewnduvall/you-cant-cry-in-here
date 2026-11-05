@@ -6,10 +6,18 @@ import {
   EXERCISE_LIBRARY,
   EXERCISE_MAP,
   BIG_FOUR_IDS,
+  MUSCLE_GROUP_OPTIONS,
+  normalizeSlotCategory,
+  isSupersetCategory,
+  doesExerciseInteractWithMuscleGroup,
   getDefaultSessionName,
   getDefaultAutoSessionName,
+  formatTodayYMD,
   formatTitleWithDate,
   isExerciseCompatibleWithGymSelection,
+  filterAddSlotExercises,
+  getFilteredExercisesForSlotInline,
+  getAvailableMuscleGroupsForCategory,
   roundTo5,
   roundToIncrement
 } from './data/exerciseLibrary';
@@ -28,13 +36,25 @@ import {
 import {
   PERSISTENCE_KEY,
   CURRENT_SCHEMA_VERSION,
+  DEFAULT_MATT_FRIEND,
+  ensureDefaultMattFriend,
+  normalizeWorkoutFromStorage,
+  normalizeSlotFromStorage,
   loadHydratedAppState
 } from './utils/storageMigration';
+import {
+  fetchCloudStateForUser,
+  pushCloudStateForUser
+} from './utils/supabaseAuth';
 import { SFSymbol, SessionRestTimerBar } from './components/Primitives';
 import {
   DeleteConfirmModal,
   AddSlotModal,
-  PlateCalculatorModal
+  PlateCalculatorModal,
+  SetValueEditorModal,
+  SaveConfirmModal,
+  HistoricalEditConfirmModal,
+  FeedbackModal
 } from './components/Modals';
 import { HomeView } from './components/views/HomeView';
 import { RoutineEditorView } from './components/views/RoutineEditorView';
@@ -64,12 +84,7 @@ import {
 
 export default function App() {
   const colors = IOS_DARK;
-
-  const hydratedRef = useRef(undefined);
-  if (hydratedRef.current === undefined) {
-    hydratedRef.current = loadHydratedAppState();
-  }
-  const initialHydrated = hydratedRef.current;
+  const [isStorageHydrated, setIsStorageHydrated] = useState(false);
 
   // --- Navigation & Drawer State ---
   const [currentView, setCurrentView] = useState('home');
@@ -78,23 +93,24 @@ export default function App() {
   const importBackupInputRef = useRef(null);
 
   // --- User & Auth State ---
-  const [user, setUser] = useState(() => (initialHydrated?.user !== undefined ? initialHydrated.user : null));
+  const [user, setUser] = useState(null);
   const [authMode, setAuthMode] = useState('login');
-  const [authUsername, setAuthUsername] = useState(() => initialHydrated?.user?.username || '');
-  const [authEmail, setAuthEmail] = useState(() => initialHydrated?.user?.email || '');
+  const [authUsername, setAuthUsername] = useState('');
+  const [authEmail, setAuthEmail] = useState('');
   const [authPassword, setAuthPassword] = useState('');
   const [signupUsername, setSignupUsername] = useState('');
   const [signupEmail, setSignupEmail] = useState('');
   const [signupPassword, setSignupPassword] = useState('');
   const [signupBetaCode, setSignupBetaCode] = useState('');
+  const [recoveryAccessToken, setRecoveryAccessToken] = useState(null);
   const fileInputRef = useRef(null);
 
   // --- 1RM & History State ---
-  const [oneRepMaxes, setOneRepMaxes] = useState(() => initialHydrated?.oneRepMaxes || getInitial1RMs());
-  const [history, setHistory] = useState(() => initialHydrated?.history || []);
+  const [oneRepMaxes, setOneRepMaxes] = useState(() => getInitial1RMs());
+  const [history, setHistory] = useState([]);
 
   // --- Active Session, Historical Entry, Routine Editor & Preview State ---
-  const [activeSession, setActiveSession] = useState(() => initialHydrated?.activeSession || null);
+  const [activeSession, setActiveSession] = useState(null);
   const [historicalDraft, setHistoricalDraft] = useState(null);
   const [routineDraft, setRoutineDraft] = useState(null);
   const [previewRoutineDraft, setPreviewRoutineDraft] = useState(null);
@@ -104,46 +120,62 @@ export default function App() {
   // --- Delete Confirmation Modal State (for Exercise Slot or Individual Set) ---
   const [deleteConfirmTarget, setDeleteConfirmTarget] = useState(null);
 
+  // --- Save Confirmation, Historical Edit Confirmation, Routines Back & Feedback Modal States ---
+  const [saveConfirmTarget, setSaveConfirmTarget] = useState(null);
+  const [historicalEditConfirmTarget, setHistoricalEditConfirmTarget] = useState(null);
+  const [confirmedHistoryEditWorkoutId, setConfirmedHistoryEditWorkoutId] = useState(null);
+  const [openedFromRoutines, setOpenedFromRoutines] = useState(false);
+  const [showFeedbackModal, setShowFeedbackModal] = useState(false);
+  const [sessionLogs, setSessionLogs] = useState([]);
+
+  const appendSessionLog = (type, detail) => {
+    setSessionLogs(prev => [
+      ...prev.slice(-99),
+      {
+        timestamp: new Date().toISOString(),
+        type,
+        detail
+      }
+    ]);
+  };
+
   // --- Add Exercise Modal State ---
   const [showAddSlotModal, setShowAddSlotModal] = useState(false);
   const [addSlotGymFilter, setAddSlotGymFilter] = useState('');
   const [newSlotCategory, setNewSlotCategory] = useState('Compound Lift');
+  const [newSlotMuscleGroup, setNewSlotMuscleGroup] = useState('All Muscles');
   const [newSlotEx1, setNewSlotEx1] = useState('barbell_bench_press');
   const [newSlotSupersetIds, setNewSlotSupersetIds] = useState(['reverse_lunge', 'front_flies']);
   const [newSlotScheme, setNewSlotScheme] = useState('5x8');
 
   // --- Saved & Shared Routines State ---
-  const [savedRoutines, setSavedRoutines] = useState(() => initialHydrated?.savedRoutines || []);
-  const [sharedRoutines, setSharedRoutines] = useState(() => initialHydrated?.sharedRoutines || []);
+  const [savedRoutines, setSavedRoutines] = useState([]);
+  const [sharedRoutines, setSharedRoutines] = useState([]);
 
   // --- Gyms & Gym Editor State ---
-  const [gyms, setGyms] = useState(() => initialHydrated?.gyms || []);
-  const [selectedGymId, setSelectedGymId] = useState(() => initialHydrated?.settings?.selectedGymId || '');
+  const [gyms, setGyms] = useState([]);
+  const [selectedGymId, setSelectedGymId] = useState('');
   const [gymDraft, setGymDraft] = useState(null);
 
   // --- Goals, Standards & Settings State ---
-  const [goalType, setGoalType] = useState(() => initialHydrated?.settings?.goals?.goalType || 'Strength');
-  const [goalIncrement, setGoalIncrement] = useState(() => initialHydrated?.settings?.goals?.goalIncrement || 1.25);
-  const [goalUnit, setGoalUnit] = useState(() => initialHydrated?.settings?.goals?.goalUnit || 'lb');
-  const [chartMetric, setChartMetric] = useState(() => initialHydrated?.settings?.goals?.chartMetric || 'weight');
+  const [goalType, setGoalType] = useState('Strength');
+  const [goalIncrement, setGoalIncrement] = useState(1.25);
+  const [goalUnit, setGoalUnit] = useState('lb');
+  const [chartMetric, setChartMetric] = useState('weight');
   const [selectedChartLift, setSelectedChartLift] = useState('ALL');
-  const [targetStandardClass, setTargetStandardClass] = useState(() => initialHydrated?.settings?.goals?.targetStandardClass || 'Intermediate');
-  const [customGoalWeights, setCustomGoalWeights] = useState(() => initialHydrated?.settings?.goals?.customGoalWeights || {});
+  const [targetStandardClass, setTargetStandardClass] = useState('Intermediate');
+  const [customGoalWeights, setCustomGoalWeights] = useState({});
 
-  const [userBodyweightLbs, setUserBodyweightLbs] = useState(() => initialHydrated?.settings?.bodyMetrics?.bodyweightLbs ?? 220);
-  const [userHeightFeet, setUserHeightFeet] = useState(() => initialHydrated?.settings?.bodyMetrics?.heightFeet ?? 5);
-  const [userHeightInches, setUserHeightInches] = useState(() => initialHydrated?.settings?.bodyMetrics?.heightInches ?? 10);
-  const [stimulusGreenDays, setStimulusGreenDays] = useState(() => initialHydrated?.settings?.stimulus?.greenDays ?? 2);
-  const [stimulusYellowDays, setStimulusYellowDays] = useState(() => initialHydrated?.settings?.stimulus?.yellowDays ?? 4);
-  const [routinePreferences, setRoutinePreferences] = useState(
-    () => initialHydrated?.settings?.routinePreferences || ['Compounds', 'Compounds', 'Supersets', 'Supersets', 'Abs']
-  );
-  const [shareStatsWithFriends, setShareStatsWithFriends] = useState(
-    () => initialHydrated?.settings?.social?.shareStatsWithFriends ?? true
-  );
-  const [shareRoutinesWithFriends, setShareRoutinesWithFriends] = useState(
-    () => initialHydrated?.settings?.social?.shareRoutinesWithFriends ?? true
-  );
+  const [userBodyweightLbs, setUserBodyweightLbs] = useState(220);
+  const [userHeightFeet, setUserHeightFeet] = useState(5);
+  const [userHeightInches, setUserHeightInches] = useState(10);
+  const [stimulusGreenDays, setStimulusGreenDays] = useState(2);
+  const [stimulusYellowDays, setStimulusYellowDays] = useState(4);
+  const [routinePreferences, setRoutinePreferences] = useState([
+    'Compound Lift', 'Compound Lift', 'Superset', 'Superset', 'Abs'
+  ]);
+  const [shareStatsWithFriends, setShareStatsWithFriends] = useState(true);
+  const [shareRoutinesWithFriends, setShareRoutinesWithFriends] = useState(true);
 
   // --- History Page Collapsible Sections State ---
   const [historySessionsExpanded, setHistorySessionsExpanded] = useState(true);
@@ -152,19 +184,244 @@ export default function App() {
 
   // --- Social & Friends State ---
   const [friendSearchQuery, setFriendSearchQuery] = useState('');
-  const [friendsList, setFriendsList] = useState(() => initialHydrated?.friendsList || []);
-  const [pendingIncomingRequests, setPendingIncomingRequests] = useState(() => initialHydrated?.pendingIncomingRequests || []);
-  const [outgoingInvites, setOutgoingInvites] = useState(() => initialHydrated?.outgoingInvites || []);
+  const [friendsList, setFriendsList] = useState(() => [DEFAULT_MATT_FRIEND]);
+  const [pendingIncomingRequests, setPendingIncomingRequests] = useState([]);
+  const [outgoingInvites, setOutgoingInvites] = useState([]);
   const [viewingFriendProfile, setViewingFriendProfile] = useState(null);
+
+  // --- Client-Side LocalStorage Hydration & Recovery Hash Detection Effect ---
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const hydrated = loadHydratedAppState();
+    if (hydrated) {
+      setUser(hydrated.user !== undefined ? hydrated.user : null);
+      if (hydrated.user?.username) setAuthUsername(hydrated.user.username);
+      if (hydrated.user?.email) setAuthEmail(hydrated.user.email);
+      if (hydrated.oneRepMaxes) setOneRepMaxes(hydrated.oneRepMaxes);
+      if (hydrated.history) setHistory(hydrated.history);
+      if (hydrated.activeSession) setActiveSession(hydrated.activeSession);
+      if (hydrated.savedRoutines) setSavedRoutines(hydrated.savedRoutines);
+      if (hydrated.sharedRoutines) setSharedRoutines(hydrated.sharedRoutines);
+      if (hydrated.gyms) setGyms(hydrated.gyms);
+      setFriendsList(ensureDefaultMattFriend(hydrated.friendsList));
+      if (hydrated.pendingIncomingRequests) setPendingIncomingRequests(hydrated.pendingIncomingRequests);
+      if (hydrated.outgoingInvites) setOutgoingInvites(hydrated.outgoingInvites);
+      if (hydrated.settings) {
+        setSelectedGymId(hydrated.settings.selectedGymId || '');
+        if (hydrated.settings.goals) {
+          setGoalType(hydrated.settings.goals.goalType || 'Strength');
+          setGoalIncrement(hydrated.settings.goals.goalIncrement ?? 1.25);
+          setGoalUnit(hydrated.settings.goals.goalUnit || 'lb');
+          setChartMetric(hydrated.settings.goals.chartMetric || 'weight');
+          setTargetStandardClass(hydrated.settings.goals.targetStandardClass || 'Intermediate');
+          setCustomGoalWeights(hydrated.settings.goals.customGoalWeights || {});
+        }
+        if (hydrated.settings.bodyMetrics) {
+          setUserBodyweightLbs(hydrated.settings.bodyMetrics.bodyweightLbs ?? 220);
+          setUserHeightFeet(hydrated.settings.bodyMetrics.heightFeet ?? 5);
+          setUserHeightInches(hydrated.settings.bodyMetrics.heightInches ?? 10);
+        }
+        if (hydrated.settings.stimulus) {
+          setStimulusGreenDays(hydrated.settings.stimulus.greenDays ?? 2);
+          setStimulusYellowDays(hydrated.settings.stimulus.yellowDays ?? 4);
+        }
+        if (hydrated.settings.routinePreferences) {
+          setRoutinePreferences(hydrated.settings.routinePreferences);
+        }
+        if (hydrated.settings.social) {
+          setShareStatsWithFriends(hydrated.settings.social.shareStatsWithFriends ?? true);
+          setShareRoutinesWithFriends(hydrated.settings.social.shareRoutinesWithFriends ?? true);
+        }
+      }
+    }
+    setIsStorageHydrated(true);
+
+    const hash = window.location.hash || '';
+    if (hash.includes('type=recovery') && hash.includes('access_token=')) {
+      const params = new URLSearchParams(hash.replace(/^#/, ''));
+      const token = params.get('access_token');
+      if (token) {
+        setRecoveryAccessToken(token);
+        setCurrentView('auth');
+        window.history.replaceState(null, '', window.location.pathname + window.location.search);
+      }
+    }
+  }, []);
 
   const currentIncrementLbs = useMemo(
     () => getIncrementInLbs(goalIncrement, goalUnit, goalType),
     [goalIncrement, goalUnit, goalType]
   );
 
-  // --- Debounced Automatic Versioned Persistence Effect (300ms) ---
+  const cloudSyncReadyForUserKeyRef = useRef(null);
+
+  // --- Cross-Device Cloud Pull & Merge Effect on Sign-In / Startup ---
   useEffect(() => {
-    if (typeof window === 'undefined') return;
+    if (typeof window === 'undefined' || !isStorageHydrated) return;
+    const userKey = user?.id || user?.email || user?.username || null;
+    if (!userKey) {
+      cloudSyncReadyForUserKeyRef.current = null;
+      return;
+    }
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const cloud = await fetchCloudStateForUser(user);
+        if (cancelled) return;
+
+        if (cloud && typeof cloud === 'object') {
+          if (cloud.oneRepMaxes && typeof cloud.oneRepMaxes === 'object') {
+            setOneRepMaxes(prev => {
+              const merged = { ...getInitial1RMs(), ...(prev || {}) };
+              Object.entries(cloud.oneRepMaxes).forEach(([exId, val]) => {
+                const cloudVal = Number(val) || 0;
+                const localVal = Number(merged[exId]) || 0;
+                if (cloudVal > localVal) merged[exId] = cloudVal;
+              });
+              return merged;
+            });
+          }
+
+          if (Array.isArray(cloud.history) && cloud.history.length > 0) {
+            setHistory(prev => {
+              const byId = new Map();
+              (Array.isArray(prev) ? prev : []).forEach(w => {
+                if (w && w.id) byId.set(w.id, normalizeWorkoutFromStorage(w));
+              });
+              cloud.history.forEach(w => {
+                if (w && w.id && !byId.has(w.id)) {
+                  byId.set(w.id, normalizeWorkoutFromStorage(w));
+                }
+              });
+              return Array.from(byId.values()).sort(
+                (a, b) => new Date(b.startedAt || 0).getTime() - new Date(a.startedAt || 0).getTime()
+              );
+            });
+          }
+
+          if (cloud.activeSession && typeof cloud.activeSession === 'object') {
+            setActiveSession(prev => prev || normalizeWorkoutFromStorage(cloud.activeSession));
+          }
+
+          if (Array.isArray(cloud.savedRoutines) && cloud.savedRoutines.length > 0) {
+            setSavedRoutines(prev => {
+              const byKey = new Map();
+              (Array.isArray(prev) ? prev : []).forEach(r => {
+                if (r && r.key) byKey.set(r.key, r);
+              });
+              cloud.savedRoutines.forEach(r => {
+                if (r && r.key && !byKey.has(r.key)) {
+                  byKey.set(r.key, {
+                    ...r,
+                    slots: Array.isArray(r.slots) ? r.slots.map(normalizeSlotFromStorage) : []
+                  });
+                }
+              });
+              return Array.from(byKey.values());
+            });
+          }
+
+          if (Array.isArray(cloud.sharedRoutines) && cloud.sharedRoutines.length > 0) {
+            setSharedRoutines(prev => {
+              const byKey = new Map();
+              (Array.isArray(prev) ? prev : []).forEach(r => {
+                if (r && r.key) byKey.set(r.key, r);
+              });
+              cloud.sharedRoutines.forEach(r => {
+                if (r && r.key && !byKey.has(r.key)) {
+                  byKey.set(r.key, {
+                    ...r,
+                    slots: Array.isArray(r.slots) ? r.slots.map(normalizeSlotFromStorage) : []
+                  });
+                }
+              });
+              return Array.from(byKey.values());
+            });
+          }
+
+          if (Array.isArray(cloud.gyms) && cloud.gyms.length > 0) {
+            setGyms(prev => {
+              const byId = new Map();
+              (Array.isArray(prev) ? prev : []).forEach(g => {
+                if (g && g.id) byId.set(g.id, g);
+              });
+              cloud.gyms.forEach(g => {
+                if (g && g.id && !byId.has(g.id)) byId.set(g.id, g);
+              });
+              return Array.from(byId.values());
+            });
+          }
+
+          if (Array.isArray(cloud.friendsList) && cloud.friendsList.length > 0) {
+            setFriendsList(prev => {
+              const byKey = new Map();
+              ensureDefaultMattFriend(prev).forEach(f => {
+                const k = String(f.username || f.email || f.id).toLowerCase();
+                byKey.set(k, f);
+              });
+              cloud.friendsList.forEach(f => {
+                if (!f) return;
+                const k = String(f.username || f.email || f.id).toLowerCase();
+                if (!byKey.has(k)) byKey.set(k, f);
+              });
+              return ensureDefaultMattFriend(Array.from(byKey.values()));
+            });
+          }
+
+          if (cloud.settings && typeof cloud.settings === 'object') {
+            if (cloud.settings.selectedGymId !== undefined) {
+              setSelectedGymId(prev => prev || cloud.settings.selectedGymId || '');
+            }
+            if (cloud.settings.bodyMetrics) {
+              if (cloud.settings.bodyMetrics.bodyweightLbs) setUserBodyweightLbs(cloud.settings.bodyMetrics.bodyweightLbs);
+              if (cloud.settings.bodyMetrics.heightFeet !== undefined) setUserHeightFeet(cloud.settings.bodyMetrics.heightFeet);
+              if (cloud.settings.bodyMetrics.heightInches !== undefined) setUserHeightInches(cloud.settings.bodyMetrics.heightInches);
+            }
+            if (cloud.settings.goals) {
+              if (cloud.settings.goals.goalType) setGoalType(cloud.settings.goals.goalType);
+              if (cloud.settings.goals.goalIncrement !== undefined) setGoalIncrement(cloud.settings.goals.goalIncrement);
+              if (cloud.settings.goals.goalUnit) setGoalUnit(cloud.settings.goals.goalUnit);
+              if (cloud.settings.goals.targetStandardClass) setTargetStandardClass(cloud.settings.goals.targetStandardClass);
+              if (cloud.settings.goals.customGoalWeights) {
+                setCustomGoalWeights(prev => ({ ...(cloud.settings.goals.customGoalWeights || {}), ...(prev || {}) }));
+              }
+            }
+            if (cloud.settings.stimulus) {
+              if (cloud.settings.stimulus.greenDays !== undefined) setStimulusGreenDays(cloud.settings.stimulus.greenDays);
+              if (cloud.settings.stimulus.yellowDays !== undefined) setStimulusYellowDays(cloud.settings.stimulus.yellowDays);
+            }
+            if (Array.isArray(cloud.settings.routinePreferences) && cloud.settings.routinePreferences.length > 0) {
+              setRoutinePreferences(cloud.settings.routinePreferences);
+            }
+            if (cloud.settings.social) {
+              if (cloud.settings.social.shareStatsWithFriends !== undefined) {
+                setShareStatsWithFriends(cloud.settings.social.shareStatsWithFriends);
+              }
+              if (cloud.settings.social.shareRoutinesWithFriends !== undefined) {
+                setShareRoutinesWithFriends(cloud.settings.social.shareRoutinesWithFriends);
+              }
+            }
+          }
+        }
+      } catch {
+        // ignore cloud pull error
+      } finally {
+        if (!cancelled) {
+          cloudSyncReadyForUserKeyRef.current = userKey;
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isStorageHydrated, user?.id, user?.email, user?.username]);
+
+  // --- Debounced Automatic Versioned Persistence & Cloud Sync Effect ---
+  useEffect(() => {
+    if (typeof window === 'undefined' || !isStorageHydrated) return;
     const debounceTimer = setTimeout(() => {
       try {
         const payload = {
@@ -183,6 +440,11 @@ export default function App() {
           }
         };
         window.localStorage.setItem(PERSISTENCE_KEY, JSON.stringify(payload));
+
+        const userKey = user?.id || user?.email || user?.username || null;
+        if (user && userKey && cloudSyncReadyForUserKeyRef.current === userKey) {
+          pushCloudStateForUser(user, payload);
+        }
       } catch (err) {
         console.warn('Failed to save state to localStorage:', err);
       }
@@ -190,6 +452,7 @@ export default function App() {
 
     return () => clearTimeout(debounceTimer);
   }, [
+    isStorageHydrated,
     user, oneRepMaxes, history, activeSession, savedRoutines, sharedRoutines,
     gyms, friendsList, pendingIncomingRequests, outgoingInvites, userBodyweightLbs,
     userHeightFeet, userHeightInches, goalType, goalIncrement, goalUnit, chartMetric,
@@ -266,7 +529,7 @@ export default function App() {
     setSavedRoutines([]);
     setSharedRoutines([]);
     setGyms([]);
-    setFriendsList([]);
+    setFriendsList([DEFAULT_MATT_FRIEND]);
     setPendingIncomingRequests([]);
     setOutgoingInvites([]);
     setUserBodyweightLbs(220);
@@ -279,14 +542,15 @@ export default function App() {
     setCustomGoalWeights({});
     setStimulusGreenDays(2);
     setStimulusYellowDays(4);
-    setRoutinePreferences(['Compounds', 'Compounds', 'Supersets', 'Supersets', 'Abs']);
+    setRoutinePreferences(['Compound Lift', 'Compound Lift', 'Superset', 'Superset', 'Abs']);
     setShareStatsWithFriends(true);
     setShareRoutinesWithFriends(true);
     setSelectedGymId('');
   };
 
-  // --- Plate & Weight Calculator Modal State ---
+  // --- Plate & Weight Calculator Modal State + Set Value Editor Modal State ---
   const [plateCalcTarget, setPlateCalcTarget] = useState(null);
+  const [setValueTarget, setSetValueTarget] = useState(null);
   const [calcUnit, setCalcUnit] = useState('lb');
   const [calcMode, setCalcMode] = useState('per_side');
   const [calcBarWeight, setCalcBarWeight] = useState(45);
@@ -314,7 +578,7 @@ export default function App() {
   }, [history]);
 
   const muscleStimulusStatus = useMemo(() => {
-    const groups = ['Chest', 'Back', 'Shoulders', 'Legs', 'Arms', 'Core'];
+    const groups = MUSCLE_GROUP_OPTIONS.filter(g => g !== 'All Muscles');
     const result = {};
 
     groups.forEach(g => {
@@ -324,12 +588,12 @@ export default function App() {
           const daysAgo = Math.max(0, Math.floor((stimulusNowMs - new Date(w.startedAt).getTime()) / 86400000));
           (w.slots || []).forEach(slot => {
             const ids =
-              slot.category === 'Supersets' && slot.supersetExerciseIds
+              isSupersetCategory(slot.category) && slot.supersetExerciseIds
                 ? slot.supersetExerciseIds
                 : [slot.exerciseId, slot.secondaryExerciseId].filter(Boolean);
             ids.forEach(id => {
               const ex = EXERCISE_MAP[id];
-              if (ex && ex.muscleGroup === g && daysAgo < minDays) {
+              if (ex && doesExerciseInteractWithMuscleGroup(ex, g) && daysAgo < minDays) {
                 minDays = daysAgo;
               }
             });
@@ -394,15 +658,72 @@ export default function App() {
   // ROUTINE EDITOR & WORKOUT MUTATION HANDLERS
   // ============================================================================
 
+  useEffect(() => {
+    appendSessionLog('VIEW_CHANGE', `Navigated to view: ${currentView}`);
+    if (currentView !== 'history') {
+      setConfirmedHistoryEditWorkoutId(null);
+    }
+  }, [currentView]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const onPopState = () => {
+      if (openedFromRoutines) {
+        setOpenedFromRoutines(false);
+        setCurrentView('routines');
+      }
+    };
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+  }, [openedFromRoutines]);
+
   const getCurrentEditorWorkout = () => {
     if (currentView === 'historical_entry') return historicalDraft;
     if (currentView === 'routine_editor') return routineDraft;
     if (currentView === 'routine_preview') return previewRoutineDraft;
+    if (currentView === 'history' && expandedHistoryWorkoutId) {
+      return history.find(w => w.id === expandedHistoryWorkoutId) || null;
+    }
     return activeSession;
   };
 
   const updateCurrentWorkoutState = updater => {
     setIsCurrentEditorShared(false);
+    if (currentView === 'history' && expandedHistoryWorkoutId) {
+      const targetHistId = expandedHistoryWorkoutId;
+      const targetWorkout = history.find(w => w.id === targetHistId);
+      const applyHistoryMutation = () => {
+        setHistory(prev =>
+          prev.map(w => {
+            if (w.id !== targetHistId) return w;
+            const next = updater(w);
+            return next
+              ? {
+                  ...next,
+                  updatedAt: new Date().toISOString(),
+                  slots: normalizeSlotLabels(next.slots)
+                }
+              : w;
+          })
+        );
+        appendSessionLog('HISTORY_EDIT', `Edited historical workout: ${targetWorkout?.title || targetHistId}`);
+      };
+
+      if (confirmedHistoryEditWorkoutId === targetHistId) {
+        applyHistoryMutation();
+      } else {
+        setHistoricalEditConfirmTarget({
+          workoutId: targetHistId,
+          label: targetWorkout?.title || 'Logged Session',
+          onConfirm: () => {
+            setConfirmedHistoryEditWorkoutId(targetHistId);
+            applyHistoryMutation();
+          }
+        });
+      }
+      return;
+    }
+
     if (currentView === 'historical_entry') {
       setHistoricalDraft(prev => {
         const next = updater(prev);
@@ -426,6 +747,13 @@ export default function App() {
     }
   };
 
+  const handleConfirmHistoricalEdit = () => {
+    if (!historicalEditConfirmTarget) return;
+    const fn = historicalEditConfirmTarget.onConfirm;
+    setHistoricalEditConfirmTarget(null);
+    if (typeof fn === 'function') fn();
+  };
+
   const buildGeneratedAutoSlots = () => {
     const compatiblePool = EXERCISE_LIBRARY.filter(ex =>
       isExerciseCompatibleWithGymSelection(ex, selectedGymId, gyms)
@@ -433,7 +761,7 @@ export default function App() {
     const fallbackPool = compatiblePool.length > 0 ? compatiblePool : EXERCISE_LIBRARY;
 
     const compatCompounds = compatiblePool.filter(e => e.category === 'Compound Lift');
-    const compatAccessories = compatiblePool.filter(e => e.category === 'Accessories');
+    const compatAccessories = compatiblePool.filter(e => e.category === 'Accessory');
     const compatAbs = compatiblePool.filter(e => e.category === 'Abs');
 
     let compIdx = 0;
@@ -441,8 +769,9 @@ export default function App() {
 
     const generatedSlots = routinePreferences
       .filter(pref => pref !== 'Warmup')
-      .map(pref => {
-        if (pref === 'Compounds') {
+      .map(rawPref => {
+        const pref = normalizeSlotCategory(rawPref);
+        if (pref === 'Compound Lift') {
           const pool = compatCompounds.length > 0 ? compatCompounds : fallbackPool;
           const pick = pool[compIdx % Math.max(1, pool.length)] || EXERCISE_MAP.dumbbell_press;
           compIdx += 1;
@@ -456,13 +785,13 @@ export default function App() {
             incrementLbs: currentIncrementLbs
           });
         }
-        if (pref === 'Supersets') {
+        if (pref === 'Superset') {
           const pool = compatAccessories.length > 0 ? compatAccessories : fallbackPool;
           const a1 = pool[accIdx % Math.max(1, pool.length)] || EXERCISE_MAP.reverse_lunge;
           const a2 = pool[(accIdx + 1) % Math.max(1, pool.length)] || EXERCISE_MAP.front_flies;
           accIdx += 2;
           return createWorkoutSlot({
-            category: 'Supersets',
+            category: 'Superset',
             slotLabel: 'Superset',
             supersetExerciseIds: [a1.id, a2.id],
             scheme: '5x8',
@@ -471,13 +800,13 @@ export default function App() {
             incrementLbs: currentIncrementLbs
           });
         }
-        if (pref === 'Accessories') {
+        if (pref === 'Accessory') {
           const pool = compatAccessories.length > 0 ? compatAccessories : fallbackPool;
           const pick = pool[accIdx % Math.max(1, pool.length)] || EXERCISE_MAP.dumbbell_hammer_curl;
           accIdx += 1;
           return createWorkoutSlot({
-            category: 'Accessories',
-            slotLabel: 'Accessories',
+            category: 'Accessory',
+            slotLabel: 'Accessory',
             exerciseId: pick.id,
             scheme: '5x8',
             oneRepMaxes,
@@ -522,6 +851,7 @@ export default function App() {
         loadedRoutineTitle: prev.loadedRoutineTitle || 'MANUAL'
       }));
     }
+    setOpenedFromRoutines(false);
     setIsCurrentEditorShared(false);
     setCurrentView('session');
   };
@@ -539,29 +869,13 @@ export default function App() {
       gymId: selectedGymId,
       slots: autoSlots
     });
+    setOpenedFromRoutines(false);
     setIsCurrentEditorShared(false);
     setCurrentView('session');
   };
 
-  const handleOpenPreviewRoutine = (routineObj, returnToView = 'routines') => {
-    setPreviewRoutineDraft({
-      key: routineObj.key,
-      title: formatTitleWithDate(routineObj.label),
-      baseRoutineLabel: routineObj.label,
-      loadedRoutineTitle: routineObj.label,
-      defaultRestSeconds: 90,
-      slots: normalizeSlotLabels(
-        cloneSlots(
-          routineObj.slots ||
-          buildPresetSlots(routineObj.key, oneRepMaxes, history, currentIncrementLbs)
-        )
-      )
-    });
-    setRoutineSelectReturnView(returnToView);
-    setCurrentView('routine_preview');
-  };
-
   const handleDirectLoadRoutine = (routineObj, returnToView = 'session') => {
+    const wasOnRoutinesPage = currentView === 'routines';
     const builtSlots = normalizeSlotLabels(
       cloneSlots(
         routineObj.slots ||
@@ -570,6 +884,30 @@ export default function App() {
     );
     const datedTitle = formatTitleWithDate(routineObj.label);
     const routineLabel = routineObj.label || datedTitle;
+
+    if (wasOnRoutinesPage) {
+      setOpenedFromRoutines(true);
+      if (typeof window !== 'undefined') {
+        try {
+          window.history.pushState({ yccihFromRoutines: true }, '');
+        } catch {
+          // ignore
+        }
+      }
+    }
+    appendSessionLog('LOAD_ROUTINE', `Loaded routine: ${routineLabel}`);
+
+    if (returnToView === 'history' && expandedHistoryWorkoutId) {
+      setCurrentView('history');
+      updateCurrentWorkoutState(prev => ({
+        ...prev,
+        title: datedTitle,
+        loadedRoutineTitle: routineLabel,
+        slots: builtSlots
+      }));
+      setRoutineSelectReturnView(null);
+      return;
+    }
 
     if (returnToView === 'historical_entry') {
       setHistoricalDraft(prev => ({
@@ -602,42 +940,25 @@ export default function App() {
     }
   };
 
-  const handleApplyPreviewRoutine = () => {
-    if (!previewRoutineDraft) return;
-    const clonedSlots = normalizeSlotLabels(cloneSlots(previewRoutineDraft.slots));
-    const datedTitle = previewRoutineDraft.title || getDefaultSessionName();
-    const routineLabel = previewRoutineDraft.baseRoutineLabel || previewRoutineDraft.title || datedTitle;
+  const handleOpenPreviewRoutine = (routineObj, returnToView = 'session') => {
+    handleDirectLoadRoutine(routineObj, returnToView || 'session');
+  };
 
-    if (routineSelectReturnView === 'historical_entry') {
-      setHistoricalDraft(prev => ({
-        ...(prev || { id: `hist_${Date.now()}`, workoutDate: new Date().toISOString().split('T')[0] }),
-        title: datedTitle,
-        loadedRoutineTitle: routineLabel,
-        slots: clonedSlots
-      }));
-      setRoutineSelectReturnView(null);
+  const handleCancelRoutineSelection = () => {
+    const returnTarget = routineSelectReturnView || 'session';
+    setRoutineSelectReturnView(null);
+    if (returnTarget === 'historical_entry' && historicalDraft) {
       setCurrentView('historical_entry');
-    } else if (routineSelectReturnView === 'routine_editor') {
-      setRoutineDraft(prev => ({
-        ...(prev || { key: `routine_${Date.now()}`, isEditingExisting: false, defaultRestSeconds: 90 }),
-        title: datedTitle,
-        loadedRoutineTitle: routineLabel,
-        slots: clonedSlots
-      }));
-      setRoutineSelectReturnView(null);
+    } else if (returnTarget === 'routine_editor' && routineDraft) {
       setCurrentView('routine_editor');
+    } else if (returnTarget === 'history' && expandedHistoryWorkoutId) {
+      setCurrentView('history');
     } else {
-      setActiveSession(prev => ({
-        ...(prev || { id: `session_${Date.now()}`, startedAt: new Date().toISOString(), defaultRestSeconds: 90 }),
-        title: datedTitle,
-        loadedRoutineTitle: routineLabel,
-        updatedAt: new Date().toISOString(),
-        slots: clonedSlots
-      }));
-      setRoutineSelectReturnView(null);
-      setCurrentView('session');
+      handleOpenNewSession();
     }
   };
+
+  const handleApplyPreviewRoutine = () => {};
 
   const handleAutoBuildWorkout = () => {
     const generatedSlots = buildGeneratedAutoSlots();
@@ -645,20 +966,52 @@ export default function App() {
     const returnTarget =
       currentView === 'historical_entry' ||
         currentView === 'routine_editor' ||
-        currentView === 'session'
+        currentView === 'session' ||
+        currentView === 'history'
         ? currentView
         : routineSelectReturnView || 'session';
 
-    setPreviewRoutineDraft({
-      key: `auto_${Date.now()}`,
-      title: autoTitle,
-      baseRoutineLabel: 'AUTO',
-      loadedRoutineTitle: 'AUTO',
-      defaultRestSeconds: 90,
-      slots: generatedSlots
-    });
-    setRoutineSelectReturnView(returnTarget);
-    setCurrentView('routine_preview');
+    appendSessionLog('AUTO_BUILD', `Generated auto workout: ${autoTitle}`);
+
+    if (returnTarget === 'history' && expandedHistoryWorkoutId) {
+      updateCurrentWorkoutState(prev => ({
+        ...prev,
+        title: autoTitle,
+        loadedRoutineTitle: 'AUTO',
+        slots: generatedSlots
+      }));
+      return;
+    }
+
+    if (returnTarget === 'historical_entry') {
+      setHistoricalDraft(prev => ({
+        ...(prev || { id: `hist_${Date.now()}`, workoutDate: new Date().toISOString().split('T')[0] }),
+        title: autoTitle,
+        loadedRoutineTitle: 'AUTO',
+        slots: generatedSlots
+      }));
+      setRoutineSelectReturnView(null);
+      setCurrentView('historical_entry');
+    } else if (returnTarget === 'routine_editor') {
+      setRoutineDraft(prev => ({
+        ...(prev || { key: `routine_${Date.now()}`, isEditingExisting: false, defaultRestSeconds: 90 }),
+        title: autoTitle,
+        loadedRoutineTitle: 'AUTO',
+        slots: generatedSlots
+      }));
+      setRoutineSelectReturnView(null);
+      setCurrentView('routine_editor');
+    } else {
+      setActiveSession(prev => ({
+        ...(prev || { id: `session_${Date.now()}`, startedAt: new Date().toISOString(), defaultRestSeconds: 90 }),
+        title: autoTitle,
+        loadedRoutineTitle: 'AUTO',
+        updatedAt: new Date().toISOString(),
+        slots: generatedSlots
+      }));
+      setRoutineSelectReturnView(null);
+      setCurrentView('session');
+    }
   };
 
   const handleSaveCurrentEditor = () => {
@@ -666,32 +1019,96 @@ export default function App() {
     if (!currentWorkout || !currentWorkout.slots || currentWorkout.slots.length === 0) {
       return;
     }
+    setSaveConfirmTarget({
+      name: currentWorkout.title || getDefaultSessionName(),
+      shareWithFriends: Boolean(isCurrentEditorShared || shareRoutinesWithFriends),
+      sourceView: currentView
+    });
+  };
 
-    if (currentView === 'routine_editor') {
-      const routineItem = {
-        key: currentWorkout.key || `routine_${Date.now()}`,
-        label: currentWorkout.title || 'Saved Routine',
+  const handleConfirmSaveWorkout = confirmed => {
+    const currentWorkout = getCurrentEditorWorkout();
+    if (!currentWorkout || !currentWorkout.slots || currentWorkout.slots.length === 0) {
+      setSaveConfirmTarget(null);
+      return;
+    }
+
+    const finalTitle = (confirmed?.name || '').trim() || currentWorkout.title || getDefaultSessionName();
+    const shouldShare = Boolean(confirmed?.shareWithFriends);
+    const sourceView = confirmed?.sourceView || currentView;
+    const normalizedSlots = normalizeSlotLabels(cloneSlots(currentWorkout.slots));
+
+    // Save or update in Saved Routines under the confirmed name
+    const routineItem = {
+      key: currentWorkout.key || `routine_${currentWorkout.id || Date.now()}`,
+      label: finalTitle,
+      author: user?.username || 'test_lifter',
+      slots: normalizedSlots
+    };
+    setSavedRoutines(prev => {
+      const exists = prev.some(r => r.key === routineItem.key || r.label === finalTitle);
+      return exists
+        ? prev.map(r => (r.key === routineItem.key || r.label === finalTitle ? routineItem : r))
+        : [routineItem, ...prev];
+    });
+
+    // Share or unshare with friends based on confirmation choice
+    if (shouldShare) {
+      const sharedItem = {
+        key: `shared_${currentWorkout.id || currentWorkout.key || Date.now()}`,
+        label: finalTitle,
         author: user?.username || 'test_lifter',
-        slots: normalizeSlotLabels(currentWorkout.slots)
+        slots: normalizedSlots
       };
-      setSavedRoutines(prev => {
-        const exists = prev.some(r => r.key === routineItem.key);
-        return exists ? prev.map(r => (r.key === routineItem.key ? routineItem : r)) : [routineItem, ...prev];
+      setSharedRoutines(prev => {
+        const exists = prev.some(r => r.label === sharedItem.label || r.key === sharedItem.key);
+        return exists
+          ? prev.map(r => (r.label === sharedItem.label || r.key === sharedItem.key ? sharedItem : r))
+          : [sharedItem, ...prev];
       });
+      setIsCurrentEditorShared(true);
+    } else {
+      setSharedRoutines(prev => prev.filter(r => r.label !== finalTitle));
+      setIsCurrentEditorShared(false);
+    }
+
+    appendSessionLog('SAVE_WORKOUT', `Saved "${finalTitle}" (shareWithFriends=${shouldShare})`);
+    setSaveConfirmTarget(null);
+    setOpenedFromRoutines(false);
+
+    if (sourceView === 'routine_editor') {
       setCurrentView('routines');
       return;
     }
 
-    if (currentView === 'historical_entry') {
+    if (sourceView === 'history' && expandedHistoryWorkoutId) {
+      setHistory(prev =>
+        prev.map(w =>
+          w.id === expandedHistoryWorkoutId
+            ? {
+                ...w,
+                title: finalTitle,
+                updatedAt: new Date().toISOString(),
+                slots: normalizedSlots
+              }
+            : w
+        )
+      );
+      setConfirmedHistoryEditWorkoutId(null);
+      return;
+    }
+
+    if (sourceView === 'historical_entry') {
       const iso = new Date(`${currentWorkout.workoutDate || '2026-10-28'}T12:00:00`).toISOString();
       const entry = {
         ...currentWorkout,
         id: currentWorkout.id || `hist_${Date.now()}`,
+        title: finalTitle,
         startedAt: iso,
         updatedAt: new Date().toISOString(),
         isComplete: true,
         verifiedByUser: true,
-        slots: normalizeSlotLabels(currentWorkout.slots)
+        slots: normalizedSlots
       };
       setHistory(prev => [entry, ...prev]);
       setHistoricalDraft(null);
@@ -701,9 +1118,11 @@ export default function App() {
 
     const entry = {
       ...currentWorkout,
+      title: finalTitle,
       updatedAt: new Date().toISOString(),
-      isComplete: checkIsWorkoutComplete(currentWorkout.slots),
-      verifiedByUser: true
+      isComplete: checkIsWorkoutComplete(normalizedSlots),
+      verifiedByUser: true,
+      slots: normalizedSlots
     };
     setHistory(prev => {
       const exists = prev.some(w => w.id === entry.id);
@@ -750,28 +1169,72 @@ export default function App() {
         if (!prev) return prev;
         const nextSlots = prev.slots.map(slot => {
           if (slot.id !== slotId) return slot;
-          if (slot.category === 'Supersets' && Array.isArray(slot.supersetSetsByExercise)) {
-            const nextMatrix = slot.supersetSetsByExercise.map((list, idx) =>
-              idx === exIdx
-                ? (list || []).filter(st => st.id !== setId).map((st, i) => ({ ...st, setNumber: i + 1 }))
-                : list
-            );
-            return {
-              ...slot,
-              supersetSetsByExercise: nextMatrix,
-              sets: nextMatrix[0] || [],
-              secondarySets: nextMatrix[1] || []
-            };
-          }
-          const nextSets = (slot.sets || [])
-            .filter(st => st.id !== setId)
-            .map((st, i) => ({ ...st, setNumber: i + 1 }));
-          return { ...slot, sets: nextSets, supersetSetsByExercise: [nextSets] };
-        });
-        return { ...prev, slots: nextSlots };
+        if (isSupersetCategory(slot.category) && Array.isArray(slot.supersetSetsByExercise)) {
+          const nextMatrix = slot.supersetSetsByExercise.map((list, idx) =>
+            idx === exIdx
+              ? (list || []).filter(st => st.id !== setId).map((st, i) => ({ ...st, setNumber: i + 1 }))
+              : list
+          );
+          return {
+            ...slot,
+            supersetSetsByExercise: nextMatrix,
+            sets: nextMatrix[0] || [],
+            secondarySets: nextMatrix[1] || []
+          };
+        }
+        const nextSets = (slot.sets || [])
+          .filter(st => st.id !== setId)
+          .map((st, i) => ({ ...st, setNumber: i + 1 }));
+        return { ...slot, sets: nextSets, supersetSetsByExercise: [nextSets] };
       });
-    }
-    setDeleteConfirmTarget(null);
+      return { ...prev, slots: nextSlots };
+    });
+  }
+  setDeleteConfirmTarget(null);
+};
+
+  const handleReorderExercises = (fromIndex, toIndex) => {
+    if (fromIndex === toIndex || fromIndex < 0 || toIndex < 0) return;
+    updateCurrentWorkoutState(prev => {
+      if (!prev || !Array.isArray(prev.slots)) return prev;
+      const copy = [...prev.slots];
+      if (fromIndex >= copy.length || toIndex >= copy.length) return prev;
+      const [moved] = copy.splice(fromIndex, 1);
+      copy.splice(toIndex, 0, moved);
+      return { ...prev, slots: copy };
+    });
+  };
+
+  const handleReorderSets = (slotId, exIdx, fromSetIdx, toSetIdx) => {
+    if (fromSetIdx === toSetIdx || fromSetIdx < 0 || toSetIdx < 0) return;
+    updateCurrentWorkoutState(prev => {
+      if (!prev || !Array.isArray(prev.slots)) return prev;
+      const nextSlots = prev.slots.map(slot => {
+        if (slot.id !== slotId) return slot;
+        const reorderArray = arr => {
+          const copy = [...(arr || [])];
+          if (fromSetIdx >= copy.length || toSetIdx >= copy.length) return copy;
+          const [moved] = copy.splice(fromSetIdx, 1);
+          copy.splice(toSetIdx, 0, moved);
+          return copy.map((st, i) => ({ ...st, setNumber: i + 1 }));
+        };
+
+        if (isSupersetCategory(slot.category) && Array.isArray(slot.supersetSetsByExercise)) {
+          const nextMatrix = slot.supersetSetsByExercise.map((list, idx) =>
+            idx === exIdx ? reorderArray(list) : list
+          );
+          return {
+            ...slot,
+            supersetSetsByExercise: nextMatrix,
+            sets: nextMatrix[0] || [],
+            secondarySets: nextMatrix[1] || []
+          };
+        }
+        const nextSets = reorderArray(slot.sets || []);
+        return { ...slot, sets: nextSets, supersetSetsByExercise: [nextSets] };
+      });
+      return { ...prev, slots: nextSlots };
+    });
   };
 
   const handleUpdateSlotCategoryOrExercise = (slotId, changes) => {
@@ -785,7 +1248,17 @@ export default function App() {
             ? EXERCISE_MAP[changes.exerciseId].muscleGroup
             : slot.familyMuscleGroup || currentEx.muscleGroup || 'Chest';
 
-        const nextCategory = changes.category ?? slot.category;
+        const nextCategory = normalizeSlotCategory(changes.category ?? slot.category);
+        const availMuscleGroups = getAvailableMuscleGroupsForCategory(nextCategory, selectedGymId, gyms);
+        const rawNextMuscleFilter =
+          changes.muscleGroupFilter !== undefined
+            ? changes.muscleGroupFilter
+            : changes.exerciseId && EXERCISE_MAP[changes.exerciseId]?.muscleGroup
+              ? EXERCISE_MAP[changes.exerciseId].muscleGroup
+              : slot.muscleGroupFilter || currentEx.muscleGroup || 'All Muscles';
+        const nextMuscleFilter = availMuscleGroups.includes(rawNextMuscleFilter)
+          ? rawNextMuscleFilter
+          : 'All Muscles';
         const nextScheme = changes.scheme ?? slot.scheme;
         let nextExId = changes.exerciseId ?? slot.exerciseId;
         let nextSupersetIds =
@@ -793,12 +1266,19 @@ export default function App() {
           slot.supersetExerciseIds ??
           [nextExId, slot.secondaryExerciseId].filter(Boolean);
 
+        const candidatePool = getFilteredExercisesForSlotInline(
+          { ...slot, category: nextCategory, muscleGroupFilter: nextMuscleFilter },
+          selectedGymId,
+          gyms
+        );
+
         if (
-          slot.category === 'Supersets' &&
-          nextCategory === 'Supersets' &&
+          isSupersetCategory(slot.category) &&
+          isSupersetCategory(nextCategory) &&
           changes.supersetExerciseIds &&
           !changes.scheme &&
-          !changes.category
+          !changes.category &&
+          changes.muscleGroupFilter === undefined
         ) {
           const cleanIds = [
             changes.supersetExerciseIds[0] || slot.exerciseId || 'reverse_lunge',
@@ -813,7 +1293,7 @@ export default function App() {
             const calcMax = getHistoricalCalculated1RM(id, history, oneRepMaxes);
             const totalCount = existingList.length || 5;
             return existingList.map((st, sIdx) => {
-              const lastW = calculateLastEquivalentWeightForSet(calcMax, st, totalCount, 'Supersets');
+              const lastW = calculateLastEquivalentWeightForSet(calcMax, st, totalCount, 'Superset');
               const nextW = st.type === '1 Rep Max' ? roundTo5(calcMax) : roundToIncrement(lastW + currentIncrementLbs);
               return { ...st, setNumber: sIdx + 1, lastWeight: lastW, weight: nextW };
             });
@@ -821,6 +1301,8 @@ export default function App() {
 
           return {
             ...slot,
+            category: 'Superset',
+            muscleGroupFilter: nextMuscleFilter,
             exerciseId: cleanIds[0],
             secondaryExerciseId: cleanIds[1],
             supersetExerciseIds: cleanIds,
@@ -830,25 +1312,20 @@ export default function App() {
           };
         }
 
-        if (changes.category && !changes.exerciseId) {
-          if (nextCategory === 'Abs') {
-            const absMatch = EXERCISE_LIBRARY.find(e => e.category === 'Abs');
-            nextExId = absMatch ? absMatch.id : 'hollow_holds';
-          } else if (nextCategory === 'Accessories') {
-            const sameFamilyAcc = EXERCISE_LIBRARY.filter(e => e.category === 'Accessories' && e.muscleGroup === targetMuscleGroup);
-            const fallbackAcc = EXERCISE_LIBRARY.filter(e => e.category === 'Accessories');
-            nextExId = (sameFamilyAcc[0] || fallbackAcc[0] || currentEx).id;
-          } else if (nextCategory === 'Compound Lift') {
-            const sameFamilyComp = EXERCISE_LIBRARY.filter(e => e.category === 'Compound Lift' && e.muscleGroup === targetMuscleGroup);
-            const fallbackComp = EXERCISE_LIBRARY.filter(e => e.category === 'Compound Lift');
-            nextExId = (sameFamilyComp[0] || fallbackComp[0] || currentEx).id;
-          } else if (nextCategory === 'Supersets') {
-            const sameFamilyPool = EXERCISE_LIBRARY.filter(e => e.muscleGroup === targetMuscleGroup);
-            const secondPick =
-              sameFamilyPool.find(e => e.id !== nextExId) ||
-              EXERCISE_LIBRARY.find(e => e.category === 'Accessories' && e.id !== nextExId) ||
-              EXERCISE_MAP.front_flies;
-            nextSupersetIds = [nextExId, secondPick.id].filter(Boolean);
+        if ((changes.category || changes.muscleGroupFilter !== undefined) && !changes.exerciseId) {
+          if (isSupersetCategory(nextCategory)) {
+            const exA = candidatePool.some(e => e.id === nextSupersetIds[0])
+              ? nextSupersetIds[0]
+              : (candidatePool[0] || currentEx).id;
+            const exB = candidatePool.some(e => e.id === nextSupersetIds[1] && e.id !== exA)
+              ? nextSupersetIds[1]
+              : (candidatePool.find(e => e.id !== exA) || candidatePool[0] || EXERCISE_MAP.front_flies).id;
+            nextExId = exA;
+            nextSupersetIds = [exA, exB];
+          } else {
+            if (!candidatePool.some(e => e.id === nextExId)) {
+              nextExId = (candidatePool[0] || currentEx).id;
+            }
           }
         }
 
@@ -856,7 +1333,7 @@ export default function App() {
           category: nextCategory,
           slotLabel: nextCategory,
           exerciseId: nextExId,
-          supersetExerciseIds: nextCategory === 'Supersets' ? nextSupersetIds.slice(0, 2) : [nextExId],
+          supersetExerciseIds: isSupersetCategory(nextCategory) ? nextSupersetIds.slice(0, 2) : [nextExId],
           scheme: nextScheme,
           oneRepMaxes,
           history,
@@ -864,21 +1341,58 @@ export default function App() {
           restSeconds: slot.restSeconds || 90
         });
 
-        return { ...rebuiltSlot, id: slot.id, familyMuscleGroup: targetMuscleGroup };
+        return {
+          ...rebuiltSlot,
+          id: slot.id,
+          familyMuscleGroup: targetMuscleGroup,
+          muscleGroupFilter: nextMuscleFilter
+        };
       });
       return { ...prev, slots: nextSlots };
     });
   };
 
   const handleUpdateSetField = (slotId, exIndex, setId, field, rawVal) => {
-    const val = Math.max(0, Number(rawVal) || 0);
     updateCurrentWorkoutState(prev => {
       if (!prev) return prev;
       const nextSlots = prev.slots.map(slot => {
         if (slot.id !== slotId) return slot;
-        if (slot.category === 'Supersets' && Array.isArray(slot.supersetSetsByExercise)) {
+
+        const applyFieldChange = (st, exId, totalCount) => {
+          if (st.id !== setId) return st;
+          const calc1RM = getHistoricalCalculated1RM(exId, history, oneRepMaxes);
+          const lastW =
+            st.lastWeight !== undefined
+              ? st.lastWeight
+              : calculateLastEquivalentWeightForSet(calc1RM, st, totalCount, slot.category);
+
+          if (field === 'increment') {
+            const rawStr = String(rawVal ?? '');
+            const cleanStr = rawStr.replace(/^\+/, '');
+            if (cleanStr === '' || cleanStr === '-' || cleanStr === '.' || cleanStr === '-.') {
+              return { ...st, increment: cleanStr, weight: Math.max(0, roundToIncrement(lastW)) };
+            }
+            const incNum = Number(cleanStr);
+            const safeInc = Number.isNaN(incNum) ? 0 : incNum;
+            const nextWeight = Math.max(0, roundToIncrement(lastW + safeInc));
+            return { ...st, increment: cleanStr.endsWith('.') ? cleanStr : safeInc, weight: nextWeight };
+          }
+
+          const val = Math.max(0, Number(rawVal) || 0);
+          if (field === 'weight') {
+            const nextInc = Math.round((val - lastW) * 100) / 100;
+            return { ...st, weight: val, increment: nextInc };
+          }
+
+          return { ...st, [field]: val };
+        };
+
+        if (isSupersetCategory(slot.category) && Array.isArray(slot.supersetSetsByExercise)) {
+          const supIds = slot.supersetExerciseIds || [slot.exerciseId, slot.secondaryExerciseId];
           const nextMatrix = slot.supersetSetsByExercise.map((list, idx) =>
-            idx === exIndex ? list.map(st => (st.id === setId ? { ...st, [field]: val } : st)) : list
+            idx === exIndex
+              ? list.map(st => applyFieldChange(st, supIds[idx] || slot.exerciseId, list.length))
+              : list
           );
           return {
             ...slot,
@@ -887,7 +1401,8 @@ export default function App() {
             secondarySets: nextMatrix[1] || []
           };
         }
-        const nextSets = (slot.sets || []).map(st => (st.id === setId ? { ...st, [field]: val } : st));
+        const totalLen = (slot.sets || []).length;
+        const nextSets = (slot.sets || []).map(st => applyFieldChange(st, slot.exerciseId, totalLen));
         return { ...slot, sets: nextSets };
       });
       return { ...prev, slots: nextSlots };
@@ -909,19 +1424,25 @@ export default function App() {
               type: newType,
               reps: 1,
               lastWeight: roundTo5(calc1RM),
+              increment: 0,
               weight: roundTo5(calc1RM)
             };
           }
           const updatedSet = { ...st, type: newType };
           const lastW = calculateLastEquivalentWeightForSet(calc1RM, updatedSet, totalCount, slot.category);
+          const setInc =
+            st.increment !== undefined && st.increment !== '' && !Number.isNaN(Number(st.increment))
+              ? Number(st.increment)
+              : currentIncrementLbs;
           return {
             ...updatedSet,
             lastWeight: lastW,
-            weight: roundToIncrement(lastW + currentIncrementLbs)
+            increment: setInc,
+            weight: Math.max(0, roundToIncrement(lastW + setInc))
           };
         };
 
-        if (slot.category === 'Supersets' && Array.isArray(slot.supersetSetsByExercise)) {
+        if (isSupersetCategory(slot.category) && Array.isArray(slot.supersetSetsByExercise)) {
           const supIds = slot.supersetExerciseIds || [slot.exerciseId, slot.secondaryExerciseId];
           const nextMatrix = slot.supersetSetsByExercise.map((list, idx) =>
             idx === exIndex
@@ -945,7 +1466,7 @@ export default function App() {
 
   const handleInsertSetAtPosition = (slotId, position = 'bottom') => {
     const isTop = position === 'top';
-    const defaultSetType = isTop ? 'Warmup Set' : 'Burn Out Set';
+    const defaultSetType = isTop ? 'Warmup' : 'Burn Out';
     const ts = Date.now() + Math.floor(Math.random() * 10000);
 
     updateCurrentWorkoutState(prev => {
@@ -973,13 +1494,14 @@ export default function App() {
           const newSet = {
             ...draftSet,
             lastWeight: lastW,
+            increment: slot.category === 'Abs' ? 0 : currentIncrementLbs,
             weight: slot.category === 'Abs' ? 0 : roundToIncrement(lastW + currentIncrementLbs)
           };
           const combined = isTop ? [newSet, ...currentList] : [...currentList, newSet];
           return combined.map((st, idx) => ({ ...st, setNumber: idx + 1 }));
         };
 
-        if (slot.category === 'Supersets' && Array.isArray(slot.supersetSetsByExercise)) {
+        if (isSupersetCategory(slot.category) && Array.isArray(slot.supersetSetsByExercise)) {
           const supIds = slot.supersetExerciseIds || [slot.exerciseId, slot.secondaryExerciseId];
           const nextMatrix = slot.supersetSetsByExercise.map((list, idx) =>
             insertIntoList(list, supIds[idx] || slot.exerciseId)
@@ -1011,7 +1533,25 @@ export default function App() {
           const calc1RM = getHistoricalCalculated1RM(exId, history, oneRepMaxes);
 
           if (slot.category === 'Abs') {
-            return currentList.map((st, idx) => ({ ...st, setNumber: idx + 1, lastWeight: 0, weight: 0 }));
+            return currentList.map((st, idx) => ({
+              ...st,
+              setNumber: idx + 1,
+              lastWeight: 0,
+              increment: 0,
+              weight: 0
+            }));
+          }
+
+          // If only 1 set remains, set weight to the calculated 1 Rep Max to achieve equivalent stress
+          if (totalCount === 1) {
+            const maxW = roundTo5(calc1RM);
+            return currentList.map(st => ({
+              ...st,
+              setNumber: 1,
+              lastWeight: maxW,
+              increment: 0,
+              weight: maxW
+            }));
           }
 
           const lastSetIs1RM =
@@ -1028,6 +1568,7 @@ export default function App() {
                   type: '1 Rep Max',
                   reps: 1,
                   lastWeight: maxW,
+                  increment: currentIncrementLbs,
                   weight: roundToIncrement(maxW + currentIncrementLbs)
                 };
               }
@@ -1040,9 +1581,10 @@ export default function App() {
               return {
                 ...st,
                 setNumber: idx + 1,
-                type: 'Warmup Set',
+                type: 'Warmup',
                 reps: warmupReps,
                 lastWeight: warmupW,
+                increment: 0,
                 weight: warmupW
               };
             });
@@ -1051,15 +1593,19 @@ export default function App() {
           return currentList.map((st, idx) => {
             if (st.type === '1 Rep Max') {
               const maxW = roundTo5(calc1RM);
-              return { ...st, setNumber: idx + 1, reps: 1, lastWeight: maxW, weight: maxW };
+              return { ...st, setNumber: idx + 1, reps: 1, lastWeight: maxW, increment: 0, weight: maxW };
             }
             const lastW = calculateLastEquivalentWeightForSet(calc1RM, st, totalCount, slot.category);
-            const targetW = roundToIncrement(lastW + currentIncrementLbs);
-            return { ...st, setNumber: idx + 1, lastWeight: lastW, weight: targetW };
+            const setInc =
+              st.increment !== undefined && st.increment !== '' && !Number.isNaN(Number(st.increment))
+                ? Number(st.increment)
+                : currentIncrementLbs;
+            const targetW = Math.max(0, roundToIncrement(lastW + setInc));
+            return { ...st, setNumber: idx + 1, lastWeight: lastW, increment: setInc, weight: targetW };
           });
         };
 
-        if (slot.category === 'Supersets' && Array.isArray(slot.supersetSetsByExercise)) {
+        if (isSupersetCategory(slot.category) && Array.isArray(slot.supersetSetsByExercise)) {
           const supIds = slot.supersetExerciseIds || [slot.exerciseId, slot.secondaryExerciseId];
           const nextMatrix = slot.supersetSetsByExercise.map((list, idx) =>
             recalcList(list, supIds[idx] || slot.exerciseId)
@@ -1100,7 +1646,7 @@ export default function App() {
       if (!prev) return prev;
       const nextSlots = prev.slots.map(s => {
         if (s.id !== slot.id) return s;
-        if (s.category === 'Supersets' && Array.isArray(s.supersetSetsByExercise)) {
+        if (isSupersetCategory(s.category) && Array.isArray(s.supersetSetsByExercise)) {
           const nextMatrix = s.supersetSetsByExercise.map((list, idx) =>
             idx === exIndex
               ? list.map(st => (st.id === setItem.id ? { ...st, completed: markingDone } : st))
@@ -1123,21 +1669,43 @@ export default function App() {
   };
 
   const handleAddManualSlot = () => {
-    const newSlot = createWorkoutSlot({
-      category: newSlotCategory,
-      slotLabel: newSlotCategory,
-      exerciseId: newSlotEx1,
-      supersetExerciseIds:
-        newSlotCategory === 'Supersets'
-          ? newSlotSupersetIds.length >= 2
-            ? newSlotSupersetIds.slice(0, 2)
-            : ['reverse_lunge', 'front_flies']
-          : [newSlotEx1],
-      scheme: newSlotScheme,
-      oneRepMaxes,
-      history,
-      incrementLbs: currentIncrementLbs
-    });
+    const normCat = normalizeSlotCategory(newSlotCategory);
+    const activeMuscle = newSlotMuscleGroup || 'All Muscles';
+    const validList = filterAddSlotExercises(addSlotGymFilter, normCat, gyms, activeMuscle);
+
+    const resolvedEx1 = validList.some(ex => ex.id === newSlotEx1)
+      ? newSlotEx1
+      : validList[0]?.id || newSlotEx1 || 'barbell_bench_press';
+
+    const resolvedSupersetIds = isSupersetCategory(normCat)
+      ? [
+          validList.some(ex => ex.id === newSlotSupersetIds?.[0])
+            ? newSlotSupersetIds[0]
+            : validList[0]?.id || 'reverse_lunge',
+          validList.some(ex => ex.id === newSlotSupersetIds?.[1])
+            ? newSlotSupersetIds[1]
+            : validList[1]?.id || validList[0]?.id || 'front_flies'
+        ]
+      : [resolvedEx1];
+
+    const resolvedMuscleGroupFilter =
+      activeMuscle !== 'All Muscles'
+        ? activeMuscle
+        : EXERCISE_MAP[resolvedEx1]?.muscleGroup || 'All Muscles';
+
+    const newSlot = {
+      ...createWorkoutSlot({
+        category: normCat,
+        slotLabel: normCat,
+        exerciseId: resolvedEx1,
+        supersetExerciseIds: resolvedSupersetIds,
+        scheme: newSlotScheme,
+        oneRepMaxes,
+        history,
+        incrementLbs: currentIncrementLbs
+      }),
+      muscleGroupFilter: resolvedMuscleGroupFilter
+    };
     updateCurrentWorkoutState(prev => ({
       ...(prev || { id: `session_${Date.now()}`, title: getDefaultSessionName(), slots: [] }),
       slots: [...(prev?.slots || []), newSlot]
@@ -1216,6 +1784,144 @@ export default function App() {
     setPlateCalcTarget(null);
   };
 
+  const handleSetPRUnknown = exerciseId => {
+    if (!exerciseId) return;
+    setOneRepMaxes(prev => ({
+      ...prev,
+      [exerciseId]: 'unknown'
+    }));
+  };
+
+  const handleJumpToPRHistoryEntry = (ex, currentMax) => {
+    if (!ex) return;
+    // Find the logged workout in history containing ex.id with the highest weight/1RM
+    let matchedWorkout = null;
+    let bestEst = -1;
+
+    (history || []).forEach(w => {
+      (w?.slots || []).forEach(slot => {
+        const checkSetList = (exId, list) => {
+          if (exId !== ex.id || !Array.isArray(list)) return;
+          list.forEach(st => {
+            const wt = Number(st?.weight) || 0;
+            const rp = Math.max(1, Number(st?.reps) || 1);
+            const est = rp === 1 ? wt : Math.round(wt * (1 + rp / 30));
+            if (est > bestEst) {
+              bestEst = est;
+              matchedWorkout = w;
+            }
+          });
+          if (!matchedWorkout) matchedWorkout = w;
+        };
+        if (isSupersetCategory(slot.category) && Array.isArray(slot.supersetSetsByExercise)) {
+          const ids = slot.supersetExerciseIds || [slot.exerciseId, slot.secondaryExerciseId];
+          ids.forEach((id, idx) => checkSetList(id, slot.supersetSetsByExercise[idx] || []));
+        } else {
+          checkSetList(slot.exerciseId, slot.sets || []);
+        }
+      });
+    });
+
+    let targetId = matchedWorkout?.id;
+
+    // If no logged session exists yet for this PR, create a logged PR session so the link always opens a History entry
+    if (!targetId) {
+      const prSlot = {
+        ...createWorkoutSlot({
+          category: ex.category || 'Compound Lift',
+          slotLabel: ex.category || 'Compound Lift',
+          exerciseId: ex.id,
+          scheme: 'Pyramid 1RM',
+          oneRepMaxes,
+          history,
+          incrementLbs: 0
+        }),
+        muscleGroupFilter: ex.muscleGroup || 'All Muscles'
+      };
+      prSlot.sets = (prSlot.sets || []).map((st, idx, arr) =>
+        idx === arr.length - 1
+          ? {
+              ...st,
+              type: '1 Rep Max',
+              reps: 1,
+              lastWeight: currentMax,
+              increment: 0,
+              weight: currentMax,
+              completed: true
+            }
+          : { ...st, completed: true }
+      );
+      prSlot.supersetSetsByExercise = [prSlot.sets];
+
+      const newHistEntry = {
+        id: `hist_pr_${ex.id}_${Date.now()}`,
+        title: `${formatTodayYMD()} - ${ex.name} PR (${currentMax} LB)`,
+        loadedRoutineTitle: 'PERSONAL RECORD',
+        startedAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        isComplete: true,
+        verifiedByUser: true,
+        defaultRestSeconds: 90,
+        slots: normalizeSlotLabels([prSlot])
+      };
+      targetId = newHistEntry.id;
+      setHistory(prev => [newHistEntry, ...prev]);
+    }
+
+    appendSessionLog('JUMP_PR_HISTORY', `Linked to History entry for ${ex.name} (${currentMax} LB)`);
+    setCurrentView('history');
+    setHistorySessionsExpanded(true);
+    setExpandedHistoryWorkoutId(targetId);
+
+    if (typeof window !== 'undefined') {
+      setTimeout(() => {
+        const el = document.getElementById(`history-entry-${targetId}`);
+        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 90);
+    }
+  };
+
+  const buildHistoryWorkoutEditorProps = historyWorkout => ({
+    colors,
+    currentView: 'history',
+    currentEditorWorkout: historyWorkout,
+    routineSelectReturnView,
+    setRoutineSelectReturnView,
+    setCurrentView,
+    selectedGymId,
+    setSelectedGymId,
+    gyms,
+    history,
+    oneRepMaxes,
+    currentIncrementLbs,
+    newSlotCategory,
+    newSlotMuscleGroup,
+    setAddSlotGymFilter,
+    setNewSlotEx1,
+    setNewSlotSupersetIds,
+    setShowAddSlotModal,
+    setHistoricalDraft,
+    setDeleteConfirmTarget,
+    isCurrentEditorShared,
+    updateCurrentWorkoutState,
+    handleApplyPreviewRoutine,
+    handleAutoBuildWorkout,
+    handleSaveCurrentEditor,
+    handleShareCurrentEditor,
+    handleResetCurrentEditor,
+    handleUpdateSlotCategoryOrExercise,
+    handleUpdateSetField,
+    handleUpdateSetType,
+    handleInsertSetAtPosition,
+    handleRecalculateSlotWeights,
+    handleToggleSetDone,
+    handleReorderExercises,
+    handleReorderSets,
+    openPlateCalculatorForSet,
+    setSetValueTarget,
+    isEmbeddedHistorySession: true
+  });
+
   // ============================================================================
   // RENDER KINETIC INTERFACE
   // ============================================================================
@@ -1243,57 +1949,66 @@ export default function App() {
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px' }}>
-            {currentView === 'home' ? (
-              <button
-                type="button"
-                aria-label="Open navigation menu"
-                onClick={() => setShowHamburgerDrawer(true)}
-                className="kinetic-btn"
-                style={{
-                  width: '40px', height: '40px', backgroundColor: '#161616',
-                  border: '2px solid var(--dp-color-rule)', color: '#FFFFFF',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer'
-                }}
-              >
-                <SFSymbol name="line.3.horizontal" size={20} color="#FFFFFF" />
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={() => {
-                  if (currentView === 'friend_profile') setCurrentView('social');
-                  else if (currentView === 'gym_editor') setCurrentView('gyms');
-                  else if (currentView === 'routine_editor') setCurrentView('routines');
-                  else if (currentView === 'routine_preview') setCurrentView(routineSelectReturnView || 'routines');
-                  else if (currentView === 'routines' && routineSelectReturnView) {
-                    const ret = routineSelectReturnView;
-                    setRoutineSelectReturnView(null);
-                    setCurrentView(ret);
-                  } else setCurrentView('home');
-                }}
-                className="kinetic-btn"
-                style={{
-                  padding: '8px 12px', backgroundColor: '#161616', border: '2px solid var(--dp-color-rule)',
-                  color: '#FFFFFF', display: 'flex', alignItems: 'center', gap: '6px',
-                  fontSize: '12px', fontWeight: 800, textTransform: 'uppercase', cursor: 'pointer'
-                }}
-              >
-                <SFSymbol name="chevron.backward" size={16} color="var(--dp-color-accent)" />
-                <span>BACK</span>
-              </button>
-            )}
-
-            <div
+            <button
+              type="button"
+              aria-label="Open navigation menu"
+              onClick={() => setShowHamburgerDrawer(true)}
+              className="kinetic-btn"
               style={{
-                fontSize: '14px', fontWeight: 800, letterSpacing: '-0.03em',
-                textTransform: 'uppercase', color: '#FFFFFF', textAlign: 'center', flex: 1,
-                whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'
+                width: '40px', height: '40px', backgroundColor: '#161616',
+                border: '2px solid var(--dp-color-rule)', color: '#FFFFFF',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
+                flexShrink: 0
               }}
             >
-              {currentView !== 'home' ? "You Can't Cry in Here" : ''}
-            </div>
+              <SFSymbol name="line.3.horizontal" size={20} color="#FFFFFF" />
+            </button>
 
-            <div style={{ width: '40px' }} />
+            {currentView !== 'home' ? (
+              <button
+                type="button"
+                aria-label="Return to Home screen"
+                onClick={() => {
+                  setRoutineSelectReturnView(null);
+                  setCurrentView('home');
+                }}
+                className="kinetic-btn"
+                style={{
+                  fontSize: '14px', fontWeight: 800, letterSpacing: '-0.03em',
+                  textTransform: 'uppercase', color: '#FFFFFF', textAlign: 'center', flex: 1,
+                  whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                  background: 'none', border: 'none', padding: '8px 4px', cursor: 'pointer'
+                }}
+              >
+                You Can't Cry in Here
+              </button>
+            ) : (
+              <div style={{ flex: 1 }} />
+            )}
+
+            <button
+              type="button"
+              aria-label="Send Feedback"
+              onClick={() => setShowFeedbackModal(true)}
+              className="kinetic-btn"
+              style={{
+                height: '40px',
+                padding: '0 10px',
+                backgroundColor: '#161616',
+                border: '2px solid var(--dp-color-rule)',
+                color: 'var(--dp-color-accent)',
+                fontSize: '11px',
+                fontWeight: 800,
+                textTransform: 'uppercase',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                flexShrink: 0
+              }}
+            >
+              FEEDBACK
+            </button>
           </div>
 
           {isRoutineEditorView && currentEditorWorkout && (
@@ -1400,7 +2115,7 @@ export default function App() {
         )}
 
         {/* PERSISTENT LOGGED-OUT ORANGE NOTIFICATION BAR */}
-        {!user && (
+        {isStorageHydrated && !user && (
           <div
             style={{
               margin: '12px var(--dp-spacing-gutter) 0', padding: '12px 14px',
@@ -1448,6 +2163,7 @@ export default function App() {
           {currentView === 'home' && (
             <HomeView
               colors={colors}
+              hasActiveSession={Boolean(activeSession?.slots?.length > 0)}
               handleOpenNewSession={handleOpenNewSession}
               handleOpenNewAutoSession={handleOpenNewAutoSession}
               setCurrentView={setCurrentView}
@@ -1472,7 +2188,9 @@ export default function App() {
               gyms={gyms}
               history={history}
               oneRepMaxes={oneRepMaxes}
+              currentIncrementLbs={currentIncrementLbs}
               newSlotCategory={newSlotCategory}
+              newSlotMuscleGroup={newSlotMuscleGroup}
               setAddSlotGymFilter={setAddSlotGymFilter}
               setNewSlotEx1={setNewSlotEx1}
               setNewSlotSupersetIds={setNewSlotSupersetIds}
@@ -1492,7 +2210,12 @@ export default function App() {
               handleInsertSetAtPosition={handleInsertSetAtPosition}
               handleRecalculateSlotWeights={handleRecalculateSlotWeights}
               handleToggleSetDone={handleToggleSetDone}
+              handleReorderExercises={handleReorderExercises}
+              handleReorderSets={handleReorderSets}
               openPlateCalculatorForSet={openPlateCalculatorForSet}
+              setSetValueTarget={setSetValueTarget}
+              openedFromRoutines={openedFromRoutines}
+              setOpenedFromRoutines={setOpenedFromRoutines}
             />
           )}
 
@@ -1505,6 +2228,7 @@ export default function App() {
               routineSelectReturnView={routineSelectReturnView}
               handleOpenPreviewRoutine={handleOpenPreviewRoutine}
               handleDirectLoadRoutine={handleDirectLoadRoutine}
+              handleCancelRoutineSelection={handleCancelRoutineSelection}
             />
           )}
 
@@ -1515,7 +2239,10 @@ export default function App() {
               historySessionsExpanded={historySessionsExpanded}
               setHistorySessionsExpanded={setHistorySessionsExpanded}
               expandedHistoryWorkoutId={expandedHistoryWorkoutId}
-              setExpandedHistoryWorkoutId={setExpandedHistoryWorkoutId}
+              setExpandedHistoryWorkoutId={id => {
+                setConfirmedHistoryEditWorkoutId(null);
+                setExpandedHistoryWorkoutId(id);
+              }}
               historyPRsExpanded={historyPRsExpanded}
               setHistoryPRsExpanded={setHistoryPRsExpanded}
               oneRepMaxes={oneRepMaxes}
@@ -1526,6 +2253,9 @@ export default function App() {
               setHistoricalDraft={setHistoricalDraft}
               setCurrentView={setCurrentView}
               openPlateCalculatorForPR={openPlateCalculatorForPR}
+              handleSetPRUnknown={handleSetPRUnknown}
+              onJumpToPRHistoryEntry={handleJumpToPRHistoryEntry}
+              buildHistoryWorkoutEditorProps={buildHistoryWorkoutEditorProps}
             />
           )}
 
@@ -1603,6 +2333,8 @@ export default function App() {
               user={user}
               oneRepMaxes={oneRepMaxes}
               friendsList={friendsList}
+              userBodyweightLbs={userBodyweightLbs}
+              history={history}
             />
           )}
 
@@ -1633,6 +2365,7 @@ export default function App() {
               sharedRoutines={sharedRoutines}
               openPlateCalculatorForPR={openPlateCalculatorForPR}
               handleOpenPreviewRoutine={handleOpenPreviewRoutine}
+              onJumpToPRHistoryEntry={handleJumpToPRHistoryEntry}
             />
           )}
 
@@ -1666,6 +2399,42 @@ export default function App() {
             <InfoView
               colors={colors}
               setCurrentView={setCurrentView}
+              userBodyweightLbs={userBodyweightLbs}
+              setUserBodyweightLbs={setUserBodyweightLbs}
+              userHeightFeet={userHeightFeet}
+              setUserHeightFeet={setUserHeightFeet}
+              userHeightInches={userHeightInches}
+              setUserHeightInches={setUserHeightInches}
+              totalHeightInches={totalHeightInches}
+              goalType={goalType}
+              setGoalType={setGoalType}
+              goalIncrement={goalIncrement}
+              setGoalIncrement={setGoalIncrement}
+              goalUnit={goalUnit}
+              setGoalUnit={setGoalUnit}
+              targetStandardClass={targetStandardClass}
+              setTargetStandardClass={setTargetStandardClass}
+              oneRepMaxes={oneRepMaxes}
+              customGoalWeights={customGoalWeights}
+              openPlateCalculatorForPR={openPlateCalculatorForPR}
+              handleSetPRUnknown={handleSetPRUnknown}
+              hasActiveSession={Boolean(activeSession?.slots?.length > 0)}
+              selectedGymId={selectedGymId}
+              setSelectedGymId={setSelectedGymId}
+              gyms={gyms}
+              routinePreferences={routinePreferences}
+              setRoutinePreferences={setRoutinePreferences}
+              handleOpenNewSession={handleOpenNewSession}
+              handleOpenNewAutoSession={handleOpenNewAutoSession}
+              user={user}
+              shareStatsWithFriends={shareStatsWithFriends}
+              setShareStatsWithFriends={setShareStatsWithFriends}
+              shareRoutinesWithFriends={shareRoutinesWithFriends}
+              setShareRoutinesWithFriends={setShareRoutinesWithFriends}
+              importBackupInputRef={importBackupInputRef}
+              handleExportBackupJSON={handleExportBackupJSON}
+              handleImportBackupJSON={handleImportBackupJSON}
+              handleResetToDemoDefaults={handleResetToDemoDefaults}
             />
           )}
 
@@ -1686,6 +2455,8 @@ export default function App() {
               setSignupPassword={setSignupPassword}
               signupBetaCode={signupBetaCode}
               setSignupBetaCode={setSignupBetaCode}
+              recoveryAccessToken={recoveryAccessToken}
+              setRecoveryAccessToken={setRecoveryAccessToken}
               setUser={setUser}
               setCurrentView={setCurrentView}
             />
@@ -1706,6 +2477,8 @@ export default function App() {
           setAddSlotGymFilter={setAddSlotGymFilter}
           newSlotCategory={newSlotCategory}
           setNewSlotCategory={setNewSlotCategory}
+          newSlotMuscleGroup={newSlotMuscleGroup}
+          setNewSlotMuscleGroup={setNewSlotMuscleGroup}
           newSlotEx1={newSlotEx1}
           setNewSlotEx1={setNewSlotEx1}
           newSlotSupersetIds={newSlotSupersetIds}
@@ -1729,6 +2502,42 @@ export default function App() {
           calcDirectTotal={calcDirectTotal}
           setCalcDirectTotal={setCalcDirectTotal}
           handleApplyCalculatedWeight={handleApplyCalculatedWeight}
+          handleSetPRUnknown={handleSetPRUnknown}
+        />
+
+        <SetValueEditorModal
+          setValueTarget={setValueTarget}
+          setSetValueTarget={setSetValueTarget}
+          handleUpdateSetField={handleUpdateSetField}
+          handleUpdateSetType={handleUpdateSetType}
+        />
+
+        <SaveConfirmModal
+          saveConfirmTarget={saveConfirmTarget}
+          setSaveConfirmTarget={setSaveConfirmTarget}
+          handleConfirmSaveWorkout={handleConfirmSaveWorkout}
+        />
+
+        <HistoricalEditConfirmModal
+          historicalEditConfirmTarget={historicalEditConfirmTarget}
+          setHistoricalEditConfirmTarget={setHistoricalEditConfirmTarget}
+          handleConfirmHistoricalEdit={handleConfirmHistoricalEdit}
+        />
+
+        <FeedbackModal
+          showFeedbackModal={showFeedbackModal}
+          setShowFeedbackModal={setShowFeedbackModal}
+          user={user}
+          sessionLogs={sessionLogs}
+          appSnapshot={{
+            currentView,
+            selectedGymId,
+            activeSessionTitle: activeSession?.title || null,
+            activeSessionExercisesCount: (activeSession?.slots || []).length,
+            historySessionsCount: (history || []).length,
+            savedRoutinesCount: (savedRoutines || []).length,
+            userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : 'unknown'
+          }}
         />
       </div>
     </div>

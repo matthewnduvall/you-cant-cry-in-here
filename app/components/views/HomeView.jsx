@@ -7,8 +7,64 @@ import { IOSListSection, IOSListRow } from '../Primitives';
 // VIEW: HOME SCREEN
 // ============================================================================
 
+function getFriendSingleBig3TickerEntry(friend) {
+  const uname = (friend?.username || 'athlete').toUpperCase();
+  const big3Map = [
+    { id: 'barbell_deadlift', label: 'DEADLIFT', fallback: 315 },
+    { id: 'barbell_back_squat', label: 'SQUAT', fallback: 265 },
+    { id: 'barbell_bench_press', label: 'BENCH', fallback: 185 }
+  ];
+
+  if (friend?.latestBig3Update && friend.latestBig3Update.label && friend.latestBig3Update.weight) {
+    return `@${uname}: ${String(friend.latestBig3Update.label).toUpperCase()} 1RM ${friend.latestBig3Update.weight} LB`;
+  }
+
+  // If the friend has logged session history, pick the most recent Squat, Bench, or Deadlift entry
+  if (Array.isArray(friend?.history) && friend.history.length > 0) {
+    const sortedHist = [...friend.history].sort(
+      (a, b) => new Date(b?.startedAt || 0).getTime() - new Date(a?.startedAt || 0).getTime()
+    );
+    for (const w of sortedHist) {
+      for (const slot of w?.slots || []) {
+        const match = big3Map.find(b => b.id === slot?.exerciseId);
+        if (match) {
+          const maxSetW = Math.max(
+            0,
+            ...(slot.sets || []).map(st => {
+              const sw = Number(st?.weight) || 0;
+              const sr = Math.max(1, Number(st?.reps) || 1);
+              return sr === 1 ? sw : Math.round(sw * (1 + sr / 30));
+            })
+          );
+          const weightVal = maxSetW > 0 ? maxSetW : friend?.prs?.[match.id] || match.fallback;
+          return `@${uname}: ${match.label} 1RM ${weightVal} LB`;
+        }
+      }
+    }
+  }
+
+  // Otherwise pick the lift among Squat, Bench, and Deadlift with the largest recent gain or highest PR
+  const prs = friend?.prs || {};
+  const startPrs = friend?.startingPrs || {};
+  let chosen = big3Map[0];
+  let bestGain = -1;
+  big3Map.forEach(item => {
+    const cur = Number(prs[item.id]) || item.fallback;
+    const base = Number(startPrs[item.id]) || Math.round(cur * 0.8);
+    const gain = cur - base;
+    if (gain > bestGain) {
+      bestGain = gain;
+      chosen = item;
+    }
+  });
+
+  const weightVal = Number(prs[chosen.id]) || chosen.fallback;
+  return `@${uname}: ${chosen.label} 1RM ${weightVal} LB`;
+}
+
 export function HomeView({
   colors,
+  hasActiveSession,
   handleOpenNewSession,
   handleOpenNewAutoSession,
   setCurrentView,
@@ -18,18 +74,25 @@ export function HomeView({
   friendsList,
   pendingIncomingRequests
 }) {
+  // Deduplicate friendsList so each friend user has strictly a single entry in the scroller
+  const uniqueFriends = [];
+  const seenKeys = new Set();
+  (friendsList || []).forEach(f => {
+    if (!f) return;
+    const key = String(f.username || f.email || f.id || '').trim().toLowerCase();
+    if (!key || seenKeys.has(key)) return;
+    seenKeys.add(key);
+    uniqueFriends.push(f);
+  });
+
   const friendsTickerText =
-    friendsList.length > 0
-      ? friendsList
-        .map(
-          f =>
-            `@${f.username.toUpperCase()}: BENCH 1RM ${f.prs?.barbell_bench_press || 185} LB • SQUAT 1RM ${f.prs?.barbell_back_squat || 265} LB • DEADLIFT 1RM ${f.prs?.barbell_deadlift || 315} LB • OHP 1RM ${f.prs?.overhead_press || 115} LB`
-        )
-        .join('   ///   ') + '   ///   '
+    uniqueFriends.length > 0
+      ? uniqueFriends.map(f => getFriendSingleBig3TickerEntry(f)).join('   ///   ') + '   ///   '
       : 'ADD FRIENDS IN SOCIAL TO STREAM LIVE 1RM UPDATES   ///   ';
 
   return (
     <div>
+      {/* HERO TITLE BANNER */}
       <section
         style={{
           padding: '18px var(--dp-spacing-gutter) 16px',
@@ -56,69 +119,14 @@ export function HomeView({
             <span style={{ color: 'var(--dp-color-accent)' }}>↘</span>
           </div>
         </div>
-
-        {/* Primary Actions: NEW SESSION, NEW AUTO, HISTORY */}
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
-            gap: '8px',
-            marginTop: '16px'
-          }}
-        >
-          <button
-            type="button"
-            onClick={handleOpenNewSession}
-            className="kinetic-btn"
-            style={{
-              padding: '14px 10px', backgroundColor: 'var(--dp-color-accent)', color: '#101010',
-              border: '2px solid #FFFFFF', fontWeight: 800, fontSize: '13px',
-              textTransform: 'uppercase', display: 'flex', alignItems: 'center',
-              justifyContent: 'space-between', cursor: 'pointer'
-            }}
-          >
-            <span>NEW SESSION</span>
-            <span>→</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={handleOpenNewAutoSession}
-            className="kinetic-btn"
-            style={{
-              padding: '14px 10px', backgroundColor: '#FFFFFF', color: '#101010',
-              border: '2px solid var(--dp-color-accent)', fontWeight: 800, fontSize: '13px',
-              textTransform: 'uppercase', display: 'flex', alignItems: 'center',
-              justifyContent: 'space-between', cursor: 'pointer'
-            }}
-          >
-            <span>NEW AUTO</span>
-            <span>⚡</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setCurrentView('history')}
-            className="kinetic-btn"
-            style={{
-              padding: '14px 10px', backgroundColor: '#161616', color: '#FFFFFF',
-              border: '2px solid var(--dp-color-rule)', fontWeight: 800, fontSize: '13px',
-              textTransform: 'uppercase', display: 'flex', alignItems: 'center',
-              justifyContent: 'space-between', cursor: 'pointer'
-            }}
-          >
-            <span>HISTORY</span>
-            <span style={{ color: 'var(--dp-color-accent)' }}>↗</span>
-          </button>
-        </div>
       </section>
 
-      {/* REPEATED-TEXT MARQUEE BAND */}
+      {/* REPEATED-TEXT MARQUEE BAND (BETWEEN TITLE & PRIMARY ACTION BUTTONS) */}
       <div
         className={marqueePaused ? 'kinetic-marquee-paused' : ''}
         style={{
           borderBottom: '2px solid var(--dp-color-rule)', backgroundColor: '#141414',
-          display: 'flex', alignItems: 'center', overflow: 'hidden', marginBottom: '22px'
+          display: 'flex', alignItems: 'center', overflow: 'hidden'
         }}
       >
         <div style={{ flex: 1, overflow: 'hidden', padding: '8px 0' }}>
@@ -142,6 +150,105 @@ export function HomeView({
           {marqueePaused ? 'PLAY' : 'PAUSE'}
         </button>
       </div>
+
+      {/* PRIMARY ACTIONS: NEW SESSION, AUTO SESSION, HISTORY */}
+      <section
+        style={{
+          padding: '16px var(--dp-spacing-gutter)',
+          borderBottom: '2px solid var(--dp-color-rule)',
+          marginBottom: '22px'
+        }}
+      >
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+            gap: '8px'
+          }}
+        >
+          <button
+            type="button"
+            onClick={handleOpenNewSession}
+            className="kinetic-btn"
+            style={{
+              height: '46px',
+              boxSizing: 'border-box',
+              padding: '0 10px',
+              backgroundColor: 'var(--dp-color-accent)',
+              color: '#101010',
+              border: '2px solid #FFFFFF',
+              fontWeight: 800,
+              fontSize: hasActiveSession ? '11.5px' : '13px',
+              letterSpacing: hasActiveSession ? '-0.03em' : 'normal',
+              lineHeight: 1,
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textTransform: 'uppercase',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              textAlign: 'center',
+              cursor: 'pointer'
+            }}
+          >
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              {hasActiveSession ? 'CURRENT SESSION' : 'NEW SESSION'}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={handleOpenNewAutoSession}
+            className="kinetic-btn"
+            style={{
+              height: '46px',
+              boxSizing: 'border-box',
+              padding: '0 10px',
+              backgroundColor: 'var(--dp-color-accent)',
+              color: '#101010',
+              border: '2px solid #FFFFFF',
+              fontWeight: 800,
+              fontSize: '13px',
+              lineHeight: 1,
+              whiteSpace: 'nowrap',
+              textTransform: 'uppercase',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              textAlign: 'center',
+              cursor: 'pointer'
+            }}
+          >
+            <span>AUTO SESSION</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setCurrentView('history')}
+            className="kinetic-btn"
+            style={{
+              height: '46px',
+              boxSizing: 'border-box',
+              padding: '0 10px',
+              backgroundColor: '#161616',
+              color: '#FFFFFF',
+              border: '2px solid var(--dp-color-rule)',
+              fontWeight: 800,
+              fontSize: '13px',
+              lineHeight: 1,
+              whiteSpace: 'nowrap',
+              textTransform: 'uppercase',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              textAlign: 'center',
+              cursor: 'pointer'
+            }}
+          >
+            <span>HISTORY</span>
+          </button>
+        </div>
+      </section>
 
       {/* STATS SECTION ON HOME SCREEN */}
       <IOSListSection header="STATS" colors={colors}>

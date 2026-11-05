@@ -30,6 +30,11 @@ export const KINETIC_CSS = `
     --dp-motion-marquee-easing: linear;
   }
 
+  html {
+    scrollbar-gutter: stable;
+    overflow-y: scroll;
+  }
+
   .kinetic-app, .kinetic-app * {
     font-family: var(--dp-typography-face);
     border-radius: 0px !important;
@@ -73,7 +78,7 @@ export const KINETIC_CSS = `
     display: flex;
     width: max-content;
     white-space: nowrap;
-    animation: kinetic-marquee 28s var(--dp-motion-marquee-easing) infinite;
+    animation: kinetic-marquee 14s var(--dp-motion-marquee-easing) infinite;
   }
 
   .kinetic-marquee-paused .kinetic-marquee-track {
