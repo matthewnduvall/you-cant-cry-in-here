@@ -26,34 +26,45 @@ export const normalizeSetType = rawType => {
   return 'Working';
 };
 
-export const getHistoricalCalculated1RM = (exerciseId, history = [], oneRepMaxes = {}) => {
-  let best = Number(oneRepMaxes?.[exerciseId]) || 0;
+export const getBestHistory1RM = (exerciseId, history = []) => {
+  let best = 0;
   (history || []).forEach(w => {
-    (w.slots || []).forEach(slot => {
+    (w?.slots || []).forEach(slot => {
+      const scanSets = setsList => {
+        const arr = Array.isArray(setsList) ? setsList : [];
+        const hasCompleted = arr.some(s => s && s.completed && Number(s.weight) > 0);
+        arr.forEach(st => {
+          if (!st || Number(st.weight) <= 0) return;
+          if (hasCompleted && !st.completed) return;
+          const reps = Math.max(1, Number(st.reps) || 1);
+          const est = reps === 1 ? Number(st.weight) : Math.round(Number(st.weight) * (1 + reps / 30));
+          if (est > best) best = est;
+        });
+      };
+
       if (isSupersetCategory(slot.category) && Array.isArray(slot.supersetSetsByExercise)) {
         const ids = slot.supersetExerciseIds || [slot.exerciseId, slot.secondaryExerciseId].filter(Boolean);
         ids.forEach((id, idx) => {
           if (id === exerciseId) {
-            (slot.supersetSetsByExercise[idx] || []).forEach(st => {
-              if (st.completed && Number(st.weight) > 0) {
-                const reps = Math.max(1, Number(st.reps) || 1);
-                const est = reps === 1 ? Number(st.weight) : Math.round(Number(st.weight) * (1 + reps / 30));
-                if (est > best) best = est;
-              }
-            });
+            scanSets(slot.supersetSetsByExercise[idx]);
           }
         });
       } else if (slot.exerciseId === exerciseId) {
-        (slot.sets || []).forEach(st => {
-          if (st.completed && Number(st.weight) > 0) {
-            const reps = Math.max(1, Number(st.reps) || 1);
-            const est = reps === 1 ? Number(st.weight) : Math.round(Number(st.weight) * (1 + reps / 30));
-            if (est > best) best = est;
-          }
-        });
+        scanSets(slot.sets);
       }
     });
   });
+  return best;
+};
+
+export const getPersonalRecord1RM = (exerciseId, history = [], oneRepMaxes = {}) => {
+  const manual = Number(oneRepMaxes?.[exerciseId]) || 0;
+  const histBest = getBestHistory1RM(exerciseId, history);
+  return Math.max(manual, histBest);
+};
+
+export const getHistoricalCalculated1RM = (exerciseId, history = [], oneRepMaxes = {}) => {
+  const best = getPersonalRecord1RM(exerciseId, history, oneRepMaxes);
   return best > 0 ? best : EXERCISE_MAP[exerciseId]?.default1RM ?? 135;
 };
 
@@ -281,11 +292,7 @@ export const buildPresetSlots = (presetKey, oneRepMaxes, history = [], increment
 };
 
 export const getInitial1RMs = () => {
-  const map = {};
-  EXERCISE_LIBRARY.forEach(ex => {
-    if (ex.default1RM > 0) map[ex.id] = ex.default1RM;
-  });
-  return map;
+  return {};
 };
 
 export const checkIsWorkoutComplete = slots => {

@@ -31,7 +31,7 @@ export function HistoryView({
   setHistoricalDraft,
   setCurrentView,
   openPlateCalculatorForPR,
-  handleSetPRUnknown,
+  setDeleteConfirmTarget,
   buildHistoryWorkoutEditorProps
 }) {
   const [showAllHistory, setShowAllHistory] = useState(false);
@@ -60,31 +60,30 @@ export function HistoryView({
     <div style={UI.pagePad}>
       <IOSListSection
         header="PERSONAL RECORDS"
-        footer="Tap any Personal Record weight to edit it with the Plate & Weight Calculator, or tap UNKNOWN to clear it."
+        footer="Tap any Personal Record to override it with the Plate & Weight Calculator (with an optional date to log a History entry)."
         colors={colors}
       >
         {EXERCISE_LIBRARY.filter(e => e.isPriority).map((ex, idx, arr) => {
-          const rawMax = oneRepMaxes[ex.id];
-          const isUnknown = rawMax === 'unknown';
-          const currentMax = isUnknown ? ex.default1RM : (rawMax ?? ex.default1RM);
+          const currentMax = Number(oneRepMaxes?.[ex.id]) || 0;
+          const isTBD = currentMax <= 0;
           const isBigFour = BIG_FOUR_IDS.includes(ex.id);
           const targetVal = isBigFour
             ? getExRxTargetForLift(ex.id, targetStandardClass, userBodyweightLbs, totalHeightInches, customGoalWeights)
             : null;
-          const diffFromGoal = !isUnknown && targetVal !== null ? targetVal - currentMax : null;
+          const diffFromGoal = !isTBD && targetVal !== null ? targetVal - currentMax : null;
 
           return (
             <IOSListRow
               key={ex.id}
               isLast={idx === arr.length - 1}
               colors={colors}
-              onClick={() => openPlateCalculatorForPR(ex.id, ex.name, currentMax)}
+              onClick={() => openPlateCalculatorForPR(ex.id, ex.name, isTBD ? ex.default1RM : currentMax)}
             >
               <div style={{ minWidth: 0, paddingRight: '8px' }}>
                 <div style={{ fontSize: '15px', fontWeight: 800, textTransform: 'uppercase' }}>
                   {ex.name}
                 </div>
-                {isUnknown && targetVal !== null ? (
+                {isTBD && targetVal !== null ? (
                   <div className="kinetic-sub" style={{ fontSize: '11px', color: '#A0A0A0', fontWeight: 700 }}>
                     Target ({targetStandardClass}): {targetVal} lb
                   </div>
@@ -100,26 +99,6 @@ export function HistoryView({
               </div>
 
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
-                <button
-                  type="button"
-                  onClick={e => {
-                    e.stopPropagation();
-                    handleSetPRUnknown?.(ex.id);
-                  }}
-                  className="kinetic-btn"
-                  style={{
-                    padding: '6px 8px',
-                    backgroundColor: isUnknown ? 'var(--dp-color-accent)' : '#161616',
-                    border: '2px solid var(--dp-color-rule)',
-                    color: isUnknown ? '#101010' : '#A0A0A0',
-                    fontSize: '11px',
-                    fontWeight: 800,
-                    textTransform: 'uppercase',
-                    cursor: 'pointer'
-                  }}
-                >
-                  UNKNOWN
-                </button>
                 <span
                   style={{
                     padding: '6px 10px', backgroundColor: '#101010',
@@ -127,7 +106,7 @@ export function HistoryView({
                     fontSize: '14px', fontWeight: 800
                   }}
                 >
-                  {isUnknown ? 'UNKNOWN ✎' : `${currentMax} LB ✎`}
+                  {isTBD ? 'TBD ✎' : `${currentMax} LB ✎`}
                 </span>
               </div>
             </IOSListRow>
@@ -190,10 +169,11 @@ export function HistoryView({
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'space-between',
+                      gap: '10px',
                       cursor: 'pointer'
                     }}
                   >
-                    <div>
+                    <div style={{ minWidth: 0, flex: 1 }}>
                       <div style={{ fontSize: '15px', fontWeight: 800, textTransform: 'uppercase' }}>
                         {w.title}
                       </div>
@@ -201,9 +181,40 @@ export function HistoryView({
                         {new Date(w.startedAt).toLocaleDateString()} • {(w.slots || []).length} EXERCISES
                       </div>
                     </div>
-                    <span style={{ fontSize: '18px', fontWeight: 800, color: isExp ? 'var(--dp-color-accent)' : '#FFFFFF' }}>
-                      {isExp ? '−' : '+'}
-                    </span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
+                      <span
+                        style={{
+                          fontSize: '18px',
+                          fontWeight: 800,
+                          color: isExp ? 'var(--dp-color-accent)' : '#FFFFFF',
+                          lineHeight: 1
+                        }}
+                      >
+                        {isExp ? '−' : '+'}
+                      </span>
+                      <button
+                        type="button"
+                        aria-label={`Delete ${w.title}`}
+                        onClick={e => {
+                          e.stopPropagation();
+                          setDeleteConfirmTarget?.({
+                            type: 'history_workout',
+                            workoutId: w.id,
+                            label: w.title
+                          });
+                        }}
+                        className="kinetic-btn"
+                        style={{
+                          ...UI.deleteXBtn,
+                          width: '26px',
+                          height: '26px',
+                          fontSize: '12px',
+                          boxSizing: 'border-box'
+                        }}
+                      >
+                        ✕
+                      </button>
+                    </div>
                   </div>
 
                   {isExp && editorProps && (
@@ -407,8 +418,9 @@ export function GoalsView({
 
         {BIG_FOUR_IDS.map((liftId, idx) => {
           const ex = EXERCISE_MAP[liftId];
-          const isUnknown = oneRepMaxes[liftId] === 'unknown';
-          const cur1RM = isUnknown ? ex.default1RM : (oneRepMaxes[liftId] ?? ex.default1RM);
+          const rawVal = Number(oneRepMaxes?.[liftId]) || 0;
+          const isTBD = rawVal <= 0;
+          const cur1RM = isTBD ? ex.default1RM : rawVal;
           const curClass = getExRxCurrentClass(liftId, cur1RM, userBodyweightLbs, totalHeightInches);
           const goalWeight = getExRxTargetForLift(liftId, targetStandardClass, userBodyweightLbs, totalHeightInches, customGoalWeights);
           const distance = goalWeight - cur1RM;
@@ -420,11 +432,11 @@ export function GoalsView({
                   {ex.name}
                 </div>
                 <div style={{ fontSize: '11px', color: '#A0A0A0', fontWeight: 700 }}>
-                  1RM: <strong style={{ color: '#FFFFFF' }}>{isUnknown ? 'UNKNOWN' : `${cur1RM} LB`}</strong> • CLASS:{' '}
-                  <strong style={{ color: 'var(--dp-color-accent)' }}>{isUnknown ? 'UNKNOWN' : curClass.toUpperCase()}</strong>
+                  1RM: <strong style={{ color: '#FFFFFF' }}>{isTBD ? 'TBD' : `${cur1RM} LB`}</strong> • CLASS:{' '}
+                  <strong style={{ color: 'var(--dp-color-accent)' }}>{isTBD ? 'TBD' : curClass.toUpperCase()}</strong>
                 </div>
                 <div style={{ fontSize: '11px', color: '#30D158', fontWeight: 700 }}>
-                  {isUnknown
+                  {isTBD
                     ? `Target (${targetStandardClass}): ${goalWeight} lb`
                     : distance > 0
                       ? `${distance} lb from ${targetStandardClass}`
@@ -639,8 +651,9 @@ export function ProgressionChartView({
 
         {BIG_FOUR_IDS.map((liftId, idx) => {
           const ex = EXERCISE_MAP[liftId];
-          const isUnknown = oneRepMaxes[liftId] === 'unknown';
-          const cur1RM = isUnknown ? ex.default1RM : (oneRepMaxes[liftId] ?? ex.default1RM);
+          const rawVal = Number(oneRepMaxes?.[liftId]) || 0;
+          const isTBD = rawVal <= 0;
+          const cur1RM = isTBD ? ex.default1RM : rawVal;
           const goalWeight = getExRxTargetForLift(liftId, targetStandardClass, userBodyweightLbs, totalHeightInches, customGoalWeights);
           const distance = goalWeight - cur1RM;
           const series = progressionSeriesByLift[liftId] || [];
@@ -663,8 +676,8 @@ export function ProgressionChartView({
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
                   <span style={{ fontSize: '14px', fontWeight: 800, textTransform: 'uppercase' }}>{ex.name}</span>
                   <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--dp-color-accent)' }}>
-                    {isUnknown
-                      ? `1RM UNKNOWN (TARGET ${goalWeight} LB)`
+                    {isTBD
+                      ? `1RM TBD (TARGET ${goalWeight} LB)`
                       : `1RM ${cur1RM} LB (${distance > 0 ? `${distance} lb from ${targetStandardClass}` : 'Goal Met'})`}
                   </span>
                 </div>
@@ -1232,20 +1245,19 @@ export function ProfileView({
 
       <IOSListSection header="PERSONAL RECORDS" colors={colors}>
         {EXERCISE_LIBRARY.filter(e => e.isPriority).map((ex, i, arr) => {
-          const rawVal = profPRs[ex.id];
-          const isUnknown = rawVal === 'unknown';
-          const val = isUnknown ? ex.default1RM : (rawVal ?? ex.default1RM);
+          const rawVal = Number(profPRs?.[ex.id]) || 0;
+          const isTBD = rawVal <= 0;
           return (
             <IOSListRow
               key={ex.id}
               isLast={i === arr.length - 1}
               colors={colors}
-              onClick={!isFriend ? () => openPlateCalculatorForPR(ex.id, ex.name, val) : undefined}
+              onClick={!isFriend ? () => openPlateCalculatorForPR(ex.id, ex.name, isTBD ? ex.default1RM : rawVal) : undefined}
             >
               <span style={{ fontSize: '14px', fontWeight: 800, textTransform: 'uppercase' }}>{ex.name}</span>
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
                 <span style={{ fontSize: '15px', fontWeight: 800, color: 'var(--dp-color-accent)' }}>
-                  {isUnknown ? 'UNKNOWN' : `${val} LB`} {!isFriend && '✎'}
+                  {isTBD ? 'TBD' : `${rawVal} LB`} {!isFriend && '✎'}
                 </span>
               </div>
             </IOSListRow>

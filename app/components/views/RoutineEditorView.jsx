@@ -18,7 +18,8 @@ import {
 import {
   normalizeSetType,
   calculateLastEquivalentWeightForSet,
-  getHistoricalCalculated1RM
+  getHistoricalCalculated1RM,
+  getPersonalRecord1RM
 } from '../../utils/workoutEngine';
 
 // ============================================================================
@@ -729,12 +730,16 @@ export function RoutineEditorView({
               );
             };
 
+            const prValA = getPersonalRecord1RM(supIds[0], history, oneRepMaxes);
+            const prValB = isSuperset ? getPersonalRecord1RM(supIds[1], history, oneRepMaxes) : 0;
             const slot1RMText =
               normCat === 'Abs'
                 ? '1RM: --'
                 : isSuperset
-                  ? `1RM: ${getHistoricalCalculated1RM(supIds[0], history, oneRepMaxes)}/${getHistoricalCalculated1RM(supIds[1], history, oneRepMaxes)} LB`
-                  : `1RM: ${getHistoricalCalculated1RM(slot.exerciseId, history, oneRepMaxes)} LB`;
+                  ? `1RM: ${prValA > 0 ? prValA : 'TBD'}/${prValB > 0 ? prValB : 'TBD'}`
+                  : prValA > 0
+                    ? `1RM: ${prValA} LB`
+                    : '1RM: TBD';
 
             const singleSelectPool =
               inlineExercisePool.some(e => e.id === slot.exerciseId) || !ex1

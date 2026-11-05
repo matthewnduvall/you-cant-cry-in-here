@@ -259,7 +259,6 @@ export function InfoView({
   oneRepMaxes = {},
   customGoalWeights = {},
   openPlateCalculatorForPR,
-  handleSetPRUnknown,
   hasActiveSession = false,
   selectedGymId = '',
   setSelectedGymId,
@@ -455,13 +454,12 @@ export function InfoView({
             <div>
               <p style={{ marginBottom: '4px' }}>
                 <strong style={{ color: 'var(--dp-color-accent)' }}>1.3 PERSONAL RECORDS:</strong> Tap any lift below (or in{' '}
-                <strong>HISTORY → PERSONAL RECORDS</strong>) to enter or calculate your current 1RM, or tap <strong>UNKNOWN</strong> if you don't know it yet.
+                <strong>HISTORY → PERSONAL RECORDS</strong>) to enter or calculate your current 1RM (defaults to <strong>TBD</strong> until you log a workout or override it).
               </p>
               <div style={{ ...stepBoxStyle, marginBottom: 0, gap: '6px' }}>
                 {EXERCISE_LIBRARY.filter(e => e.isPriority).map(ex => {
-                  const rawMax = oneRepMaxes[ex.id];
-                  const isUnknown = rawMax === 'unknown';
-                  const currentMax = isUnknown ? ex.default1RM : (rawMax ?? ex.default1RM);
+                  const currentMax = Number(oneRepMaxes?.[ex.id]) || 0;
+                  const isTBD = currentMax <= 0;
                   const isBigFour = BIG_FOUR_IDS.includes(ex.id);
                   const targetVal = isBigFour
                     ? getExRxTargetForLift(ex.id, targetStandardClass, userBodyweightLbs, totalHeightInches, customGoalWeights)
@@ -469,7 +467,7 @@ export function InfoView({
                   return (
                     <div
                       key={ex.id}
-                      onClick={() => openPlateCalculatorForPR?.(ex.id, ex.name, currentMax)}
+                      onClick={() => openPlateCalculatorForPR?.(ex.id, ex.name, isTBD ? ex.default1RM : currentMax)}
                       style={{
                         display: 'flex',
                         alignItems: 'center',
@@ -490,41 +488,19 @@ export function InfoView({
                           </div>
                         )}
                       </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
-                        <button
-                          type="button"
-                          onClick={e => {
-                            e.stopPropagation();
-                            handleSetPRUnknown?.(ex.id);
-                          }}
-                          className="kinetic-btn"
-                          style={{
-                            padding: '4px 8px',
-                            backgroundColor: isUnknown ? 'var(--dp-color-accent)' : '#101010',
-                            border: '2px solid var(--dp-color-rule)',
-                            color: isUnknown ? '#101010' : '#A0A0A0',
-                            fontSize: '11px',
-                            fontWeight: 800,
-                            textTransform: 'uppercase',
-                            cursor: 'pointer'
-                          }}
-                        >
-                          UNKNOWN
-                        </button>
-                        <span
-                          style={{
-                            padding: '4px 8px',
-                            backgroundColor: '#101010',
-                            border: '2px solid var(--dp-color-rule)',
-                            color: 'var(--dp-color-accent)',
-                            fontSize: '12px',
-                            fontWeight: 800,
-                            flexShrink: 0
-                          }}
-                        >
-                          {isUnknown ? 'UNKNOWN ✎' : `${currentMax} LB ✎`}
-                        </span>
-                      </div>
+                      <span
+                        style={{
+                          padding: '4px 8px',
+                          backgroundColor: '#101010',
+                          border: '2px solid var(--dp-color-rule)',
+                          color: 'var(--dp-color-accent)',
+                          fontSize: '12px',
+                          fontWeight: 800,
+                          flexShrink: 0
+                        }}
+                      >
+                        {isTBD ? 'TBD ✎' : `${currentMax} LB ✎`}
+                      </span>
                     </div>
                   );
                 })}

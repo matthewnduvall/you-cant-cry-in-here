@@ -50,6 +50,7 @@ export const ensureDefaultMattFriend = list => {
 
 export const DEFAULT_SETTINGS_V2 = {
   schemaVersion: CURRENT_SCHEMA_VERSION,
+  prDefaultsCleanedV4: true,
   bodyMetrics: { bodyweightLbs: 220, heightFeet: 5, heightInches: 10 },
   goals: {
     goalType: 'Strength', goalIncrement: 1.25, goalUnit: 'lb',
@@ -124,8 +125,18 @@ export const loadHydratedAppState = () => {
     const parsed = JSON.parse(raw);
     if (!parsed || typeof parsed !== 'object') return null;
 
-    const initialMaxes = getInitial1RMs();
-    const mergedMaxes = { ...initialMaxes, ...(parsed.oneRepMaxes || {}) };
+    const rawMaxes = parsed.oneRepMaxes && typeof parsed.oneRepMaxes === 'object' ? parsed.oneRepMaxes : {};
+    const wasCleanedV4 = Boolean(parsed.settings?.prDefaultsCleanedV4);
+    const mergedMaxes = {};
+    Object.entries(rawMaxes).forEach(([exId, val]) => {
+      const num = Number(val) || 0;
+      if (num <= 0) return;
+      // Strip legacy auto-seeded default1RM values so unlogged/un-overridden PRs default to TBD
+      if (!wasCleanedV4 && EXERCISE_MAP[exId]?.default1RM === num) {
+        return;
+      }
+      mergedMaxes[exId] = num;
+    });
 
     const cleanedRoutinePrefs = Array.isArray(parsed.settings?.routinePreferences)
       ? parsed.settings.routinePreferences
@@ -136,6 +147,7 @@ export const loadHydratedAppState = () => {
     const mergedSettings = {
       ...DEFAULT_SETTINGS_V2,
       ...(parsed.settings || {}),
+      prDefaultsCleanedV4: true,
       bodyMetrics: { ...DEFAULT_SETTINGS_V2.bodyMetrics, ...(parsed.settings?.bodyMetrics || {}) },
       goals: {
         ...DEFAULT_SETTINGS_V2.goals,

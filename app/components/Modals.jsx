@@ -27,7 +27,11 @@ export function DeleteConfirmModal({
       <div onClick={e => e.stopPropagation()} style={UI.modalCard('360px')}>
         <div style={UI.modalHeader}>
           <span>
-            {deleteConfirmTarget.type === 'slot' ? 'DELETE EXERCISE?' : 'DELETE SET?'}
+            {deleteConfirmTarget.type === 'history_workout'
+              ? 'DELETE HISTORY ENTRY?'
+              : deleteConfirmTarget.type === 'slot'
+                ? 'DELETE EXERCISE?'
+                : 'DELETE SET?'}
           </span>
           <button type="button" onClick={() => setDeleteConfirmTarget(null)} style={UI.closeXBtn}>
             ✕
@@ -288,8 +292,9 @@ export function PlateCalculatorModal({
   setCalcPlatesPerSide,
   calcDirectTotal,
   setCalcDirectTotal,
-  handleApplyCalculatedWeight,
-  handleSetPRUnknown
+  prRecordDate,
+  setPrRecordDate,
+  handleApplyCalculatedWeight
 }) {
   if (!plateCalcTarget) return null;
 
@@ -420,30 +425,91 @@ export function PlateCalculatorModal({
           </div>
         )}
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          <button
-            type="button"
-            onClick={handleApplyCalculatedWeight}
-            className="kinetic-btn"
-            style={{ ...UI.primaryBtnCenter, padding: '12px', fontSize: '13px' }}
+        {plateCalcTarget.mode === 'pr' && (
+          <div
+            style={{
+              marginBottom: '12px',
+              padding: '10px',
+              backgroundColor: '#101010',
+              border: '2px solid var(--dp-color-rule)'
+            }}
           >
-            APPLY WEIGHT →
-          </button>
-
-          {plateCalcTarget.mode === 'pr' && (
-            <button
-              type="button"
-              onClick={() => {
-                handleSetPRUnknown?.(plateCalcTarget.exerciseId);
-                setPlateCalcTarget(null);
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: '8px',
+                marginBottom: '6px'
               }}
-              className="kinetic-btn"
-              style={{ ...UI.secondaryBtnCenter, padding: '10px', fontSize: '12px', color: '#A0A0A0' }}
             >
-              SET AS UNKNOWN
-            </button>
-          )}
-        </div>
+              <span style={{ fontSize: '10px', fontWeight: 800, color: '#A0A0A0', textTransform: 'uppercase' }}>
+                RECORD DATE (LOGS HISTORY ENTRY)
+              </span>
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                <button
+                  type="button"
+                  onClick={() => setPrRecordDate?.(new Date().toISOString().split('T')[0])}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: 'var(--dp-color-accent)',
+                    fontSize: '10px',
+                    fontWeight: 800,
+                    textTransform: 'uppercase',
+                    cursor: 'pointer',
+                    padding: 0
+                  }}
+                >
+                  TODAY
+                </button>
+                {prRecordDate && (
+                  <button
+                    type="button"
+                    onClick={() => setPrRecordDate?.('')}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: '#FF3B30',
+                      fontSize: '10px',
+                      fontWeight: 800,
+                      textTransform: 'uppercase',
+                      cursor: 'pointer',
+                      padding: 0
+                    }}
+                  >
+                    CLEAR
+                  </button>
+                )}
+              </div>
+            </div>
+            <input
+              type="date"
+              value={prRecordDate || ''}
+              onChange={e => setPrRecordDate?.(e.target.value)}
+              style={{
+                width: '100%',
+                boxSizing: 'border-box',
+                backgroundColor: '#161616',
+                color: '#FFFFFF',
+                border: '2px solid var(--dp-color-rule)',
+                padding: '8px 10px',
+                fontSize: '13px',
+                fontWeight: 800,
+                textTransform: 'uppercase'
+              }}
+            />
+          </div>
+        )}
+
+        <button
+          type="button"
+          onClick={handleApplyCalculatedWeight}
+          className="kinetic-btn"
+          style={{ ...UI.primaryBtnCenter, padding: '12px', fontSize: '13px' }}
+        >
+          APPLY WEIGHT →
+        </button>
       </div>
     </div>
   );

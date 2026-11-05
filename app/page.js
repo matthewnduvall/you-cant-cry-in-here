@@ -22,6 +22,8 @@ import {
   roundToIncrement
 } from './data/exerciseLibrary';
 import {
+  getBestHistory1RM,
+  getPersonalRecord1RM,
   getHistoricalCalculated1RM,
   calculateLastEquivalentWeightForSet,
   getIncrementInLbs,
@@ -431,6 +433,7 @@ export default function App() {
           gyms, friendsList, pendingIncomingRequests, outgoingInvites,
           settings: {
             schemaVersion: CURRENT_SCHEMA_VERSION,
+            prDefaultsCleanedV4: true,
             bodyMetrics: { bodyweightLbs: userBodyweightLbs, heightFeet: userHeightFeet, heightInches: userHeightInches },
             goals: { goalType, goalIncrement, goalUnit, chartMetric, targetStandardClass, customGoalWeights },
             stimulus: { greenDays: stimulusGreenDays, yellowDays: stimulusYellowDays },
@@ -556,6 +559,17 @@ export default function App() {
   const [calcBarWeight, setCalcBarWeight] = useState(45);
   const [calcPlatesPerSide, setCalcPlatesPerSide] = useState([]);
   const [calcDirectTotal, setCalcDirectTotal] = useState(135);
+  const [prRecordDate, setPrRecordDate] = useState('');
+
+  // --- Computed Personal Records (Updated from Highest Calculated 1RM in History + Manual Overrides) ---
+  const effectiveOneRepMaxes = useMemo(() => {
+    const map = {};
+    EXERCISE_LIBRARY.forEach(ex => {
+      const best = getPersonalRecord1RM(ex.id, history, oneRepMaxes);
+      if (best > 0) map[ex.id] = best;
+    });
+    return map;
+  }, [history, oneRepMaxes]);
 
   // --- Isolated Rest Timer Trigger State ---
   const [timerTrigger, setTimerTrigger] = useState({
@@ -1158,6 +1172,47 @@ export default function App() {
 
   const handleConfirmDeleteAction = () => {
     if (!deleteConfirmTarget) return;
+    if (deleteConfirmTarget.type === 'history_workout') {
+      const targetWorkoutId = deleteConfirmTarget.workoutId;
+      const deletedWorkout = (history || []).find(w => w.id === targetWorkoutId);
+      const nextHistory = (history || []).filter(w => w.id !== targetWorkoutId);
+      setHistory(nextHistory);
+
+      // If the deleted history entry had sets that matched stored manual oneRepMaxes, recalculate from remaining history
+      if (deletedWorkout) {
+        const affectedIds = new Set();
+        (deletedWorkout.slots || []).forEach(slot => {
+          const ids = isSupersetCategory(slot.category)
+            ? (slot.supersetExerciseIds || [slot.exerciseId, slot.secondaryExerciseId]).filter(Boolean)
+            : [slot.exerciseId].filter(Boolean);
+          ids.forEach(id => affectedIds.add(id));
+        });
+        if (affectedIds.size > 0) {
+          setOneRepMaxes(prev => {
+            const copy = { ...(prev || {}) };
+            affectedIds.forEach(exId => {
+              const deletedBest = getBestHistory1RM(exId, [deletedWorkout]);
+              const remainingBest = getBestHistory1RM(exId, nextHistory);
+              if (deletedBest > 0 && Number(copy[exId]) === deletedBest) {
+                if (remainingBest > 0) {
+                  copy[exId] = remainingBest;
+                } else {
+                  delete copy[exId];
+                }
+              }
+            });
+            return copy;
+          });
+        }
+      }
+
+      if (expandedHistoryWorkoutId === targetWorkoutId) {
+        setExpandedHistoryWorkoutId(null);
+      }
+      appendSessionLog('DELETE_HISTORY', `Deleted history workout: ${deleteConfirmTarget.label || targetWorkoutId}`);
+      setDeleteConfirmTarget(null);
+      return;
+    }
     if (deleteConfirmTarget.type === 'slot') {
       updateCurrentWorkoutState(prev => ({
         ...prev,
@@ -1739,7 +1794,9 @@ export default function App() {
   };
 
   const openPlateCalculatorForPR = (exerciseId, exerciseName, currentWeight) => {
-    decomposeWeightToPlates(Number(currentWeight) || 225);
+    const startW = Number(currentWeight) > 0 ? Number(currentWeight) : (EXERCISE_MAP[exerciseId]?.default1RM || 135);
+    decomposeWeightToPlates(startW);
+    setPrRecordDate('');
     setPlateCalcTarget({ mode: 'pr', exerciseId, exerciseName });
   };
 
@@ -1770,10 +1827,68 @@ export default function App() {
         finalWeightLbs
       );
     } else if (plateCalcTarget.mode === 'pr') {
+      const roundedPR = roundTo5(finalWeightLbs);
+      const exId = plateCalcTarget.exerciseId;
+      const exObj = EXERCISE_MAP[exId] || {
+        id: exId,
+        name: plateCalcTarget.exerciseName || exId,
+        category: 'Compound Lift',
+        muscleGroup: 'All Muscles'
+      };
       setOneRepMaxes(prev => ({
         ...prev,
-        [plateCalcTarget.exerciseId]: roundTo5(finalWeightLbs)
+        [exId]: roundedPR
       }));
+
+      // If a date was entered for this Personal Record, create an individual History entry just for that record
+      if (prRecordDate && String(prRecordDate).trim()) {
+        const cleanDate = String(prRecordDate).trim();
+        const ts = Date.now();
+        const prSet = {
+          id: `set_pr_${ts}`,
+          setNumber: 1,
+          type: '1 Rep Max',
+          reps: 1,
+          lastWeight: roundedPR,
+          increment: 0,
+          weight: roundedPR,
+          completed: true
+        };
+        const prSlot = {
+          id: `slot_pr_${ts}`,
+          category: normalizeSlotCategory(exObj.category || 'Compound Lift'),
+          slotLabel: normalizeSlotCategory(exObj.category || 'Compound Lift'),
+          scheme: 'Pyramid 1RM',
+          restSeconds: 90,
+          muscleGroupFilter: exObj.muscleGroup || 'All Muscles',
+          familyMuscleGroup: exObj.muscleGroup || 'Chest',
+          exerciseId: exObj.id,
+          secondaryExerciseId: null,
+          supersetExerciseIds: [exObj.id],
+          supersetSetsByExercise: [[prSet]],
+          sets: [prSet],
+          secondarySets: []
+        };
+        const isoDate = new Date(`${cleanDate}T12:00:00`).toISOString();
+        const newHistEntry = {
+          id: `hist_pr_${exObj.id}_${ts}`,
+          title: `${cleanDate} - ${exObj.name} PR (${roundedPR} LB)`,
+          loadedRoutineTitle: 'PERSONAL RECORD',
+          startedAt: isoDate,
+          updatedAt: new Date().toISOString(),
+          isComplete: true,
+          verifiedByUser: true,
+          defaultRestSeconds: 90,
+          slots: normalizeSlotLabels([prSlot])
+        };
+        setHistory(prev =>
+          [newHistEntry, ...(prev || [])].sort(
+            (a, b) => new Date(b.startedAt || 0).getTime() - new Date(a.startedAt || 0).getTime()
+          )
+        );
+        appendSessionLog('PR_HISTORY_CREATE', `Created PR History entry for ${exObj.name} (${roundedPR} LB on ${cleanDate})`);
+      }
+      setPrRecordDate('');
     } else if (plateCalcTarget.mode === 'goal') {
       setCustomGoalWeights(prev => ({
         ...prev,
@@ -1892,7 +2007,7 @@ export default function App() {
     setSelectedGymId,
     gyms,
     history,
-    oneRepMaxes,
+    oneRepMaxes: effectiveOneRepMaxes,
     currentIncrementLbs,
     newSlotCategory,
     newSlotMuscleGroup,
@@ -2187,7 +2302,7 @@ export default function App() {
               setSelectedGymId={setSelectedGymId}
               gyms={gyms}
               history={history}
-              oneRepMaxes={oneRepMaxes}
+              oneRepMaxes={effectiveOneRepMaxes}
               currentIncrementLbs={currentIncrementLbs}
               newSlotCategory={newSlotCategory}
               newSlotMuscleGroup={newSlotMuscleGroup}
@@ -2245,7 +2360,7 @@ export default function App() {
               }}
               historyPRsExpanded={historyPRsExpanded}
               setHistoryPRsExpanded={setHistoryPRsExpanded}
-              oneRepMaxes={oneRepMaxes}
+              oneRepMaxes={effectiveOneRepMaxes}
               targetStandardClass={targetStandardClass}
               userBodyweightLbs={userBodyweightLbs}
               totalHeightInches={totalHeightInches}
@@ -2253,8 +2368,7 @@ export default function App() {
               setHistoricalDraft={setHistoricalDraft}
               setCurrentView={setCurrentView}
               openPlateCalculatorForPR={openPlateCalculatorForPR}
-              handleSetPRUnknown={handleSetPRUnknown}
-              onJumpToPRHistoryEntry={handleJumpToPRHistoryEntry}
+              setDeleteConfirmTarget={setDeleteConfirmTarget}
               buildHistoryWorkoutEditorProps={buildHistoryWorkoutEditorProps}
             />
           )}
@@ -2296,7 +2410,7 @@ export default function App() {
               totalHeightInches={totalHeightInches}
               targetStandardClass={targetStandardClass}
               setTargetStandardClass={setTargetStandardClass}
-              oneRepMaxes={oneRepMaxes}
+              oneRepMaxes={effectiveOneRepMaxes}
               customGoalWeights={customGoalWeights}
               openPlateCalculatorForGoal={openPlateCalculatorForGoal}
             />
@@ -2310,7 +2424,7 @@ export default function App() {
               selectedChartLift={selectedChartLift}
               setSelectedChartLift={setSelectedChartLift}
               progressionSeriesByLift={progressionSeriesByLift}
-              oneRepMaxes={oneRepMaxes}
+              oneRepMaxes={effectiveOneRepMaxes}
               targetStandardClass={targetStandardClass}
               userBodyweightLbs={userBodyweightLbs}
               totalHeightInches={totalHeightInches}
@@ -2331,7 +2445,7 @@ export default function App() {
             <LeaderboardView
               colors={colors}
               user={user}
-              oneRepMaxes={oneRepMaxes}
+              oneRepMaxes={effectiveOneRepMaxes}
               friendsList={friendsList}
               userBodyweightLbs={userBodyweightLbs}
               history={history}
@@ -2361,7 +2475,7 @@ export default function App() {
               setUser={setUser}
               setCurrentView={setCurrentView}
               fileInputRef={fileInputRef}
-              oneRepMaxes={oneRepMaxes}
+              oneRepMaxes={effectiveOneRepMaxes}
               sharedRoutines={sharedRoutines}
               openPlateCalculatorForPR={openPlateCalculatorForPR}
               handleOpenPreviewRoutine={handleOpenPreviewRoutine}
@@ -2414,10 +2528,9 @@ export default function App() {
               setGoalUnit={setGoalUnit}
               targetStandardClass={targetStandardClass}
               setTargetStandardClass={setTargetStandardClass}
-              oneRepMaxes={oneRepMaxes}
+              oneRepMaxes={effectiveOneRepMaxes}
               customGoalWeights={customGoalWeights}
               openPlateCalculatorForPR={openPlateCalculatorForPR}
-              handleSetPRUnknown={handleSetPRUnknown}
               hasActiveSession={Boolean(activeSession?.slots?.length > 0)}
               selectedGymId={selectedGymId}
               setSelectedGymId={setSelectedGymId}
@@ -2501,8 +2614,9 @@ export default function App() {
           setCalcPlatesPerSide={setCalcPlatesPerSide}
           calcDirectTotal={calcDirectTotal}
           setCalcDirectTotal={setCalcDirectTotal}
+          prRecordDate={prRecordDate}
+          setPrRecordDate={setPrRecordDate}
           handleApplyCalculatedWeight={handleApplyCalculatedWeight}
-          handleSetPRUnknown={handleSetPRUnknown}
         />
 
         <SetValueEditorModal
