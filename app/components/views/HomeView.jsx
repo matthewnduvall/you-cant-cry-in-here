@@ -151,7 +151,7 @@ export function HomeView({
         </button>
       </div>
 
-      {/* PRIMARY ACTIONS: NEW SESSION, AUTO SESSION, HISTORY */}
+      {/* PRIMARY ACTIONS: NEW SESSION, AUTO SESSION, HISTORY (SHARED BORDERS, ZERO GAPS) */}
       <section
         style={{
           padding: '16px var(--dp-spacing-gutter)',
@@ -163,7 +163,9 @@ export function HomeView({
           style={{
             display: 'grid',
             gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
-            gap: '8px'
+            gap: 0,
+            borderTop: '1px solid var(--dp-color-rule)',
+            borderLeft: '1px solid var(--dp-color-rule)'
           }}
         >
           <button
@@ -173,13 +175,16 @@ export function HomeView({
             style={{
               height: '46px',
               boxSizing: 'border-box',
-              padding: '0 10px',
+              padding: '0 6px',
               backgroundColor: 'var(--dp-color-accent)',
               color: '#101010',
-              border: '2px solid #FFFFFF',
+              borderTop: 'none',
+              borderLeft: 'none',
+              borderRight: '1px solid var(--dp-color-rule)',
+              borderBottom: '1px solid var(--dp-color-rule)',
               fontWeight: 800,
-              fontSize: hasActiveSession ? '11.5px' : '13px',
-              letterSpacing: hasActiveSession ? '-0.03em' : 'normal',
+              fontSize: '12px',
+              letterSpacing: '-0.02em',
               lineHeight: 1,
               whiteSpace: 'nowrap',
               overflow: 'hidden',
@@ -203,12 +208,16 @@ export function HomeView({
             style={{
               height: '46px',
               boxSizing: 'border-box',
-              padding: '0 10px',
+              padding: '0 6px',
               backgroundColor: 'var(--dp-color-accent)',
-              color: '#101010',
-              border: '2px solid #FFFFFF',
+              color: '#FFFFFF',
+              borderTop: 'none',
+              borderLeft: 'none',
+              borderRight: '1px solid var(--dp-color-rule)',
+              borderBottom: '1px solid var(--dp-color-rule)',
               fontWeight: 800,
-              fontSize: '13px',
+              fontSize: '12px',
+              letterSpacing: '-0.02em',
               lineHeight: 1,
               whiteSpace: 'nowrap',
               textTransform: 'uppercase',
@@ -229,12 +238,16 @@ export function HomeView({
             style={{
               height: '46px',
               boxSizing: 'border-box',
-              padding: '0 10px',
+              padding: '0 6px',
               backgroundColor: '#161616',
               color: '#FFFFFF',
-              border: '2px solid var(--dp-color-rule)',
+              borderTop: 'none',
+              borderLeft: 'none',
+              borderRight: '1px solid var(--dp-color-rule)',
+              borderBottom: '1px solid var(--dp-color-rule)',
               fontWeight: 800,
-              fontSize: '13px',
+              fontSize: '12px',
+              letterSpacing: '-0.02em',
               lineHeight: 1,
               whiteSpace: 'nowrap',
               textTransform: 'uppercase',
@@ -253,8 +266,8 @@ export function HomeView({
       {/* STATS SECTION ON HOME SCREEN */}
       <IOSListSection header="STATS" colors={colors}>
         {[
-          { id: 'progression_chart', idx: '01', title: 'PROGRESSION CHART', sub: 'Big 3 + OHP Weight & Volume Graphed Trends', num: '01' },
-          { id: 'stimulus_map', idx: '02', title: 'STIMULUS MAP', sub: 'Recovery Windows & Muscle Readiness', num: '02' },
+          { id: 'progression_chart', idx: '01', title: 'PROGRESS', sub: 'Big 3 + OHP Weight & Volume Graphed Trends', num: '01' },
+          { id: 'stimulus_map', idx: '02', title: 'STIMULUS', sub: 'Recovery Windows & Muscle Readiness', num: '02' },
           { id: 'leaderboard', idx: '03', title: 'LEADERBOARD', sub: 'Big 3 + OHP Community Standings', num: '03' },
           { id: 'social', idx: '04', title: 'SOCIAL', sub: `${friendsList.length} Friends • ${pendingIncomingRequests.length} Pending Request`, num: '04' }
         ].map((item, i, arr) => (

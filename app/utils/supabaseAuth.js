@@ -800,6 +800,12 @@ export async function fetchCloudStateForUser(user) {
         : Array.isArray(metadataSnapshot?.friendsList)
           ? metadataSnapshot.friendsList
           : [],
+    outgoingInvites:
+      Array.isArray(profileRow?.settings?.outgoingInvites) && profileRow.settings.outgoingInvites.length > 0
+        ? profileRow.settings.outgoingInvites
+        : Array.isArray(metadataSnapshot?.outgoingInvites)
+          ? metadataSnapshot.outgoingInvites
+          : [],
     settings: profileRow?.settings || metadataSnapshot?.settings || null
   };
 }
@@ -859,7 +865,8 @@ export async function pushCloudStateForUser(user, payload) {
           settings: {
             ...(payload.settings || {}),
             activeSession: payload.activeSession || null,
-            friendsList: payload.friendsList || []
+            friendsList: payload.friendsList || [],
+            outgoingInvites: payload.outgoingInvites || []
           },
           gyms: payload.gyms || [],
           updated_at: payload.updatedAt || new Date().toISOString()
@@ -925,3 +932,99 @@ export async function pushCloudStateForUser(user, payload) {
   await Promise.allSettled(tasks);
   return true;
 }
+
+/**
+ * Resolves automatic friendships for email invites:
+ * 1) Checks if any email in the current user's `outgoingInvites` has registered an account (locally or in Supabase `user_profiles`).
+ * 2) Checks if any registered user in Supabase `user_profiles` sent an email invite to the current user's email.
+ */
+export async function resolveInviteFriendshipsForUser(user, outgoingInvites = []) {
+  const matchedFriends = [];
+  const resolvedInviteEmails = [];
+
+  const currentEmail = (user?.email || '').trim().toLowerCase();
+  const inviteEmails = (Array.isArray(outgoingInvites) ? outgoingInvites : [])
+    .map(inv => (typeof inv === 'string' ? inv : inv?.email || '').trim().toLowerCase())
+    .filter(Boolean);
+
+  // 1. Check local registered accounts on this device
+  const localAccounts = getLocalRegisteredAccounts();
+  inviteEmails.forEach(email => {
+    const acc = localAccounts[email];
+    if (acc && acc.email && acc.email.toLowerCase() !== currentEmail) {
+      matchedFriends.push({
+        id: acc.id || `friend_${acc.username}`,
+        username: acc.username || acc.email.split('@')[0],
+        email: acc.email.toLowerCase(),
+        prs: {},
+        sharedRoutines: []
+      });
+      resolvedInviteEmails.push(email);
+    }
+  });
+
+  // 2. Check Supabase user_profiles if configured
+  const { baseUrl, anonKey, isConfigured } = getSupabaseConfig();
+  if (isConfigured) {
+    const accessToken = user ? await getValidSupabaseAccessToken(user) : null;
+    const headers = {
+      apikey: anonKey,
+      Authorization: `Bearer ${accessToken || anonKey}`
+    };
+
+    try {
+      const res = await fetch(
+        `${baseUrl}/rest/v1/user_profiles?select=id,username,email,one_rep_maxes,settings`,
+        { headers }
+      );
+      if (res.ok) {
+        const rows = await res.json();
+        if (Array.isArray(rows)) {
+          rows.forEach(row => {
+            const rowEmail = (row?.email || '').trim().toLowerCase();
+            if (!rowEmail || rowEmail === currentEmail) return;
+
+            // A) Did current user invite this profile's email?
+            if (inviteEmails.includes(rowEmail)) {
+              matchedFriends.push({
+                id: row.id || `friend_${row.username}`,
+                username: row.username || rowEmail.split('@')[0],
+                email: rowEmail,
+                prs: row.one_rep_maxes || {},
+                sharedRoutines: []
+              });
+              if (!resolvedInviteEmails.includes(rowEmail)) {
+                resolvedInviteEmails.push(rowEmail);
+              }
+            }
+
+            // B) Did this profile invite the current user's email?
+            const rowInvites = Array.isArray(row?.settings?.outgoingInvites)
+              ? row.settings.outgoingInvites
+              : [];
+            const invitedCurrent = rowInvites.some(
+              inv => (typeof inv === 'string' ? inv : inv?.email || '').trim().toLowerCase() === currentEmail
+            );
+            if (currentEmail && invitedCurrent) {
+              matchedFriends.push({
+                id: row.id || `friend_${row.username}`,
+                username: row.username || rowEmail.split('@')[0],
+                email: rowEmail,
+                prs: row.one_rep_maxes || {},
+                sharedRoutines: []
+              });
+            }
+          });
+        }
+      }
+    } catch {
+      // ignore network error
+    }
+  }
+
+  return {
+    matchedFriends,
+    resolvedInviteEmails
+  };
+}
+

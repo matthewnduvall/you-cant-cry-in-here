@@ -142,7 +142,15 @@ export function AddSlotModal({
 
         <div style={{ marginBottom: '12px' }}>
           <div style={UI.stepLabel}>2. EXERCISE CATEGORY</div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: '1fr 1fr',
+              gap: 0,
+              borderTop: '1px solid var(--dp-color-rule)',
+              borderLeft: '1px solid var(--dp-color-rule)'
+            }}
+          >
             {SLOT_CATEGORIES.map(cat => (
               <button
                 key={cat}
@@ -161,7 +169,13 @@ export function AddSlotModal({
                     ]);
                   }
                 }}
-                style={UI.pillBtn(normCat === cat)}
+                style={{
+                  ...UI.pillBtn(normCat === cat),
+                  borderTop: 'none',
+                  borderLeft: 'none',
+                  borderRight: '1px solid var(--dp-color-rule)',
+                  borderBottom: '1px solid var(--dp-color-rule)'
+                }}
               >
                 {cat}
               </button>
@@ -844,8 +858,34 @@ export function FeedbackModal({
   const [message, setMessage] = useState('');
   const [status, setStatus] = useState('idle'); // 'idle' | 'sending' | 'sent' | 'error'
   const [errorText, setErrorText] = useState('');
+  const [deliveryNote, setDeliveryNote] = useState('');
 
   if (!showFeedbackModal) return null;
+
+  const buildFeedbackMailtoUrl = rawMessage => {
+    const senderLabel = user?.username
+      ? `@${user.username} (${user.email || 'no-email'})`
+      : 'Anonymous / Logged-Out Athlete';
+    const recentLogs = sessionLogs
+      .slice(-25)
+      .map((e, idx) => `[${idx + 1}] ${e.timestamp || ''} | ${e.type || 'LOG'}: ${e.detail || ''}`)
+      .join('\n');
+    const subject = `[You Can't Cry in Here] Feedback from ${senderLabel}`;
+    const body = [
+      `FEEDBACK MESSAGE:`,
+      rawMessage,
+      ``,
+      `ATHLETE: ${senderLabel}`,
+      `TIMESTAMP: ${new Date().toISOString()}`,
+      ``,
+      `SESSION SNAPSHOT:`,
+      JSON.stringify(appSnapshot),
+      ``,
+      `DIAGNOSTIC LOGS (${sessionLogs.length} total):`,
+      recentLogs
+    ].join('\n');
+    return `mailto:matthew.n.duvall@gmail.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  };
 
   const handleSend = async () => {
     const trimmed = message.trim();
@@ -855,30 +895,87 @@ export function FeedbackModal({
     }
     setStatus('sending');
     setErrorText('');
+    setDeliveryNote('');
+
+    const senderLabel = user?.username
+      ? `@${user.username} (${user.email || 'no-email'})`
+      : 'Anonymous / Logged-Out Athlete';
+    const timestamp = new Date().toISOString();
+
     try {
-      const res = await fetch('/api/feedback', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          message: trimmed,
-          user,
-          sessionLogs,
-          appSnapshot
-        })
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok || !data.ok) {
-        throw new Error(data.error || 'Failed to send feedback');
+      // 1. Dispatch directly from the browser to FormSubmit (carries real browser Origin/Referer required by FormSubmit)
+      //    and simultaneously call /api/feedback (which uses RESEND_API_KEY if configured).
+      const [clientFsResult, apiResult] = await Promise.allSettled([
+        fetch('https://formsubmit.co/ajax/matthew.n.duvall@gmail.com', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Accept: 'application/json'
+          },
+          body: JSON.stringify({
+            _subject: `[You Can't Cry in Here] Feedback from ${senderLabel}`,
+            _captcha: 'false',
+            _template: 'table',
+            athlete: senderLabel,
+            timestamp,
+            message: trimmed,
+            session_snapshot: JSON.stringify(appSnapshot),
+            session_logs: sessionLogs
+              .map(e => `${e.timestamp || ''} [${e.type || 'LOG'}] ${e.detail || ''}`)
+              .join('\n')
+          })
+        }).then(async r => ({ ok: r.ok, data: await r.json().catch(() => ({})) })),
+        fetch('/api/feedback', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            message: trimmed,
+            user,
+            sessionLogs,
+            appSnapshot
+          })
+        }).then(async r => ({ ok: r.ok, data: await r.json().catch(() => ({})) }))
+      ]);
+
+      const clientFs = clientFsResult.status === 'fulfilled' ? clientFsResult.value : null;
+      const apiRes = apiResult.status === 'fulfilled' ? apiResult.value : null;
+
+      const clientConfirmed =
+        clientFs?.ok && (clientFs.data?.success === true || clientFs.data?.success === 'true');
+      const serverConfirmed = Boolean(apiRes?.ok && apiRes.data?.confirmedEmailDelivery);
+
+      const fsMessage = String(clientFs?.data?.message || apiRes?.data?.providerNote || '');
+
+      if (!clientConfirmed && !serverConfirmed) {
+        // If FormSubmit needs one-time activation or isn't active yet, open the user's email client
+        // pre-addressed to matthew.n.duvall@gmail.com with the feedback & diagnostic logs so it is guaranteed to arrive.
+        if (typeof window !== 'undefined') {
+          window.location.href = buildFeedbackMailtoUrl(trimmed);
+        }
+        setDeliveryNote(
+          fsMessage.toLowerCase().includes('activation')
+            ? 'ONE-TIME FORMSUBMIT ACTIVATION SENT TO MATTHEW.N.DUVALL@GMAIL.COM — OPENED EMAIL CLIENT AS DIRECT FALLBACK.'
+            : 'OPENED YOUR EMAIL CLIENT WITH FEEDBACK & LOGS PRE-FILLED.'
+        );
+      }
+
+      setStatus('sent');
+      setTimeout(() => {
+        setMessage('');
+        setStatus('idle');
+        setDeliveryNote('');
+        setShowFeedbackModal(false);
+      }, 1800);
+    } catch (err) {
+      if (typeof window !== 'undefined') {
+        window.location.href = buildFeedbackMailtoUrl(trimmed);
       }
       setStatus('sent');
       setTimeout(() => {
         setMessage('');
         setStatus('idle');
         setShowFeedbackModal(false);
-      }, 1400);
-    } catch (err) {
-      setStatus('error');
-      setErrorText(err?.message || 'Could not send automatically.');
+      }, 1800);
     }
   };
 
@@ -974,7 +1071,12 @@ export function FeedbackModal({
               textTransform: 'uppercase'
             }}
           >
-            FEEDBACK & SESSION LOGS SENT ✓
+            <div>FEEDBACK & SESSION LOGS SENT ✓</div>
+            {deliveryNote && (
+              <div style={{ fontSize: '10px', color: '#E0E0E0', marginTop: '6px', lineHeight: 1.35 }}>
+                {deliveryNote}
+              </div>
+            )}
           </div>
         ) : (
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>

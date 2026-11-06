@@ -68,13 +68,32 @@ export const getHistoricalCalculated1RM = (exerciseId, history = [], oneRepMaxes
   return best > 0 ? best : EXERCISE_MAP[exerciseId]?.default1RM ?? 135;
 };
 
-export const calculateLastEquivalentWeightForSet = (base1RM, setItem, totalSetsCount = 5, category = 'Compound Lift') => {
+export const calculateLastEquivalentWeightForSet = (
+  base1RM,
+  setItem,
+  totalSetsCount = 5,
+  category = 'Compound Lift',
+  setIndex = 0,
+  scheme = ''
+) => {
   if (category === 'Abs') return 0;
   const max1RM = Math.max(5, Number(base1RM) || 135);
   const sType = normalizeSetType(setItem?.type);
   const reps = Math.max(1, Number(setItem?.reps) || 8);
 
   if (sType === '1 Rep Max' || totalSetsCount <= 1) return roundTo5(max1RM);
+
+  // For Pyramid 1RM warmup sets (unless the user explicitly edited reps), use the exact 50%..85% warmup ramp
+  if (
+    scheme === 'Pyramid 1RM' &&
+    sType === 'Warmup' &&
+    setIndex < totalSetsCount - 1 &&
+    setItem?.lastEditedField !== 'reps'
+  ) {
+    const warmupCount = Math.max(1, totalSetsCount - 1);
+    const pct = warmupCount <= 1 ? 0.70 : 0.50 + (setIndex / (warmupCount - 1)) * 0.35;
+    return roundTo5(max1RM * pct);
+  }
 
   const repPct = 1 / (1 + Math.max(0, reps - 1) / 30);
   let typeMultiplier = 0.98;
@@ -88,14 +107,52 @@ export const calculateLastEquivalentWeightForSet = (base1RM, setItem, totalSetsC
   return roundTo5(rawWeight);
 };
 
+export const calculateEquivalentRepsForWeight = (
+  base1RM,
+  targetWeightLbs,
+  setItem,
+  totalSetsCount = 5,
+  category = 'Compound Lift',
+  incrementLbs = 0
+) => {
+  if (category === 'Abs') return Math.max(1, Number(setItem?.reps) || 45);
+  const max1RM = Math.max(5, Number(base1RM) || 135);
+  const sType = normalizeSetType(setItem?.type);
+  if (sType === '1 Rep Max' || totalSetsCount <= 1) return 1;
+
+  let typeMultiplier = 0.98;
+  if (sType === 'Warmup') typeMultiplier = 0.74;
+  else if (sType === 'Top Out') typeMultiplier = 1.04;
+  else if (sType === 'Burn Out') typeMultiplier = 0.84;
+
+  const setStressFactor = 1 / (1 + Math.max(0, totalSetsCount - 1) * 0.035);
+  const effectiveBaseWeight = Math.max(5, (Number(targetWeightLbs) || 0) - (Number(incrementLbs) || 0));
+  const denom = max1RM * typeMultiplier * setStressFactor;
+  if (denom <= 0) return 1;
+
+  const repPct = effectiveBaseWeight / denom;
+  if (repPct >= 1) return 1;
+  const computedReps = Math.round(1 + 30 * (1 / repPct - 1));
+  return Math.max(1, Math.min(50, computedReps));
+};
+
 export const getIncrementInLbs = (goalIncrement = 1.25, goalUnit = 'lb', goalType = 'Strength') => {
   if (goalType === 'Maintain') return 0;
   const inc = Number(goalIncrement) || 0;
   return goalUnit === 'kg' ? roundToIncrement(inc * 2.20462) : roundToIncrement(inc);
 };
 
+export const getEffectiveIncrementForExercise = (exerciseId, baseIncrementLbs = 0) => {
+  const inc = Number(baseIncrementLbs) || 0;
+  if (inc <= 0) return 0;
+  const exObj = EXERCISE_MAP[exerciseId];
+  const isBarbell = exObj?.equipment === 'Barbell';
+  return isBarbell ? roundToIncrement(inc * 2) : roundToIncrement(inc);
+};
+
 export const generateSetsForScheme = (scheme, oneRepMax, category = 'Compound Lift', exerciseId = '', incrementLbs = 0) => {
   const base1RM = oneRepMax || (EXERCISE_MAP[exerciseId]?.default1RM ?? 135);
+  const effectiveInc = getEffectiveIncrementForExercise(exerciseId, incrementLbs);
   const ts = Date.now() + Math.floor(Math.random() * 10000);
 
   if (category === 'Abs' || exerciseId === 'hollow_holds') {
@@ -112,8 +169,8 @@ export const generateSetsForScheme = (scheme, oneRepMax, category = 'Compound Li
       const lastW =
         s.lastWeight !== undefined
           ? s.lastWeight
-          : calculateLastEquivalentWeightForSet(base1RM, { ...s, type: normType }, totalCount, category);
-      const setInc = normType === '1 Rep Max' ? 0 : incrementLbs;
+          : calculateLastEquivalentWeightForSet(base1RM, { ...s, type: normType }, totalCount, category, idx, scheme);
+      const setInc = normType === '1 Rep Max' ? 0 : effectiveInc;
       const targetW =
         normType === '1 Rep Max' ? roundTo5(base1RM) : roundToIncrement(lastW + setInc);
       return {
@@ -144,23 +201,29 @@ export const generateSetsForScheme = (scheme, oneRepMax, category = 'Compound Li
       ]);
     case 'Pyramid 1RM': {
       const pyramidReps = [8, 5, 3, 2, 1];
-      const warmupCount = pyramidReps.length - 1;
+      const totalCount = pyramidReps.length;
       const maxW = roundTo5(base1RM);
       return pyramidReps.map((reps, idx) => {
-        if (idx === pyramidReps.length - 1) {
+        if (idx === totalCount - 1) {
           return {
             id: `set_${ts}_${idx}_${Math.random().toString(36).slice(2, 5)}`,
             setNumber: idx + 1,
             type: '1 Rep Max',
             reps: 1,
             lastWeight: maxW,
-            increment: incrementLbs,
-            weight: roundToIncrement(maxW + incrementLbs),
+            increment: effectiveInc,
+            weight: roundToIncrement(maxW + effectiveInc),
             completed: false
           };
         }
-        const pct = warmupCount <= 1 ? 0.70 : 0.50 + (idx / (warmupCount - 1)) * 0.35;
-        const warmupW = roundTo5(base1RM * pct);
+        const warmupW = calculateLastEquivalentWeightForSet(
+          base1RM,
+          { reps, type: 'Warmup' },
+          totalCount,
+          category,
+          idx,
+          'Pyramid 1RM'
+        );
         return {
           id: `set_${ts}_${idx}_${Math.random().toString(36).slice(2, 5)}`,
           setNumber: idx + 1,

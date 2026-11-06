@@ -43,6 +43,7 @@ export async function POST(request) {
     ].join('\n');
 
     let deliveredVia = 'server_log';
+    let providerNote = null;
 
     // 1. If RESEND_API_KEY is configured in environment, dispatch via Resend
     if (process.env.RESEND_API_KEY) {
@@ -62,23 +63,40 @@ export async function POST(request) {
         });
         if (resendRes.ok) {
           deliveredVia = 'resend';
+        } else {
+          const errJson = await resendRes.json().catch(() => ({}));
+          providerNote = errJson?.message || null;
         }
       } catch {
         // Fallback to next transport
       }
     }
 
-    // 2. Dispatch via FormSubmit AJAX endpoint to matthew.n.duvall@gmail.com
+    // 2. Dispatch via FormSubmit AJAX endpoint to matthew.n.duvall@gmail.com with browser-compatible Origin/Referer headers
     if (deliveredVia === 'server_log') {
       try {
+        const originHeader =
+          request.headers.get('origin') ||
+          request.headers.get('referer') ||
+          'https://youcantcryinhere.vercel.app';
+        const refererHeader =
+          request.headers.get('referer') || `${originHeader.replace(/\/+$/, '')}/`;
+
         const fsRes = await fetch(`https://formsubmit.co/ajax/${FEEDBACK_RECIPIENT}`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            Accept: 'application/json'
+            Accept: 'application/json',
+            Origin: originHeader,
+            Referer: refererHeader,
+            'User-Agent':
+              request.headers.get('user-agent') ||
+              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
           },
           body: JSON.stringify({
             _subject: `[You Can't Cry in Here] Feedback from ${senderLabel}`,
+            _captcha: 'false',
+            _template: 'table',
             athlete: senderLabel,
             timestamp,
             message,
@@ -88,8 +106,11 @@ export async function POST(request) {
               .join('\n')
           })
         });
-        if (fsRes.ok) {
+        const fsData = await fsRes.json().catch(() => ({}));
+        if (fsRes.ok && (fsData?.success === true || fsData?.success === 'true')) {
           deliveredVia = 'formsubmit';
+        } else if (fsData?.message) {
+          providerNote = fsData.message;
         }
       } catch {
         // Keep server log fallback
@@ -102,6 +123,8 @@ export async function POST(request) {
       ok: true,
       recipient: FEEDBACK_RECIPIENT,
       deliveredVia,
+      confirmedEmailDelivery: deliveredVia === 'resend' || deliveredVia === 'formsubmit',
+      providerNote,
       timestamp
     });
   } catch (err) {

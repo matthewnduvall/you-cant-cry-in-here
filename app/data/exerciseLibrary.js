@@ -43,6 +43,7 @@ export const isAccessoryCategory = cat => normalizeSlotCategory(cat) === 'Access
 // Standardized with https://exrx.net/Lists/Directory Body Part Directory
 export const MUSCLE_GROUP_OPTIONS = [
   'All Muscles',
+  'Legs',
   'Neck',
   'Shoulders',
   'Chest',
@@ -322,10 +323,30 @@ export const doesExerciseInteractWithMuscleGroup = (ex, muscleGroupFilter) => {
       specs.some(s => s.includes('glute') || s.includes('abductor') || s.includes('hip flexor'))
     );
   }
-  if (target === 'thighs' || target === 'legs') {
+  if (target === 'legs') {
+    return (
+      primary === 'legs' ||
+      primary === 'thighs' ||
+      primary === 'hips' ||
+      primary === 'calves' ||
+      specs.some(
+        s =>
+          s.includes('quadriceps') ||
+          s.includes('hamstrings') ||
+          s.includes('adductor') ||
+          s.includes('glute') ||
+          s.includes('abductor') ||
+          s.includes('calf') ||
+          s.includes('calves') ||
+          s.includes('gastrocnemius') ||
+          s.includes('soleus') ||
+          s.includes('tibialis')
+      )
+    );
+  }
+  if (target === 'thighs') {
     return (
       primary === 'thighs' ||
-      primary === 'legs' ||
       specs.some(s => s.includes('quadriceps') || s.includes('hamstrings') || s.includes('adductor'))
     );
   }
@@ -416,13 +437,23 @@ export const getFilteredExercisesForSlotInline = (slot, selectedGymId, customGym
 };
 
 export const BIG_FOUR_IDS = ['barbell_bench_press', 'barbell_back_squat', 'barbell_deadlift', 'overhead_press'];
+export const CORE_PR_EXERCISE_IDS = [
+  'barbell_bench_press',
+  'barbell_back_squat',
+  'barbell_deadlift',
+  'overhead_press',
+  'incline_bench_press',
+  'chin_ups'
+];
 export const EXRX_CLASSES = ['Untrained', 'Novice', 'Intermediate', 'Advanced', 'Elite'];
 
 export const EXRX_RATIOS = {
   barbell_bench_press: { Untrained: 0.61, Novice: 0.79, Intermediate: 0.98, Advanced: 1.34, Elite: 1.66 },
   barbell_back_squat: { Untrained: 0.57, Novice: 1.05, Intermediate: 1.29, Advanced: 1.75, Elite: 2.27 },
   barbell_deadlift: { Untrained: 0.71, Novice: 1.31, Intermediate: 1.50, Advanced: 2.11, Elite: 2.61 },
-  overhead_press: { Untrained: 0.40, Novice: 0.55, Intermediate: 0.69, Advanced: 0.87, Elite: 1.16 }
+  overhead_press: { Untrained: 0.40, Novice: 0.55, Intermediate: 0.69, Advanced: 0.87, Elite: 1.16 },
+  incline_bench_press: { Untrained: 0.50, Novice: 0.67, Intermediate: 0.83, Advanced: 1.13, Elite: 1.41 },
+  chin_ups: { Untrained: 0.55, Novice: 0.75, Intermediate: 0.95, Advanced: 1.25, Elite: 1.53 }
 };
 
 export const roundTo5 = val => Math.max(5, Math.round(val / 5) * 5);

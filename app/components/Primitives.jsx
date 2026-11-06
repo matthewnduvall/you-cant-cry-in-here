@@ -177,14 +177,14 @@ export const SessionRestTimerBar = React.memo(function SessionRestTimerBar({
     <div
       style={{
         marginTop: '10px',
-        paddingTop: '10px',
-        borderTop: '2px solid var(--dp-color-rule)',
         display: 'grid',
-        gridTemplateColumns: '112px minmax(0, 1fr)',
+        gridTemplateColumns: '120px minmax(0, 1fr)',
         alignItems: 'stretch',
-        gap: '8px',
-        height: '54px',
-        boxSizing: 'border-box'
+        gap: 0,
+        height: '46px',
+        boxSizing: 'border-box',
+        borderTop: '1px solid var(--dp-color-rule)',
+        borderLeft: '1px solid var(--dp-color-rule)'
       }}
     >
       {timerTrigger.isRunning ? (
@@ -195,19 +195,22 @@ export const SessionRestTimerBar = React.memo(function SessionRestTimerBar({
           className="kinetic-btn"
           style={{
             width: '100%',
-            height: '42px',
-            minHeight: '42px',
-            maxHeight: '42px',
+            height: '45px',
+            minHeight: '45px',
+            maxHeight: '45px',
             boxSizing: 'border-box',
             backgroundColor: '#FF3B30',
             color: '#FFFFFF',
-            border: '2px solid #FFFFFF',
+            borderTop: 'none',
+            borderLeft: 'none',
+            borderRight: '1px solid var(--dp-color-rule)',
+            borderBottom: '1px solid var(--dp-color-rule)',
             padding: '0 8px',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             gap: '6px',
-            fontSize: '12px',
+            fontSize: '13px',
             fontWeight: 800,
             textTransform: 'uppercase',
             cursor: 'pointer',
@@ -222,16 +225,19 @@ export const SessionRestTimerBar = React.memo(function SessionRestTimerBar({
         <div
           style={{
             width: '100%',
-            height: '42px',
-            minHeight: '42px',
-            maxHeight: '42px',
+            height: '45px',
+            minHeight: '45px',
+            maxHeight: '45px',
             boxSizing: 'border-box',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             gap: '6px',
-            backgroundColor: '#101010',
-            border: '2px solid var(--dp-color-rule)',
+            backgroundColor: '#141416',
+            borderTop: 'none',
+            borderLeft: 'none',
+            borderRight: '1px solid var(--dp-color-rule)',
+            borderBottom: '1px solid var(--dp-color-rule)',
             padding: '0 8px',
             overflow: 'hidden'
           }}
@@ -241,20 +247,20 @@ export const SessionRestTimerBar = React.memo(function SessionRestTimerBar({
             value={defaultRestSeconds}
             onChange={e => onChangeDefaultRest(Number(e.target.value))}
             style={{
-              backgroundColor: '#101010',
+              backgroundColor: 'transparent',
               color: '#FFFFFF',
               border: 'none',
-              fontSize: '11px',
+              fontSize: '12px',
               fontWeight: 800,
               textTransform: 'uppercase',
               outline: 'none',
               cursor: 'pointer'
             }}
           >
-            <option value={60}>REST 1:00</option>
-            <option value={90}>REST 1:30</option>
-            <option value={120}>REST 2:00</option>
-            <option value={180}>REST 3:00</option>
+            <option value={60} style={{ backgroundColor: '#101010' }}>REST 1:00</option>
+            <option value={90} style={{ backgroundColor: '#101010' }}>REST 1:30</option>
+            <option value={120} style={{ backgroundColor: '#101010' }}>REST 2:00</option>
+            <option value={180} style={{ backgroundColor: '#101010' }}>REST 3:00</option>
           </select>
         </div>
       )}
@@ -263,23 +269,26 @@ export const SessionRestTimerBar = React.memo(function SessionRestTimerBar({
         style={{
           minWidth: 0,
           width: '100%',
-          height: '42px',
-          minHeight: '42px',
-          maxHeight: '42px',
+          height: '45px',
+          minHeight: '45px',
+          maxHeight: '45px',
           boxSizing: 'border-box',
           display: 'flex',
           flexDirection: 'column',
           justifyContent: 'center',
-          padding: '0 10px',
+          padding: '0 12px',
           backgroundColor: 'var(--dp-color-accent)',
           color: '#101010',
-          border: '2px solid var(--dp-color-rule)',
+          borderTop: 'none',
+          borderLeft: 'none',
+          borderRight: '1px solid var(--dp-color-rule)',
+          borderBottom: '1px solid var(--dp-color-rule)',
           overflow: 'hidden'
         }}
       >
         <div
           style={{
-            fontSize: '11px',
+            fontSize: '12px',
             fontWeight: 800,
             lineHeight: 1.15,
             whiteSpace: 'nowrap',
@@ -293,7 +302,7 @@ export const SessionRestTimerBar = React.memo(function SessionRestTimerBar({
         {nextLiftInfo.bottomLine ? (
           <div
             style={{
-              fontSize: '10px',
+              fontSize: '10.5px',
               fontWeight: 800,
               lineHeight: 1.15,
               opacity: 0.9,
