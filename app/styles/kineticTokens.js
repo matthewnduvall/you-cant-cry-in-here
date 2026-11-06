@@ -78,7 +78,7 @@ export const KINETIC_CSS = `
     display: flex;
     width: max-content;
     white-space: nowrap;
-    animation: kinetic-marquee 14s var(--dp-motion-marquee-easing) infinite;
+    animation: kinetic-marquee 7s var(--dp-motion-marquee-easing) infinite;
   }
 
   .kinetic-marquee-paused .kinetic-marquee-track {

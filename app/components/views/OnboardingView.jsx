@@ -1728,6 +1728,36 @@ export function OnboardingView({
                 with live Strength Standard standings.
               </div>
             </div>
+
+            <div
+              style={{
+                padding: '16px 14px',
+                backgroundColor: '#141416',
+                ...SHARED_CELL_BORDER
+              }}
+            >
+              <div
+                style={{
+                  fontSize: '14px',
+                  fontWeight: 800,
+                  color: 'var(--dp-color-accent)',
+                  textTransform: 'uppercase',
+                  marginBottom: '6px'
+                }}
+              >
+                3. FEEDBACK
+              </div>
+              <div
+                style={{
+                  fontSize: '13px',
+                  color: colors.secondaryLabel,
+                  lineHeight: 1.5
+                }}
+              >
+                This app is in constant development, if you have any suggestions, requests, or issues please tap the{' '}
+                <strong style={{ color: '#FFFFFF' }}>FEEDBACK</strong> button on the top right and relay the info. Thanks!
+              </div>
+            </div>
           </div>
         </section>
       )}

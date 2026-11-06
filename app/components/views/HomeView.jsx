@@ -97,7 +97,7 @@ function getFriendSingleBig3TickerEntry(friend) {
     return `@${uname}: ${bestAnyLabel} 1RM ${bestAnyVal} LB`;
   }
 
-  return null;
+  return `@${uname}: BENCH 1RM TBD`;
 }
 
 export function HomeView({

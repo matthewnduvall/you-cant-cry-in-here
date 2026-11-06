@@ -1,7 +1,10 @@
 // ============================================================================
 // EXERCISE LIBRARY, GYM EQUIPMENT & EXRX.NET DIRECTORY STANDARDS
 // Standardized with https://exrx.net/Lists/Directory
+// Editable CSV source of truth: app/data/exercises.csv
 // ============================================================================
+
+import exercisesCsvText from './exercises.csv';
 
 export const GYM_EQUIPMENT_OPTIONS = [
   'Barbell',
@@ -75,9 +78,13 @@ export const formatDateYMD = dateInput => {
   if (!dateInput) return formatTodayYMD();
   if (typeof dateInput === 'string') {
     const trimmed = dateInput.trim();
-    const match = trimmed.match(/^(\d{4})[/-](\d{1,2})[/-](\d{1,2})/);
-    if (match) {
-      return `${match[1]}/${String(match[2]).padStart(2, '0')}/${String(match[3]).padStart(2, '0')}`;
+    const ymdMatch = trimmed.match(/^(\d{4})[/-](\d{1,2})[/-](\d{1,2})/);
+    if (ymdMatch) {
+      return `${ymdMatch[1]}/${String(ymdMatch[2]).padStart(2, '0')}/${String(ymdMatch[3]).padStart(2, '0')}`;
+    }
+    const mdyMatch = trimmed.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})/);
+    if (mdyMatch) {
+      return `${mdyMatch[3]}/${String(mdyMatch[1]).padStart(2, '0')}/${String(mdyMatch[2]).padStart(2, '0')}`;
     }
   }
   const dt = new Date(dateInput);
@@ -124,7 +131,15 @@ export const isExerciseCompatibleWithGymSelection = (ex, gymSelectionId, customG
     return eqText.includes('dumbbell') || reqEq.includes('Dumbbell');
   }
   if (gymSelectionId === 'preset_bodyweight_only') {
-    return eqText.includes('bodyweight') || reqEq.length === 0;
+    return (
+      eqText.includes('bodyweight') ||
+      eqText.includes('body weight') ||
+      eqText.includes('isometric') ||
+      eqText.includes('stretch') ||
+      eqText.includes('plyometric') ||
+      eqText.includes('self-assisted') ||
+      reqEq.length === 0
+    );
   }
 
   const foundGym = (customGyms || []).find(g => g.id === gymSelectionId);
@@ -141,346 +156,89 @@ export const getGymSelectionLabel = (gymSelectionId, customGyms = []) => {
   return custom ? custom.name : 'Full Gym (All)';
 };
 
-const mkEx = (
-  id,
-  name,
-  equipment,
-  requiredEquipment,
-  category,
-  muscleGroup,
-  specificMuscles,
-  isPriority,
-  default1RM,
-  alternatives = []
-) => ({
-  id,
-  name,
-  equipment,
-  requiredEquipment,
-  category: normalizeSlotCategory(category),
-  muscleGroup,
-  specificMuscles,
-  isPriority,
-  default1RM,
-  alternatives
-});
+// Fast RFC-4180 CSV line parser supporting quoted fields and pipe-delimited array columns
+const parseCsvLine = line => {
+  const fields = [];
+  let cur = '';
+  let inQuotes = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (inQuotes) {
+      if (ch === '"') {
+        if (line[i + 1] === '"') {
+          cur += '"';
+          i++;
+        } else {
+          inQuotes = false;
+        }
+      } else {
+        cur += ch;
+      }
+    } else if (ch === '"') {
+      inQuotes = true;
+    } else if (ch === ',') {
+      fields.push(cur);
+      cur = '';
+    } else {
+      cur += ch;
+    }
+  }
+  fields.push(cur);
+  return fields;
+};
 
-// Comprehensive Exercise Library standardized with ExRx.net Directory
-// Top-level body parts ONLY: Neck, Shoulders, Upper Arms, Forearms, Back, Chest, Waist, Hips, Thighs, Calves
-// (All sub-muscles from ExRx.net are flattened directly into their parent body-part group)
-export const EXERCISE_LIBRARY = [
-  // ==========================================================================
-  // CHEST (ExRx ChestWt: Pectoralis Major Sternal/Clavicular, Pectoralis Minor, Serratus Anterior)
-  // ==========================================================================
-  mkEx('barbell_bench_press', 'Barbell Bench Press', 'Barbell', ['Barbell', 'Flat / Incline Bench', 'Weight Plates'], 'Compound Lift', 'Chest', ['Pectoralis Major - Sternal', 'Deltoid - Anterior', 'Triceps Brachii'], true, 225, ['dumbbell_press', 'incline_bench_press', 'dumbbell_incline_press']),
-  mkEx('incline_bench_press', 'Barbell Incline Bench Press', 'Barbell', ['Barbell', 'Flat / Incline Bench', 'Weight Plates'], 'Compound Lift', 'Chest', ['Pectoralis Major - Clavicular', 'Deltoid - Anterior', 'Triceps Brachii'], true, 195, ['dumbbell_incline_press', 'dumbbell_press', 'barbell_bench_press']),
-  mkEx('decline_bench_press', 'Barbell Decline Bench Press', 'Barbell', ['Barbell', 'Flat / Incline Bench', 'Weight Plates'], 'Compound Lift', 'Chest', ['Pectoralis Major - Sternal', 'Triceps Brachii', 'Deltoid - Anterior'], false, 235, ['barbell_bench_press', 'chest_dip']),
-  mkEx('barbell_wide_grip_bench_press', 'Barbell Wide-Grip Bench Press', 'Barbell', ['Barbell', 'Flat / Incline Bench', 'Weight Plates'], 'Compound Lift', 'Chest', ['Pectoralis Major - Sternal', 'Deltoid - Anterior', 'Triceps Brachii'], false, 215, ['barbell_bench_press']),
-  mkEx('barbell_guillotine_bench_press', 'Barbell Neck (Guillotine) Bench Press', 'Barbell', ['Barbell', 'Flat / Incline Bench', 'Weight Plates'], 'Compound Lift', 'Chest', ['Pectoralis Major - Clavicular', 'Pectoralis Major - Sternal', 'Deltoid - Anterior'], false, 185, ['incline_bench_press']),
-  mkEx('barbell_floor_press', 'Barbell Floor Press', 'Barbell', ['Barbell', 'Weight Plates'], 'Accessory', 'Chest', ['Pectoralis Major - Sternal', 'Triceps Brachii'], false, 205, ['barbell_bench_press']),
-  mkEx('barbell_pullover', 'Barbell Lying Pullover', 'Barbell', ['Barbell', 'Flat / Incline Bench'], 'Accessory', 'Chest', ['Pectoralis Major - Sternal', 'Latissimus Dorsi', 'Serratus Anterior'], false, 85, ['dumbbell_pullover']),
-  mkEx('dumbbell_press', 'Dumbbell Bench Press', 'Dumbbell', ['Dumbbell', 'Flat / Incline Bench'], 'Compound Lift', 'Chest', ['Pectoralis Major - Sternal', 'Deltoid - Anterior', 'Triceps Brachii'], false, 180, ['barbell_bench_press', 'incline_bench_press', 'dumbbell_incline_press']),
-  mkEx('dumbbell_incline_press', 'Dumbbell Incline Bench Press', 'Dumbbell', ['Dumbbell', 'Flat / Incline Bench'], 'Compound Lift', 'Chest', ['Pectoralis Major - Clavicular', 'Deltoid - Anterior', 'Triceps Brachii'], false, 160, ['incline_bench_press', 'dumbbell_press', 'barbell_bench_press']),
-  mkEx('dumbbell_decline_press', 'Dumbbell Decline Bench Press', 'Dumbbell', ['Dumbbell', 'Flat / Incline Bench'], 'Compound Lift', 'Chest', ['Pectoralis Major - Sternal', 'Triceps Brachii', 'Deltoid - Anterior'], false, 175, ['dumbbell_press', 'decline_bench_press']),
-  mkEx('front_flies', 'Dumbbell Lying Fly', 'Dumbbell', ['Dumbbell', 'Flat / Incline Bench'], 'Accessory', 'Chest', ['Pectoralis Major - Sternal', 'Pectoralis Major - Clavicular', 'Deltoid - Anterior'], false, 65, ['cable_standing_fly', 'dumbbell_press']),
-  mkEx('incline_dumbbell_fly', 'Dumbbell Incline Fly', 'Dumbbell', ['Dumbbell', 'Flat / Incline Bench'], 'Accessory', 'Chest', ['Pectoralis Major - Clavicular', 'Deltoid - Anterior'], false, 60, ['front_flies', 'cable_standing_fly']),
-  mkEx('decline_dumbbell_fly', 'Dumbbell Decline Fly', 'Dumbbell', ['Dumbbell', 'Flat / Incline Bench'], 'Accessory', 'Chest', ['Pectoralis Major - Sternal', 'Deltoid - Anterior'], false, 65, ['front_flies']),
-  mkEx('dumbbell_pullover', 'Dumbbell Lying Pullover', 'Dumbbell', ['Dumbbell', 'Flat / Incline Bench'], 'Accessory', 'Chest', ['Pectoralis Major - Sternal', 'Latissimus Dorsi', 'Serratus Anterior'], false, 75, ['front_flies', 'band_pulldown']),
-  mkEx('dumbbell_incline_shoulder_raise', 'Dumbbell Incline Shoulder Raise (Serratus)', 'Dumbbell', ['Dumbbell', 'Flat / Incline Bench'], 'Accessory', 'Chest', ['Serratus Anterior', 'Pectoralis Major - Clavicular'], false, 65, ['push_up_plus']),
-  mkEx('chest_dip', 'Chest Dip', 'Bodyweight / Weighted', [], 'Compound Lift', 'Chest', ['Pectoralis Major - Sternal', 'Pectoralis Minor', 'Triceps Brachii', 'Deltoid - Anterior'], false, 215, ['barbell_bench_press', 'push_up']),
-  mkEx('push_up', 'Push-Up', 'Bodyweight', [], 'Compound Lift', 'Chest', ['Pectoralis Major - Sternal', 'Serratus Anterior', 'Triceps Brachii', 'Deltoid - Anterior'], false, 165, ['dumbbell_press', 'chest_dip']),
-  mkEx('incline_push_up', 'Bodyweight Incline Push-Up', 'Bodyweight', [], 'Accessory', 'Chest', ['Pectoralis Major - Sternal', 'Triceps Brachii', 'Deltoid - Anterior'], false, 135, ['push_up']),
-  mkEx('decline_push_up', 'Bodyweight Decline Push-Up', 'Bodyweight', [], 'Accessory', 'Chest', ['Pectoralis Major - Clavicular', 'Deltoid - Anterior', 'Triceps Brachii'], false, 150, ['push_up', 'chest_dip']),
-  mkEx('wide_grip_push_up', 'Bodyweight Wide-Grip Chest Push-Up', 'Bodyweight', [], 'Accessory', 'Chest', ['Pectoralis Major - Sternal', 'Deltoid - Anterior'], false, 155, ['push_up']),
-  mkEx('push_up_plus', 'Bodyweight Push-Up Plus (Serratus)', 'Bodyweight', [], 'Accessory', 'Chest', ['Serratus Anterior', 'Pectoralis Major - Sternal'], false, 145, ['push_up']),
-  mkEx('plyo_push_up', 'Bodyweight Plyo Clap Push-Up', 'Bodyweight', [], 'Accessory', 'Chest', ['Pectoralis Major - Sternal', 'Triceps Brachii'], false, 155, ['push_up']),
-  mkEx('cable_standing_fly', 'Cable Standing Fly (Crossover)', 'Cable', ['Cable Machine'], 'Accessory', 'Chest', ['Pectoralis Major - Sternal', 'Pectoralis Major - Clavicular'], false, 70, ['front_flies', 'incline_dumbbell_fly']),
-  mkEx('cable_low_fly', 'Cable Low-to-High Incline Fly', 'Cable', ['Cable Machine'], 'Accessory', 'Chest', ['Pectoralis Major - Clavicular', 'Deltoid - Anterior'], false, 55, ['incline_dumbbell_fly']),
-  mkEx('cable_lying_fly', 'Cable Lying Fly', 'Cable', ['Cable Machine', 'Flat / Incline Bench'], 'Accessory', 'Chest', ['Pectoralis Major - Sternal'], false, 65, ['front_flies']),
-  mkEx('cable_seated_chest_press', 'Cable Seated Chest Press', 'Cable', ['Cable Machine'], 'Compound Lift', 'Chest', ['Pectoralis Major - Sternal', 'Triceps Brachii'], false, 150, ['dumbbell_press']),
-  mkEx('lever_chest_press', 'Lever Seated Chest Press', 'Lever / Machine', ['Lever / Machine'], 'Compound Lift', 'Chest', ['Pectoralis Major - Sternal', 'Deltoid - Anterior', 'Triceps Brachii'], false, 185, ['barbell_bench_press']),
-  mkEx('lever_incline_chest_press', 'Lever Incline Chest Press', 'Lever / Machine', ['Lever / Machine'], 'Compound Lift', 'Chest', ['Pectoralis Major - Clavicular', 'Deltoid - Anterior', 'Triceps Brachii'], false, 165, ['incline_bench_press']),
-  mkEx('lever_decline_chest_press', 'Lever Decline Chest Press', 'Lever / Machine', ['Lever / Machine'], 'Compound Lift', 'Chest', ['Pectoralis Major - Sternal', 'Triceps Brachii'], false, 195, ['decline_bench_press']),
-  mkEx('lever_pec_deck_fly', 'Lever Seated Fly (Pec Deck)', 'Lever / Machine', ['Lever / Machine'], 'Accessory', 'Chest', ['Pectoralis Major - Sternal', 'Pectoralis Major - Clavicular'], false, 135, ['front_flies', 'cable_standing_fly']),
-  mkEx('smith_bench_press', 'Smith Machine Bench Press', 'Lever / Machine', ['Lever / Machine', 'Flat / Incline Bench'], 'Compound Lift', 'Chest', ['Pectoralis Major - Sternal', 'Triceps Brachii'], false, 205, ['barbell_bench_press']),
-  mkEx('smith_incline_bench_press', 'Smith Machine Incline Bench Press', 'Lever / Machine', ['Lever / Machine', 'Flat / Incline Bench'], 'Compound Lift', 'Chest', ['Pectoralis Major - Clavicular', 'Triceps Brachii'], false, 180, ['incline_bench_press']),
+export const parseExercisesCsv = rawCsv => {
+  if (!rawCsv || typeof rawCsv !== 'string') return [];
+  const lines = rawCsv.split(/\r?\n/);
+  const result = [];
+  const seenIds = new Set();
 
-  // ==========================================================================
-  // BACK (ExRx BackWt: General Back, Latissimus Dorsi, Trapezius Upper/Middle/Lower, Rhomboids, Infraspinatus & Teres Minor, Subscapularis)
-  // ==========================================================================
-  mkEx('barbell_deadlift', 'Barbell Deadlift', 'Barbell', ['Barbell', 'Weight Plates'], 'Compound Lift', 'Back', ['Erector Spinae', 'Gluteus Maximus', 'Hamstrings', 'General Back', 'Trapezius - Upper', 'Forearms'], true, 350, ['landmine_rdl', 'dumbbell_rdl', 'barbell_row']),
-  mkEx('chin_ups', 'Chin-Up / Pull-Up', 'Bodyweight / Weighted', [], 'Compound Lift', 'Back', ['Latissimus Dorsi', 'Biceps Brachii', 'Brachialis', 'Rhomboids', 'Trapezius - Lower'], true, 220, ['cable_pulldown', 'barbell_row', 'dumbbell_row']),
-  mkEx('wide_grip_pull_up', 'Bodyweight Wide-Grip Rear Pull-Up', 'Bodyweight', [], 'Compound Lift', 'Back', ['Latissimus Dorsi', 'Rhomboids', 'Trapezius - Lower', 'Biceps Brachii'], false, 205, ['chin_ups']),
-  mkEx('close_neutral_grip_pull_up', 'Bodyweight Close Neutral-Grip Pull-Up', 'Bodyweight', [], 'Compound Lift', 'Back', ['Latissimus Dorsi', 'Brachialis', 'Biceps Brachii'], false, 215, ['chin_ups']),
-  mkEx('barbell_row', 'Barbell Bent-Over Row', 'Barbell', ['Barbell', 'Weight Plates'], 'Compound Lift', 'Back', ['General Back', 'Latissimus Dorsi', 'Rhomboids', 'Trapezius - Middle', 'Deltoid - Posterior', 'Biceps Brachii'], false, 195, ['meadows_row', 'dumbbell_row', 'chin_ups']),
-  mkEx('barbell_underhand_row', 'Barbell Underhand Bent-Over Row (Yates Row)', 'Barbell', ['Barbell', 'Weight Plates'], 'Compound Lift', 'Back', ['Latissimus Dorsi', 'General Back', 'Biceps Brachii', 'Rhomboids'], false, 205, ['barbell_row']),
-  mkEx('pendlay_row', 'Barbell Pendlay Row', 'Barbell', ['Barbell', 'Weight Plates'], 'Compound Lift', 'Back', ['General Back', 'Latissimus Dorsi', 'Rhomboids', 'Trapezius - Middle'], false, 185, ['barbell_row', 'dumbbell_row']),
-  mkEx('barbell_incline_row', 'Barbell Cambered Bar Lying Row', 'Barbell', ['Barbell', 'Flat / Incline Bench', 'Weight Plates'], 'Compound Lift', 'Back', ['General Back', 'Rhomboids', 'Trapezius - Middle', 'Latissimus Dorsi'], false, 165, ['barbell_row']),
-  mkEx('meadows_row', "Landmine Meadow's Row", 'Landmine / Barbell', ['Landmine', 'Barbell', 'Weight Plates'], 'Compound Lift', 'Back', ['Latissimus Dorsi', 'Rhomboids', 'Trapezius - Middle', 'Deltoid - Posterior', 'Biceps Brachii'], false, 165, ['barbell_row', 'dumbbell_row', 'chin_ups']),
-  mkEx('t_bar_row', 'Landmine T-Bar Row', 'Landmine / Barbell', ['Landmine', 'Barbell', 'Weight Plates'], 'Compound Lift', 'Back', ['General Back', 'Latissimus Dorsi', 'Rhomboids', 'Biceps Brachii'], false, 190, ['barbell_row', 'meadows_row']),
-  mkEx('dumbbell_row', 'Dumbbell Bent-Over Row', 'Dumbbell', ['Dumbbell'], 'Compound Lift', 'Back', ['Latissimus Dorsi', 'General Back', 'Rhomboids', 'Deltoid - Posterior', 'Biceps Brachii'], false, 110, ['meadows_row', 'barbell_row', 'chin_ups']),
-  mkEx('dumbbell_incline_row', 'Dumbbell Chest-Supported Incline Row', 'Dumbbell', ['Dumbbell', 'Flat / Incline Bench'], 'Compound Lift', 'Back', ['General Back', 'Rhomboids', 'Trapezius - Middle', 'Latissimus Dorsi'], false, 120, ['dumbbell_row']),
-  mkEx('dumbbell_external_rotation', 'Dumbbell Lying Shoulder External Rotation', 'Dumbbell', ['Dumbbell'], 'Accessory', 'Back', ['Infraspinatus & Teres Minor', 'Deltoid - Posterior'], false, 25, ['cable_face_pull']),
-  mkEx('dumbbell_internal_rotation', 'Dumbbell Lying Shoulder Internal Rotation', 'Dumbbell', ['Dumbbell'], 'Accessory', 'Back', ['Subscapularis', 'Pectoralis Major - Sternal'], false, 30, ['dumbbell_external_rotation']),
-  mkEx('cable_pulldown', 'Cable Front Lat Pulldown', 'Cable', ['Cable Machine'], 'Compound Lift', 'Back', ['Latissimus Dorsi', 'Biceps Brachii', 'Rhomboids'], false, 165, ['chin_ups', 'band_pulldown']),
-  mkEx('cable_underhand_pulldown', 'Cable Underhand Close-Grip Pulldown', 'Cable', ['Cable Machine'], 'Compound Lift', 'Back', ['Latissimus Dorsi', 'Biceps Brachii', 'Trapezius - Lower'], false, 170, ['cable_pulldown', 'chin_ups']),
-  mkEx('cable_straight_arm_pulldown', 'Cable Bent-Over Straight-Arm Pulldown', 'Cable', ['Cable Machine'], 'Accessory', 'Back', ['Latissimus Dorsi', 'Teres Major', 'Triceps Brachii'], false, 75, ['cable_pulldown', 'dumbbell_pullover']),
-  mkEx('cable_seated_row', 'Cable Seated Row', 'Cable', ['Cable Machine'], 'Compound Lift', 'Back', ['General Back', 'Latissimus Dorsi', 'Rhomboids', 'Trapezius - Middle'], false, 160, ['barbell_row', 'dumbbell_row']),
-  mkEx('cable_seated_wide_row', 'Cable Seated Wide-Grip Row', 'Cable', ['Cable Machine'], 'Accessory', 'Back', ['Rhomboids', 'Trapezius - Middle', 'Deltoid - Posterior'], false, 135, ['cable_seated_row']),
-  mkEx('cable_shrug', 'Cable Standing Shrug', 'Cable', ['Cable Machine'], 'Accessory', 'Back', ['Trapezius - Upper', 'Rhomboids'], false, 185, ['barbell_shrug']),
-  mkEx('cable_face_pull', 'Cable Face Pull', 'Cable', ['Cable Machine'], 'Accessory', 'Back', ['Infraspinatus & Teres Minor', 'Deltoid - Posterior', 'Trapezius - Middle', 'Rhomboids'], false, 65, ['reverse_flies']),
-  mkEx('cable_external_rotation', 'Cable Standing Shoulder External Rotation', 'Cable', ['Cable Machine'], 'Accessory', 'Back', ['Infraspinatus & Teres Minor'], false, 30, ['dumbbell_external_rotation']),
-  mkEx('cable_internal_rotation', 'Cable Standing Shoulder Internal Rotation', 'Cable', ['Cable Machine'], 'Accessory', 'Back', ['Subscapularis'], false, 35, ['dumbbell_internal_rotation']),
-  mkEx('lever_seated_row', 'Lever Seated Row', 'Lever / Machine', ['Lever / Machine'], 'Compound Lift', 'Back', ['General Back', 'Latissimus Dorsi', 'Rhomboids', 'Trapezius - Middle'], false, 175, ['cable_seated_row']),
-  mkEx('lever_t_bar_row', 'Lever T-Bar Row', 'Lever / Machine', ['Lever / Machine'], 'Compound Lift', 'Back', ['General Back', 'Latissimus Dorsi', 'Rhomboids'], false, 185, ['t_bar_row']),
-  mkEx('lever_front_pulldown', 'Lever Front Pulldown', 'Lever / Machine', ['Lever / Machine'], 'Compound Lift', 'Back', ['Latissimus Dorsi', 'Biceps Brachii'], false, 170, ['cable_pulldown']),
-  mkEx('lever_pullover', 'Lever Seated Pullover', 'Lever / Machine', ['Lever / Machine'], 'Accessory', 'Back', ['Latissimus Dorsi', 'Pectoralis Major - Sternal'], false, 135, ['dumbbell_pullover']),
-  mkEx('inverted_row', 'Bodyweight Inverted Row', 'Bodyweight', [], 'Compound Lift', 'Back', ['General Back', 'Rhomboids', 'Trapezius - Middle', 'Latissimus Dorsi', 'Biceps Brachii'], false, 150, ['chin_ups', 'dumbbell_row']),
-  mkEx('superman_hold', 'Bodyweight Superman Back Raise', 'Bodyweight', [], 'Accessory', 'Back', ['Erector Spinae', 'General Back', 'Gluteus Maximus'], false, 95, ['inverted_row']),
-  mkEx('scapular_pull_up', 'Bodyweight Scapular Pull-Up', 'Bodyweight', [], 'Accessory', 'Back', ['Latissimus Dorsi', 'Trapezius - Lower', 'Rhomboids'], false, 135, ['chin_ups']),
-  mkEx('band_pulldown', 'Band Lat Pulldown', 'Band', ['Resistance Bands'], 'Accessory', 'Back', ['Latissimus Dorsi', 'Rhomboids', 'Triceps Brachii'], false, 90, ['chin_ups', 'cable_pulldown']),
-  mkEx('barbell_shrug', 'Barbell Shrug', 'Barbell', ['Barbell', 'Weight Plates'], 'Accessory', 'Back', ['Trapezius - Upper', 'Rhomboids', 'Forearms'], false, 245, ['dumbbell_shrug', 'barbell_deadlift']),
-  mkEx('barbell_behind_back_shrug', 'Barbell Behind-the-Back Shrug', 'Barbell', ['Barbell', 'Weight Plates'], 'Accessory', 'Back', ['Trapezius - Upper', 'Trapezius - Middle', 'Rhomboids'], false, 225, ['barbell_shrug']),
-  mkEx('dumbbell_shrug', 'Dumbbell Shrug', 'Dumbbell', ['Dumbbell'], 'Accessory', 'Back', ['Trapezius - Upper', 'Rhomboids', 'Forearms'], false, 180, ['barbell_shrug']),
+  for (let i = 1; i < lines.length; i++) {
+    const line = lines[i].trim();
+    if (!line || line.startsWith('#')) continue;
+    const cols = parseCsvLine(line);
+    const id = (cols[0] || '').trim();
+    const name = (cols[1] || '').trim();
+    if (!id || !name || seenIds.has(id)) continue;
+    seenIds.add(id);
 
-  // ==========================================================================
-  // SHOULDERS (ExRx ShouldWt: Deltoid Anterior/Lateral/Posterior, Supraspinatus)
-  // ==========================================================================
-  mkEx('overhead_press', 'Barbell Military Overhead Press', 'Barbell', ['Barbell', 'Weight Plates'], 'Compound Lift', 'Shoulders', ['Deltoid - Anterior', 'Deltoid - Lateral', 'Triceps Brachii', 'Trapezius - Upper', 'Serratus Anterior'], true, 155, ['dumbbell_shoulder_press', 'arnold_press']),
-  mkEx('barbell_seated_behind_neck_press', 'Barbell Seated Behind-Neck Press', 'Barbell', ['Barbell', 'Flat / Incline Bench', 'Weight Plates'], 'Compound Lift', 'Shoulders', ['Deltoid - Anterior', 'Deltoid - Lateral', 'Triceps Brachii'], false, 135, ['overhead_press']),
-  mkEx('push_press', 'Barbell Push Press', 'Barbell', ['Barbell', 'Weight Plates'], 'Compound Lift', 'Shoulders', ['Deltoid - Anterior', 'Deltoid - Lateral', 'Triceps Brachii', 'Quadriceps', 'Gluteus Maximus'], false, 165, ['overhead_press', 'dumbbell_shoulder_press']),
-  mkEx('dumbbell_shoulder_press', 'Dumbbell Shoulder Press', 'Dumbbell', ['Dumbbell'], 'Compound Lift', 'Shoulders', ['Deltoid - Anterior', 'Deltoid - Lateral', 'Triceps Brachii'], false, 125, ['overhead_press', 'arnold_press']),
-  mkEx('arnold_press', 'Dumbbell Arnold Press', 'Dumbbell', ['Dumbbell'], 'Compound Lift', 'Shoulders', ['Deltoid - Anterior', 'Deltoid - Lateral', 'Triceps Brachii'], false, 110, ['dumbbell_shoulder_press', 'overhead_press']),
-  mkEx('landmine_shoulder_press', 'Landmine Single-Arm Press', 'Landmine / Barbell', ['Landmine', 'Barbell', 'Weight Plates'], 'Compound Lift', 'Shoulders', ['Deltoid - Anterior', 'Pectoralis Major - Clavicular', 'Triceps Brachii', 'Serratus Anterior'], false, 115, ['overhead_press', 'dumbbell_shoulder_press']),
-  mkEx('lever_shoulder_press', 'Lever Seated Shoulder Press', 'Lever / Machine', ['Lever / Machine'], 'Compound Lift', 'Shoulders', ['Deltoid - Anterior', 'Deltoid - Lateral', 'Triceps Brachii'], false, 135, ['dumbbell_shoulder_press']),
-  mkEx('smith_shoulder_press', 'Smith Machine Shoulder Press', 'Lever / Machine', ['Lever / Machine'], 'Compound Lift', 'Shoulders', ['Deltoid - Anterior', 'Deltoid - Lateral', 'Triceps Brachii'], false, 145, ['overhead_press']),
-  mkEx('pike_push_up', 'Bodyweight Pike Push-Up', 'Bodyweight', [], 'Compound Lift', 'Shoulders', ['Deltoid - Anterior', 'Deltoid - Lateral', 'Triceps Brachii'], false, 135, ['handstand_push_up', 'overhead_press']),
-  mkEx('handstand_push_up', 'Bodyweight Handstand Push-Up', 'Bodyweight', [], 'Compound Lift', 'Shoulders', ['Deltoid - Anterior', 'Deltoid - Lateral', 'Triceps Brachii', 'Trapezius - Upper'], false, 185, ['pike_push_up', 'overhead_press']),
-  mkEx('prone_ytw_raise', 'Bodyweight Prone Rear Delt Raise (Y-T-W)', 'Bodyweight', [], 'Accessory', 'Shoulders', ['Deltoid - Posterior', 'Trapezius - Middle', 'Rhomboids'], false, 45, ['reverse_flies']),
-  mkEx('barbell_upright_row', 'Barbell Upright Row', 'Barbell', ['Barbell', 'Weight Plates'], 'Accessory', 'Shoulders', ['Deltoid - Lateral', 'Trapezius - Upper', 'Supraspinatus', 'Biceps Brachii'], false, 105, ['side_raise_dumbbell', 'front_raise_ez_bar']),
-  mkEx('dumbbell_upright_row', 'Dumbbell Upright Row', 'Dumbbell', ['Dumbbell'], 'Accessory', 'Shoulders', ['Deltoid - Lateral', 'Trapezius - Upper', 'Supraspinatus'], false, 90, ['barbell_upright_row']),
-  mkEx('cable_upright_row', 'Cable Upright Row', 'Cable', ['Cable Machine'], 'Accessory', 'Shoulders', ['Deltoid - Lateral', 'Trapezius - Upper', 'Supraspinatus'], false, 95, ['barbell_upright_row']),
-  mkEx('side_raise_dumbbell', 'Dumbbell Lateral Raise', 'Dumbbell', ['Dumbbell'], 'Accessory', 'Shoulders', ['Deltoid - Lateral', 'Supraspinatus'], false, 45, ['cable_lateral_raise', 'front_raise_ez_bar']),
-  mkEx('dumbbell_supraspinatus_raise', 'Dumbbell Scaption (Full Can / Supraspinatus) Raise', 'Dumbbell', ['Dumbbell'], 'Accessory', 'Shoulders', ['Supraspinatus', 'Deltoid - Lateral', 'Deltoid - Anterior'], false, 40, ['side_raise_dumbbell']),
-  mkEx('cable_lateral_raise', 'Cable Single-Arm Lateral Raise', 'Cable', ['Cable Machine'], 'Accessory', 'Shoulders', ['Deltoid - Lateral', 'Supraspinatus'], false, 35, ['side_raise_dumbbell']),
-  mkEx('lever_lateral_raise', 'Lever Seated Lateral Raise', 'Lever / Machine', ['Lever / Machine'], 'Accessory', 'Shoulders', ['Deltoid - Lateral', 'Supraspinatus'], false, 80, ['side_raise_dumbbell']),
-  mkEx('barbell_front_raise', 'Barbell Front Raise', 'Barbell', ['Barbell'], 'Accessory', 'Shoulders', ['Deltoid - Anterior', 'Pectoralis Major - Clavicular'], false, 65, ['front_raise_ez_bar', 'dumbbell_front_raise']),
-  mkEx('front_raise_ez_bar', 'EZ-Bar Front Raise', 'EZ Bar / Barbell', ['EZ Bar'], 'Accessory', 'Shoulders', ['Deltoid - Anterior', 'Pectoralis Major - Clavicular'], false, 65, ['dumbbell_front_raise', 'side_raise_dumbbell']),
-  mkEx('dumbbell_front_raise', 'Dumbbell Front Raise', 'Dumbbell', ['Dumbbell'], 'Accessory', 'Shoulders', ['Deltoid - Anterior', 'Pectoralis Major - Clavicular'], false, 50, ['front_raise_ez_bar', 'side_raise_dumbbell']),
-  mkEx('cable_front_raise', 'Cable Front Raise', 'Cable', ['Cable Machine'], 'Accessory', 'Shoulders', ['Deltoid - Anterior', 'Pectoralis Major - Clavicular'], false, 50, ['dumbbell_front_raise']),
-  mkEx('barbell_rear_delt_row', 'Barbell Rear Delt Row', 'Barbell', ['Barbell', 'Weight Plates'], 'Accessory', 'Shoulders', ['Deltoid - Posterior', 'Rhomboids', 'Trapezius - Middle'], false, 135, ['reverse_flies']),
-  mkEx('reverse_flies', 'Dumbbell Bent-Over Rear Delt Raise', 'Dumbbell', ['Dumbbell'], 'Accessory', 'Shoulders', ['Deltoid - Posterior', 'Infraspinatus & Teres Minor', 'Rhomboids', 'Trapezius - Middle'], false, 55, ['cable_face_pull', 'side_raise_dumbbell']),
-  mkEx('dumbbell_lying_rear_delt_raise', 'Dumbbell Lying One-Arm Rear Lateral Raise', 'Dumbbell', ['Dumbbell', 'Flat / Incline Bench'], 'Accessory', 'Shoulders', ['Deltoid - Posterior', 'Infraspinatus & Teres Minor'], false, 35, ['reverse_flies']),
-  mkEx('cable_rear_delt_fly', 'Cable Standing Rear Delt Reverse Fly', 'Cable', ['Cable Machine'], 'Accessory', 'Shoulders', ['Deltoid - Posterior', 'Trapezius - Middle', 'Rhomboids'], false, 45, ['reverse_flies']),
-  mkEx('lever_reverse_fly', 'Lever Seated Reverse Fly (Rear Delt Pec Deck)', 'Lever / Machine', ['Lever / Machine'], 'Accessory', 'Shoulders', ['Deltoid - Posterior', 'Trapezius - Middle', 'Rhomboids'], false, 110, ['reverse_flies']),
+    const muscleGroup = (cols[2] || 'Chest').trim();
+    const category = normalizeSlotCategory(cols[3] || 'Accessory');
+    const equipment = (cols[4] || 'Bodyweight').trim();
+    const requiredEquipment = (cols[5] || '')
+      .split('|')
+      .map(s => s.trim())
+      .filter(Boolean);
+    const specificMuscles = (cols[6] || '')
+      .split('|')
+      .map(s => s.trim())
+      .filter(Boolean);
+    const isPriority = String(cols[7] || '').trim().toLowerCase() === 'true';
+    const default1RM = Math.max(5, Number(cols[8]) || 95);
+    const alternatives = (cols[9] || '')
+      .split('|')
+      .map(s => s.trim())
+      .filter(Boolean);
 
-  // ==========================================================================
-  // THIGHS (ExRx ThighWt: Quadriceps, Hamstrings, Hip Adductors — flattened directly under Thighs)
-  // ==========================================================================
-  mkEx('barbell_back_squat', 'Barbell Back Squat', 'Barbell', ['Barbell', 'Squat Rack', 'Weight Plates'], 'Compound Lift', 'Thighs', ['Quadriceps', 'Gluteus Maximus', 'Hip Adductors', 'Hamstrings', 'Erector Spinae'], true, 300, ['front_squat', 'split_squat', 'goblet_squat']),
-  mkEx('front_squat', 'Barbell Front Squat', 'Barbell', ['Barbell', 'Squat Rack', 'Weight Plates'], 'Compound Lift', 'Thighs', ['Quadriceps', 'Gluteus Maximus', 'Rectus Abdominis', 'Erector Spinae'], false, 225, ['barbell_back_squat', 'goblet_squat']),
-  mkEx('zercher_squat', 'Barbell Zercher Squat', 'Barbell', ['Barbell', 'Squat Rack', 'Weight Plates'], 'Compound Lift', 'Thighs', ['Quadriceps', 'Gluteus Maximus', 'Erector Spinae', 'Biceps Brachii'], false, 215, ['front_squat', 'barbell_back_squat']),
-  mkEx('barbell_hack_squat', 'Barbell Rear Hack Squat', 'Barbell', ['Barbell', 'Weight Plates'], 'Compound Lift', 'Thighs', ['Quadriceps', 'Gluteus Maximus'], false, 235, ['barbell_back_squat']),
-  mkEx('barbell_jefferson_squat', 'Barbell Jefferson Squat', 'Barbell', ['Barbell', 'Weight Plates'], 'Compound Lift', 'Thighs', ['Quadriceps', 'Gluteus Maximus', 'Hip Adductors'], false, 225, ['barbell_back_squat']),
-  mkEx('barbell_split_squat', 'Barbell Split Squat', 'Barbell', ['Barbell', 'Squat Rack', 'Weight Plates'], 'Compound Lift', 'Thighs', ['Quadriceps', 'Gluteus Maximus', 'Hamstrings'], false, 185, ['split_squat']),
-  mkEx('barbell_step_up', 'Barbell Step-Up', 'Barbell', ['Barbell', 'Flat / Incline Bench', 'Weight Plates'], 'Accessory', 'Thighs', ['Quadriceps', 'Gluteus Maximus'], false, 155, ['dumbbell_step_up']),
-  mkEx('split_squat', 'Dumbbell Single-Leg (Bulgarian) Split Squat', 'Dumbbell / Barbell', ['Dumbbell'], 'Compound Lift', 'Thighs', ['Quadriceps', 'Gluteus Maximus', 'Hamstrings'], false, 155, ['reverse_lunge', 'barbell_back_squat']),
-  mkEx('dumbbell_squat', 'Dumbbell Squat', 'Dumbbell', ['Dumbbell'], 'Compound Lift', 'Thighs', ['Quadriceps', 'Gluteus Maximus'], false, 150, ['goblet_squat']),
-  mkEx('goblet_squat', 'Dumbbell Goblet Squat', 'Dumbbell', ['Dumbbell'], 'Compound Lift', 'Thighs', ['Quadriceps', 'Gluteus Maximus'], false, 120, ['front_squat', 'split_squat']),
-  mkEx('kettlebell_goblet_squat', 'Kettlebell Goblet Squat', 'Kettlebell', ['Kettlebells'], 'Compound Lift', 'Thighs', ['Quadriceps', 'Gluteus Maximus'], false, 105, ['goblet_squat']),
-  mkEx('bodyweight_squat', 'Bodyweight Squat', 'Bodyweight', [], 'Compound Lift', 'Thighs', ['Quadriceps', 'Gluteus Maximus', 'Hamstrings'], false, 135, ['pistol_squats', 'goblet_squat']),
-  mkEx('bodyweight_split_squat', 'Bodyweight Single-Leg Split Squat', 'Bodyweight', [], 'Compound Lift', 'Thighs', ['Quadriceps', 'Gluteus Maximus', 'Hamstrings'], false, 115, ['split_squat', 'pistol_squats']),
-  mkEx('bodyweight_lunge', 'Bodyweight Walking / Forward Lunge', 'Bodyweight', [], 'Accessory', 'Thighs', ['Quadriceps', 'Gluteus Maximus'], false, 115, ['reverse_lunge']),
-  mkEx('bodyweight_sissy_squat', 'Bodyweight Sissy Squat', 'Bodyweight', [], 'Accessory', 'Thighs', ['Quadriceps'], false, 95, ['leg_extension']),
-  mkEx('pistol_squats', 'Bodyweight Single-Leg Pistol Squat', 'Bodyweight / Dumbbell', [], 'Accessory', 'Thighs', ['Quadriceps', 'Gluteus Maximus', 'Calves'], false, 95, ['reverse_lunge', 'split_squat']),
-  mkEx('barbell_lunge', 'Barbell Lunge', 'Barbell', ['Barbell', 'Weight Plates'], 'Accessory', 'Thighs', ['Quadriceps', 'Gluteus Maximus', 'Hamstrings'], false, 165, ['reverse_lunge']),
-  mkEx('reverse_lunge', 'Dumbbell Lunge / Reverse Lunge', 'Dumbbell / Barbell', ['Dumbbell'], 'Accessory', 'Thighs', ['Quadriceps', 'Gluteus Maximus', 'Hamstrings'], false, 135, ['split_squat', 'pistol_squats']),
-  mkEx('dumbbell_side_lunge', 'Dumbbell Side Lunge', 'Dumbbell', ['Dumbbell'], 'Accessory', 'Thighs', ['Quadriceps', 'Hip Adductors', 'Gluteus Maximus'], false, 115, ['reverse_lunge']),
-  mkEx('sled_leg_press', 'Sled 45° Leg Press', 'Lever / Machine', ['Lever / Machine', 'Weight Plates'], 'Compound Lift', 'Thighs', ['Quadriceps', 'Gluteus Maximus', 'Hamstrings'], false, 405, ['barbell_back_squat']),
-  mkEx('sled_hack_squat', 'Sled Hack Squat', 'Lever / Machine', ['Lever / Machine', 'Weight Plates'], 'Compound Lift', 'Thighs', ['Quadriceps', 'Gluteus Maximus'], false, 295, ['front_squat']),
-  mkEx('smith_squat', 'Smith Machine Squat', 'Lever / Machine', ['Lever / Machine'], 'Compound Lift', 'Thighs', ['Quadriceps', 'Gluteus Maximus'], false, 255, ['barbell_back_squat']),
-  mkEx('leg_extension', 'Lever Seated Leg Extension', 'Lever / Machine', ['Lever / Machine'], 'Accessory', 'Thighs', ['Quadriceps'], false, 150, ['goblet_squat', 'pistol_squats']),
-  mkEx('barbell_rdl', 'Barbell Romanian Deadlift', 'Barbell', ['Barbell', 'Weight Plates'], 'Compound Lift', 'Thighs', ['Hamstrings', 'Gluteus Maximus', 'Erector Spinae'], false, 245, ['landmine_rdl', 'dumbbell_rdl', 'barbell_deadlift']),
-  mkEx('barbell_straight_leg_deadlift', 'Barbell Straight-Leg Deadlift', 'Barbell', ['Barbell', 'Weight Plates'], 'Compound Lift', 'Thighs', ['Hamstrings', 'Gluteus Maximus', 'Erector Spinae'], false, 225, ['barbell_rdl']),
-  mkEx('landmine_rdl', 'Landmine Romanian Deadlift', 'Landmine / Barbell', ['Landmine', 'Barbell', 'Weight Plates'], 'Compound Lift', 'Thighs', ['Hamstrings', 'Gluteus Maximus', 'Erector Spinae'], false, 215, ['barbell_rdl', 'dumbbell_rdl']),
-  mkEx('dumbbell_rdl', 'Dumbbell Romanian Deadlift', 'Dumbbell', ['Dumbbell'], 'Compound Lift', 'Thighs', ['Hamstrings', 'Gluteus Maximus', 'Erector Spinae'], false, 175, ['landmine_rdl', 'barbell_rdl']),
-  mkEx('dumbbell_straight_leg_deadlift', 'Dumbbell Straight-Leg Deadlift', 'Dumbbell', ['Dumbbell'], 'Accessory', 'Thighs', ['Hamstrings', 'Gluteus Maximus', 'Erector Spinae'], false, 165, ['dumbbell_rdl']),
-  mkEx('barbell_good_morning', 'Barbell Good Morning', 'Barbell', ['Barbell', 'Weight Plates'], 'Compound Lift', 'Thighs', ['Hamstrings', 'Gluteus Maximus', 'Erector Spinae'], false, 155, ['barbell_rdl']),
-  mkEx('lying_leg_curl', 'Lever Lying Leg Curl', 'Lever / Machine', ['Lever / Machine'], 'Accessory', 'Thighs', ['Hamstrings', 'Gastrocnemius'], false, 125, ['dumbbell_rdl', 'nordic_hamstring_curl']),
-  mkEx('seated_leg_curl', 'Lever Seated Leg Curl', 'Lever / Machine', ['Lever / Machine'], 'Accessory', 'Thighs', ['Hamstrings', 'Gastrocnemius'], false, 135, ['lying_leg_curl']),
-  mkEx('standing_leg_curl', 'Lever Kneeling / Standing Single-Leg Curl', 'Lever / Machine', ['Lever / Machine'], 'Accessory', 'Thighs', ['Hamstrings'], false, 75, ['lying_leg_curl']),
-  mkEx('glute_ham_raise', 'Bodyweight Glute-Ham Raise', 'Bodyweight', [], 'Accessory', 'Thighs', ['Hamstrings', 'Gluteus Maximus', 'Gastrocnemius'], false, 125, ['nordic_hamstring_curl']),
-  mkEx('nordic_hamstring_curl', 'Bodyweight Inverse (Nordic) Leg Curl', 'Bodyweight', [], 'Accessory', 'Thighs', ['Hamstrings'], false, 110, ['lying_leg_curl', 'dumbbell_rdl']),
-  mkEx('cable_hip_adduction', 'Cable Standing Hip Adduction', 'Cable', ['Cable Machine'], 'Accessory', 'Thighs', ['Hip Adductors'], false, 55, ['lever_seated_hip_adduction']),
-  mkEx('lever_seated_hip_adduction', 'Lever Seated Hip Adduction', 'Lever / Machine', ['Lever / Machine'], 'Accessory', 'Thighs', ['Hip Adductors'], false, 135, ['cable_hip_adduction']),
-  mkEx('bodyweight_copenhagen_adduction', 'Bodyweight Side-Lying Hip Adduction (Copenhagen)', 'Bodyweight', [], 'Accessory', 'Thighs', ['Hip Adductors', 'Obliques'], false, 75, ['lever_seated_hip_adduction']),
+    result.push({
+      id,
+      name,
+      equipment,
+      requiredEquipment,
+      category,
+      muscleGroup,
+      specificMuscles,
+      isPriority,
+      default1RM,
+      alternatives
+    });
+  }
 
-  // ==========================================================================
-  // HIPS (ExRx HipsWt: Gluteus Maximus, Hip Abductors, Hip Flexors, Deep External Rotators)
-  // ==========================================================================
-  mkEx('barbell_hip_thrust', 'Barbell Hip Thrust', 'Barbell', ['Barbell', 'Flat / Incline Bench', 'Weight Plates'], 'Compound Lift', 'Hips', ['Gluteus Maximus', 'Hamstrings'], false, 275, ['glute_bridge', 'barbell_deadlift']),
-  mkEx('barbell_sumo_deadlift', 'Barbell Sumo Deadlift', 'Barbell', ['Barbell', 'Weight Plates'], 'Compound Lift', 'Hips', ['Gluteus Maximus', 'Hip Adductors', 'Quadriceps', 'Hamstrings', 'Erector Spinae'], false, 345, ['barbell_deadlift', 'barbell_hip_thrust']),
-  mkEx('dumbbell_hip_thrust', 'Dumbbell Hip Thrust', 'Dumbbell', ['Dumbbell', 'Flat / Incline Bench'], 'Compound Lift', 'Hips', ['Gluteus Maximus', 'Hamstrings'], false, 185, ['barbell_hip_thrust', 'glute_bridge']),
-  mkEx('single_leg_hip_thrust', 'Bodyweight Single-Leg Hip Thrust', 'Bodyweight', [], 'Compound Lift', 'Hips', ['Gluteus Maximus', 'Hamstrings'], false, 135, ['glute_bridge']),
-  mkEx('kettlebell_swing', 'Kettlebell Two-Arm Swing', 'Kettlebell', ['Kettlebells'], 'Compound Lift', 'Hips', ['Gluteus Maximus', 'Hamstrings', 'Erector Spinae', 'Deltoid - Anterior'], false, 115, ['barbell_hip_thrust', 'dumbbell_rdl']),
-  mkEx('glute_bridge', 'Barbell / Bodyweight Glute Bridge', 'Barbell / Bodyweight', [], 'Accessory', 'Hips', ['Gluteus Maximus', 'Hamstrings'], false, 225, ['barbell_hip_thrust']),
-  mkEx('dumbbell_step_up', 'Dumbbell Step-Up', 'Dumbbell', ['Dumbbell', 'Flat / Incline Bench'], 'Accessory', 'Hips', ['Gluteus Maximus', 'Quadriceps', 'Hamstrings'], false, 125, ['reverse_lunge', 'split_squat']),
-  mkEx('cable_pull_through', 'Cable Pull-Through', 'Cable', ['Cable Machine'], 'Accessory', 'Hips', ['Gluteus Maximus', 'Hamstrings', 'Erector Spinae'], false, 115, ['barbell_hip_thrust']),
-  mkEx('cable_hip_extension', 'Cable Standing Hip Extension (Glute Kickback)', 'Cable', ['Cable Machine'], 'Accessory', 'Hips', ['Gluteus Maximus', 'Hamstrings'], false, 65, ['glute_bridge']),
-  mkEx('cable_standing_hip_abduction', 'Cable Standing Hip Abduction', 'Cable', ['Cable Machine'], 'Accessory', 'Hips', ['Hip Abductors', 'Gluteus Maximus'], false, 55, ['lever_seated_hip_abduction']),
-  mkEx('lever_seated_hip_abduction', 'Lever Seated Hip Abduction', 'Lever / Machine', ['Lever / Machine'], 'Accessory', 'Hips', ['Hip Abductors', 'Gluteus Maximus'], false, 135, ['cable_standing_hip_abduction']),
-  mkEx('side_lying_hip_abduction', 'Bodyweight Side-Lying Hip Abduction', 'Bodyweight', [], 'Accessory', 'Hips', ['Hip Abductors', 'Gluteus Maximus'], false, 65, ['band_hip_abduction']),
-  mkEx('band_hip_abduction', 'Band Standing / Seated Hip Abduction', 'Band', ['Resistance Bands'], 'Accessory', 'Hips', ['Hip Abductors', 'Gluteus Maximus'], false, 60, ['glute_bridge']),
-  mkEx('cable_lying_hip_flexion', 'Cable Lying / Standing Hip Flexion', 'Cable', ['Cable Machine'], 'Accessory', 'Hips', ['Hip Flexors'], false, 50, ['hanging_leg_raises']),
-  mkEx('lever_standing_hip_flexion', 'Lever Standing Hip Flexion', 'Lever / Machine', ['Lever / Machine'], 'Accessory', 'Hips', ['Hip Flexors'], false, 65, ['cable_lying_hip_flexion']),
-  mkEx('bodyweight_seated_leg_raise', 'Bodyweight Seated Hip Flexion Leg Lift', 'Bodyweight', [], 'Accessory', 'Hips', ['Hip Flexors', 'Rectus Abdominis'], false, 45, ['hanging_leg_raises']),
+  return result;
+};
 
-  // ==========================================================================
-  // UPPER ARMS (ExRx ArmWt: Triceps Brachii, Biceps Brachii, Brachialis)
-  // ==========================================================================
-  mkEx('close_grip_bench_press', 'Barbell Close-Grip Bench Press', 'Barbell', ['Barbell', 'Flat / Incline Bench', 'Weight Plates'], 'Compound Lift', 'Upper Arms', ['Triceps Brachii', 'Pectoralis Major - Sternal', 'Deltoid - Anterior'], false, 195, ['tricep_dip', 'barbell_bench_press']),
-  mkEx('barbell_jm_press', 'Barbell JM Press', 'Barbell', ['Barbell', 'Flat / Incline Bench', 'Weight Plates'], 'Compound Lift', 'Upper Arms', ['Triceps Brachii', 'Pectoralis Major - Sternal'], false, 155, ['close_grip_bench_press']),
-  mkEx('dumbbell_close_grip_press', 'Dumbbell Close-Grip Press', 'Dumbbell', ['Dumbbell', 'Flat / Incline Bench'], 'Compound Lift', 'Upper Arms', ['Triceps Brachii', 'Pectoralis Major - Sternal', 'Deltoid - Anterior'], false, 155, ['close_grip_bench_press', 'tricep_dip']),
-  mkEx('tricep_dip', 'Triceps Dip', 'Bodyweight / Weighted', [], 'Compound Lift', 'Upper Arms', ['Triceps Brachii', 'Pectoralis Major - Sternal', 'Deltoid - Anterior'], false, 205, ['close_grip_bench_press', 'tricep_skullcrusher']),
-  mkEx('bench_dip', 'Bodyweight Bench Dip', 'Bodyweight', [], 'Accessory', 'Upper Arms', ['Triceps Brachii', 'Deltoid - Anterior'], false, 155, ['tricep_dip']),
-  mkEx('diamond_push_up', 'Bodyweight Close-Grip (Diamond) Triceps Push-Up', 'Bodyweight', [], 'Accessory', 'Upper Arms', ['Triceps Brachii', 'Pectoralis Major - Sternal'], false, 145, ['tricep_dip']),
-  mkEx('bodyweight_tricep_extension', 'Bodyweight Incline Triceps Extension', 'Bodyweight', [], 'Accessory', 'Upper Arms', ['Triceps Brachii'], false, 115, ['tricep_skullcrusher']),
-  mkEx('underhand_chin_curl', 'Bodyweight Inverse Biceps Curl / Chin-Up', 'Bodyweight', [], 'Accessory', 'Upper Arms', ['Biceps Brachii', 'Brachialis', 'Latissimus Dorsi'], false, 165, ['barbell_bicep_curl']),
-  mkEx('barbell_bicep_curl', 'Barbell Standing Curl', 'Barbell', ['Barbell'], 'Accessory', 'Upper Arms', ['Biceps Brachii', 'Brachialis', 'Brachioradialis'], false, 95, ['ez_bar_curl', 'dumbbell_bicep_curl', 'dumbbell_hammer_curl']),
-  mkEx('barbell_preacher_curl', 'Barbell / EZ-Bar Preacher Curl', 'Barbell / EZ Bar', ['Barbell', 'EZ Bar'], 'Accessory', 'Upper Arms', ['Brachialis', 'Biceps Brachii'], false, 80, ['barbell_bicep_curl']),
-  mkEx('barbell_prone_incline_curl', 'Barbell Prone Incline (Spider) Curl', 'Barbell', ['Barbell', 'Flat / Incline Bench'], 'Accessory', 'Upper Arms', ['Biceps Brachii', 'Brachialis'], false, 75, ['barbell_preacher_curl']),
-  mkEx('ez_bar_curl', 'EZ-Bar Curl', 'EZ Bar', ['EZ Bar'], 'Accessory', 'Upper Arms', ['Biceps Brachii', 'Brachialis', 'Brachioradialis'], false, 95, ['barbell_bicep_curl', 'dumbbell_bicep_curl']),
-  mkEx('dumbbell_bicep_curl', 'Dumbbell Standing Biceps Curl', 'Dumbbell', ['Dumbbell'], 'Accessory', 'Upper Arms', ['Biceps Brachii', 'Brachialis'], false, 80, ['barbell_bicep_curl', 'dumbbell_incline_curl']),
-  mkEx('dumbbell_incline_curl', 'Dumbbell Incline Biceps Curl', 'Dumbbell', ['Dumbbell', 'Flat / Incline Bench'], 'Accessory', 'Upper Arms', ['Biceps Brachii'], false, 70, ['dumbbell_bicep_curl', 'barbell_bicep_curl']),
-  mkEx('dumbbell_preacher_curl', 'Dumbbell Preacher Curl', 'Dumbbell', ['Dumbbell', 'Flat / Incline Bench'], 'Accessory', 'Upper Arms', ['Brachialis', 'Biceps Brachii'], false, 65, ['dumbbell_bicep_curl']),
-  mkEx('dumbbell_hammer_curl', 'Dumbbell Hammer Curl', 'Dumbbell', ['Dumbbell'], 'Accessory', 'Upper Arms', ['Brachialis', 'Brachioradialis', 'Biceps Brachii'], false, 80, ['barbell_bicep_curl', 'reverse_barbell_curl']),
-  mkEx('dumbbell_concentration_curl', 'Dumbbell Concentration Curl', 'Dumbbell', ['Dumbbell'], 'Accessory', 'Upper Arms', ['Biceps Brachii', 'Brachialis'], false, 65, ['dumbbell_bicep_curl']),
-  mkEx('cable_curl', 'Cable Standing Biceps Curl', 'Cable', ['Cable Machine'], 'Accessory', 'Upper Arms', ['Biceps Brachii', 'Brachialis'], false, 85, ['barbell_bicep_curl']),
-  mkEx('cable_hammer_curl', 'Cable Rope Hammer Curl', 'Cable', ['Cable Machine'], 'Accessory', 'Upper Arms', ['Brachialis', 'Brachioradialis', 'Biceps Brachii'], false, 80, ['dumbbell_hammer_curl']),
-  mkEx('cable_preacher_curl', 'Cable Preacher Curl', 'Cable', ['Cable Machine'], 'Accessory', 'Upper Arms', ['Brachialis', 'Biceps Brachii'], false, 75, ['barbell_preacher_curl']),
-  mkEx('lever_bicep_curl', 'Lever Seated Preacher Biceps Curl', 'Lever / Machine', ['Lever / Machine'], 'Accessory', 'Upper Arms', ['Biceps Brachii', 'Brachialis'], false, 85, ['barbell_preacher_curl']),
-  mkEx('tricep_skullcrusher', 'Barbell / EZ-Bar Lying Triceps Extension (Skullcrusher)', 'Barbell / EZ Bar', ['Barbell', 'EZ Bar'], 'Accessory', 'Upper Arms', ['Triceps Brachii'], false, 95, ['dumbbell_overhead_extension', 'cable_tricep_pushdown']),
-  mkEx('barbell_overhead_tricep_extension', 'Barbell Seated / Standing Overhead Triceps Extension', 'Barbell', ['Barbell'], 'Accessory', 'Upper Arms', ['Triceps Brachii'], false, 85, ['tricep_skullcrusher']),
-  mkEx('dumbbell_lying_tricep_extension', 'Dumbbell Lying Triceps Extension', 'Dumbbell', ['Dumbbell', 'Flat / Incline Bench'], 'Accessory', 'Upper Arms', ['Triceps Brachii'], false, 70, ['tricep_skullcrusher']),
-  mkEx('dumbbell_overhead_extension', 'Dumbbell Overhead Triceps Extension', 'Dumbbell', ['Dumbbell'], 'Accessory', 'Upper Arms', ['Triceps Brachii'], false, 75, ['tricep_skullcrusher', 'cable_tricep_pushdown']),
-  mkEx('dumbbell_kickback', 'Dumbbell Triceps Kickback', 'Dumbbell', ['Dumbbell'], 'Accessory', 'Upper Arms', ['Triceps Brachii'], false, 55, ['dumbbell_overhead_extension']),
-  mkEx('cable_tricep_pushdown', 'Cable Triceps Pushdown', 'Cable', ['Cable Machine'], 'Accessory', 'Upper Arms', ['Triceps Brachii'], false, 85, ['tricep_skullcrusher', 'dumbbell_overhead_extension']),
-  mkEx('cable_overhead_tricep_extension', 'Cable Bent-Over / Overhead Rope Triceps Extension', 'Cable', ['Cable Machine'], 'Accessory', 'Upper Arms', ['Triceps Brachii'], false, 80, ['cable_tricep_pushdown']),
-  mkEx('lever_tricep_extension', 'Lever Seated Triceps Extension / Dip Machine', 'Lever / Machine', ['Lever / Machine'], 'Accessory', 'Upper Arms', ['Triceps Brachii'], false, 135, ['tricep_dip']),
-
-  // ==========================================================================
-  // FOREARMS (ExRx ForeArmWt: Brachioradialis, Wrist Flexors, Wrist Extensors, Pronators, Supinators)
-  // ==========================================================================
-  mkEx('farmers_walk', 'Dumbbell Farmers Walk', 'Dumbbell / Kettlebell', ['Dumbbell'], 'Compound Lift', 'Forearms', ['Wrist Flexors', 'Trapezius - Upper', 'Gluteus Maximus', 'Calves'], false, 185, ['barbell_shrug']),
-  mkEx('dead_hang', 'Bodyweight Bar Dead Hang', 'Bodyweight', [], 'Compound Lift', 'Forearms', ['Wrist Flexors', 'Brachioradialis'], false, 135, ['farmers_walk']),
-  mkEx('reverse_barbell_curl', 'Barbell Reverse Curl', 'Barbell / EZ Bar', ['Barbell'], 'Compound Lift', 'Forearms', ['Brachioradialis', 'Wrist Extensors', 'Brachialis', 'Biceps Brachii'], false, 75, ['dumbbell_hammer_curl', 'barbell_wrist_curl']),
-  mkEx('dumbbell_reverse_curl', 'Dumbbell Reverse Curl', 'Dumbbell', ['Dumbbell'], 'Accessory', 'Forearms', ['Brachioradialis', 'Wrist Extensors', 'Brachialis'], false, 60, ['reverse_barbell_curl']),
-  mkEx('cable_reverse_curl', 'Cable Reverse Curl', 'Cable', ['Cable Machine'], 'Accessory', 'Forearms', ['Brachioradialis', 'Wrist Extensors'], false, 65, ['reverse_barbell_curl']),
-  mkEx('fingertip_push_up', 'Bodyweight Fingertip Push-Up', 'Bodyweight', [], 'Accessory', 'Forearms', ['Wrist Flexors', 'Pectoralis Major - Sternal'], false, 115, ['dead_hang']),
-  mkEx('barbell_wrist_curl', 'Barbell Seated Wrist Curl', 'Barbell', ['Barbell'], 'Accessory', 'Forearms', ['Wrist Flexors'], false, 85, ['dumbbell_wrist_curl']),
-  mkEx('barbell_standing_behind_back_wrist_curl', 'Barbell Standing Behind-Back Wrist Curl', 'Barbell', ['Barbell'], 'Accessory', 'Forearms', ['Wrist Flexors'], false, 95, ['barbell_wrist_curl']),
-  mkEx('dumbbell_wrist_curl', 'Dumbbell Seated Wrist Curl', 'Dumbbell', ['Dumbbell'], 'Accessory', 'Forearms', ['Wrist Flexors'], false, 60, ['barbell_wrist_curl']),
-  mkEx('cable_wrist_curl', 'Cable Seated Wrist Curl', 'Cable', ['Cable Machine'], 'Accessory', 'Forearms', ['Wrist Flexors'], false, 65, ['barbell_wrist_curl']),
-  mkEx('reverse_wrist_curl', 'Barbell Reverse Wrist Curl', 'Barbell / Dumbbell', ['Barbell'], 'Accessory', 'Forearms', ['Wrist Extensors'], false, 50, ['reverse_barbell_curl']),
-  mkEx('dumbbell_reverse_wrist_curl', 'Dumbbell Reverse Wrist Curl', 'Dumbbell', ['Dumbbell'], 'Accessory', 'Forearms', ['Wrist Extensors'], false, 40, ['reverse_wrist_curl']),
-  mkEx('wrist_roller', 'Suspended Wrist Roller', 'Barbell / Bodyweight', [], 'Accessory', 'Forearms', ['Wrist Extensors', 'Wrist Flexors'], false, 35, ['barbell_wrist_curl']),
-  mkEx('dumbbell_lying_pronation', 'Dumbbell Seated Forearm Pronation', 'Dumbbell', ['Dumbbell'], 'Accessory', 'Forearms', ['Pronators'], false, 25, ['dumbbell_wrist_curl']),
-  mkEx('dumbbell_lying_supination', 'Dumbbell Seated Forearm Supination', 'Dumbbell', ['Dumbbell'], 'Accessory', 'Forearms', ['Supinators', 'Biceps Brachii'], false, 25, ['dumbbell_wrist_curl']),
-
-  // ==========================================================================
-  // CALVES (ExRx CalfWt: Gastrocnemius, Soleus, Tibialis Anterior)
-  // ==========================================================================
-  mkEx('standing_calf_raise', 'Barbell Standing Calf Raise', 'Barbell / Dumbbell', ['Barbell'], 'Compound Lift', 'Calves', ['Gastrocnemius', 'Soleus'], false, 225, ['dumbbell_calf_raise', 'seated_calf_raise']),
-  mkEx('dumbbell_standing_calf_raise', 'Dumbbell Standing Calf Raise', 'Dumbbell', ['Dumbbell'], 'Compound Lift', 'Calves', ['Gastrocnemius', 'Soleus'], false, 165, ['standing_calf_raise']),
-  mkEx('bodyweight_calf_raise', 'Bodyweight Single-Leg Standing Calf Raise', 'Bodyweight', [], 'Compound Lift', 'Calves', ['Gastrocnemius', 'Soleus'], false, 115, ['tibialis_raise']),
-  mkEx('bodyweight_donkey_calf_raise', 'Bodyweight Donkey Calf Raise', 'Bodyweight', [], 'Accessory', 'Calves', ['Gastrocnemius', 'Soleus'], false, 135, ['bodyweight_calf_raise']),
-  mkEx('dumbbell_calf_raise', 'Dumbbell Single-Leg Calf Raise', 'Dumbbell / Bodyweight', ['Dumbbell'], 'Accessory', 'Calves', ['Gastrocnemius', 'Soleus'], false, 115, ['standing_calf_raise']),
-  mkEx('lever_standing_calf_raise', 'Lever Standing Calf Raise', 'Lever / Machine', ['Lever / Machine'], 'Compound Lift', 'Calves', ['Gastrocnemius', 'Soleus'], false, 245, ['standing_calf_raise']),
-  mkEx('sled_45_calf_press', 'Sled 45° Calf Press (Leg Press Calf Raise)', 'Lever / Machine', ['Lever / Machine', 'Weight Plates'], 'Compound Lift', 'Calves', ['Gastrocnemius', 'Soleus'], false, 315, ['standing_calf_raise']),
-  mkEx('seated_calf_raise', 'Barbell Seated Calf Raise', 'Barbell / Dumbbell', ['Barbell', 'Flat / Incline Bench'], 'Accessory', 'Calves', ['Soleus', 'Gastrocnemius'], false, 175, ['standing_calf_raise']),
-  mkEx('dumbbell_seated_calf_raise', 'Dumbbell Seated Calf Raise', 'Dumbbell', ['Dumbbell', 'Flat / Incline Bench'], 'Accessory', 'Calves', ['Soleus', 'Gastrocnemius'], false, 145, ['seated_calf_raise']),
-  mkEx('lever_seated_calf_raise', 'Lever Seated Calf Raise', 'Lever / Machine', ['Lever / Machine'], 'Accessory', 'Calves', ['Soleus', 'Gastrocnemius'], false, 165, ['seated_calf_raise']),
-  mkEx('lever_reverse_calf_raise', 'Lever / Barbell Reverse Calf Raise (Tibialis)', 'Barbell / Lever', ['Barbell'], 'Accessory', 'Calves', ['Tibialis Anterior'], false, 95, ['tibialis_raise']),
-  mkEx('tibialis_raise', 'Bodyweight Tibialis Anterior Raise', 'Bodyweight', [], 'Accessory', 'Calves', ['Tibialis Anterior'], false, 65, ['standing_calf_raise']),
-
-  // ==========================================================================
-  // NECK (ExRx NeckWt: Sternocleidomastoid, Splenius)
-  // ==========================================================================
-  mkEx('neck_bridge_hold', 'Bodyweight Wrestler Neck Bridge', 'Bodyweight', [], 'Compound Lift', 'Neck', ['Splenius', 'Sternocleidomastoid', 'Trapezius - Upper'], false, 95, ['neck_extension']),
-  mkEx('barbell_neck_shrug_extension', 'Barbell Lying Neck Extension', 'Barbell', ['Barbell'], 'Compound Lift', 'Neck', ['Splenius', 'Trapezius - Upper'], false, 65, ['neck_extension']),
-  mkEx('dumbbell_neck_flexion', 'Dumbbell Lying Neck Flexion', 'Dumbbell', ['Dumbbell'], 'Compound Lift', 'Neck', ['Sternocleidomastoid'], false, 45, ['neck_flexion']),
-  mkEx('neck_flexion', 'Weighted Lying Neck Flexion', 'Weight Plates / Bodyweight', [], 'Accessory', 'Neck', ['Sternocleidomastoid'], false, 45, ['neck_extension']),
-  mkEx('neck_extension', 'Weighted Lying / Seated Harness Neck Extension', 'Weight Plates / Bodyweight', [], 'Accessory', 'Neck', ['Splenius', 'Trapezius - Upper'], false, 55, ['neck_flexion']),
-  mkEx('weighted_lateral_neck_flexion', 'Weighted Side-Lying Lateral Neck Flexion', 'Weight Plates / Bodyweight', [], 'Accessory', 'Neck', ['Sternocleidomastoid', 'Splenius'], false, 40, ['neck_flexion']),
-  mkEx('cable_neck_flexion', 'Cable Harness Neck Flexion', 'Cable', ['Cable Machine'], 'Accessory', 'Neck', ['Sternocleidomastoid'], false, 50, ['neck_flexion']),
-  mkEx('cable_neck_extension', 'Cable Harness Neck Extension', 'Cable', ['Cable Machine'], 'Accessory', 'Neck', ['Splenius', 'Trapezius - Upper'], false, 60, ['neck_extension']),
-  mkEx('lever_neck_flexion', 'Lever 4-Way Neck Flexion', 'Lever / Machine', ['Lever / Machine'], 'Accessory', 'Neck', ['Sternocleidomastoid'], false, 55, ['neck_flexion']),
-  mkEx('lever_neck_extension', 'Lever 4-Way Neck Extension', 'Lever / Machine', ['Lever / Machine'], 'Accessory', 'Neck', ['Splenius'], false, 65, ['neck_extension']),
-  mkEx('isometric_neck_flexion', 'Bodyweight Isometric Front / Side Neck Resistance', 'Bodyweight', [], 'Accessory', 'Neck', ['Sternocleidomastoid', 'Splenius'], false, 45, ['neck_flexion']),
-
-  // ==========================================================================
-  // WAIST (ExRx WaistWt: Rectus Abdominis, Obliques, Transverse Abdominis, Quadratus Lumborum, Erector Spinae)
-  // ==========================================================================
-  // Rectus Abdominis — Spinal Flexion & Leg-Hip Raises
-  mkEx('hanging_leg_raises', 'Hanging Leg-Hip Raise', 'Bodyweight', [], 'Compound Lift', 'Waist', ['Rectus Abdominis', 'Obliques', 'Hip Flexors'], false, 50, ['hollow_holds', 'weighted_plank']),
-  mkEx('hanging_knee_raise', 'Bodyweight Hanging Knee Raise', 'Bodyweight', [], 'Accessory', 'Waist', ['Rectus Abdominis', 'Hip Flexors'], false, 45, ['hanging_leg_raises']),
-  mkEx('hanging_straight_leg_raise', 'Bodyweight Hanging Pike (Toes-to-Bar) Leg Raise', 'Bodyweight', [], 'Compound Lift', 'Waist', ['Rectus Abdominis', 'Obliques', 'Hip Flexors'], false, 55, ['hanging_leg_raises']),
-  mkEx('vertical_leg_hip_raise', 'Bodyweight Vertical (Captain\'s Chair) Leg-Hip Raise', 'Bodyweight', [], 'Accessory', 'Waist', ['Rectus Abdominis', 'Hip Flexors'], false, 50, ['hanging_leg_raises']),
-  mkEx('lying_leg_hip_raise', 'Bodyweight Lying Leg-Hip Raise', 'Bodyweight', [], 'Accessory', 'Waist', ['Rectus Abdominis', 'Obliques', 'Hip Flexors'], false, 45, ['hanging_leg_raises']),
-  mkEx('incline_leg_hip_raise', 'Bodyweight Incline Bench Leg-Hip Raise', 'Bodyweight', ['Flat / Incline Bench'], 'Accessory', 'Waist', ['Rectus Abdominis', 'Obliques', 'Hip Flexors'], false, 50, ['lying_leg_hip_raise']),
-  mkEx('reverse_crunch', 'Bodyweight Lying Reverse Crunch', 'Bodyweight', [], 'Accessory', 'Waist', ['Rectus Abdominis', 'Obliques'], false, 45, ['ab_crunch']),
-  mkEx('v_up', 'Bodyweight V-Up (Jackknife Sit-Up)', 'Bodyweight', [], 'Accessory', 'Waist', ['Rectus Abdominis', 'Obliques', 'Hip Flexors'], false, 45, ['sit_up']),
-  mkEx('ab_crunch', 'Bodyweight / Weighted Floor Crunch', 'Bodyweight / Plate', [], 'Accessory', 'Waist', ['Rectus Abdominis', 'Obliques'], false, 45, ['hollow_holds', 'bicycle_crunch']),
-  mkEx('incline_crunch', 'Weighted Decline / Incline Bench Crunch', 'Bodyweight / Plate', ['Flat / Incline Bench'], 'Accessory', 'Waist', ['Rectus Abdominis', 'Obliques'], false, 55, ['ab_crunch']),
-  mkEx('sit_up', 'Bodyweight / Weighted Sit-Up', 'Bodyweight / Plate', [], 'Accessory', 'Waist', ['Rectus Abdominis', 'Hip Flexors', 'Obliques'], false, 50, ['incline_sit_up', 'ab_crunch']),
-  mkEx('incline_sit_up', 'Weighted Decline Bench Sit-Up', 'Bodyweight / Plate', ['Flat / Incline Bench'], 'Compound Lift', 'Waist', ['Rectus Abdominis', 'Hip Flexors', 'Obliques'], false, 65, ['sit_up']),
-  mkEx('dumbbell_crunch', 'Dumbbell Lying Crunch', 'Dumbbell', ['Dumbbell'], 'Accessory', 'Waist', ['Rectus Abdominis', 'Obliques'], false, 55, ['ab_crunch']),
-  mkEx('dumbbell_incline_sit_up', 'Dumbbell Decline Sit-Up', 'Dumbbell', ['Dumbbell', 'Flat / Incline Bench'], 'Compound Lift', 'Waist', ['Rectus Abdominis', 'Hip Flexors', 'Obliques'], false, 65, ['incline_sit_up']),
-  mkEx('barbell_rollout', 'Barbell Ab Rollout', 'Barbell / Bodyweight', ['Barbell'], 'Compound Lift', 'Waist', ['Rectus Abdominis', 'Transverse Abdominis', 'Latissimus Dorsi'], false, 95, ['weighted_plank', 'hollow_holds']),
-  mkEx('wheel_rollout', 'Bodyweight Ab Wheel Rollout', 'Bodyweight', [], 'Compound Lift', 'Waist', ['Rectus Abdominis', 'Transverse Abdominis', 'Obliques'], false, 75, ['barbell_rollout']),
-  mkEx('barbell_lying_hip_raise', 'Barbell / Plate Loaded Pulse-Up (Hip Raise)', 'Barbell', ['Barbell'], 'Accessory', 'Waist', ['Rectus Abdominis', 'Obliques'], false, 65, ['lying_leg_hip_raise']),
-  mkEx('cable_kneeling_crunch', 'Cable Kneeling Crunch', 'Cable', ['Cable Machine'], 'Accessory', 'Waist', ['Rectus Abdominis', 'Obliques'], false, 60, ['ab_crunch', 'hanging_leg_raises']),
-  mkEx('cable_seated_crunch', 'Cable Seated Crunch', 'Cable', ['Cable Machine'], 'Accessory', 'Waist', ['Rectus Abdominis', 'Obliques'], false, 75, ['cable_kneeling_crunch']),
-  mkEx('cable_standing_crunch', 'Cable Standing Crunch', 'Cable', ['Cable Machine'], 'Accessory', 'Waist', ['Rectus Abdominis', 'Obliques'], false, 70, ['cable_kneeling_crunch']),
-  mkEx('cable_lying_leg_hip_raise', 'Cable Lying Leg-Hip Raise', 'Cable', ['Cable Machine'], 'Accessory', 'Waist', ['Rectus Abdominis', 'Hip Flexors'], false, 50, ['lying_leg_hip_raise']),
-  mkEx('lever_seated_crunch', 'Lever Seated Crunch', 'Lever / Machine', ['Lever / Machine'], 'Accessory', 'Waist', ['Rectus Abdominis', 'Obliques'], false, 90, ['cable_kneeling_crunch']),
-  mkEx('lever_lying_crunch', 'Lever Lying Crunch', 'Lever / Machine', ['Lever / Machine'], 'Accessory', 'Waist', ['Rectus Abdominis', 'Obliques'], false, 80, ['lever_seated_crunch']),
-  mkEx('lever_seated_leg_raise_crunch', 'Lever Seated Leg-Raise Crunch', 'Lever / Machine', ['Lever / Machine'], 'Accessory', 'Waist', ['Rectus Abdominis', 'Hip Flexors'], false, 85, ['lever_seated_crunch']),
-
-  // Obliques — Rotation & Lateral Flexion
-  mkEx('dumbbell_side_bend', 'Dumbbell Standing Side Bend', 'Dumbbell', ['Dumbbell'], 'Compound Lift', 'Waist', ['Obliques', 'Quadratus Lumborum'], false, 75, ['russian_twist']),
-  mkEx('barbell_side_bend', 'Barbell Standing Side Bend', 'Barbell', ['Barbell'], 'Accessory', 'Waist', ['Obliques', 'Quadratus Lumborum'], false, 85, ['dumbbell_side_bend']),
-  mkEx('barbell_seated_twist', 'Barbell Seated Twist', 'Barbell', ['Barbell'], 'Accessory', 'Waist', ['Obliques'], false, 65, ['russian_twist']),
-  mkEx('cable_side_bend', 'Cable Standing Side Bend', 'Cable', ['Cable Machine'], 'Accessory', 'Waist', ['Obliques', 'Quadratus Lumborum'], false, 65, ['dumbbell_side_bend']),
-  mkEx('cable_standing_twist', 'Cable Standing Twist (Woodchopper)', 'Cable', ['Cable Machine'], 'Accessory', 'Waist', ['Obliques', 'Transverse Abdominis'], false, 55, ['russian_twist']),
-  mkEx('cable_seated_twist', 'Cable Seated Twist', 'Cable', ['Cable Machine'], 'Accessory', 'Waist', ['Obliques'], false, 55, ['cable_standing_twist']),
-  mkEx('cable_incline_push_pull_twist', 'Cable Pallof Anti-Rotation Press', 'Cable', ['Cable Machine'], 'Accessory', 'Waist', ['Obliques', 'Transverse Abdominis'], false, 50, ['cable_standing_twist']),
-  mkEx('lever_seated_twist', 'Lever Seated Twist (Rotary Torso)', 'Lever / Machine', ['Lever / Machine'], 'Accessory', 'Waist', ['Obliques'], false, 95, ['cable_seated_twist']),
-  mkEx('bicycle_crunch', 'Bodyweight Lying Alternating Twist (Bicycle) Crunch', 'Bodyweight', [], 'Accessory', 'Waist', ['Obliques', 'Rectus Abdominis'], false, 45, ['ab_crunch', 'russian_twist']),
-  mkEx('twisting_sit_up', 'Bodyweight / Weighted Twisting Sit-Up', 'Bodyweight / Plate', [], 'Accessory', 'Waist', ['Obliques', 'Rectus Abdominis', 'Hip Flexors'], false, 50, ['sit_up']),
-  mkEx('incline_twisting_sit_up', 'Weighted Decline Twisting Sit-Up', 'Bodyweight / Plate', ['Flat / Incline Bench'], 'Accessory', 'Waist', ['Obliques', 'Rectus Abdominis', 'Hip Flexors'], false, 60, ['incline_sit_up']),
-  mkEx('russian_twist', 'Seated Russian Twist', 'Bodyweight / Dumbbell', ['Dumbbell'], 'Accessory', 'Waist', ['Obliques', 'Rectus Abdominis'], false, 45, ['bicycle_crunch', 'side_plank']),
-  mkEx('hanging_windshield_wiper', 'Bodyweight Hanging Twist (Windshield Wiper)', 'Bodyweight', [], 'Accessory', 'Waist', ['Obliques', 'Rectus Abdominis', 'Hip Flexors'], false, 50, ['hanging_leg_raises']),
-  mkEx('lying_hip_swing', 'Bodyweight Lying Bent-Knee Hip Swing', 'Bodyweight', [], 'Accessory', 'Waist', ['Obliques', 'Rectus Abdominis'], false, 45, ['bicycle_crunch']),
-  mkEx('side_bridge_hip_abduction', 'Bodyweight 45° Side Bend (Roman Chair)', 'Bodyweight / Plate', [], 'Accessory', 'Waist', ['Obliques', 'Quadratus Lumborum'], false, 55, ['dumbbell_side_bend']),
-
-  // Transverse Abdominis & Isometric Core Stabilization
-  mkEx('hollow_holds', 'Bodyweight Hollow Body Hold', 'Bodyweight', [], 'Accessory', 'Waist', ['Rectus Abdominis', 'Transverse Abdominis', 'Obliques'], false, 45, ['hanging_leg_raises', 'weighted_plank']),
-  mkEx('weighted_plank', 'Front Plank (Bodyweight / Weighted)', 'Plate / Bodyweight', [], 'Accessory', 'Waist', ['Rectus Abdominis', 'Transverse Abdominis', 'Obliques', 'Erector Spinae'], false, 60, ['hollow_holds', 'side_plank']),
-  mkEx('side_plank', 'Bodyweight Side Plank (Side Bridge)', 'Bodyweight', [], 'Accessory', 'Waist', ['Obliques', 'Transverse Abdominis', 'Quadratus Lumborum'], false, 45, ['weighted_plank', 'russian_twist']),
-  mkEx('stomach_vacuum', 'Bodyweight Supine / Quadruped Stomach Vacuum', 'Bodyweight', [], 'Accessory', 'Waist', ['Transverse Abdominis'], false, 45, ['hollow_holds']),
-
-  // Erector Spinae — Lower Back & Lumbar Extension (ExRx WaistWt#ErectorSpinae)
-  mkEx('back_extension', '45° Back Extension (Hyperextension)', 'Bodyweight / Plate', [], 'Accessory', 'Waist', ['Erector Spinae', 'Gluteus Maximus', 'Hamstrings'], false, 60, ['barbell_good_morning']),
-  mkEx('barbell_back_extension', 'Barbell 45° Back Extension', 'Barbell', ['Barbell'], 'Compound Lift', 'Waist', ['Erector Spinae', 'Gluteus Maximus', 'Hamstrings'], false, 115, ['back_extension']),
-  mkEx('dumbbell_back_extension', 'Dumbbell 45° Back Extension', 'Dumbbell', ['Dumbbell'], 'Accessory', 'Waist', ['Erector Spinae', 'Gluteus Maximus', 'Hamstrings'], false, 75, ['back_extension']),
-  mkEx('horizontal_back_extension', 'Roman Chair Horizontal Back Extension', 'Bodyweight / Plate', [], 'Accessory', 'Waist', ['Erector Spinae', 'Gluteus Maximus', 'Hamstrings'], false, 65, ['back_extension']),
-  mkEx('reverse_hyperextension', 'Reverse Hyperextension', 'Bodyweight / Lever', [], 'Accessory', 'Waist', ['Erector Spinae', 'Gluteus Maximus', 'Hamstrings'], false, 95, ['back_extension']),
-  mkEx('barbell_seated_good_morning', 'Barbell Seated Good Morning', 'Barbell', ['Barbell', 'Flat / Incline Bench'], 'Compound Lift', 'Waist', ['Erector Spinae', 'Gluteus Maximus'], false, 135, ['barbell_good_morning']),
-  mkEx('cable_seated_back_extension', 'Cable Seated Back Extension', 'Cable', ['Cable Machine'], 'Accessory', 'Waist', ['Erector Spinae'], false, 110, ['lever_back_extension']),
-  mkEx('lever_back_extension', 'Lever Seated Back Extension', 'Lever / Machine', ['Lever / Machine'], 'Accessory', 'Waist', ['Erector Spinae'], false, 135, ['back_extension']),
-  mkEx('bodyweight_bird_dog', 'Bodyweight Quadruped Alternating Arm-Leg Raise (Bird-Dog)', 'Bodyweight', [], 'Accessory', 'Waist', ['Erector Spinae', 'Gluteus Maximus', 'Rectus Abdominis'], false, 45, ['superman_hold'])
-];
+// Comprehensive Exercise Library parsed directly from app/data/exercises.csv
+export const EXERCISE_LIBRARY = parseExercisesCsv(exercisesCsvText);
 
 export const EXERCISE_MAP = Object.fromEntries(EXERCISE_LIBRARY.map(ex => [ex.id, ex]));
 

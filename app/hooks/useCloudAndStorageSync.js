@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   PERSISTENCE_KEY,
   CURRENT_SCHEMA_VERSION,
@@ -81,6 +81,18 @@ export function useCloudAndStorageSync({
   setShareRoutinesWithFriends
 }) {
   const cloudSyncReadyForUserKeyRef = useRef(null);
+  const [cloudPullReadyTick, setCloudPullReadyTick] = useState(0);
+
+  const mergeFriendPrs = (prsA = {}, prsB = {}) => {
+    const out = { ...(prsA || {}) };
+    Object.entries(prsB || {}).forEach(([k, v]) => {
+      const num = Number(v) || 0;
+      if (num > (Number(out[k]) || 0)) {
+        out[k] = num;
+      }
+    });
+    return out;
+  };
 
   // 1. Client-Side LocalStorage Hydration, Recovery Hash & Invite Link Detection
   useEffect(() => {
@@ -317,7 +329,7 @@ export function useCloudAndStorageSync({
                     ? {
                         ...existing,
                         ...f,
-                        prs: { ...(existing.prs || {}), ...(f.prs || {}) },
+                        prs: mergeFriendPrs(existing.prs, f.prs),
                         history:
                           Array.isArray(existing.history) && existing.history.length > 0
                             ? existing.history
@@ -385,6 +397,7 @@ export function useCloudAndStorageSync({
       } finally {
         if (!cancelled) {
           cloudSyncReadyForUserKeyRef.current = userKey;
+          setCloudPullReadyTick(t => t + 1);
         }
       }
     })();
@@ -441,7 +454,20 @@ export function useCloudAndStorageSync({
               if (!f) return;
               const k = String(f.username || f.email || f.id).toLowerCase();
               const existing = byKey.get(k);
-              byKey.set(k, existing ? { ...existing, ...f } : f);
+              byKey.set(
+                k,
+                existing
+                  ? {
+                      ...existing,
+                      ...f,
+                      prs: mergeFriendPrs(existing.prs, f.prs),
+                      history:
+                        Array.isArray(f.history) && f.history.length > 0
+                          ? f.history
+                          : existing.history || []
+                    }
+                  : f
+              );
             });
             return ensureDefaultMattFriend(Array.from(byKey.values()));
           });
@@ -558,7 +584,8 @@ export function useCloudAndStorageSync({
     routinePreferences,
     shareStatsWithFriends,
     shareRoutinesWithFriends,
-    selectedGymId
+    selectedGymId,
+    cloudPullReadyTick
   ]);
 
   const handleExportBackupJSON = () => {

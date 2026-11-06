@@ -606,12 +606,15 @@ export async function resetPasswordWithBetaCode({ email, username, betaCode, new
 // CROSS-DEVICE SUPABASE CLOUD SYNC ENGINE (PROFILES, HISTORY, ROUTINES & METADATA)
 // ============================================================================
 
+let inFlightTokenRefreshPromise = null;
+
 export async function getValidSupabaseAccessToken(user) {
-  if (!user || !user.email) return null;
+  if (!user || (!user.email && !user.username)) return null;
   const { baseUrl, anonKey, isConfigured } = getSupabaseConfig();
   if (!isConfigured) return null;
 
-  const cleanEmail = user.email.trim().toLowerCase();
+  const cleanEmail = (user.email || '').trim().toLowerCase();
+  const cleanUsername = (user.username || '').trim().toLowerCase();
   const saved = getSavedSupabaseSessionTokens(cleanEmail);
 
   // Use existing token if saved within the last 45 minutes
@@ -619,72 +622,92 @@ export async function getValidSupabaseAccessToken(user) {
     return saved.accessToken;
   }
 
-  // Try refreshing via refresh_token if available
-  if (saved?.refreshToken) {
-    try {
-      const res = await fetch(`${baseUrl}/auth/v1/token?grant_type=refresh_token`, {
-        method: 'POST',
-        headers: {
-          apikey: anonKey,
-          Authorization: `Bearer ${anonKey}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ refresh_token: saved.refreshToken })
-      });
-      if (res.ok) {
-        const data = await res.json();
-        if (data?.access_token) {
-          saveSupabaseSessionTokens({
-            userId: data.user?.id || user.id,
-            email: cleanEmail,
-            accessToken: data.access_token,
-            refreshToken: data.refresh_token || saved.refreshToken
-          });
-          return data.access_token;
-        }
-      }
-    } catch {
-      // fall through to silent password re-auth
-    }
+  if (inFlightTokenRefreshPromise) {
+    return inFlightTokenRefreshPromise;
   }
 
-  // Fallback: silent token refresh using locally cached credentials on this device
-  const localAccounts = getLocalRegisteredAccounts();
-  const localMatch = localAccounts[cleanEmail];
-  if (localMatch?.password) {
+  inFlightTokenRefreshPromise = (async () => {
     try {
-      const res = await fetch(`${baseUrl}/auth/v1/token?grant_type=password`, {
-        method: 'POST',
-        headers: {
-          apikey: anonKey,
-          Authorization: `Bearer ${anonKey}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ email: cleanEmail, password: localMatch.password })
-      });
-      if (res.ok) {
-        const data = await res.json();
-        if (data?.access_token) {
-          saveSupabaseSessionTokens({
-            userId: data.user?.id || user.id,
-            email: cleanEmail,
-            accessToken: data.access_token,
-            refreshToken: data.refresh_token || null
+      // Try refreshing via refresh_token if available
+      if (saved?.refreshToken) {
+        try {
+          const res = await fetch(`${baseUrl}/auth/v1/token?grant_type=refresh_token`, {
+            method: 'POST',
+            headers: {
+              apikey: anonKey,
+              Authorization: `Bearer ${anonKey}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ refresh_token: saved.refreshToken })
           });
-          return data.access_token;
+          if (res.ok) {
+            const data = await res.json();
+            if (data?.access_token) {
+              saveSupabaseSessionTokens({
+                userId: data.user?.id || user.id,
+                email: cleanEmail || data.user?.email || '',
+                accessToken: data.access_token,
+                refreshToken: data.refresh_token || saved.refreshToken
+              });
+              return data.access_token;
+            }
+          }
+        } catch {
+          // fall through to silent password re-auth
         }
       }
-    } catch {
-      // ignore
-    }
-  }
 
-  // Only return the cached accessToken if it is still within the 55-minute JWT validity window;
-  // otherwise return null so public queries can fall back cleanly to anonKey instead of failing with 401 JWT expired.
-  if (saved?.accessToken && Date.now() - (saved.savedAt || 0) < 55 * 60 * 1000) {
-    return saved.accessToken;
-  }
-  return null;
+      // Fallback: silent token refresh using locally cached credentials on this device
+      const localAccounts = getLocalRegisteredAccounts();
+      const localMatch =
+        (cleanEmail && localAccounts[cleanEmail]) ||
+        Object.values(localAccounts).find(
+          acc =>
+            (cleanEmail && (acc?.email || '').trim().toLowerCase() === cleanEmail) ||
+            (cleanUsername && (acc?.username || '').trim().toLowerCase() === cleanUsername)
+        ) ||
+        null;
+      const loginEmail = cleanEmail || localMatch?.email || '';
+      if (localMatch?.password && loginEmail) {
+        try {
+          const res = await fetch(`${baseUrl}/auth/v1/token?grant_type=password`, {
+            method: 'POST',
+            headers: {
+              apikey: anonKey,
+              Authorization: `Bearer ${anonKey}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ email: loginEmail, password: localMatch.password })
+          });
+          if (res.ok) {
+            const data = await res.json();
+            if (data?.access_token) {
+              saveSupabaseSessionTokens({
+                userId: data.user?.id || user.id,
+                email: loginEmail,
+                accessToken: data.access_token,
+                refreshToken: data.refresh_token || null
+              });
+              return data.access_token;
+            }
+          }
+        } catch {
+          // ignore
+        }
+      }
+
+      // Only return the cached accessToken if it is still within the 55-minute JWT validity window;
+      // otherwise return null so public queries can fall back cleanly to anonKey instead of failing with 401 JWT expired.
+      if (saved?.accessToken && Date.now() - (saved.savedAt || 0) < 55 * 60 * 1000) {
+        return saved.accessToken;
+      }
+      return null;
+    } finally {
+      inFlightTokenRefreshPromise = null;
+    }
+  })();
+
+  return inFlightTokenRefreshPromise;
 }
 
 /**
@@ -840,64 +863,113 @@ export async function fetchCloudStateForUser(user) {
  * Pushes the signed-in user's state to Supabase Cloud (both relational tables and Auth user_metadata snapshot).
  */
 export async function pushCloudStateForUser(user, payload) {
-  if (!user || !user.email || !payload) return false;
+  if (!user || (!user.email && !user.username) || !payload) return false;
   const { baseUrl, anonKey, isConfigured } = getSupabaseConfig();
   if (!isConfigured) return false;
 
   const accessToken = await getValidSupabaseAccessToken(user);
-  if (!accessToken) return false;
+  const bearerToken = accessToken || anonKey;
 
   const jsonHeaders = {
     apikey: anonKey,
-    Authorization: `Bearer ${accessToken}`,
+    Authorization: `Bearer ${bearerToken}`,
     'Content-Type': 'application/json',
     Prefer: 'resolution=merge-duplicates'
   };
 
-  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
-    String(user.id || '')
-  );
+  const patchHeaders = {
+    apikey: anonKey,
+    Authorization: `Bearer ${bearerToken}`,
+    'Content-Type': 'application/json'
+  };
 
-  const tasks = [
-    // 1. Always sync compact cloud state snapshot into Supabase Auth user_metadata (works even without custom tables)
-    fetch(`${baseUrl}/auth/v1/user`, {
-      method: 'PUT',
-      headers: {
-        apikey: anonKey,
-        Authorization: `Bearer ${accessToken}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        data: {
-          username: user.username,
-          yccih_cloud_state_v3: payload
-        }
-      })
-    })
-  ];
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  let resolvedUserId = uuidRegex.test(String(user.id || '')) ? String(user.id) : null;
 
-  if (isUuid) {
-    // 2. Sync user_profiles row
+  const tasks = [];
+
+  if (accessToken) {
+    // 1. Sync compact cloud state snapshot into Supabase Auth user_metadata
     tasks.push(
-      fetch(`${baseUrl}/rest/v1/user_profiles`, {
+      fetch(`${baseUrl}/auth/v1/user`, {
+        method: 'PUT',
+        headers: {
+          apikey: anonKey,
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          data: {
+            username: user.username,
+            yccih_cloud_state_v3: payload
+          }
+        })
+      })
+    );
+  }
+
+  // If user.id in local state is not a UUID yet, look up the UUID from user_profiles by email or username
+  if (!resolvedUserId) {
+    try {
+      const cleanEmail = (user.email || '').trim().toLowerCase();
+      const cleanUname = (user.username || '').trim();
+      const filter = cleanEmail
+        ? `email=ilike.${encodeURIComponent(cleanEmail)}`
+        : `username=ilike.${encodeURIComponent(cleanUname)}`;
+      const lookupRes = await fetch(`${baseUrl}/rest/v1/user_profiles?${filter}&select=id`, {
+        headers: {
+          apikey: anonKey,
+          Authorization: `Bearer ${bearerToken}`
+        }
+      });
+      if (lookupRes.ok) {
+        const rows = await lookupRes.json();
+        if (Array.isArray(rows) && rows[0]?.id && uuidRegex.test(String(rows[0].id))) {
+          resolvedUserId = String(rows[0].id);
+        }
+      }
+    } catch {
+      // ignore lookup error
+    }
+  }
+
+  const profileSettingsObj = {
+    ...(payload.settings || {}),
+    oneRepMaxes: payload.oneRepMaxes || {},
+    activeSession: payload.activeSession || null,
+    friendsList: payload.friendsList || [],
+    outgoingInvites: payload.outgoingInvites || [],
+    recentHistory: Array.isArray(payload.history) ? payload.history.slice(0, 30) : []
+  };
+
+  const profileUpdateBody = {
+    schema_version: payload.schemaVersion || 3,
+    one_rep_maxes: payload.oneRepMaxes || {},
+    settings: profileSettingsObj,
+    gyms: payload.gyms || [],
+    updated_at: payload.updatedAt || new Date().toISOString()
+  };
+
+  if (resolvedUserId) {
+    // 2a. Upsert user_profiles row by primary key (id)
+    tasks.push(
+      fetch(`${baseUrl}/rest/v1/user_profiles?on_conflict=id`, {
         method: 'POST',
         headers: jsonHeaders,
         body: JSON.stringify({
-          id: user.id,
-          email: user.email,
-          username: user.username,
-          schema_version: payload.schemaVersion || 3,
-          one_rep_maxes: payload.oneRepMaxes || {},
-          settings: {
-            ...(payload.settings || {}),
-            activeSession: payload.activeSession || null,
-            friendsList: payload.friendsList || [],
-            outgoingInvites: payload.outgoingInvites || [],
-            recentHistory: Array.isArray(payload.history) ? payload.history.slice(0, 20) : []
-          },
-          gyms: payload.gyms || [],
-          updated_at: payload.updatedAt || new Date().toISOString()
+          id: resolvedUserId,
+          email: (user.email || '').trim().toLowerCase() || undefined,
+          username: user.username || undefined,
+          ...profileUpdateBody
         })
+      })
+    );
+    // 2b. Also PATCH by id so existing rows always update even if unique email/username constraints exist
+    tasks.push(
+      fetch(`${baseUrl}/rest/v1/user_profiles?id=eq.${encodeURIComponent(resolvedUserId)}`, {
+        method: 'PATCH',
+        headers: patchHeaders,
+        body: JSON.stringify(profileUpdateBody)
       })
     );
 
@@ -905,7 +977,7 @@ export async function pushCloudStateForUser(user, payload) {
     if (Array.isArray(payload.history) && payload.history.length > 0) {
       const historyRows = payload.history.map(w => ({
         id: String(w.id),
-        user_id: user.id,
+        user_id: resolvedUserId,
         schema_version: 3,
         title: w.title || 'Workout Session',
         preset_used: w.loadedRoutineTitle || 'MANUAL',
@@ -918,7 +990,7 @@ export async function pushCloudStateForUser(user, payload) {
         slots: Array.isArray(w.slots) ? w.slots : []
       }));
       tasks.push(
-        fetch(`${baseUrl}/rest/v1/workout_history`, {
+        fetch(`${baseUrl}/rest/v1/workout_history?on_conflict=id`, {
           method: 'POST',
           headers: jsonHeaders,
           body: JSON.stringify(historyRows)
@@ -938,7 +1010,7 @@ export async function pushCloudStateForUser(user, payload) {
     if (allRoutines.length > 0) {
       const routinePayload = allRoutines.map(r => ({
         key: String(r.key),
-        user_id: user.id,
+        user_id: resolvedUserId,
         author_username: r.author || user.username || 'athlete',
         label: r.label || 'Custom Routine',
         is_shared: Boolean(r.isShared),
@@ -947,13 +1019,25 @@ export async function pushCloudStateForUser(user, payload) {
         updated_at: new Date().toISOString()
       }));
       tasks.push(
-        fetch(`${baseUrl}/rest/v1/routines`, {
+        fetch(`${baseUrl}/rest/v1/routines?on_conflict=key`, {
           method: 'POST',
           headers: jsonHeaders,
           body: JSON.stringify(routinePayload)
         })
       );
     }
+  } else if (user.email || user.username) {
+    const cleanEmail = (user.email || '').trim().toLowerCase();
+    const filter = cleanEmail
+      ? `email=ilike.${encodeURIComponent(cleanEmail)}`
+      : `username=ilike.${encodeURIComponent((user.username || '').trim())}`;
+    tasks.push(
+      fetch(`${baseUrl}/rest/v1/user_profiles?${filter}`, {
+        method: 'PATCH',
+        headers: patchHeaders,
+        body: JSON.stringify(profileUpdateBody)
+      })
+    );
   }
 
   await Promise.allSettled(tasks);
@@ -1192,14 +1276,23 @@ export async function resolveInviteFriendshipsForUser(
     }))
     .filter(x => x.email || x.username);
 
-  const isAlreadyInFriends = (uname, email) => {
+  const isAlreadyInFriends = (uname, email, rowId = null) => {
     const u = (uname || '').trim().toLowerCase();
     const e = (email || '').trim().toLowerCase();
-    return (Array.isArray(currentFriendsList) ? currentFriendsList : []).some(
-      f =>
-        (u && (f?.username || '').trim().toLowerCase() === u) ||
-        (e && (f?.email || '').trim().toLowerCase() === e)
-    );
+    const ePrefix = e ? e.split('@')[0] : '';
+    const rId = rowId ? String(rowId).toLowerCase() : '';
+    return (Array.isArray(currentFriendsList) ? currentFriendsList : []).some(f => {
+      const fU = (f?.username || '').trim().toLowerCase();
+      const fE = (f?.email || '').trim().toLowerCase();
+      const fEPrefix = fE ? fE.split('@')[0] : '';
+      const fId = String(f?.id || '').toLowerCase();
+      return (
+        (rId && fId === rId) ||
+        (u && (fU === u || (fEPrefix && fEPrefix === u))) ||
+        (e && fE === e) ||
+        (ePrefix && fU === ePrefix)
+      );
+    });
   };
 
   // 1. Check local friend requests store
@@ -1267,9 +1360,12 @@ export async function resolveInviteFriendshipsForUser(
     };
 
     try {
-      const [profilesRes, routinesRes, friendshipsRes, friendInvitesRes] = await Promise.all([
+      const [profilesRes, routinesRes, historyRes, friendshipsRes, friendInvitesRes] = await Promise.all([
         fetchWithAnonFallback(`${baseUrl}/rest/v1/user_profiles?select=id,username,email,one_rep_maxes,settings`),
-        fetchWithAnonFallback(`${baseUrl}/rest/v1/routines?is_shared=eq.true&select=key,user_id,author_username,label,slots`),
+        fetchWithAnonFallback(`${baseUrl}/rest/v1/routines?select=key,user_id,author_username,label,is_shared,slots`),
+        fetchWithAnonFallback(
+          `${baseUrl}/rest/v1/workout_history?select=id,user_id,title,preset_used,started_at,slots&order=started_at.desc&limit=300`
+        ),
         user?.id
           ? fetchWithAnonFallback(
               `${baseUrl}/rest/v1/friendships?or=(requester_id.eq.${encodeURIComponent(user.id)},addressee_id.eq.${encodeURIComponent(user.id)})&select=*`
@@ -1283,31 +1379,57 @@ export async function resolveInviteFriendshipsForUser(
       ]);
 
       const profileRows = profilesRes && profilesRes.ok ? await profilesRes.json() : [];
-      const sharedRoutineRows = routinesRes && routinesRes.ok ? await routinesRes.json() : [];
+      const allRoutineRows = routinesRes && routinesRes.ok ? await routinesRes.json() : [];
+      const allHistoryRows = historyRes && historyRes.ok ? await historyRes.json() : [];
       const friendshipRows = friendshipsRes && friendshipsRes.ok ? await friendshipsRes.json() : [];
       const friendInviteRows = friendInvitesRes && friendInvitesRes.ok ? await friendInvitesRes.json() : [];
 
       const routinesByUserId = new Map();
       const routinesByUsername = new Map();
-      if (Array.isArray(sharedRoutineRows)) {
-        sharedRoutineRows.forEach(r => {
+      const allRoutinesByUserId = new Map();
+      if (Array.isArray(allRoutineRows)) {
+        allRoutineRows.forEach(r => {
           const item = {
             key: r.key,
             label: r.label,
             author: r.author_username,
+            isShared: Boolean(r.is_shared),
             slots: Array.isArray(r.slots) ? r.slots : []
           };
           if (r.user_id) {
-            const list = routinesByUserId.get(r.user_id) || [];
-            list.push(item);
-            routinesByUserId.set(r.user_id, list);
+            const allList = allRoutinesByUserId.get(r.user_id) || [];
+            allList.push(item);
+            allRoutinesByUserId.set(r.user_id, allList);
           }
-          if (r.author_username) {
-            const uKey = r.author_username.toLowerCase();
-            const list = routinesByUsername.get(uKey) || [];
-            list.push(item);
-            routinesByUsername.set(uKey, list);
+          if (r.is_shared) {
+            if (r.user_id) {
+              const list = routinesByUserId.get(r.user_id) || [];
+              list.push(item);
+              routinesByUserId.set(r.user_id, list);
+            }
+            if (r.author_username) {
+              const uKey = r.author_username.toLowerCase();
+              const list = routinesByUsername.get(uKey) || [];
+              list.push(item);
+              routinesByUsername.set(uKey, list);
+            }
           }
+        });
+      }
+
+      const historyByUserId = new Map();
+      if (Array.isArray(allHistoryRows)) {
+        allHistoryRows.forEach(h => {
+          if (!h?.user_id) return;
+          const list = historyByUserId.get(h.user_id) || [];
+          list.push({
+            id: h.id,
+            title: h.title,
+            loadedRoutineTitle: h.preset_used || 'MANUAL',
+            startedAt: h.started_at,
+            slots: Array.isArray(h.slots) ? h.slots : []
+          });
+          historyByUserId.set(h.user_id, list);
         });
       }
 
@@ -1318,6 +1440,22 @@ export async function resolveInviteFriendshipsForUser(
         });
       }
 
+      const scanSlotsIntoPrs = (slotsList, targetPrs) => {
+        (Array.isArray(slotsList) ? slotsList : []).forEach(slot => {
+          const exId = slot?.exerciseId;
+          if (!exId) return;
+          (slot?.sets || []).forEach(st => {
+            const sw = Number(st?.weight) || 0;
+            if (sw <= 0) return;
+            const sr = Math.max(1, Number(st?.reps) || 1);
+            const est = sr === 1 ? sw : Math.round(sw * (1 + sr / 30));
+            if (est > (Number(targetPrs[exId]) || 0)) {
+              targetPrs[exId] = est;
+            }
+          });
+        });
+      };
+
       const buildFriendObjFromProfile = (row, friendshipId = null) => {
         const uname = (row?.username || '').trim() || (row?.email || '').split('@')[0];
         const email = (row?.email || '').trim().toLowerCase();
@@ -1325,25 +1463,41 @@ export async function resolveInviteFriendshipsForUser(
           routinesByUserId.get(row?.id) ||
           routinesByUsername.get(uname.toLowerCase()) ||
           [];
-        const rowHistory = Array.isArray(row?.settings?.recentHistory)
+        const settingsHistory = Array.isArray(row?.settings?.recentHistory)
           ? row.settings.recentHistory
           : [];
-        const mergedPrs = { ...(row?.one_rep_maxes || {}) };
-        rowHistory.forEach(w => {
-          (w?.slots || []).forEach(slot => {
-            const exId = slot?.exerciseId;
-            if (!exId) return;
-            (slot?.sets || []).forEach(st => {
-              const sw = Number(st?.weight) || 0;
-              if (sw <= 0) return;
-              const sr = Math.max(1, Number(st?.reps) || 1);
-              const est = sr === 1 ? sw : Math.round(sw * (1 + sr / 30));
-              if (est > (Number(mergedPrs[exId]) || 0)) {
-                mergedPrs[exId] = est;
-              }
-            });
-          });
+        const tableHistory = historyByUserId.get(row?.id) || [];
+        const historyMap = new Map();
+        [...tableHistory, ...settingsHistory].forEach(w => {
+          if (w && w.id && !historyMap.has(w.id)) {
+            historyMap.set(w.id, w);
+          }
         });
+        const rowHistory = Array.from(historyMap.values()).sort(
+          (a, b) => new Date(b?.startedAt || 0).getTime() - new Date(a?.startedAt || 0).getTime()
+        );
+
+        const mergedPrs = {};
+        const mergePrSource = src => {
+          if (!src || typeof src !== 'object') return;
+          Object.entries(src).forEach(([k, v]) => {
+            const num = Number(v) || 0;
+            if (num > (Number(mergedPrs[k]) || 0)) {
+              mergedPrs[k] = num;
+            }
+          });
+        };
+
+        mergePrSource(row?.one_rep_maxes);
+        mergePrSource(row?.settings?.oneRepMaxes);
+        mergePrSource(row?.settings?.goals?.customGoalWeights);
+
+        rowHistory.forEach(w => scanSlotsIntoPrs(w?.slots, mergedPrs));
+        if (row?.settings?.activeSession?.slots) {
+          scanSlotsIntoPrs(row.settings.activeSession.slots, mergedPrs);
+        }
+        const userRoutines = allRoutinesByUserId.get(row?.id) || shared;
+        userRoutines.forEach(r => scanSlotsIntoPrs(r?.slots, mergedPrs));
 
         return {
           id: row?.id || `friend_${uname.toLowerCase()}`,
@@ -1463,7 +1617,7 @@ export async function resolveInviteFriendshipsForUser(
           );
 
           if (
-            isAlreadyInFriends(rowUname, rowEmail) ||
+            isAlreadyInFriends(rowUname, rowEmail, row?.id) ||
             hasCurrentUserInTheirFriends ||
             (currentInvitedThisRow && hasCurrentUserInTheirFriends)
           ) {

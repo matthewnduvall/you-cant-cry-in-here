@@ -1,28 +1,132 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { IOSListSection, IOSListRow } from '../Primitives';
 import { CORE_PR_EXERCISE_IDS, EXERCISE_MAP } from '../../data/exerciseLibrary';
+import { getBestHistory1RM } from '../../utils/workoutEngine';
+import { resolveInviteFriendshipsForUser } from '../../utils/supabaseAuth';
 
 export function ProfileView({
   colors,
   currentView,
   viewingFriendProfile,
+  setViewingFriendProfile,
+  friendsList = [],
+  setFriendsList,
   user,
   setUser,
   setCurrentView,
   fileInputRef,
   oneRepMaxes,
+  history = [],
   sharedRoutines,
   openPlateCalculatorForPR,
   handleOpenPreviewRoutine
 }) {
   const isFriend = currentView === 'friend_profile' && viewingFriendProfile;
+
+  // Refresh the friend's profile live from Supabase when viewing a friend's profile
+  useEffect(() => {
+    if (!isFriend || !viewingFriendProfile) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const { matchedFriends } = await resolveInviteFriendshipsForUser(
+          user || { username: 'guest', email: '' },
+          [],
+          [...(friendsList || []), viewingFriendProfile]
+        );
+        if (cancelled || !Array.isArray(matchedFriends) || matchedFriends.length === 0) return;
+
+        const targetUname = (viewingFriendProfile.username || '').trim().toLowerCase();
+        const targetEmail = (viewingFriendProfile.email || '').trim().toLowerCase();
+        const freshMatch = matchedFriends.find(
+          f =>
+            (targetUname && (f?.username || '').trim().toLowerCase() === targetUname) ||
+            (targetEmail && (f?.email || '').trim().toLowerCase() === targetEmail) ||
+            (viewingFriendProfile.id && String(f?.id) === String(viewingFriendProfile.id))
+        );
+
+        if (freshMatch) {
+          const mergedPrs = { ...(viewingFriendProfile.prs || {}) };
+          Object.entries(freshMatch.prs || {}).forEach(([k, v]) => {
+            const num = Number(v) || 0;
+            if (num > (Number(mergedPrs[k]) || 0)) {
+              mergedPrs[k] = num;
+            }
+          });
+          const updatedFriend = {
+            ...viewingFriendProfile,
+            ...freshMatch,
+            prs: mergedPrs,
+            history:
+              Array.isArray(freshMatch.history) && freshMatch.history.length > 0
+                ? freshMatch.history
+                : viewingFriendProfile.history || [],
+            sharedRoutines:
+              Array.isArray(freshMatch.sharedRoutines) && freshMatch.sharedRoutines.length > 0
+                ? freshMatch.sharedRoutines
+                : viewingFriendProfile.sharedRoutines || []
+          };
+          setViewingFriendProfile?.(updatedFriend);
+          setFriendsList?.(prev =>
+            (Array.isArray(prev) ? prev : []).map(f => {
+              const fU = (f?.username || '').trim().toLowerCase();
+              const fE = (f?.email || '').trim().toLowerCase();
+              if (
+                (targetUname && fU === targetUname) ||
+                (targetEmail && fE === targetEmail)
+              ) {
+                return updatedFriend;
+              }
+              return f;
+            })
+          );
+        }
+      } catch {
+        // ignore network error
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isFriend, viewingFriendProfile?.username, viewingFriendProfile?.email, user?.id]);
+
+  // Also check if `friendsList` has newer PRs for `viewingFriendProfile`
+  const liveFriendMatch = isFriend
+    ? (friendsList || []).find(
+        f =>
+          f &&
+          ((viewingFriendProfile.username &&
+            (f.username || '').toLowerCase() === viewingFriendProfile.username.toLowerCase()) ||
+            (viewingFriendProfile.email &&
+              (f.email || '').toLowerCase() === viewingFriendProfile.email.toLowerCase()))
+      ) || viewingFriendProfile
+    : null;
+
   const profUser = isFriend
-    ? viewingFriendProfile
+    ? liveFriendMatch
     : user || { username: 'guest', email: 'Not Signed In' };
-  const profPRs = isFriend ? viewingFriendProfile.prs || {} : oneRepMaxes;
-  const profRoutines = isFriend ? viewingFriendProfile.sharedRoutines || [] : sharedRoutines;
+
+  const profHistory = isFriend ? liveFriendMatch?.history || [] : history || [];
+  const rawProfPRs = isFriend
+    ? { ...(viewingFriendProfile?.prs || {}), ...(liveFriendMatch?.prs || {}) }
+    : oneRepMaxes || {};
+
+  const profPRs = { ...rawProfPRs };
+  if (Array.isArray(profHistory) && profHistory.length > 0) {
+    CORE_PR_EXERCISE_IDS.forEach(exId => {
+      const bestHist = getBestHistory1RM(exId, profHistory);
+      if (bestHist > (Number(profPRs[exId]) || 0)) {
+        profPRs[exId] = bestHist;
+      }
+    });
+  }
+
+  const profRoutines = isFriend
+    ? liveFriendMatch?.sharedRoutines || viewingFriendProfile?.sharedRoutines || []
+    : sharedRoutines;
 
   return (
     <div style={{ paddingTop: '14px' }}>
@@ -85,7 +189,8 @@ export function ProfileView({
           .map(id => EXERCISE_MAP[id])
           .filter(Boolean)
           .map((ex, i, arr) => {
-            const rawVal = Number(profPRs?.[ex.id]) || 0;
+            const histBest = getBestHistory1RM(ex.id, profHistory);
+            const rawVal = Math.max(Number(profPRs?.[ex.id]) || 0, histBest);
             const isTBD = rawVal <= 0;
             return (
               <IOSListRow
@@ -127,4 +232,3 @@ export function ProfileView({
     </div>
   );
 }
-

@@ -710,11 +710,15 @@ export default function App() {
               colors={colors}
               currentView={currentView}
               viewingFriendProfile={viewingFriendProfile}
+              setViewingFriendProfile={setViewingFriendProfile}
+              friendsList={friendsList}
+              setFriendsList={setFriendsList}
               user={user}
               setUser={setUser}
               setCurrentView={setCurrentView}
               fileInputRef={fileInputRef}
               oneRepMaxes={effectiveOneRepMaxes}
+              history={history}
               sharedRoutines={sharedRoutines}
               openPlateCalculatorForPR={openPlateCalculatorForPR}
               handleOpenPreviewRoutine={handleOpenPreviewRoutine}

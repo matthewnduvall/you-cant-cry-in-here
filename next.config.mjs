@@ -9,6 +9,10 @@ const nextConfig = {
         loaders: ["@tailwindcss/turbopack"],
         as: "*.css",
       },
+      "*.csv": {
+        loaders: ["./app/data/csvRawLoader.cjs"],
+        as: "*.js",
+      },
     },
   },
 };

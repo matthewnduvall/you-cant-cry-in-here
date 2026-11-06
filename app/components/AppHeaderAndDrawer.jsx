@@ -34,27 +34,36 @@ export function AppHeaderAndDrawer({
           padding: '12px var(--dp-spacing-gutter)'
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px' }}>
-          <button
-            type="button"
-            aria-label="Open navigation menu"
-            onClick={() => setShowHamburgerDrawer(true)}
-            className="kinetic-btn"
-            style={{
-              width: '40px',
-              height: '40px',
-              backgroundColor: '#161616',
-              border: '2px solid var(--dp-color-rule)',
-              color: '#FFFFFF',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              cursor: 'pointer',
-              flexShrink: 0
-            }}
-          >
-            <SFSymbol name="line.3.horizontal" size={20} color="#FFFFFF" />
-          </button>
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: '1fr auto 1fr',
+            alignItems: 'center',
+            gap: '8px'
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
+            <button
+              type="button"
+              aria-label="Open navigation menu"
+              onClick={() => setShowHamburgerDrawer(true)}
+              className="kinetic-btn"
+              style={{
+                width: '40px',
+                height: '40px',
+                backgroundColor: '#161616',
+                border: '2px solid var(--dp-color-rule)',
+                color: '#FFFFFF',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                flexShrink: 0
+              }}
+            >
+              <SFSymbol name="line.3.horizontal" size={20} color="#FFFFFF" />
+            </button>
+          </div>
 
           {currentView !== 'home' ? (
             <button
@@ -72,45 +81,47 @@ export function AppHeaderAndDrawer({
                 textTransform: 'uppercase',
                 color: '#FFFFFF',
                 textAlign: 'center',
-                flex: 1,
                 whiteSpace: 'nowrap',
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
                 background: 'none',
                 border: 'none',
                 padding: '8px 4px',
-                cursor: 'pointer'
+                cursor: 'pointer',
+                justifySelf: 'center'
               }}
             >
               You Can&apos;t Cry in Here
             </button>
           ) : (
-            <div style={{ flex: 1 }} />
+            <div />
           )}
 
-          <button
-            type="button"
-            aria-label="Send Feedback"
-            onClick={() => setShowFeedbackModal(true)}
-            className="kinetic-btn"
-            style={{
-              height: '40px',
-              padding: '0 10px',
-              backgroundColor: '#161616',
-              border: '2px solid var(--dp-color-rule)',
-              color: 'var(--dp-color-accent)',
-              fontSize: '11px',
-              fontWeight: 800,
-              textTransform: 'uppercase',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              cursor: 'pointer',
-              flexShrink: 0
-            }}
-          >
-            FEEDBACK
-          </button>
+          <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+            <button
+              type="button"
+              aria-label="Send Feedback"
+              onClick={() => setShowFeedbackModal(true)}
+              className="kinetic-btn"
+              style={{
+                height: '40px',
+                padding: '0 10px',
+                backgroundColor: '#161616',
+                border: '2px solid var(--dp-color-rule)',
+                color: 'var(--dp-color-accent)',
+                fontSize: '11px',
+                fontWeight: 800,
+                textTransform: 'uppercase',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                flexShrink: 0
+              }}
+            >
+              FEEDBACK
+            </button>
+          </div>
         </div>
 
         {isRoutineEditorView && currentEditorWorkout && (

@@ -122,16 +122,18 @@ LANGUAGE plpgsql
 SECURITY DEFINER SET search_path = public
 AS $$
 BEGIN
-  INSERT INTO public.user_profiles (id, email, username, updated_at)
+  INSERT INTO public.user_profiles (id, email, username, one_rep_maxes, updated_at)
   VALUES (
     NEW.id,
     LOWER(NEW.email),
     COALESCE(NEW.raw_user_meta_data->>'username', split_part(NEW.email, '@', 1)),
+    COALESCE(NEW.raw_user_meta_data->'yccih_cloud_state_v3'->'oneRepMaxes', '{}'::jsonb),
     NOW()
   )
   ON CONFLICT (id) DO UPDATE
     SET email = EXCLUDED.email,
         username = COALESCE(public.user_profiles.username, EXCLUDED.username),
+        one_rep_maxes = COALESCE(public.user_profiles.one_rep_maxes, '{}'::jsonb) || COALESCE(EXCLUDED.one_rep_maxes, '{}'::jsonb),
         updated_at = NOW();
   RETURN NEW;
 END;
@@ -143,23 +145,26 @@ CREATE TRIGGER on_auth_user_created
   FOR EACH ROW EXECUTE FUNCTION public.handle_new_auth_user();
 
 -- Backfill any existing users in auth.users who do not yet have a public.user_profiles row
-INSERT INTO public.user_profiles (id, email, username, updated_at)
+INSERT INTO public.user_profiles (id, email, username, one_rep_maxes, updated_at)
 SELECT
   id,
   LOWER(email),
   COALESCE(raw_user_meta_data->>'username', split_part(email, '@', 1)),
+  COALESCE(raw_user_meta_data->'yccih_cloud_state_v3'->'oneRepMaxes', '{}'::jsonb),
   NOW()
 FROM auth.users
 WHERE email IS NOT NULL
 ON CONFLICT (id) DO UPDATE
   SET email = EXCLUDED.email,
-      username = COALESCE(public.user_profiles.username, EXCLUDED.username);
+      username = COALESCE(public.user_profiles.username, EXCLUDED.username),
+      one_rep_maxes = COALESCE(public.user_profiles.one_rep_maxes, '{}'::jsonb) || COALESCE(EXCLUDED.one_rep_maxes, '{}'::jsonb);
 
--- 7. RLS Policies for workout_history
+-- 7. RLS Policies for workout_history (Anyone can view workout_history for friend PRs & Leaderboards; owners can insert/update/delete)
 DROP POLICY IF EXISTS "Users can view own workout history" ON public.workout_history;
-CREATE POLICY "Users can view own workout history"
+DROP POLICY IF EXISTS "Anyone can view workout history" ON public.workout_history;
+CREATE POLICY "Anyone can view workout history"
   ON public.workout_history FOR SELECT
-  USING (auth.uid() = user_id);
+  USING (true);
 
 DROP POLICY IF EXISTS "Users can insert own workout history" ON public.workout_history;
 CREATE POLICY "Users can insert own workout history"
