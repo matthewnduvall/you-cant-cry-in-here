@@ -319,7 +319,7 @@ export async function signInUserAccount({ identifier, username, email, password 
         localMatch?.username ||
         resolvedEmail.split('@')[0];
 
-      // Fetch username from public.user_profiles if available
+      // Fetch username from public.user_profiles if available, or backfill row on sign-in
       if (accessToken && authUser.id) {
         try {
           const profRes = await fetch(
@@ -331,11 +331,32 @@ export async function signInUserAccount({ identifier, username, email, password 
               }
             }
           );
+          let hasExistingProfile = false;
           if (profRes.ok) {
             const rows = await profRes.json();
-            if (Array.isArray(rows) && rows[0]?.username) {
-              resolvedUsername = rows[0].username;
+            if (Array.isArray(rows) && rows.length > 0) {
+              hasExistingProfile = true;
+              if (rows[0]?.username) {
+                resolvedUsername = rows[0].username;
+              }
             }
+          }
+          if (!hasExistingProfile) {
+            await fetch(`${baseUrl}/rest/v1/user_profiles`, {
+              method: 'POST',
+              headers: {
+                apikey: anonKey,
+                Authorization: `Bearer ${accessToken}`,
+                'Content-Type': 'application/json',
+                Prefer: 'resolution=merge-duplicates'
+              },
+              body: JSON.stringify({
+                id: authUser.id,
+                email: (authUser.email || resolvedEmail).toLowerCase(),
+                username: resolvedUsername,
+                updated_at: new Date().toISOString()
+              })
+            }).catch(() => {});
           }
         } catch {
           // ignore profile lookup error
