@@ -679,7 +679,12 @@ export async function getValidSupabaseAccessToken(user) {
     }
   }
 
-  return saved?.accessToken || null;
+  // Only return the cached accessToken if it is still within the 55-minute JWT validity window;
+  // otherwise return null so public queries can fall back cleanly to anonKey instead of failing with 401 JWT expired.
+  if (saved?.accessToken && Date.now() - (saved.savedAt || 0) < 55 * 60 * 1000) {
+    return saved.accessToken;
+  }
+  return null;
 }
 
 /**
@@ -887,7 +892,8 @@ export async function pushCloudStateForUser(user, payload) {
             ...(payload.settings || {}),
             activeSession: payload.activeSession || null,
             friendsList: payload.friendsList || [],
-            outgoingInvites: payload.outgoingInvites || []
+            outgoingInvites: payload.outgoingInvites || [],
+            recentHistory: Array.isArray(payload.history) ? payload.history.slice(0, 20) : []
           },
           gyms: payload.gyms || [],
           updated_at: payload.updatedAt || new Date().toISOString()
@@ -1239,26 +1245,40 @@ export async function resolveInviteFriendshipsForUser(
   const { baseUrl, anonKey, isConfigured } = getSupabaseConfig();
   if (isConfigured) {
     const accessToken = user ? await getValidSupabaseAccessToken(user) : null;
-    const headers = {
+    const authHeaders = {
       apikey: anonKey,
       Authorization: `Bearer ${accessToken || anonKey}`
+    };
+    const anonHeaders = {
+      apikey: anonKey,
+      Authorization: `Bearer ${anonKey}`
+    };
+
+    const fetchWithAnonFallback = async url => {
+      try {
+        const res = await fetch(url, { headers: authHeaders });
+        if (res.status === 401 && accessToken) {
+          return await fetch(url, { headers: anonHeaders });
+        }
+        return res;
+      } catch {
+        return null;
+      }
     };
 
     try {
       const [profilesRes, routinesRes, friendshipsRes, friendInvitesRes] = await Promise.all([
-        fetch(`${baseUrl}/rest/v1/user_profiles?select=id,username,email,one_rep_maxes,settings`, { headers }).catch(() => null),
-        fetch(`${baseUrl}/rest/v1/routines?is_shared=eq.true&select=key,user_id,author_username,label,slots`, { headers }).catch(() => null),
+        fetchWithAnonFallback(`${baseUrl}/rest/v1/user_profiles?select=id,username,email,one_rep_maxes,settings`),
+        fetchWithAnonFallback(`${baseUrl}/rest/v1/routines?is_shared=eq.true&select=key,user_id,author_username,label,slots`),
         user?.id
-          ? fetch(
-              `${baseUrl}/rest/v1/friendships?or=(requester_id.eq.${encodeURIComponent(user.id)},addressee_id.eq.${encodeURIComponent(user.id)})&select=*`,
-              { headers }
-            ).catch(() => null)
+          ? fetchWithAnonFallback(
+              `${baseUrl}/rest/v1/friendships?or=(requester_id.eq.${encodeURIComponent(user.id)},addressee_id.eq.${encodeURIComponent(user.id)})&select=*`
+            )
           : Promise.resolve(null),
         currentEmail
-          ? fetch(
-              `${baseUrl}/rest/v1/friend_invites?or=(invited_email.eq.${encodeURIComponent(currentEmail)},inviter_email.eq.${encodeURIComponent(currentEmail)})&select=*`,
-              { headers }
-            ).catch(() => null)
+          ? fetchWithAnonFallback(
+              `${baseUrl}/rest/v1/friend_invites?or=(invited_email.eq.${encodeURIComponent(currentEmail)},inviter_email.eq.${encodeURIComponent(currentEmail)})&select=*`
+            )
           : Promise.resolve(null)
       ]);
 
@@ -1305,13 +1325,34 @@ export async function resolveInviteFriendshipsForUser(
           routinesByUserId.get(row?.id) ||
           routinesByUsername.get(uname.toLowerCase()) ||
           [];
+        const rowHistory = Array.isArray(row?.settings?.recentHistory)
+          ? row.settings.recentHistory
+          : [];
+        const mergedPrs = { ...(row?.one_rep_maxes || {}) };
+        rowHistory.forEach(w => {
+          (w?.slots || []).forEach(slot => {
+            const exId = slot?.exerciseId;
+            if (!exId) return;
+            (slot?.sets || []).forEach(st => {
+              const sw = Number(st?.weight) || 0;
+              if (sw <= 0) return;
+              const sr = Math.max(1, Number(st?.reps) || 1);
+              const est = sr === 1 ? sw : Math.round(sw * (1 + sr / 30));
+              if (est > (Number(mergedPrs[exId]) || 0)) {
+                mergedPrs[exId] = est;
+              }
+            });
+          });
+        });
+
         return {
           id: row?.id || `friend_${uname.toLowerCase()}`,
           friendshipId: friendshipId || undefined,
           username: uname,
           email,
           bodyweightLbs: row?.settings?.bodyMetrics?.bodyweightLbs || 200,
-          prs: row?.one_rep_maxes || {},
+          prs: mergedPrs,
+          history: rowHistory,
           sharedRoutines: shared
         };
       };
@@ -1337,7 +1378,7 @@ export async function resolveInviteFriendshipsForUser(
         });
       }
 
-      // A2) Process rows from public.friend_invites table
+      // A2) Process rows from public.friend_invites table (both when current user is invitee AND when current user is inviter)
       if (Array.isArray(friendInviteRows) && Array.isArray(profileRows)) {
         friendInviteRows.forEach(inv => {
           const invTargetEmail = (inv?.invited_email || '').trim().toLowerCase();
@@ -1353,11 +1394,25 @@ export async function resolveInviteFriendshipsForUser(
             );
             if (senderProfile) {
               const friendObj = buildFriendObjFromProfile(senderProfile);
-              if (inv.status === 'accepted') {
+              if (inv.status === 'accepted' || isAlreadyInFriends(friendObj.username, friendObj.email)) {
                 matchedFriends.push(friendObj);
-              } else if (!isAlreadyInFriends(friendObj.username, friendObj.email)) {
+              } else {
                 incomingRequests.push(friendObj);
               }
+            }
+          } else if (
+            (currentEmail && invSenderEmail === currentEmail) ||
+            (currentUsername && invSenderUname === currentUsername)
+          ) {
+            // Current user sent this email invite — if the invited athlete has registered a profile, connect them!
+            const targetProfile = profileRows.find(
+              p => invTargetEmail && (p.email || '').trim().toLowerCase() === invTargetEmail
+            );
+            if (targetProfile) {
+              const friendObj = buildFriendObjFromProfile(targetProfile);
+              matchedFriends.push(friendObj);
+              if (friendObj.email) resolvedInviteEmails.push(friendObj.email);
+              if (friendObj.username) resolvedInviteEmails.push(friendObj.username.toLowerCase());
             }
           }
         });
@@ -1407,12 +1462,18 @@ export async function resolveInviteFriendshipsForUser(
               (m.username && m.username === rowUnameLower)
           );
 
-          if (currentInvitedThisRow && hasCurrentUserInTheirFriends) {
-            // Recipient accepted the invite! Move to friendsList
+          if (
+            isAlreadyInFriends(rowUname, rowEmail) ||
+            hasCurrentUserInTheirFriends ||
+            (currentInvitedThisRow && hasCurrentUserInTheirFriends)
+          ) {
+            // Mutual or accepted friend — refresh live PRs, recentHistory, and shared routines from profile
             const friendObj = buildFriendObjFromProfile(row);
             matchedFriends.push(friendObj);
-            if (rowEmail) resolvedInviteEmails.push(rowEmail);
-            if (rowUnameLower) resolvedInviteEmails.push(rowUnameLower);
+            if (currentInvitedThisRow) {
+              if (rowEmail) resolvedInviteEmails.push(rowEmail);
+              if (rowUnameLower) resolvedInviteEmails.push(rowUnameLower);
+            }
           } else if (invitedCurrentUser && !isAlreadyInFriends(rowUname, rowEmail)) {
             // Incoming friend request waiting for current user to accept
             const reqObj = buildFriendObjFromProfile(row);
@@ -1425,9 +1486,6 @@ export async function resolveInviteFriendshipsForUser(
             ) {
               incomingRequests.push(reqObj);
             }
-          } else if (isAlreadyInFriends(rowUname, rowEmail)) {
-            // Refresh existing accepted friend's PRs and shared routines
-            matchedFriends.push(buildFriendObjFromProfile(row));
           }
         });
       }

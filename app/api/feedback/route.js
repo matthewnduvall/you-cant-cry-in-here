@@ -47,28 +47,37 @@ export async function POST(request) {
 
     // 1. If RESEND_API_KEY is configured in environment, dispatch via Resend
     if (process.env.RESEND_API_KEY) {
-      try {
-        const resendRes = await fetch('https://api.resend.com/emails', {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            from: process.env.FEEDBACK_FROM_EMAIL || 'onboarding@resend.dev',
-            to: [FEEDBACK_RECIPIENT],
-            subject: `[You Can't Cry in Here] Feedback from ${senderLabel}`,
-            text: formattedText
-          })
-        });
-        if (resendRes.ok) {
-          deliveredVia = 'resend';
-        } else {
-          const errJson = await resendRes.json().catch(() => ({}));
-          providerNote = errJson?.message || null;
+      const fromCandidates = [
+        process.env.FEEDBACK_FROM_EMAIL,
+        "You Can't Cry in Here <invites@youcantcryinhere.com>",
+        'onboarding@resend.dev'
+      ].filter(Boolean);
+
+      for (const fromAddr of fromCandidates) {
+        try {
+          const resendRes = await fetch('https://api.resend.com/emails', {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              from: fromAddr,
+              to: [FEEDBACK_RECIPIENT],
+              subject: `[You Can't Cry in Here] Feedback from ${senderLabel}`,
+              text: formattedText
+            })
+          });
+          if (resendRes.ok) {
+            deliveredVia = 'resend';
+            break;
+          } else {
+            const errJson = await resendRes.json().catch(() => ({}));
+            providerNote = errJson?.message || null;
+          }
+        } catch {
+          // Try next sender candidate
         }
-      } catch {
-        // Fallback to next transport
       }
     }
 

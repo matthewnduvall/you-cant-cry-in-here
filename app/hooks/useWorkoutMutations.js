@@ -162,7 +162,6 @@ export function useWorkoutMutations({
 
     const compatCompounds = compatiblePool.filter(e => e.category === 'Compound Lift');
     const compatAccessories = compatiblePool.filter(e => e.category === 'Accessory');
-    const compatAbs = compatiblePool.filter(e => e.category === 'Abs');
 
     let compIdx = 0;
     let accIdx = 0;
@@ -200,29 +199,14 @@ export function useWorkoutMutations({
             incrementLbs: currentIncrementLbs
           });
         }
-        if (pref === 'Accessory') {
-          const pool = compatAccessories.length > 0 ? compatAccessories : fallbackPool;
-          const pick = pool[accIdx % Math.max(1, pool.length)] || EXERCISE_MAP.dumbbell_hammer_curl;
-          accIdx += 1;
-          return createWorkoutSlot({
-            category: 'Accessory',
-            slotLabel: 'Accessory',
-            exerciseId: pick.id,
-            scheme: '5x8',
-            oneRepMaxes,
-            history,
-            incrementLbs: currentIncrementLbs
-          });
-        }
-        const absPick =
-          compatAbs[0] ||
-          fallbackPool.find(e => e.category === 'Abs') ||
-          fallbackPool[0] ||
-          EXERCISE_MAP.hollow_holds;
+        const pool = compatAccessories.length > 0 ? compatAccessories : fallbackPool;
+        const pick = pool[accIdx % Math.max(1, pool.length)] || EXERCISE_MAP.dumbbell_hammer_curl;
+        accIdx += 1;
         return createWorkoutSlot({
-          category: 'Abs',
-          slotLabel: 'Abs',
-          exerciseId: absPick.id,
+          category: 'Accessory',
+          slotLabel: 'Accessory',
+          exerciseId: pick.id,
+          scheme: '5x8',
           oneRepMaxes,
           history,
           incrementLbs: currentIncrementLbs
@@ -717,16 +701,12 @@ export function useWorkoutMutations({
         } else if (changes.exerciseId && EXERCISE_MAP[changes.exerciseId]?.muscleGroup) {
           rawNextMuscleFilter = EXERCISE_MAP[changes.exerciseId].muscleGroup;
         } else if (changes.category) {
-          if (nextCategory === 'Abs') {
-            rawNextMuscleFilter = 'Waist';
-          } else {
-            const prevMg = slot.muscleGroupFilter || currentEx.muscleGroup || 'All Muscles';
-            const hasInNewCat =
-              prevMg === 'All Muscles' ||
-              isSupersetCategory(nextCategory) ||
-              EXERCISE_LIBRARY.some(e => e.category === nextCategory && e.muscleGroup === prevMg);
-            rawNextMuscleFilter = hasInNewCat ? prevMg : 'All Muscles';
-          }
+          const prevMg = slot.muscleGroupFilter || currentEx.muscleGroup || 'All Muscles';
+          const hasInNewCat =
+            prevMg === 'All Muscles' ||
+            isSupersetCategory(nextCategory) ||
+            EXERCISE_LIBRARY.some(e => e.category === nextCategory && e.muscleGroup === prevMg);
+          rawNextMuscleFilter = hasInNewCat ? prevMg : 'All Muscles';
         } else {
           rawNextMuscleFilter = slot.muscleGroupFilter || currentEx.muscleGroup || 'All Muscles';
         }

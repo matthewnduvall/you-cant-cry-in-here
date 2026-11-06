@@ -585,7 +585,15 @@ export function HistoryView({
                 <select
                   aria-label="Filter by Gyms/Equipment"
                   value={addPrGymFilter}
-                  onChange={e => setAddPrGymFilter(e.target.value)}
+                  onChange={e => {
+                    const nextGym = e.target.value;
+                    setAddPrGymFilter(nextGym);
+                    const nextAvailMgs = getAvailableMuscleGroupsForCategory(addPrCategory, nextGym, gyms);
+                    const nextMg = nextAvailMgs.includes(activeAddPrMuscle) ? activeAddPrMuscle : 'All Muscles';
+                    setAddPrMuscleGroup(nextMg);
+                    const nextAvail = filterAddSlotExercises(nextGym, addPrCategory, gyms, nextMg);
+                    if (nextAvail.length > 0) setAddPrSelectedExId(nextAvail[0].id);
+                  }}
                   style={{
                     width: '100%',
                     height: '40px',
@@ -608,7 +616,15 @@ export function HistoryView({
                 <select
                   aria-label="Filter by Workout Type"
                   value={addPrCategory}
-                  onChange={e => setAddPrCategory(e.target.value)}
+                  onChange={e => {
+                    const nextCat = e.target.value;
+                    setAddPrCategory(nextCat);
+                    const nextAvailMgs = getAvailableMuscleGroupsForCategory(nextCat, addPrGymFilter, gyms);
+                    const nextMg = nextAvailMgs.includes(activeAddPrMuscle) ? activeAddPrMuscle : 'All Muscles';
+                    setAddPrMuscleGroup(nextMg);
+                    const nextAvail = filterAddSlotExercises(addPrGymFilter, nextCat, gyms, nextMg);
+                    if (nextAvail.length > 0) setAddPrSelectedExId(nextAvail[0].id);
+                  }}
                   style={{
                     width: '100%',
                     height: '40px',
@@ -631,7 +647,12 @@ export function HistoryView({
                 <select
                   aria-label="Filter by Muscle Group"
                   value={activeAddPrMuscle}
-                  onChange={e => setAddPrMuscleGroup(e.target.value)}
+                  onChange={e => {
+                    const nextMg = e.target.value;
+                    setAddPrMuscleGroup(nextMg);
+                    const nextAvail = filterAddSlotExercises(addPrGymFilter, addPrCategory, gyms, nextMg);
+                    if (nextAvail.length > 0) setAddPrSelectedExId(nextAvail[0].id);
+                  }}
                   style={{
                     width: '100%',
                     height: '40px',
@@ -1174,11 +1195,9 @@ export function HistoryView({
             ? inlineExercisePool
             : [ex1, ...inlineExercisePool];
         const slot1RMText =
-          normCat === 'Abs'
-            ? '1RM: --'
-            : convertedOneRepMax > 0
-              ? `1RM: ${convertedOneRepMax} LB`
-              : '1RM: TBD';
+          convertedOneRepMax > 0
+            ? `1RM: ${convertedOneRepMax} LB`
+            : '1RM: TBD';
 
         return (
           <div
@@ -1205,11 +1224,11 @@ export function HistoryView({
               }}
               onClick={e => e.stopPropagation()}
             >
-              {/* Exercise Header: 34px Left Drag/Number + 2-Row Controls (Same as Session Page) */}
+              {/* Exercise Header: 34px Left Drag/Number + 2-Row Controls + 34px Full-Height Red X */}
               <div
                 style={{
                   display: 'grid',
-                  gridTemplateColumns: '34px minmax(0, 1fr)',
+                  gridTemplateColumns: '34px minmax(0, 1fr) 34px',
                   gap: 0,
                   alignItems: 'stretch'
                 }}
@@ -1284,56 +1303,34 @@ export function HistoryView({
                       ))}
                     </select>
 
-                    {normCat !== 'Abs' ? (
-                      <select
-                        aria-label="Set and Rep Scheme"
-                        value={calcSlot.scheme || '5x5'}
-                        onChange={e => handleUpdateCalcSlotHeader({ scheme: e.target.value })}
-                        style={{
-                          width: '100%',
-                          minWidth: 0,
-                          height: '40px',
-                          boxSizing: 'border-box',
-                          fontSize: '13px',
-                          fontWeight: 800,
-                          padding: '0 8px',
-                          backgroundColor: '#161618',
-                          color: '#FFFFFF',
-                          ...SHARED_CELL_BORDER,
-                          textTransform: 'uppercase',
-                          cursor: 'pointer'
-                        }}
-                      >
-                        {SCHEME_OPTIONS.map(scm => (
-                          <option key={scm} value={scm}>
-                            {scm.toUpperCase()}
-                          </option>
-                        ))}
-                      </select>
-                    ) : (
-                      <div
-                        style={{
-                          width: '100%',
-                          minWidth: 0,
-                          height: '40px',
-                          boxSizing: 'border-box',
-                          backgroundColor: '#161618',
-                          ...SHARED_CELL_BORDER,
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          fontSize: '13px',
-                          fontWeight: 800,
-                          color: '#888888',
-                          textTransform: 'uppercase'
-                        }}
-                      >
-                        TIMED
-                      </div>
-                    )}
+                    <select
+                      aria-label="Set and Rep Scheme"
+                      value={calcSlot.scheme || '5x5'}
+                      onChange={e => handleUpdateCalcSlotHeader({ scheme: e.target.value })}
+                      style={{
+                        width: '100%',
+                        minWidth: 0,
+                        height: '40px',
+                        boxSizing: 'border-box',
+                        fontSize: '13px',
+                        fontWeight: 800,
+                        padding: '0 8px',
+                        backgroundColor: '#161618',
+                        color: '#FFFFFF',
+                        ...SHARED_CELL_BORDER,
+                        textTransform: 'uppercase',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      {SCHEME_OPTIONS.map(scm => (
+                        <option key={scm} value={scm}>
+                          {scm.toUpperCase()}
+                        </option>
+                      ))}
+                    </select>
                   </div>
 
-                  {/* Row 2: Exercise Selection, 1RM Readout, and Red X */}
+                  {/* Row 2: Exercise Selection + Date Entry Box */}
                   <div
                     style={{
                       display: 'grid',
@@ -1369,58 +1366,49 @@ export function HistoryView({
                       ))}
                     </select>
 
-                    {/* Column 3: Date Entry Box + Red Close Button */}
-                    <div
+                    {/* Column 3: Date Entry Box */}
+                    <input
+                      type="text"
+                      aria-label="Personal Record Date (YYYY/MM/DD)"
+                      placeholder="YYYY/MM/DD"
+                      value={calcPrDate}
+                      onChange={e => setCalcPrDate(e.target.value.replace(/-/g, '/'))}
                       style={{
-                        display: 'grid',
-                        gridTemplateColumns: 'minmax(0, 1fr) 34px',
-                        gap: 0,
+                        width: '100%',
+                        minWidth: 0,
                         height: '40px',
-                        minWidth: 0
+                        boxSizing: 'border-box',
+                        backgroundColor: '#18181B',
+                        ...SHARED_CELL_BORDER,
+                        textAlign: 'center',
+                        fontSize: '12px',
+                        fontWeight: 800,
+                        color: 'var(--dp-color-accent)',
+                        textTransform: 'uppercase',
+                        outline: 'none',
+                        padding: '0 4px'
                       }}
-                    >
-                      <input
-                        type="text"
-                        aria-label="Personal Record Date (YYYY/MM/DD)"
-                        placeholder="YYYY/MM/DD"
-                        value={calcPrDate}
-                        onChange={e => setCalcPrDate(e.target.value.replace(/-/g, '/'))}
-                        style={{
-                          width: '100%',
-                          minWidth: 0,
-                          height: '40px',
-                          boxSizing: 'border-box',
-                          backgroundColor: '#18181B',
-                          ...SHARED_CELL_BORDER,
-                          textAlign: 'center',
-                          fontSize: '12px',
-                          fontWeight: 800,
-                          color: 'var(--dp-color-accent)',
-                          textTransform: 'uppercase',
-                          outline: 'none',
-                          padding: '0 4px'
-                        }}
-                      />
-
-                      <button
-                        type="button"
-                        aria-label="Close calculator"
-                        onClick={() => setCalcSlot(null)}
-                        className="kinetic-btn"
-                        style={{
-                          ...UI.deleteXBtn,
-                          width: '34px',
-                          height: '40px',
-                          fontSize: '14px',
-                          ...SHARED_CELL_BORDER,
-                          boxSizing: 'border-box'
-                        }}
-                      >
-                        ✕
-                      </button>
-                    </div>
+                    />
                   </div>
                 </div>
+
+                <button
+                  type="button"
+                  aria-label="Close calculator"
+                  onClick={() => setCalcSlot(null)}
+                  className="kinetic-btn"
+                  style={{
+                    ...UI.deleteXBtn,
+                    width: '34px',
+                    height: '100%',
+                    minHeight: '80px',
+                    fontSize: '14px',
+                    ...SHARED_CELL_BORDER,
+                    boxSizing: 'border-box'
+                  }}
+                >
+                  ✕
+                </button>
               </div>
 
               {/* Always-Expanded Sets Content (Same as Session Page) */}
@@ -1478,9 +1466,7 @@ export function HistoryView({
                         style={{
                           display: 'grid',
                           gridTemplateColumns:
-                            normCat === 'Abs'
-                              ? 'minmax(0, 1fr) 64px 44px'
-                              : '78px minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.15fr) 50px 44px',
+                            '78px minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.15fr) 50px 44px',
                           gap: 0,
                           alignItems: 'stretch'
                         }}
@@ -1513,125 +1499,119 @@ export function HistoryView({
                         </select>
 
                         {/* 2. LAST Weight Box */}
-                        {normCat !== 'Abs' && (
-                          <div
-                            style={{
-                              width: '100%',
-                              minWidth: 0,
-                              height: '44px',
-                              boxSizing: 'border-box',
-                              backgroundColor: cellBg,
-                              ...SHARED_CELL_BORDER,
-                              display: 'flex',
-                              flexDirection: 'column',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              userSelect: 'none'
-                            }}
-                          >
-                            <span style={{ fontSize: '9px', fontWeight: 800, color: '#9A9A9A', lineHeight: 1 }}>
-                              LAST
-                            </span>
-                            <span style={{ fontSize: '15px', fontWeight: 800, color: '#C8C8C8', lineHeight: 1.2, marginTop: '1px' }}>
-                              {lastW}
-                            </span>
-                          </div>
-                        )}
+                        <div
+                          style={{
+                            width: '100%',
+                            minWidth: 0,
+                            height: '44px',
+                            boxSizing: 'border-box',
+                            backgroundColor: cellBg,
+                            ...SHARED_CELL_BORDER,
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            userSelect: 'none'
+                          }}
+                        >
+                          <span style={{ fontSize: '9px', fontWeight: 800, color: '#9A9A9A', lineHeight: 1 }}>
+                            LAST
+                          </span>
+                          <span style={{ fontSize: '15px', fontWeight: 800, color: '#C8C8C8', lineHeight: 1.2, marginTop: '1px' }}>
+                            {lastW}
+                          </span>
+                        </div>
 
                         {/* 3. INC Box */}
-                        {normCat !== 'Abs' && (
-                          <div
+                        <div
+                          style={{
+                            width: '100%',
+                            minWidth: 0,
+                            height: '44px',
+                            boxSizing: 'border-box',
+                            backgroundColor: cellBg,
+                            ...SHARED_CELL_BORDER,
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            padding: '0 2px'
+                          }}
+                        >
+                          <span style={{ fontSize: '9px', fontWeight: 800, color: '#9A9A9A', lineHeight: 1 }}>
+                            INC
+                          </span>
+                          <input
+                            type="number"
+                            step="2.5"
+                            value={setIncValue}
+                            onChange={e => handleUpdateCalcSet(st.id, 'increment', e.target.value)}
                             style={{
                               width: '100%',
-                              minWidth: 0,
-                              height: '44px',
-                              boxSizing: 'border-box',
-                              backgroundColor: cellBg,
-                              ...SHARED_CELL_BORDER,
-                              display: 'flex',
-                              flexDirection: 'column',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              padding: '0 2px'
+                              textAlign: 'center',
+                              fontSize: '14px',
+                              fontWeight: 800,
+                              color: '#FFFFFF',
+                              backgroundColor: 'transparent',
+                              border: 'none',
+                              outline: 'none',
+                              padding: 0,
+                              marginTop: '1px'
                             }}
-                          >
-                            <span style={{ fontSize: '9px', fontWeight: 800, color: '#9A9A9A', lineHeight: 1 }}>
-                              INC
-                            </span>
-                            <input
-                              type="number"
-                              step="2.5"
-                              value={setIncValue}
-                              onChange={e => handleUpdateCalcSet(st.id, 'increment', e.target.value)}
-                              style={{
-                                width: '100%',
-                                textAlign: 'center',
-                                fontSize: '14px',
-                                fontWeight: 800,
-                                color: '#FFFFFF',
-                                backgroundColor: 'transparent',
-                                border: 'none',
-                                outline: 'none',
-                                padding: 0,
-                                marginTop: '1px'
-                              }}
-                            />
-                          </div>
-                        )}
+                          />
+                        </div>
 
                         {/* 4. CURRENT Weight Button (Opens Weight Selection Pop-Up) */}
-                        {normCat !== 'Abs' && (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              if (openPlateCalculatorForSet) {
-                                openPlateCalculatorForSet(
-                                  calcSlot.id,
-                                  0,
-                                  st,
-                                  ex1.name,
-                                  newWeight =>
-                                    handleUpdateCalcSet(
-                                      st.id,
-                                      'weight',
-                                      Math.max(0, Number(newWeight) || 0)
-                                    )
-                                );
-                              }
-                            }}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (openPlateCalculatorForSet) {
+                              openPlateCalculatorForSet(
+                                calcSlot.id,
+                                0,
+                                st,
+                                ex1.name,
+                                newWeight =>
+                                  handleUpdateCalcSet(
+                                    st.id,
+                                    'weight',
+                                    Math.max(0, Number(newWeight) || 0)
+                                  )
+                              );
+                            }
+                          }}
+                          style={{
+                            width: '100%',
+                            minWidth: 0,
+                            height: '44px',
+                            boxSizing: 'border-box',
+                            padding: '0 2px',
+                            backgroundColor: cellBg,
+                            ...SHARED_CELL_BORDER,
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            cursor: 'pointer',
+                            whiteSpace: 'nowrap',
+                            overflow: 'hidden'
+                          }}
+                        >
+                          <span style={{ fontSize: '9px', fontWeight: 800, color: '#9A9A9A', lineHeight: 1 }}>
+                            CURRENT
+                          </span>
+                          <span
                             style={{
-                              width: '100%',
-                              minWidth: 0,
-                              height: '44px',
-                              boxSizing: 'border-box',
-                              padding: '0 2px',
-                              backgroundColor: cellBg,
-                              ...SHARED_CELL_BORDER,
-                              display: 'flex',
-                              flexDirection: 'column',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              cursor: 'pointer',
-                              whiteSpace: 'nowrap',
-                              overflow: 'hidden'
+                              fontSize: '15px',
+                              fontWeight: 800,
+                              color: 'var(--dp-color-accent)',
+                              lineHeight: 1.2,
+                              marginTop: '1px'
                             }}
                           >
-                            <span style={{ fontSize: '9px', fontWeight: 800, color: '#9A9A9A', lineHeight: 1 }}>
-                              CURRENT
-                            </span>
-                            <span
-                              style={{
-                                fontSize: '15px',
-                                fontWeight: 800,
-                                color: 'var(--dp-color-accent)',
-                                lineHeight: 1.2,
-                                marginTop: '1px'
-                              }}
-                            >
-                              {st.weight}
-                            </span>
-                          </button>
-                        )}
+                            {st.weight}
+                          </span>
+                        </button>
 
                         {/* 5. REPS Input */}
                         <div
@@ -1651,7 +1631,7 @@ export function HistoryView({
                           }}
                         >
                           <span style={{ fontSize: '9px', fontWeight: 800, color: '#9A9A9A', lineHeight: 1 }}>
-                            {normCat === 'Abs' ? 'SEC' : 'REPS'}
+                            REPS
                           </span>
                           <input
                             type="number"

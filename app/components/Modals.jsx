@@ -148,7 +148,7 @@ export function AddSlotModal({
           <div
             style={{
               display: 'grid',
-              gridTemplateColumns: '1fr 1fr',
+              gridTemplateColumns: 'repeat(3, 1fr)',
               gap: 0,
               borderTop: '1px solid var(--dp-color-rule)',
               borderLeft: '1px solid var(--dp-color-rule)'
@@ -196,10 +196,10 @@ export function AddSlotModal({
               setNewSlotMuscleGroup?.(nextMg);
               const nextAvail = filterAddSlotExercises(addSlotGymFilter, normCat, gyms, nextMg);
               if (nextAvail.length > 0) {
-                if (!nextAvail.some(x => x.id === newSlotEx1)) setNewSlotEx1(nextAvail[0].id);
-                setNewSlotSupersetIds(prev => [
-                  nextAvail.some(x => x.id === prev[0]) ? prev[0] : nextAvail[0].id,
-                  nextAvail.some(x => x.id === prev[1]) ? prev[1] : (nextAvail[1] || nextAvail[0]).id
+                setNewSlotEx1(nextAvail[0].id);
+                setNewSlotSupersetIds([
+                  nextAvail[0].id,
+                  (nextAvail[1] || nextAvail[0]).id
                 ]);
               }
             }}
@@ -266,23 +266,21 @@ export function AddSlotModal({
           </div>
         )}
 
-        {normCat !== 'Abs' && (
-          <div style={{ marginBottom: '16px' }}>
-            <div style={UI.stepLabel}>5. SET/REP SCHEME</div>
-            <select
-              value={newSlotScheme}
-              onChange={e => setNewSlotScheme(e.target.value)}
-              style={UI.select}
-            >
-              <option value="5x5">5X5</option>
-              <option value="5x8">5X8</option>
-              <option value="8x8">8X8</option>
-              <option value="Pyramid">PYRAMID</option>
-              <option value="Pyramid 1RM">PYRAMID 1RM</option>
-              <option value="Reverse Pyramid">REVERSE PYRAMID</option>
-            </select>
-          </div>
-        )}
+        <div style={{ marginBottom: '16px' }}>
+          <div style={UI.stepLabel}>5. SET/REP SCHEME</div>
+          <select
+            value={newSlotScheme}
+            onChange={e => setNewSlotScheme(e.target.value)}
+            style={UI.select}
+          >
+            <option value="5x5">5X5</option>
+            <option value="5x8">5X8</option>
+            <option value="8x8">8X8</option>
+            <option value="Pyramid">PYRAMID</option>
+            <option value="Pyramid 1RM">PYRAMID 1RM</option>
+            <option value="Reverse Pyramid">REVERSE PYRAMID</option>
+          </select>
+        </div>
 
         <button
           type="button"
@@ -891,96 +889,67 @@ export function FeedbackModal({
     return `mailto:matthew.n.duvall@gmail.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
   };
 
-  const handleSend = async () => {
+  const handleSend = () => {
     const trimmed = message.trim();
     if (!trimmed) {
       setErrorText('Please enter a feedback message before sending.');
       return;
     }
-    setStatus('sending');
-    setErrorText('');
-    setDeliveryNote('');
 
     const senderLabel = user?.username
       ? `@${user.username} (${user.email || 'no-email'})`
       : 'Anonymous / Logged-Out Athlete';
     const timestamp = new Date().toISOString();
+    const snapshotCopy = appSnapshot;
+    const logsCopy = Array.isArray(sessionLogs) ? [...sessionLogs] : [];
 
-    try {
-      // 1. Dispatch directly from the browser to FormSubmit (carries real browser Origin/Referer required by FormSubmit)
-      //    and simultaneously call /api/feedback (which uses RESEND_API_KEY if configured).
-      const [clientFsResult, apiResult] = await Promise.allSettled([
-        fetch('https://formsubmit.co/ajax/matthew.n.duvall@gmail.com', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Accept: 'application/json'
-          },
-          body: JSON.stringify({
-            _subject: `[You Can't Cry in Here] Feedback from ${senderLabel}`,
-            _captcha: 'false',
-            _template: 'table',
-            athlete: senderLabel,
-            timestamp,
-            message: trimmed,
-            session_snapshot: JSON.stringify(appSnapshot),
-            session_logs: sessionLogs
-              .map(e => `${e.timestamp || ''} [${e.type || 'LOG'}] ${e.detail || ''}`)
-              .join('\n')
+    // Immediately close the modal so the user never experiences any UI hang
+    setMessage('');
+    setStatus('idle');
+    setErrorText('');
+    setDeliveryNote('');
+    setShowFeedbackModal(false);
+
+    // Continue sending in the background
+    (async () => {
+      try {
+        await Promise.allSettled([
+          fetch('/api/feedback', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            keepalive: true,
+            body: JSON.stringify({
+              message: trimmed,
+              user,
+              sessionLogs: logsCopy,
+              appSnapshot: snapshotCopy
+            })
+          }),
+          fetch('https://formsubmit.co/ajax/matthew.n.duvall@gmail.com', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Accept: 'application/json'
+            },
+            keepalive: true,
+            body: JSON.stringify({
+              _subject: `[You Can't Cry in Here] Feedback from ${senderLabel}`,
+              _captcha: 'false',
+              _template: 'table',
+              athlete: senderLabel,
+              timestamp,
+              message: trimmed,
+              session_snapshot: JSON.stringify(snapshotCopy),
+              session_logs: logsCopy
+                .map(e => `${e.timestamp || ''} [${e.type || 'LOG'}] ${e.detail || ''}`)
+                .join('\n')
+            })
           })
-        }).then(async r => ({ ok: r.ok, data: await r.json().catch(() => ({})) })),
-        fetch('/api/feedback', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            message: trimmed,
-            user,
-            sessionLogs,
-            appSnapshot
-          })
-        }).then(async r => ({ ok: r.ok, data: await r.json().catch(() => ({})) }))
-      ]);
-
-      const clientFs = clientFsResult.status === 'fulfilled' ? clientFsResult.value : null;
-      const apiRes = apiResult.status === 'fulfilled' ? apiResult.value : null;
-
-      const clientConfirmed =
-        clientFs?.ok && (clientFs.data?.success === true || clientFs.data?.success === 'true');
-      const serverConfirmed = Boolean(apiRes?.ok && apiRes.data?.confirmedEmailDelivery);
-
-      const fsMessage = String(clientFs?.data?.message || apiRes?.data?.providerNote || '');
-
-      if (!clientConfirmed && !serverConfirmed) {
-        // If FormSubmit needs one-time activation or isn't active yet, open the user's email client
-        // pre-addressed to matthew.n.duvall@gmail.com with the feedback & diagnostic logs so it is guaranteed to arrive.
-        if (typeof window !== 'undefined') {
-          window.location.href = buildFeedbackMailtoUrl(trimmed);
-        }
-        setDeliveryNote(
-          fsMessage.toLowerCase().includes('activation')
-            ? 'ONE-TIME FORMSUBMIT ACTIVATION SENT TO MATTHEW.N.DUVALL@GMAIL.COM — OPENED EMAIL CLIENT AS DIRECT FALLBACK.'
-            : 'OPENED YOUR EMAIL CLIENT WITH FEEDBACK & LOGS PRE-FILLED.'
-        );
+        ]);
+      } catch {
+        // Silent background fallback
       }
-
-      setStatus('sent');
-      setTimeout(() => {
-        setMessage('');
-        setStatus('idle');
-        setDeliveryNote('');
-        setShowFeedbackModal(false);
-      }, 1800);
-    } catch (err) {
-      if (typeof window !== 'undefined') {
-        window.location.href = buildFeedbackMailtoUrl(trimmed);
-      }
-      setStatus('sent');
-      setTimeout(() => {
-        setMessage('');
-        setStatus('idle');
-        setShowFeedbackModal(false);
-      }, 1800);
-    }
+    })();
   };
 
   return (

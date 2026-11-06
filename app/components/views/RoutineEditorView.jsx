@@ -732,10 +732,7 @@ export function RoutineEditorView({
                       <div
                         style={{
                           display: 'grid',
-                          gridTemplateColumns:
-                            normCat === 'Abs'
-                              ? 'minmax(0, 1fr) 64px 44px'
-                              : '78px minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.15fr) 50px 44px',
+                          gridTemplateColumns: '78px minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.15fr) 50px 44px',
                           gap: 0,
                           alignItems: 'stretch'
                         }}
@@ -753,7 +750,7 @@ export function RoutineEditorView({
                               setNumber: st.setNumber,
                               exerciseName: exObj.name,
                               currentValue: curType,
-                              isAbs: normCat === 'Abs'
+                              isAbs: false
                             })
                           }
                           style={{
@@ -779,105 +776,99 @@ export function RoutineEditorView({
                         </button>
 
                         {/* 2. "LAST" Calculated Equivalent Weight Box */}
-                        {normCat !== 'Abs' && (
-                          <div
-                            style={{
-                              width: '100%',
-                              minWidth: 0,
-                              height: '44px',
-                              boxSizing: 'border-box',
-                              backgroundColor: cellBg,
-                              ...SHARED_CELL_BORDER,
-                              display: 'flex',
-                              flexDirection: 'column',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              userSelect: 'none',
-                              pointerEvents: 'none',
-                              whiteSpace: 'nowrap'
-                            }}
-                          >
-                            <span style={{ fontSize: '9px', fontWeight: 800, color: '#9A9A9A', lineHeight: 1 }}>
-                              LAST
-                            </span>
-                            <span style={{ fontSize: '15px', fontWeight: 800, color: '#C8C8C8', lineHeight: 1.2, marginTop: '1px' }}>
-                              {lastW}
-                            </span>
-                          </div>
-                        )}
+                        <div
+                          style={{
+                            width: '100%',
+                            minWidth: 0,
+                            height: '44px',
+                            boxSizing: 'border-box',
+                            backgroundColor: cellBg,
+                            ...SHARED_CELL_BORDER,
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            userSelect: 'none',
+                            pointerEvents: 'none',
+                            whiteSpace: 'nowrap'
+                          }}
+                        >
+                          <span style={{ fontSize: '9px', fontWeight: 800, color: '#9A9A9A', lineHeight: 1 }}>
+                            LAST
+                          </span>
+                          <span style={{ fontSize: '15px', fontWeight: 800, color: '#C8C8C8', lineHeight: 1.2, marginTop: '1px' }}>
+                            {lastW}
+                          </span>
+                        </div>
 
                         {/* 3. "INC" Weight Increment Pop-up Button */}
-                        {normCat !== 'Abs' && (
-                          <button
-                            type="button"
-                            aria-label="Weight Increment"
-                            onClick={() =>
-                              setSetValueTarget?.({
-                                mode: 'increment',
-                                slotId: slot.id,
-                                exIdx,
-                                setId: st.id,
-                                setNumber: st.setNumber,
-                                exerciseName: exObj.name,
-                                currentValue: setIncValue,
-                                isAbs: false
-                              })
-                            }
-                            style={{
-                              width: '100%',
-                              minWidth: 0,
-                              height: '44px',
-                              boxSizing: 'border-box',
-                              backgroundColor: cellBg,
-                              ...SHARED_CELL_BORDER,
-                              display: 'flex',
-                              flexDirection: 'column',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              padding: '0 2px',
-                              cursor: 'pointer',
-                              whiteSpace: 'nowrap'
-                            }}
-                          >
-                            <span style={{ fontSize: '9px', fontWeight: 800, color: '#9A9A9A', lineHeight: 1 }}>
-                              INC
-                            </span>
-                            <span style={{ fontSize: '15px', fontWeight: 800, color: '#FFFFFF', lineHeight: 1.2, marginTop: '1px' }}>
-                              {displayIncValue}
-                            </span>
-                          </button>
-                        )}
+                        <button
+                          type="button"
+                          aria-label="Weight Increment"
+                          onClick={() =>
+                            setSetValueTarget?.({
+                              mode: 'increment',
+                              slotId: slot.id,
+                              exIdx,
+                              setId: st.id,
+                              setNumber: st.setNumber,
+                              exerciseName: exObj.name,
+                              currentValue: setIncValue,
+                              isAbs: false
+                            })
+                          }
+                          style={{
+                            width: '100%',
+                            minWidth: 0,
+                            height: '44px',
+                            boxSizing: 'border-box',
+                            backgroundColor: cellBg,
+                            ...SHARED_CELL_BORDER,
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            padding: '0 2px',
+                            cursor: 'pointer',
+                            whiteSpace: 'nowrap'
+                          }}
+                        >
+                          <span style={{ fontSize: '9px', fontWeight: 800, color: '#9A9A9A', lineHeight: 1 }}>
+                            INC
+                          </span>
+                          <span style={{ fontSize: '15px', fontWeight: 800, color: '#FFFFFF', lineHeight: 1.2, marginTop: '1px' }}>
+                            {displayIncValue}
+                          </span>
+                        </button>
 
                         {/* 4. "CURRENT" Weight Pop-up Button */}
-                        {normCat !== 'Abs' && (
-                          <button
-                            type="button"
-                            onClick={() => openPlateCalculatorForSet(slot.id, exIdx, st, exObj.name)}
-                            style={{
-                              width: '100%',
-                              minWidth: 0,
-                              height: '44px',
-                              boxSizing: 'border-box',
-                              padding: '0 2px',
-                              backgroundColor: cellBg,
-                              ...SHARED_CELL_BORDER,
-                              display: 'flex',
-                              flexDirection: 'column',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              cursor: 'pointer',
-                              whiteSpace: 'nowrap',
-                              overflow: 'hidden'
-                            }}
-                          >
-                            <span style={{ fontSize: '9px', fontWeight: 800, color: '#9A9A9A', lineHeight: 1 }}>
-                              CURRENT
-                            </span>
-                            <span style={{ fontSize: '15px', fontWeight: 800, color: 'var(--dp-color-accent)', lineHeight: 1.2, marginTop: '1px' }}>
-                              {st.weight}
-                            </span>
-                          </button>
-                        )}
+                        <button
+                          type="button"
+                          onClick={() => openPlateCalculatorForSet(slot.id, exIdx, st, exObj.name)}
+                          style={{
+                            width: '100%',
+                            minWidth: 0,
+                            height: '44px',
+                            boxSizing: 'border-box',
+                            padding: '0 2px',
+                            backgroundColor: cellBg,
+                            ...SHARED_CELL_BORDER,
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            cursor: 'pointer',
+                            whiteSpace: 'nowrap',
+                            overflow: 'hidden'
+                          }}
+                        >
+                          <span style={{ fontSize: '9px', fontWeight: 800, color: '#9A9A9A', lineHeight: 1 }}>
+                            CURRENT
+                          </span>
+                          <span style={{ fontSize: '15px', fontWeight: 800, color: 'var(--dp-color-accent)', lineHeight: 1.2, marginTop: '1px' }}>
+                            {st.weight}
+                          </span>
+                        </button>
 
                         {/* 5. Reps Pop-up Button */}
                         <button
@@ -892,7 +883,7 @@ export function RoutineEditorView({
                               setNumber: st.setNumber,
                               exerciseName: exObj.name,
                               currentValue: st.reps,
-                              isAbs: normCat === 'Abs'
+                              isAbs: false
                             })
                           }
                           style={{
@@ -913,7 +904,7 @@ export function RoutineEditorView({
                           }}
                         >
                           <span style={{ fontSize: '9px', fontWeight: 800, color: '#9A9A9A', lineHeight: 1 }}>
-                            {normCat === 'Abs' ? 'SEC' : 'REPS'}
+                            REPS
                           </span>
                           <span style={{ fontSize: '15px', fontWeight: 800, color: '#FFFFFF', lineHeight: 1.2, marginTop: '1px' }}>
                             {st.reps}
@@ -995,14 +986,11 @@ export function RoutineEditorView({
                   (!bestInfoB?.slotId || bestInfoB.slotId === slot.id)
               );
               const isSlotPR = isPrA || isPrB;
-              const slot1RMText =
-                normCat === 'Abs'
-                  ? '1RM: --'
-                  : isSuperset
-                    ? `1RM: ${prValA > 0 ? prValA : 'TBD'}/${prValB > 0 ? prValB : 'TBD'}`
-                    : prValA > 0
-                      ? `1RM: ${prValA} LB`
-                      : '1RM: TBD';
+              const slot1RMText = isSuperset
+                ? `1RM: ${prValA > 0 ? prValA : 'TBD'}/${prValB > 0 ? prValB : 'TBD'}`
+                : prValA > 0
+                  ? `1RM: ${prValA} LB`
+                  : '1RM: TBD';
 
               const singleSelectPool =
                 inlineExercisePool.some(e => e.id === slot.exerciseId) || !ex1
@@ -1034,11 +1022,11 @@ export function RoutineEditorView({
                   }}
                 >
                   <div style={SHARED_GROUP_OUTER}>
-                    {/* Exercise Header: 34px Left Drag/Number + 2-Row Controls */}
+                    {/* Exercise Header: 34px Left Drag/Number + 2-Row Controls + 34px Right Full-Height Red X */}
                     <div
                       style={{
                         display: 'grid',
-                        gridTemplateColumns: '34px minmax(0, 1fr)',
+                        gridTemplateColumns: '34px minmax(0, 1fr) 34px',
                         gap: 0,
                         alignItems: 'stretch'
                       }}
@@ -1119,60 +1107,34 @@ export function RoutineEditorView({
                             ))}
                           </select>
 
-                          {normCat !== 'Abs' ? (
-                            <select
-                              aria-label="Set and Rep Scheme"
-                              value={slot.scheme || '5x8'}
-                              onChange={e =>
-                                handleUpdateSlotCategoryOrExercise(slot.id, { scheme: e.target.value })
-                              }
-                              style={{
-                                width: '100%',
-                                minWidth: 0,
-                                height: '40px',
-                                boxSizing: 'border-box',
-                                fontSize: '13px',
-                                fontWeight: 800,
-                                padding: '0 8px',
-                                backgroundColor: '#161618',
-                                color: '#FFFFFF',
-                                ...SHARED_CELL_BORDER,
-                                textTransform: 'uppercase',
-                                cursor: 'pointer'
-                              }}
-                            >
-                              {['5x5', '5x8', '8x8', 'Pyramid', 'Pyramid 1RM', 'Reverse Pyramid'].map(scm => (
-                                <option key={scm} value={scm}>{scm.toUpperCase()}</option>
-                              ))}
-                            </select>
-                          ) : (
-                            <div
-                              style={{
-                                width: '100%',
-                                minWidth: 0,
-                                height: '40px',
-                                boxSizing: 'border-box',
-                                backgroundColor: '#161618',
-                                ...SHARED_CELL_BORDER,
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                fontSize: '13px',
-                                fontWeight: 800,
-                                color: '#888888',
-                                textTransform: 'uppercase',
-                                userSelect: 'none',
-                                whiteSpace: 'nowrap',
-                                overflow: 'hidden',
-                                textOverflow: 'ellipsis'
-                              }}
-                            >
-                              TIMED
-                            </div>
-                          )}
+                          <select
+                            aria-label="Set and Rep Scheme"
+                            value={slot.scheme || '5x8'}
+                            onChange={e =>
+                              handleUpdateSlotCategoryOrExercise(slot.id, { scheme: e.target.value })
+                            }
+                            style={{
+                              width: '100%',
+                              minWidth: 0,
+                              height: '40px',
+                              boxSizing: 'border-box',
+                              fontSize: '13px',
+                              fontWeight: 800,
+                              padding: '0 8px',
+                              backgroundColor: '#161618',
+                              color: '#FFFFFF',
+                              ...SHARED_CELL_BORDER,
+                              textTransform: 'uppercase',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            {['5x5', '5x8', '8x8', 'Pyramid', 'Pyramid 1RM', 'Reverse Pyramid'].map(scm => (
+                              <option key={scm} value={scm}>{scm.toUpperCase()}</option>
+                            ))}
+                          </select>
                         </div>
 
-                        {/* Row 2: Exercise Selection, 1RM Readout, and Red X */}
+                        {/* Row 2: Exercise Selection + 1RM Readout */}
                         <div
                           style={{
                             display: 'grid',
@@ -1314,69 +1276,61 @@ export function RoutineEditorView({
                             </div>
                           )}
 
-                          {/* Column 3: Calculated 1RM Box + Red Remove Exercise Button */}
+                          {/* Column 3: Calculated 1RM Box */}
                           <div
                             style={{
-                              display: 'grid',
-                              gridTemplateColumns: 'minmax(0, 1fr) 34px',
-                              gap: 0,
+                              width: '100%',
+                              minWidth: 0,
                               height: '40px',
-                              minWidth: 0
+                              boxSizing: 'border-box',
+                              backgroundColor: '#18181B',
+                              ...SHARED_CELL_BORDER,
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              fontSize: '12px',
+                              fontWeight: 800,
+                              color: '#C0C0C0',
+                              textTransform: 'uppercase',
+                              userSelect: 'none',
+                              pointerEvents: 'none',
+                              whiteSpace: 'nowrap',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              padding: '0 4px'
                             }}
                           >
-                            <div
-                              style={{
-                                width: '100%',
-                                minWidth: 0,
-                                height: '40px',
-                                boxSizing: 'border-box',
-                                backgroundColor: '#18181B',
-                                ...SHARED_CELL_BORDER,
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                fontSize: '12px',
-                                fontWeight: 800,
-                                color: '#C0C0C0',
-                                textTransform: 'uppercase',
-                                userSelect: 'none',
-                                pointerEvents: 'none',
-                                whiteSpace: 'nowrap',
-                                overflow: 'hidden',
-                                textOverflow: 'ellipsis',
-                                padding: '0 4px'
-                              }}
-                            >
-                              {slot1RMText}
-                            </div>
-
-                            <button
-                              type="button"
-                              aria-label="Remove exercise"
-                              onClick={() =>
-                                setDeleteConfirmTarget({
-                                  type: 'slot',
-                                  slotId: slot.id,
-                                  label: isSuperset
-                                    ? `${EXERCISE_MAP[supIds[0]]?.name || supIds[0]} / ${EXERCISE_MAP[supIds[1]]?.name || supIds[1]}`
-                                    : ex1.name
-                                })
-                              }
-                              className="kinetic-btn"
-                              style={{
-                                ...UI.deleteXBtn,
-                                width: '34px',
-                                height: '40px',
-                                fontSize: '14px',
-                                ...SHARED_CELL_BORDER,
-                                boxSizing: 'border-box'
-                              }}
-                            >
-                              ✕
-                            </button>
+                            {slot1RMText}
                           </div>
                         </div>
                       </div>
+
+                      {/* Right Full-Height Red Remove Exercise Button (Spans Both Rows) */}
+                      <button
+                        type="button"
+                        aria-label="Remove exercise"
+                        onClick={() =>
+                          setDeleteConfirmTarget({
+                            type: 'slot',
+                            slotId: slot.id,
+                            label: isSuperset
+                              ? `${EXERCISE_MAP[supIds[0]]?.name || supIds[0]} / ${EXERCISE_MAP[supIds[1]]?.name || supIds[1]}`
+                              : ex1.name
+                          })
+                        }
+                        className="kinetic-btn"
+                        style={{
+                          ...UI.deleteXBtn,
+                          width: '34px',
+                          height: '100%',
+                          minHeight: '80px',
+                          fontSize: '14px',
+                          ...SHARED_CELL_BORDER,
+                          boxSizing: 'border-box'
+                        }}
+                      >
+                        ✕
+                      </button>
                     </div>
 
                     {/* Always-Expanded Sets Content (Shared Borders, Flush Right Below Exercise Header) */}

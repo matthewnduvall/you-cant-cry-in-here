@@ -57,7 +57,7 @@ export const DEFAULT_SETTINGS_V2 = {
     chartMetric: 'weight', targetStandardClass: 'Intermediate', customGoalWeights: {}
   },
   stimulus: { greenDays: 2, yellowDays: 4 },
-  routinePreferences: ['Compound Lift', 'Compound Lift', 'Superset', 'Superset', 'Abs'],
+  routinePreferences: ['Compound Lift', 'Compound Lift', 'Superset', 'Superset', 'Accessory'],
   social: { shareStatsWithFriends: true, shareRoutinesWithFriends: true },
   selectedGymId: ''
 };

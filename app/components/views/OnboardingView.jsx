@@ -1010,7 +1010,15 @@ export function OnboardingView({
                   <select
                     aria-label="Filter by Gyms/Equipment"
                     value={addPrGymFilter}
-                    onChange={e => setAddPrGymFilter(e.target.value)}
+                    onChange={e => {
+                      const nextGym = e.target.value;
+                      setAddPrGymFilter(nextGym);
+                      const nextAvailMgs = getAvailableMuscleGroupsForCategory(addPrCategory, nextGym, gyms);
+                      const nextMg = nextAvailMgs.includes(activeAddPrMuscle) ? activeAddPrMuscle : 'All Muscles';
+                      setAddPrMuscleGroup(nextMg);
+                      const nextAvail = filterAddSlotExercises(nextGym, addPrCategory, gyms, nextMg);
+                      if (nextAvail.length > 0) setAddPrSelectedExId(nextAvail[0].id);
+                    }}
                     style={{
                       width: '100%',
                       height: '40px',
@@ -1033,7 +1041,15 @@ export function OnboardingView({
                   <select
                     aria-label="Filter by Workout Type"
                     value={addPrCategory}
-                    onChange={e => setAddPrCategory(e.target.value)}
+                    onChange={e => {
+                      const nextCat = e.target.value;
+                      setAddPrCategory(nextCat);
+                      const nextAvailMgs = getAvailableMuscleGroupsForCategory(nextCat, addPrGymFilter, gyms);
+                      const nextMg = nextAvailMgs.includes(activeAddPrMuscle) ? activeAddPrMuscle : 'All Muscles';
+                      setAddPrMuscleGroup(nextMg);
+                      const nextAvail = filterAddSlotExercises(addPrGymFilter, nextCat, gyms, nextMg);
+                      if (nextAvail.length > 0) setAddPrSelectedExId(nextAvail[0].id);
+                    }}
                     style={{
                       width: '100%',
                       height: '40px',
@@ -1056,7 +1072,12 @@ export function OnboardingView({
                   <select
                     aria-label="Filter by Muscle Group"
                     value={activeAddPrMuscle}
-                    onChange={e => setAddPrMuscleGroup(e.target.value)}
+                    onChange={e => {
+                      const nextMg = e.target.value;
+                      setAddPrMuscleGroup(nextMg);
+                      const nextAvail = filterAddSlotExercises(addPrGymFilter, addPrCategory, gyms, nextMg);
+                      if (nextAvail.length > 0) setAddPrSelectedExId(nextAvail[0].id);
+                    }}
                     style={{
                       width: '100%',
                       height: '40px',
@@ -1293,7 +1314,7 @@ export function OnboardingView({
               <div
                 style={{
                   display: 'grid',
-                  gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
+                  gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
                   gap: 0
                 }}
               >

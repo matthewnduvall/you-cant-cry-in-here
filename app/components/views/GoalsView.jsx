@@ -451,7 +451,7 @@ export function GoalsView({
               <div
                 style={{
                   display: 'grid',
-                  gridTemplateColumns: 'repeat(3, 1fr)',
+                  gridTemplateColumns: 'repeat(2, 1fr)',
                   gap: 0,
                   borderTop: '1px solid var(--dp-color-rule)',
                   borderLeft: '1px solid var(--dp-color-rule)'
@@ -494,7 +494,7 @@ export function GoalsView({
                   const nextMg = e.target.value;
                   setAddGoalMuscleGroup(nextMg);
                   const nextAvail = filterAddSlotExercises(addGoalGymFilter, normCat, gyms, nextMg);
-                  if (nextAvail.length > 0 && !nextAvail.some(x => x.id === addGoalExerciseId)) {
+                  if (nextAvail.length > 0) {
                     setAddGoalExerciseId(nextAvail[0].id);
                   }
                 }}

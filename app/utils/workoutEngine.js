@@ -94,7 +94,6 @@ export const calculateLastEquivalentWeightForSet = (
   setIndex = 0,
   scheme = ''
 ) => {
-  if (category === 'Abs') return 0;
   const max1RM = Math.max(5, Number(base1RM) || 135);
   const sType = normalizeSetType(setItem?.type);
   const reps = Math.max(1, Number(setItem?.reps) || 8);
@@ -133,7 +132,6 @@ export const calculateEquivalentRepsForWeight = (
   category = 'Compound Lift',
   incrementLbs = 0
 ) => {
-  if (category === 'Abs') return Math.max(1, Number(setItem?.reps) || 45);
   const max1RM = Math.max(5, Number(base1RM) || 135);
   const sType = normalizeSetType(setItem?.type);
   if (sType === '1 Rep Max' || totalSetsCount <= 1) return 1;
@@ -172,13 +170,6 @@ export const generateSetsForScheme = (scheme, oneRepMax, category = 'Compound Li
   const base1RM = oneRepMax || (EXERCISE_MAP[exerciseId]?.default1RM ?? 135);
   const effectiveInc = getEffectiveIncrementForExercise(exerciseId, incrementLbs);
   const ts = Date.now() + Math.floor(Math.random() * 10000);
-
-  if (category === 'Abs' || exerciseId === 'hollow_holds') {
-    return [
-      { id: `set_${ts}_abs1`, setNumber: 1, type: 'Working', reps: 45, lastWeight: 0, increment: 0, weight: 0, completed: false },
-      { id: `set_${ts}_abs2`, setNumber: 2, type: 'Working', reps: 45, lastWeight: 0, increment: 0, weight: 0, completed: false }
-    ];
-  }
 
   const buildWithLastAndTarget = rawSets => {
     const totalCount = rawSets.length;
@@ -349,7 +340,7 @@ export const buildPresetSlots = (presetKey, oneRepMaxes, history = [], increment
         createWorkoutSlot({ category: 'Compound Lift', slotLabel: 'Compound Lift 1', exerciseId: 'barbell_bench_press', scheme: '5x8', oneRepMaxes, history, incrementLbs }),
         createWorkoutSlot({ category: 'Compound Lift', slotLabel: 'Compound Lift 2', exerciseId: 'barbell_back_squat', scheme: '5x8', oneRepMaxes, history, incrementLbs }),
         createWorkoutSlot({ category: 'Superset', slotLabel: 'Superset 1', supersetExerciseIds: ['reverse_lunge', 'front_flies'], scheme: '5x8', oneRepMaxes, history, incrementLbs }),
-        createWorkoutSlot({ category: 'Abs', slotLabel: 'Abs Slot', exerciseId: 'hollow_holds', oneRepMaxes, history, incrementLbs })
+        createWorkoutSlot({ category: 'Accessory', slotLabel: 'Accessory 1', exerciseId: 'hollow_holds', scheme: '5x8', oneRepMaxes, history, incrementLbs })
       ]);
     case 'full_body_b':
     case 'wed_thu':
@@ -357,7 +348,7 @@ export const buildPresetSlots = (presetKey, oneRepMaxes, history = [], increment
         createWorkoutSlot({ category: 'Compound Lift', slotLabel: 'Compound Lift 1', exerciseId: 'barbell_deadlift', scheme: '5x8', oneRepMaxes, history, incrementLbs }),
         createWorkoutSlot({ category: 'Compound Lift', slotLabel: 'Compound Lift 2', exerciseId: 'overhead_press', scheme: '5x8', oneRepMaxes, history, incrementLbs }),
         createWorkoutSlot({ category: 'Superset', slotLabel: 'Superset 1', supersetExerciseIds: ['pistol_squats', 'reverse_flies'], scheme: '5x8', oneRepMaxes, history, incrementLbs }),
-        createWorkoutSlot({ category: 'Abs', slotLabel: 'Abs Slot', exerciseId: 'hollow_holds', oneRepMaxes, history, incrementLbs })
+        createWorkoutSlot({ category: 'Accessory', slotLabel: 'Accessory 1', exerciseId: 'hollow_holds', scheme: '5x8', oneRepMaxes, history, incrementLbs })
       ]);
     case 'arms_only':
     case 'arms_pump':
@@ -438,7 +429,7 @@ export const getNextIncompleteSetInfo = slots => {
       for (const st of slot.sets) {
         if (st && !st.completed) {
           const exName = EXERCISE_MAP[slot.exerciseId]?.name || slot.exerciseId || 'Lift';
-          const loadStr = slot.category === 'Abs' ? `${st.reps} SEC` : `${st.weight} LB × ${st.reps} REPS`;
+          const loadStr = `${st.weight} LB × ${st.reps} REPS`;
           return {
             topLine: `NEXT: ${exName.toUpperCase()}`,
             bottomLine: `SET #${st.setNumber} • ${loadStr}`

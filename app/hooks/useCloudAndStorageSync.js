@@ -310,7 +310,21 @@ export function useCloudAndStorageSync({
               cloud.friendsList.forEach(f => {
                 if (!f) return;
                 const k = String(f.username || f.email || f.id).toLowerCase();
-                if (!byKey.has(k)) byKey.set(k, f);
+                const existing = byKey.get(k);
+                byKey.set(
+                  k,
+                  existing
+                    ? {
+                        ...existing,
+                        ...f,
+                        prs: { ...(existing.prs || {}), ...(f.prs || {}) },
+                        history:
+                          Array.isArray(existing.history) && existing.history.length > 0
+                            ? existing.history
+                            : f.history || []
+                      }
+                    : f
+                );
               });
               return ensureDefaultMattFriend(Array.from(byKey.values()));
             });
@@ -450,17 +464,23 @@ export function useCloudAndStorageSync({
     return () => {
       cancelled = true;
     };
-  }, [isStorageHydrated, user?.id, user?.email, outgoingInvites?.length]);
+  }, [
+    isStorageHydrated,
+    user?.id,
+    user?.email,
+    `${outgoingInvites?.length || 0}_${friendsList?.length || 0}`
+  ]);
 
   // 4. Debounced Automatic Versioned Persistence & Cloud Push
   useEffect(() => {
     if (typeof window === 'undefined' || !isStorageHydrated) return;
     const debounceTimer = setTimeout(() => {
       try {
-        const historyBackedOneRepMaxes = {};
+        const historyBackedOneRepMaxes = { ...(oneRepMaxes || {}) };
         EXERCISE_LIBRARY.forEach(ex => {
           const best = getBestHistory1RM(ex.id, history);
-          if (best > 0) {
+          const cur = Number(historyBackedOneRepMaxes[ex.id]) || 0;
+          if (best > cur) {
             historyBackedOneRepMaxes[ex.id] = best;
           }
         });
