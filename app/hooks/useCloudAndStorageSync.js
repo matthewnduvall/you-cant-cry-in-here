@@ -16,7 +16,7 @@ import {
   resolveInviteFriendshipsForUser
 } from '../utils/supabaseAuth';
 import { getInitial1RMs, getBestHistory1RM } from '../utils/workoutEngine';
-import { EXERCISE_LIBRARY } from '../data/exerciseLibrary';
+import { EXERCISE_LIBRARY, normalizeSlotCategory } from '../data/exerciseLibrary';
 
 export function useCloudAndStorageSync({
   isStorageHydrated,
@@ -380,7 +380,7 @@ export function useCloudAndStorageSync({
               if (cloud.settings.stimulus.yellowDays !== undefined) setStimulusYellowDays(cloud.settings.stimulus.yellowDays);
             }
             if (Array.isArray(cloud.settings.routinePreferences) && cloud.settings.routinePreferences.length > 0) {
-              setRoutinePreferences(cloud.settings.routinePreferences);
+              setRoutinePreferences(cloud.settings.routinePreferences.map(p => normalizeSlotCategory(p)));
             }
             if (cloud.settings.social) {
               if (cloud.settings.social.shareStatsWithFriends !== undefined) {
@@ -670,7 +670,7 @@ export function useCloudAndStorageSync({
     setCustomGoalWeights({});
     setStimulusGreenDays(2);
     setStimulusYellowDays(4);
-    setRoutinePreferences(['Compound Lift', 'Compound Lift', 'Superset', 'Superset', 'Abs']);
+    setRoutinePreferences(['Compound', 'Compound', 'Superset', 'Superset', 'Abs']);
     setShareStatsWithFriends(true);
     setShareRoutinesWithFriends(true);
     setSelectedGymId('');

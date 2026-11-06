@@ -17,12 +17,15 @@ import {
   parseYMDToISO
 } from '../../data/exerciseLibrary';
 import {
+  SCHEME_OPTIONS,
   normalizeSetType,
   calculateLastEquivalentWeightForSet,
   getEffectiveIncrementForExercise,
   getHistoricalCalculated1RM,
   getPersonalRecord1RM,
-  getBestHistory1RMInfo
+  getBestHistory1RMInfo,
+  getSetTimerMMSS,
+  getLastLoggedTimerDisplay
 } from '../../utils/workoutEngine';
 
 const SHARED_CELL_BORDER = {
@@ -157,7 +160,7 @@ export function RoutineEditorView({
     <div
       style={{
         display: 'grid',
-        gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+        gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
         gap: 0,
         width: '100%',
         alignItems: 'stretch'
@@ -177,24 +180,6 @@ export function RoutineEditorView({
         }}
       >
         SAVE
-      </button>
-
-      <button
-        type="button"
-        onClick={handleShareCurrentEditor}
-        className="kinetic-btn"
-        style={{
-          ...UI.secondaryBtnCenter,
-          height: '44px',
-          padding: '0 10px',
-          fontSize: '14px',
-          ...SHARED_CELL_BORDER,
-          boxSizing: 'border-box',
-          backgroundColor: isCurrentEditorShared ? '#30D158' : '#18181A',
-          color: isCurrentEditorShared ? '#101010' : '#FFFFFF'
-        }}
-      >
-        {isCurrentEditorShared ? 'SHARED ✓' : 'SHARE'}
       </button>
 
       <button
@@ -347,12 +332,12 @@ export function RoutineEditorView({
             </div>
           )}
 
-          {/* Row 2: Top Action Row (Gyms/Equipment, Load, Auto — Shared Border, Larger Text) */}
+          {/* Row 2: Top Action Row (Gyms/Equipment & Load — Shared Border, Larger Text) */}
           {!isEmbeddedHistorySession && (
             <div
               style={{
                 display: 'grid',
-                gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+                gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
                 gap: 0,
                 width: '100%',
                 alignItems: 'stretch'
@@ -485,59 +470,6 @@ export function RoutineEditorView({
                   LOAD
                 </div>
               </button>
-
-              {/* Column 3: Routines / Auto */}
-              <button
-                type="button"
-                onClick={handleAutoBuildWorkout}
-                className="kinetic-btn"
-                style={{
-                  width: '100%',
-                  height: '48px',
-                  boxSizing: 'border-box',
-                  padding: '0 8px',
-                  backgroundColor: 'var(--dp-color-accent)',
-                  color: '#101010',
-                  ...SHARED_CELL_BORDER,
-                  cursor: 'pointer',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  justifyContent: 'center',
-                  alignItems: 'center',
-                  textAlign: 'center',
-                  minWidth: 0
-                }}
-              >
-                <div
-                  style={{
-                    fontSize: '10px',
-                    fontWeight: 800,
-                    color: '#101010',
-                    textTransform: 'uppercase',
-                    lineHeight: 1.15,
-                    opacity: 0.85
-                  }}
-                >
-                  ROUTINES
-                </div>
-                <div
-                  style={{
-                    fontSize: '13px',
-                    fontWeight: 800,
-                    color: '#101010',
-                    textTransform: 'uppercase',
-                    whiteSpace: 'nowrap',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    width: '100%',
-                    lineHeight: 1.25,
-                    marginTop: '1px',
-                    textAlign: 'center'
-                  }}
-                >
-                  AUTO
-                </div>
-              </button>
             </div>
           )}
 
@@ -619,12 +551,17 @@ export function RoutineEditorView({
               const renderSingleSetRow = (st, exIdx, exId, setIdxInEx, totalExSets) => {
                 const exObj = EXERCISE_MAP[exId] || EXERCISE_LIBRARY[0];
                 const curType = normalizeSetType(st.type);
+                const isTimerScheme = slot.scheme === 'Timer';
                 const calc1RM = getHistoricalCalculated1RM(exId, history, oneRepMaxes);
                 const effInc = getEffectiveIncrementForExercise(exId, currentIncrementLbs);
                 const lastW =
                   st.lastWeight !== undefined
                     ? st.lastWeight
                     : calculateLastEquivalentWeightForSet(calc1RM, st, totalExSets, normCat, setIdxInEx, slot.scheme);
+                const timerMMSS = isTimerScheme ? getSetTimerMMSS(st, true) : '';
+                const lastTimerDisplay = isTimerScheme
+                  ? getLastLoggedTimerDisplay(exId, st, setIdxInEx, lastW, history)
+                  : '';
                 const setIncValue =
                   st.increment !== undefined
                     ? st.increment
@@ -728,11 +665,13 @@ export function RoutineEditorView({
                         </div>
                       )}
 
-                      {/* Horizontally flush row: Set Type, LAST, INC, CURRENT, REPS, and Checkmark */}
+                      {/* Horizontally flush row: Set Type, LAST, [INC if not Timer], CURRENT, REPS/TIMER, and Checkmark */}
                       <div
                         style={{
                           display: 'grid',
-                          gridTemplateColumns: '78px minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.15fr) 50px 44px',
+                          gridTemplateColumns: isTimerScheme
+                            ? '78px minmax(0, 1fr) 74px minmax(0, 1fr) 44px'
+                            : '78px minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.15fr) 50px 44px',
                           gap: 0,
                           alignItems: 'stretch'
                         }}
@@ -775,7 +714,7 @@ export function RoutineEditorView({
                           {curType.toUpperCase()}
                         </button>
 
-                        {/* 2. "LAST" Calculated Equivalent Weight Box */}
+                        {/* 2. "LAST" Calculated Equivalent Weight / Timer Box */}
                         <div
                           style={{
                             width: '100%',
@@ -796,50 +735,60 @@ export function RoutineEditorView({
                           <span style={{ fontSize: '9px', fontWeight: 800, color: '#9A9A9A', lineHeight: 1 }}>
                             LAST
                           </span>
-                          <span style={{ fontSize: '15px', fontWeight: 800, color: '#C8C8C8', lineHeight: 1.2, marginTop: '1px' }}>
-                            {lastW}
+                          <span
+                            style={{
+                              fontSize: isTimerScheme ? '13px' : '15px',
+                              fontWeight: 800,
+                              color: '#C8C8C8',
+                              lineHeight: 1.2,
+                              marginTop: '1px'
+                            }}
+                          >
+                            {isTimerScheme ? lastTimerDisplay : lastW}
                           </span>
                         </div>
 
-                        {/* 3. "INC" Weight Increment Pop-up Button */}
-                        <button
-                          type="button"
-                          aria-label="Weight Increment"
-                          onClick={() =>
-                            setSetValueTarget?.({
-                              mode: 'increment',
-                              slotId: slot.id,
-                              exIdx,
-                              setId: st.id,
-                              setNumber: st.setNumber,
-                              exerciseName: exObj.name,
-                              currentValue: setIncValue,
-                              isAbs: false
-                            })
-                          }
-                          style={{
-                            width: '100%',
-                            minWidth: 0,
-                            height: '44px',
-                            boxSizing: 'border-box',
-                            backgroundColor: cellBg,
-                            ...SHARED_CELL_BORDER,
-                            display: 'flex',
-                            flexDirection: 'column',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            padding: '0 2px',
-                            cursor: 'pointer',
-                            whiteSpace: 'nowrap'
-                          }}
-                        >
-                          <span style={{ fontSize: '9px', fontWeight: 800, color: '#9A9A9A', lineHeight: 1 }}>
-                            INC
-                          </span>
-                          <span style={{ fontSize: '15px', fontWeight: 800, color: '#FFFFFF', lineHeight: 1.2, marginTop: '1px' }}>
-                            {displayIncValue}
-                          </span>
-                        </button>
+                        {/* 3. "INC" Weight Increment Pop-up Button (Hidden when Timer scheme is selected) */}
+                        {!isTimerScheme && (
+                          <button
+                            type="button"
+                            aria-label="Weight Increment"
+                            onClick={() =>
+                              setSetValueTarget?.({
+                                mode: 'increment',
+                                slotId: slot.id,
+                                exIdx,
+                                setId: st.id,
+                                setNumber: st.setNumber,
+                                exerciseName: exObj.name,
+                                currentValue: setIncValue,
+                                isAbs: false
+                              })
+                            }
+                            style={{
+                              width: '100%',
+                              minWidth: 0,
+                              height: '44px',
+                              boxSizing: 'border-box',
+                              backgroundColor: cellBg,
+                              ...SHARED_CELL_BORDER,
+                              display: 'flex',
+                              flexDirection: 'column',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              padding: '0 2px',
+                              cursor: 'pointer',
+                              whiteSpace: 'nowrap'
+                            }}
+                          >
+                            <span style={{ fontSize: '9px', fontWeight: 800, color: '#9A9A9A', lineHeight: 1 }}>
+                              INC
+                            </span>
+                            <span style={{ fontSize: '15px', fontWeight: 800, color: '#FFFFFF', lineHeight: 1.2, marginTop: '1px' }}>
+                              {displayIncValue}
+                            </span>
+                          </button>
+                        )}
 
                         {/* 4. "CURRENT" Weight Pop-up Button */}
                         <button
@@ -870,19 +819,19 @@ export function RoutineEditorView({
                           </span>
                         </button>
 
-                        {/* 5. Reps Pop-up Button */}
+                        {/* 5. Reps / Timer Pop-up Button */}
                         <button
                           type="button"
-                          aria-label="Reps"
+                          aria-label={isTimerScheme ? 'Timer' : 'Reps'}
                           onClick={() =>
                             setSetValueTarget?.({
-                              mode: 'reps',
+                              mode: isTimerScheme ? 'timer' : 'reps',
                               slotId: slot.id,
                               exIdx,
                               setId: st.id,
                               setNumber: st.setNumber,
                               exerciseName: exObj.name,
-                              currentValue: st.reps,
+                              currentValue: isTimerScheme ? timerMMSS : st.reps,
                               isAbs: false
                             })
                           }
@@ -904,10 +853,10 @@ export function RoutineEditorView({
                           }}
                         >
                           <span style={{ fontSize: '9px', fontWeight: 800, color: '#9A9A9A', lineHeight: 1 }}>
-                            REPS
+                            {isTimerScheme ? 'TIMER' : 'REPS'}
                           </span>
                           <span style={{ fontSize: '15px', fontWeight: 800, color: '#FFFFFF', lineHeight: 1.2, marginTop: '1px' }}>
-                            {st.reps}
+                            {isTimerScheme ? timerMMSS : st.reps}
                           </span>
                         </button>
 
@@ -1128,7 +1077,7 @@ export function RoutineEditorView({
                               cursor: 'pointer'
                             }}
                           >
-                            {['5x5', '5x8', '8x8', 'Pyramid', 'Pyramid 1RM', 'Reverse Pyramid'].map(scm => (
+                            {SCHEME_OPTIONS.map(scm => (
                               <option key={scm} value={scm}>{scm.toUpperCase()}</option>
                             ))}
                           </select>
@@ -1418,34 +1367,67 @@ export function RoutineEditorView({
         </div>
       </section>
 
-      {/* ADD EXERCISE BUTTON AT BOTTOM */}
-      <div style={{ padding: '0 var(--dp-spacing-gutter)', display: 'flex', flexDirection: 'column', gap: 0 }}>
-        <button
-          type="button"
-          onClick={() => {
-            if (onAddExerciseCustom) {
-              onAddExerciseCustom();
-              return;
-            }
-            setAddSlotGymFilter(selectedGymId);
-            const avail = filterAddSlotExercises(selectedGymId, newSlotCategory, gyms, newSlotMuscleGroup);
-            if (avail.length > 0) {
-              setNewSlotEx1(avail[0].id);
-              setNewSlotSupersetIds([avail[0].id, (avail[1] || avail[0]).id]);
-            }
-            setShowAddSlotModal(true);
-          }}
-          className="kinetic-btn"
+      {/* ADD EXERCISE + AUTO ROUTINE / AUTO COMPLETE BUTTONS AT BOTTOM */}
+      <div style={{ padding: '0 var(--dp-spacing-gutter)' }}>
+        <div
           style={{
-            ...UI.dashedBtn,
-            height: '48px',
-            fontSize: '14px',
-            border: '1px solid var(--dp-color-rule)',
-            backgroundColor: '#161618'
+            display: 'grid',
+            gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+            gap: 0,
+            width: '100%',
+            ...SHARED_GROUP_OUTER
           }}
         >
-          + ADD EXERCISE
-        </button>
+          <button
+            type="button"
+            onClick={() => {
+              if (onAddExerciseCustom) {
+                onAddExerciseCustom();
+                return;
+              }
+              setAddSlotGymFilter(selectedGymId);
+              const avail = filterAddSlotExercises(selectedGymId, newSlotCategory, gyms, newSlotMuscleGroup);
+              if (avail.length > 0) {
+                setNewSlotEx1(avail[0].id);
+                setNewSlotSupersetIds([avail[0].id, (avail[1] || avail[0]).id]);
+              }
+              setShowAddSlotModal(true);
+            }}
+            className="kinetic-btn"
+            style={{
+              ...UI.dashedBtn,
+              height: '48px',
+              fontSize: '13px',
+              fontWeight: 800,
+              ...SHARED_CELL_BORDER,
+              backgroundColor: '#161618',
+              color: '#FFFFFF',
+              whiteSpace: 'nowrap',
+              boxSizing: 'border-box'
+            }}
+          >
+            + ADD EXERCISE
+          </button>
+
+          <button
+            type="button"
+            onClick={handleAutoBuildWorkout}
+            className="kinetic-btn"
+            style={{
+              ...UI.primaryBtnCenter,
+              height: '48px',
+              fontSize: '13px',
+              fontWeight: 800,
+              ...SHARED_CELL_BORDER,
+              backgroundColor: 'var(--dp-color-accent)',
+              color: '#101010',
+              whiteSpace: 'nowrap',
+              boxSizing: 'border-box'
+            }}
+          >
+            {hasExercises ? '+ AUTO COMPLETE' : '+ AUTO ROUTINE'}
+          </button>
+        </div>
       </div>
     </div>
   );

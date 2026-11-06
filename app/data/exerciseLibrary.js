@@ -25,27 +25,29 @@ export const DEFAULT_GYM_EQUIPMENT_PRESETS = [
   { id: '', name: 'Full Gym (All)' },
   { id: 'preset_barbells_only', name: 'Barbells Only' },
   { id: 'preset_dumbbells_only', name: 'Dumbells Only' },
+  { id: 'preset_kettlebells_only', name: 'Kettlebells Only' },
   { id: 'preset_bodyweight_only', name: 'Bodyweight Only' }
 ];
 
-export const SLOT_CATEGORIES = ['Compound Lift', 'Accessory', 'Superset'];
+export const SLOT_CATEGORIES = ['Compound', 'Accessory', 'Superset'];
 
 export const normalizeSlotCategory = rawCat => {
-  if (!rawCat) return 'Compound Lift';
+  if (!rawCat) return 'Compound';
   const c = String(rawCat).trim();
   if (
+    c === 'Compound' ||
     c === 'Compound Lift' ||
     c === 'Compound Lifts' ||
     c === 'Compounds' ||
     c === 'Primary Compound'
   ) {
-    return 'Compound Lift';
+    return 'Compound';
   }
   if (c === 'Accessory' || c === 'Accessories' || c === 'Abs' || c === 'Waist') {
     return 'Accessory';
   }
   if (c === 'Superset' || c === 'Supersets') return 'Superset';
-  return 'Compound Lift';
+  return 'Compound';
 };
 
 export const isSupersetCategory = cat => normalizeSlotCategory(cat) === 'Superset';
@@ -124,13 +126,16 @@ export const isExerciseCompatibleWithGymSelection = (ex, gymSelectionId, customG
   const eqText = (ex.equipment || '').toLowerCase();
   const reqEq = ex.requiredEquipment || [];
 
-  if (gymSelectionId === 'preset_barbells_only') {
+  if (gymSelectionId === 'preset_barbells_only' || gymSelectionId === 'barbell') {
     return eqText.includes('barbell') || reqEq.includes('Barbell');
   }
-  if (gymSelectionId === 'preset_dumbbells_only') {
+  if (gymSelectionId === 'preset_dumbbells_only' || gymSelectionId === 'dumbbell') {
     return eqText.includes('dumbbell') || reqEq.includes('Dumbbell');
   }
-  if (gymSelectionId === 'preset_bodyweight_only') {
+  if (gymSelectionId === 'preset_kettlebells_only' || gymSelectionId === 'kettlebell') {
+    return eqText.includes('kettlebell') || reqEq.includes('Kettlebells') || reqEq.includes('Kettlebell');
+  }
+  if (gymSelectionId === 'preset_bodyweight_only' || gymSelectionId === 'bodyweight') {
     return (
       eqText.includes('bodyweight') ||
       eqText.includes('body weight') ||
@@ -327,9 +332,9 @@ export const getFilteredExercisesForSlotInline = (slot, selectedGymId, customGym
   const muscleFilter = slot?.muscleGroupFilter || 'All Muscles';
 
   let catPool;
-  if (normCat === 'Compound Lift') {
-    const compMatches = activePoolBase.filter(e => e.category === 'Compound Lift');
-    catPool = compMatches.length > 0 ? compMatches : EXERCISE_LIBRARY.filter(e => e.category === 'Compound Lift');
+  if (normCat === 'Compound') {
+    const compMatches = activePoolBase.filter(e => e.category === 'Compound');
+    catPool = compMatches.length > 0 ? compMatches : EXERCISE_LIBRARY.filter(e => e.category === 'Compound');
   } else if (normCat === 'Accessory') {
     const accMatches = activePoolBase.filter(e => e.category === 'Accessory');
     catPool = accMatches.length > 0 ? accMatches : EXERCISE_LIBRARY.filter(e => e.category === 'Accessory');
@@ -517,8 +522,106 @@ export const getExRxCurrentClass = (liftId, current1RM, bodyweightLbs = 220, hei
   return matched;
 };
 
+export const isBodyweightExercise = exOrId => {
+  const ex = typeof exOrId === 'string' ? EXERCISE_MAP[exOrId] : exOrId;
+  if (!ex) return false;
+  const eq = (ex.equipment || '').toLowerCase();
+  return (
+    eq.includes('bodyweight') ||
+    eq.includes('body weight') ||
+    eq.includes('isometric') ||
+    eq.includes('self-assisted') ||
+    eq.includes('suspended') ||
+    eq.includes('plyometric') ||
+    eq.includes('stretch')
+  );
+};
+
+export const ROUTINE_GYM_CATEGORIES = ['all', 'barbell', 'dumbbell', 'kettlebell', 'bodyweight'];
+
+export const classifySingleExerciseGymCategory = exOrId => {
+  const ex = typeof exOrId === 'string' ? EXERCISE_MAP[exOrId] : exOrId;
+  if (!ex) return 'all';
+  if (isBodyweightExercise(ex)) return 'bodyweight';
+  const eq = (ex.equipment || '').toLowerCase();
+  const req = ex.requiredEquipment || [];
+  if (eq.includes('barbell') || req.includes('Barbell')) return 'barbell';
+  if (eq.includes('dumbbell') || req.includes('Dumbbell')) return 'dumbbell';
+  if (eq.includes('kettlebell') || req.includes('Kettlebells') || req.includes('Kettlebell')) return 'kettlebell';
+  return 'all';
+};
+
+export const inferRoutineGymCategory = slots => {
+  if (!Array.isArray(slots) || slots.length === 0) return 'all';
+  const exIds = [];
+  for (const slot of slots) {
+    if (!slot) continue;
+    if (isSupersetCategory(slot.category)) {
+      const supIds =
+        Array.isArray(slot.supersetExerciseIds) && slot.supersetExerciseIds.length > 0
+          ? slot.supersetExerciseIds
+          : [slot.exerciseId, slot.secondaryExerciseId].filter(Boolean);
+      exIds.push(...supIds);
+    } else if (slot.exerciseId) {
+      exIds.push(slot.exerciseId);
+    }
+  }
+  if (exIds.length === 0) return 'all';
+
+  const categories = exIds.map(id => classifySingleExerciseGymCategory(id));
+  if (categories.every(c => c === 'bodyweight')) return 'bodyweight';
+
+  const nonBodyweight = categories.filter(c => c !== 'bodyweight');
+  if (nonBodyweight.length > 0) {
+    if (nonBodyweight.every(c => c === 'barbell')) return 'barbell';
+    if (nonBodyweight.every(c => c === 'dumbbell')) return 'dumbbell';
+    if (nonBodyweight.every(c => c === 'kettlebell')) return 'kettlebell';
+  }
+  return 'all';
+};
+
+export const mapGymSelectionToRoutineCategory = (gymSelectionId, customGyms = []) => {
+  if (!gymSelectionId || gymSelectionId === 'all') return 'all';
+  if (gymSelectionId === 'preset_barbells_only' || gymSelectionId === 'barbell') return 'barbell';
+  if (gymSelectionId === 'preset_dumbbells_only' || gymSelectionId === 'dumbbell') return 'dumbbell';
+  if (gymSelectionId === 'preset_kettlebells_only' || gymSelectionId === 'kettlebell') return 'kettlebell';
+  if (gymSelectionId === 'preset_bodyweight_only' || gymSelectionId === 'bodyweight') return 'bodyweight';
+
+  const foundGym = (customGyms || []).find(g => g.id === gymSelectionId);
+  if (!foundGym) return 'all';
+  const eq = foundGym.equipment || [];
+  const hasBarbell = eq.includes('Barbell');
+  const hasDumbbell = eq.includes('Dumbbell');
+  const hasKettlebell = eq.includes('Kettlebells') || eq.includes('Kettlebell');
+  const hasMachines = eq.includes('Cable Machine') || eq.includes('Lever / Machine');
+
+  if (!hasBarbell && !hasDumbbell && !hasKettlebell && !hasMachines) return 'bodyweight';
+  if (hasBarbell && !hasDumbbell && !hasKettlebell && !hasMachines) return 'barbell';
+  if (hasDumbbell && !hasBarbell && !hasKettlebell && !hasMachines) return 'dumbbell';
+  if (hasKettlebell && !hasBarbell && !hasDumbbell && !hasMachines) return 'kettlebell';
+  return 'all';
+};
+
+export const getRoutineGymCategory = routine => {
+  const stored = String(routine?.gymType || routine?.equipment || '').trim().toLowerCase();
+  if (ROUTINE_GYM_CATEGORIES.includes(stored)) return stored;
+  if (Array.isArray(routine?.slots) && routine.slots.length > 0) {
+    return inferRoutineGymCategory(routine.slots);
+  }
+  return 'all';
+};
+
+export const doesRoutineMatchGymFilter = (routine, gymSelectionId, customGyms = []) => {
+  const filterCat = mapGymSelectionToRoutineCategory(gymSelectionId, customGyms);
+  const routineCat = getRoutineGymCategory(routine);
+  if (!gymSelectionId || filterCat === 'all') {
+    return true;
+  }
+  return routineCat === filterCat;
+};
+
 export const DEFAULT_ROUTINES = [
-  { key: 'full_body_a', label: 'Generic Full Body A' },
-  { key: 'full_body_b', label: 'Generic Full Body B' },
-  { key: 'arms_only', label: 'Generic Arms Only' }
+  { key: 'full_body_a', label: 'Generic Full Body A', gymType: 'all' },
+  { key: 'full_body_b', label: 'Generic Full Body B', gymType: 'all' },
+  { key: 'arms_only', label: 'Generic Arms Only', gymType: 'all' }
 ];

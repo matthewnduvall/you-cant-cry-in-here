@@ -7,7 +7,8 @@ import {
   MUSCLE_GROUP_OPTIONS,
   isSupersetCategory,
   doesExerciseInteractWithMuscleGroup,
-  formatDateYMD
+  formatDateYMD,
+  parseYMDToISO
 } from '../data/exerciseLibrary';
 import { getPersonalRecord1RM } from '../utils/workoutEngine';
 
@@ -85,14 +86,34 @@ export function useTelemetryAndAnalytics({
   }, [history, stimulusGreenDays, stimulusYellowDays, stimulusNowMs]);
 
   const progressionSeriesByLift = useMemo(() => {
-    const sorted = [...(history || [])].sort(
-      (a, b) => new Date(a.startedAt || 0).getTime() - new Date(b.startedAt || 0).getTime()
+    const normalizedWorkouts = (history || []).map((w, rawIdx) => {
+      const dateLabel = formatDateYMD(w?.workoutDate || w?.startedAt);
+      const iso = parseYMDToISO(dateLabel);
+      const parsedMs = new Date(iso).getTime();
+      const fallbackMs = new Date(w?.startedAt || 0).getTime();
+      const timestampMs = Number.isFinite(parsedMs)
+        ? parsedMs
+        : Number.isFinite(fallbackMs)
+          ? fallbackMs
+          : 0;
+      return {
+        workout: w,
+        rawIdx,
+        dateLabel,
+        timestampMs
+      };
+    });
+
+    normalizedWorkouts.sort(
+      (a, b) => a.timestampMs - b.timestampMs || a.dateLabel.localeCompare(b.dateLabel)
     );
+
     const map = {};
     EXERCISE_LIBRARY.forEach(ex => {
       const liftId = ex.id;
-      const points = [];
-      sorted.forEach((w, wIdx) => {
+      const byDateMap = new Map();
+
+      normalizedWorkouts.forEach(({ workout: w, rawIdx, dateLabel, timestampMs }) => {
         let top1RM = 0;
         let totalVol = 0;
 
@@ -125,14 +146,26 @@ export function useTelemetryAndAnalytics({
         });
 
         if (top1RM > 0 || totalVol > 0) {
-          points.push({
-            workoutId: w.id || `workout_${wIdx}`,
-            dateLabel: formatDateYMD(w.startedAt),
-            weight: top1RM,
-            volume: Math.round(totalVol)
-          });
+          const roundedVol = Math.round(totalVol);
+          const existing = byDateMap.get(dateLabel);
+          if (!existing) {
+            byDateMap.set(dateLabel, {
+              workoutId: w.id || `workout_${rawIdx}`,
+              dateLabel,
+              timestampMs,
+              weight: top1RM,
+              volume: roundedVol
+            });
+          } else {
+            if (top1RM > existing.weight) existing.weight = top1RM;
+            existing.volume += roundedVol;
+          }
         }
       });
+
+      const points = Array.from(byDateMap.values()).sort(
+        (a, b) => a.timestampMs - b.timestampMs || a.dateLabel.localeCompare(b.dateLabel)
+      );
       map[liftId] = points;
     });
     return map;

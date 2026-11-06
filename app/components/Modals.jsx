@@ -279,6 +279,7 @@ export function AddSlotModal({
             <option value="Pyramid">PYRAMID</option>
             <option value="Pyramid 1RM">PYRAMID 1RM</option>
             <option value="Reverse Pyramid">REVERSE PYRAMID</option>
+            <option value="Timer">TIMER</option>
           </select>
         </div>
 
@@ -546,6 +547,8 @@ export function SetValueEditorModal({
       handleUpdateSetType(slotId, exIdx, setId, nextVal);
     } else if (mode === 'increment') {
       handleUpdateSetField(slotId, exIdx, setId, 'increment', nextVal);
+    } else if (mode === 'timer') {
+      handleUpdateSetField(slotId, exIdx, setId, 'timer', nextVal);
     } else if (mode === 'reps') {
       handleUpdateSetField(slotId, exIdx, setId, 'reps', nextVal);
     }
@@ -562,7 +565,9 @@ export function SetValueEditorModal({
                 ? `SET ${setNumber} TYPE`
                 : mode === 'increment'
                   ? `SET ${setNumber} WEIGHT INCREMENT`
-                  : `SET ${setNumber} ${isAbs ? 'DURATION (SEC)' : 'REPS'}`}
+                  : mode === 'timer'
+                    ? `SET ${setNumber} TIMER (MM:SS)`
+                    : `SET ${setNumber} ${isAbs ? 'DURATION (SEC)' : 'REPS'}`}
             </div>
             <div style={{ fontSize: '15px', fontWeight: 800, textTransform: 'uppercase' }}>
               {exerciseName}
@@ -604,11 +609,18 @@ export function SetValueEditorModal({
               }}
             >
               <div style={{ fontSize: '10px', fontWeight: 800, color: '#A0A0A0' }}>
-                {mode === 'increment' ? 'INCREMENT FROM LAST' : isAbs ? 'SECONDS' : 'TARGET REPS'}
+                {mode === 'increment'
+                  ? 'INCREMENT FROM LAST'
+                  : mode === 'timer'
+                    ? 'TARGET TIME (MM:SS)'
+                    : isAbs
+                      ? 'SECONDS'
+                      : 'TARGET REPS'}
               </div>
               <input
                 type="text"
-                inputMode="decimal"
+                inputMode={mode === 'timer' ? 'text' : 'decimal'}
+                placeholder={mode === 'timer' ? '02:00' : ''}
                 value={currentValue}
                 onChange={e =>
                   setSetValueTarget(prev => (prev ? { ...prev, currentValue: e.target.value } : null))
@@ -646,6 +658,25 @@ export function SetValueEditorModal({
                   </button>
                 ))}
               </div>
+            ) : mode === 'timer' ? (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '6px', marginBottom: '12px' }}>
+                {['00:30', '00:45', '01:00', '01:30', '02:00', '02:30', '03:00', '04:00', '05:00', '10:00'].map(tStr => (
+                  <button
+                    key={tStr}
+                    type="button"
+                    onClick={() =>
+                      setSetValueTarget(prev => (prev ? { ...prev, currentValue: tStr } : null))
+                    }
+                    style={{
+                      ...UI.pillBtn(String(currentValue).trim() === tStr),
+                      padding: '10px 4px',
+                      fontSize: '11px'
+                    }}
+                  >
+                    {tStr}
+                  </button>
+                ))}
+              </div>
             ) : (
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '6px', marginBottom: '12px' }}>
                 {(isAbs ? [15, 30, 45, 60, 90, 120] : [1, 2, 3, 4, 5, 6, 8, 10, 12, 15]).map(r => (
@@ -673,7 +704,7 @@ export function SetValueEditorModal({
               className="kinetic-btn"
               style={{ ...UI.primaryBtnCenter, padding: '12px', fontSize: '13px' }}
             >
-              APPLY {mode === 'increment' ? 'INCREMENT' : isAbs ? 'SECONDS' : 'REPS'} →
+              APPLY {mode === 'increment' ? 'INCREMENT' : mode === 'timer' ? 'TIME' : isAbs ? 'SECONDS' : 'REPS'} →
             </button>
           </div>
         )}
@@ -689,7 +720,7 @@ export function SaveConfirmModal({
 }) {
   if (!saveConfirmTarget) return null;
 
-  const { name = '', shareWithFriends = true } = saveConfirmTarget;
+  const { name = '', shareWithFriends = true, gymType = 'all' } = saveConfirmTarget;
 
   return (
     <div style={{ ...UI.modalBackdrop, zIndex: 92 }} onClick={() => setSaveConfirmTarget(null)}>
@@ -723,11 +754,32 @@ export function SaveConfirmModal({
               outline: 'none'
             }}
           />
+          <div
+            style={{
+              marginTop: '6px',
+              fontSize: '10px',
+              fontWeight: 800,
+              color: '#A0A0A0',
+              textTransform: 'uppercase',
+              letterSpacing: '0.03em'
+            }}
+          >
+            GYMS/EQUIPMENT DETECTED:{' '}
+            <span style={{ color: 'var(--dp-color-accent)' }}>{String(gymType || 'all').toUpperCase()}</span>
+          </div>
         </div>
 
         <div style={{ marginBottom: '18px' }}>
           <div style={UI.stepLabel}>2. SHARE WITH FRIENDS?</div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: '1fr 1fr',
+              gap: 0,
+              borderTop: '1px solid var(--dp-color-rule)',
+              borderLeft: '1px solid var(--dp-color-rule)'
+            }}
+          >
             <button
               type="button"
               onClick={() =>
@@ -738,7 +790,11 @@ export function SaveConfirmModal({
                 ...UI.pillBtn(Boolean(shareWithFriends)),
                 padding: '10px 8px',
                 fontSize: '12px',
-                textAlign: 'center'
+                textAlign: 'center',
+                borderTop: 'none',
+                borderLeft: 'none',
+                borderRight: '1px solid var(--dp-color-rule)',
+                borderBottom: '1px solid var(--dp-color-rule)'
               }}
             >
               YES — SHARE ✓
@@ -753,7 +809,11 @@ export function SaveConfirmModal({
                 ...UI.pillBtn(!shareWithFriends),
                 padding: '10px 8px',
                 fontSize: '12px',
-                textAlign: 'center'
+                textAlign: 'center',
+                borderTop: 'none',
+                borderLeft: 'none',
+                borderRight: '1px solid var(--dp-color-rule)',
+                borderBottom: '1px solid var(--dp-color-rule)'
               }}
             >
               NO — PRIVATE
@@ -761,12 +821,28 @@ export function SaveConfirmModal({
           </div>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: '1fr 1fr',
+            gap: 0,
+            borderTop: '1px solid var(--dp-color-rule)',
+            borderLeft: '1px solid var(--dp-color-rule)'
+          }}
+        >
           <button
             type="button"
             onClick={() => setSaveConfirmTarget(null)}
             className="kinetic-btn"
-            style={{ ...UI.secondaryBtnCenter, padding: '12px', fontSize: '12px' }}
+            style={{
+              ...UI.secondaryBtnCenter,
+              padding: '12px',
+              fontSize: '12px',
+              borderTop: 'none',
+              borderLeft: 'none',
+              borderRight: '1px solid var(--dp-color-rule)',
+              borderBottom: '1px solid var(--dp-color-rule)'
+            }}
           >
             CANCEL
           </button>
@@ -774,7 +850,15 @@ export function SaveConfirmModal({
             type="button"
             onClick={() => handleConfirmSaveWorkout(saveConfirmTarget)}
             className="kinetic-btn"
-            style={{ ...UI.primaryBtnCenter, padding: '12px', fontSize: '12px' }}
+            style={{
+              ...UI.primaryBtnCenter,
+              padding: '12px',
+              fontSize: '12px',
+              borderTop: 'none',
+              borderLeft: 'none',
+              borderRight: '1px solid var(--dp-color-rule)',
+              borderBottom: '1px solid var(--dp-color-rule)'
+            }}
           >
             SAVE WORKOUT →
           </button>

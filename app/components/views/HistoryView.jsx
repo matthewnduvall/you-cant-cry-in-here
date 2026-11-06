@@ -30,7 +30,11 @@ import {
   calculateLastEquivalentWeightForSet,
   getEffectiveIncrementForExercise,
   getBestHistory1RMInfo,
-  normalizeSlotLabels
+  normalizeSlotLabels,
+  parseTimerDurationSeconds,
+  formatSecondsToMMSS,
+  getSetTimerMMSS,
+  getLastLoggedTimerDisplay
 } from '../../utils/workoutEngine';
 
 const SHARED_CELL_BORDER = {
@@ -139,7 +143,7 @@ export function HistoryView({
   const setCustomPrExerciseIds = setExternalCustomPrIds || setLocalCustomPrIds;
   const [showAddPrExercisePanel, setShowAddPrExercisePanel] = useState(false);
   const [addPrGymFilter, setAddPrGymFilter] = useState(selectedGymId || '');
-  const [addPrCategory, setAddPrCategory] = useState('Compound Lift');
+  const [addPrCategory, setAddPrCategory] = useState('Compound');
   const [addPrMuscleGroup, setAddPrMuscleGroup] = useState('All Muscles');
   const [addPrSelectedExId, setAddPrSelectedExId] = useState('barbell_row');
 
@@ -415,7 +419,7 @@ export function HistoryView({
         slotIdx += 1;
         rawSlots.push({
           id: `csv_slot_${nowStamp}_${sessionIdx}_${slotIdx}`,
-          category: normalizeSlotCategory(exercise.category || 'Compound Lift'),
+          category: normalizeSlotCategory(exercise.category || 'Compound'),
           muscleGroupFilter: exercise.muscleGroup || 'All Muscles',
           exerciseId: exercise.id,
           exerciseName: exercise.name,
@@ -539,13 +543,14 @@ export function HistoryView({
     const exId = exerciseId || BIG_FOUR_IDS[0] || 'barbell_bench_press';
     const exObj = EXERCISE_MAP[exId] || EXERCISE_LIBRARY[0];
     const initialSlot = createWorkoutSlot({
-      category: normalizeSlotCategory(exObj.category || 'Compound Lift'),
-      slotLabel: normalizeSlotCategory(exObj.category || 'Compound Lift'),
+      category: normalizeSlotCategory(exObj.category || 'Compound'),
+      slotLabel: normalizeSlotCategory(exObj.category || 'Compound'),
       exerciseId: exObj.id,
       scheme: '5x5',
       oneRepMaxes,
       history,
-      incrementLbs: currentIncrementLbs
+      incrementLbs: currentIncrementLbs,
+      userBodyweightLbs
     });
     setLastEditedCalcSetId(null);
     setCalcPrDate(formatTodayYMD());
@@ -592,7 +597,8 @@ export function HistoryView({
           base1RM,
           normCat,
           exObj.id,
-          currentIncrementLbs
+          currentIncrementLbs,
+          userBodyweightLbs
         );
         next.sets = newSets;
         next.supersetSetsByExercise = [newSets];
@@ -622,6 +628,16 @@ export function HistoryView({
             ...st,
             increment: value,
             weight: Math.max(0, Math.round(((Number(st.lastWeight) || 0) + numInc) * 4) / 4)
+          };
+        }
+        if (field === 'timer') {
+          const rawStr = String(value ?? '');
+          const sec = parseTimerDurationSeconds(rawStr);
+          return {
+            ...st,
+            timerStr: rawStr,
+            durationSeconds: sec,
+            reps: sec
           };
         }
         return { ...st, [field]: value };
@@ -721,8 +737,8 @@ export function HistoryView({
       };
       const prSlot = {
         id: `slot_pr_${ts}`,
-        category: normalizeSlotCategory(exObj.category || 'Compound Lift'),
-        slotLabel: normalizeSlotCategory(exObj.category || 'Compound Lift'),
+        category: normalizeSlotCategory(exObj.category || 'Compound'),
+        slotLabel: normalizeSlotCategory(exObj.category || 'Compound'),
         scheme: calcSlot.scheme || '5x5',
         restSeconds: 90,
         muscleGroupFilter: exObj.muscleGroup || 'All Muscles',
@@ -954,7 +970,7 @@ export function HistoryView({
                     padding: '0 8px'
                   }}
                 >
-                  {['Compound Lift', 'Accessory'].map(cat => (
+                  {['Compound', 'Accessory'].map(cat => (
                     <option key={cat} value={cat}>
                       {cat.toUpperCase()}
                     </option>
@@ -1770,12 +1786,17 @@ export function HistoryView({
                 {(calcSlot.sets || []).map((st, sIdxInEx) => {
                   const totalExSets = (calcSlot.sets || []).length;
                   const curType = normalizeSetType(st.type);
+                  const isTimerScheme = calcSlot.scheme === 'Timer';
                   const effInc = getEffectiveIncrementForExercise(calcSlot.exerciseId, currentIncrementLbs);
                   const base1RM = Number(oneRepMaxes?.[calcSlot.exerciseId]) || ex1?.default1RM || 135;
                   const lastW =
                     st.lastWeight !== undefined
                       ? st.lastWeight
                       : calculateLastEquivalentWeightForSet(base1RM, st, totalExSets, normCat, sIdxInEx, calcSlot.scheme);
+                  const timerMMSS = isTimerScheme ? (st.timerStr ?? getSetTimerMMSS(st, true)) : '';
+                  const lastTimerDisplay = isTimerScheme
+                    ? getLastLoggedTimerDisplay(calcSlot.exerciseId, st, sIdxInEx, lastW, history)
+                    : '';
                   const setIncValue =
                     st.increment !== undefined
                       ? st.increment
@@ -1819,8 +1840,9 @@ export function HistoryView({
                       <div
                         style={{
                           display: 'grid',
-                          gridTemplateColumns:
-                            '78px minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.15fr) 50px 44px',
+                          gridTemplateColumns: isTimerScheme
+                            ? '78px minmax(0, 1fr) 74px minmax(0, 1fr) 44px'
+                            : '78px minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.15fr) 50px 44px',
                           gap: 0,
                           alignItems: 'stretch'
                         }}
@@ -1852,7 +1874,7 @@ export function HistoryView({
                           ))}
                         </select>
 
-                        {/* 2. LAST Weight Box */}
+                        {/* 2. LAST Weight / Timer Box */}
                         <div
                           style={{
                             width: '100%',
@@ -1871,49 +1893,51 @@ export function HistoryView({
                           <span style={{ fontSize: '9px', fontWeight: 800, color: '#9A9A9A', lineHeight: 1 }}>
                             LAST
                           </span>
-                          <span style={{ fontSize: '15px', fontWeight: 800, color: '#C8C8C8', lineHeight: 1.2, marginTop: '1px' }}>
-                            {lastW}
+                          <span style={{ fontSize: isTimerScheme ? '13px' : '15px', fontWeight: 800, color: '#C8C8C8', lineHeight: 1.2, marginTop: '1px' }}>
+                            {isTimerScheme ? lastTimerDisplay : lastW}
                           </span>
                         </div>
 
-                        {/* 3. INC Box */}
-                        <div
-                          style={{
-                            width: '100%',
-                            minWidth: 0,
-                            height: '44px',
-                            boxSizing: 'border-box',
-                            backgroundColor: cellBg,
-                            ...SHARED_CELL_BORDER,
-                            display: 'flex',
-                            flexDirection: 'column',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            padding: '0 2px'
-                          }}
-                        >
-                          <span style={{ fontSize: '9px', fontWeight: 800, color: '#9A9A9A', lineHeight: 1 }}>
-                            INC
-                          </span>
-                          <input
-                            type="number"
-                            step="2.5"
-                            value={setIncValue}
-                            onChange={e => handleUpdateCalcSet(st.id, 'increment', e.target.value)}
+                        {/* 3. INC Box (Hidden when Timer scheme is selected) */}
+                        {!isTimerScheme && (
+                          <div
                             style={{
                               width: '100%',
-                              textAlign: 'center',
-                              fontSize: '14px',
-                              fontWeight: 800,
-                              color: '#FFFFFF',
-                              backgroundColor: 'transparent',
-                              border: 'none',
-                              outline: 'none',
-                              padding: 0,
-                              marginTop: '1px'
+                              minWidth: 0,
+                              height: '44px',
+                              boxSizing: 'border-box',
+                              backgroundColor: cellBg,
+                              ...SHARED_CELL_BORDER,
+                              display: 'flex',
+                              flexDirection: 'column',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              padding: '0 2px'
                             }}
-                          />
-                        </div>
+                          >
+                            <span style={{ fontSize: '9px', fontWeight: 800, color: '#9A9A9A', lineHeight: 1 }}>
+                              INC
+                            </span>
+                            <input
+                              type="number"
+                              step="2.5"
+                              value={setIncValue}
+                              onChange={e => handleUpdateCalcSet(st.id, 'increment', e.target.value)}
+                              style={{
+                                width: '100%',
+                                textAlign: 'center',
+                                fontSize: '14px',
+                                fontWeight: 800,
+                                color: '#FFFFFF',
+                                backgroundColor: 'transparent',
+                                border: 'none',
+                                outline: 'none',
+                                padding: 0,
+                                marginTop: '1px'
+                              }}
+                            />
+                          </div>
+                        )}
 
                         {/* 4. CURRENT Weight Button (Opens Weight Selection Pop-Up) */}
                         <button
@@ -1967,7 +1991,7 @@ export function HistoryView({
                           </span>
                         </button>
 
-                        {/* 5. REPS Input */}
+                        {/* 5. REPS / TIMER Input */}
                         <div
                           style={{
                             width: '100%',
@@ -1985,27 +2009,55 @@ export function HistoryView({
                           }}
                         >
                           <span style={{ fontSize: '9px', fontWeight: 800, color: '#9A9A9A', lineHeight: 1 }}>
-                            REPS
+                            {isTimerScheme ? 'TIMER' : 'REPS'}
                           </span>
-                          <input
-                            type="number"
-                            min={1}
-                            max={100}
-                            value={st.reps}
-                            onChange={e => handleUpdateCalcSet(st.id, 'reps', Math.max(1, Number(e.target.value) || 1))}
-                            style={{
-                              width: '100%',
-                              textAlign: 'center',
-                              fontSize: '15px',
-                              fontWeight: 800,
-                              color: '#FFFFFF',
-                              backgroundColor: 'transparent',
-                              border: 'none',
-                              outline: 'none',
-                              padding: 0,
-                              marginTop: '1px'
-                            }}
-                          />
+                          {isTimerScheme ? (
+                            <input
+                              type="text"
+                              value={timerMMSS}
+                              placeholder="02:00"
+                              onChange={e => handleUpdateCalcSet(st.id, 'timer', e.target.value)}
+                              onBlur={e =>
+                                handleUpdateCalcSet(
+                                  st.id,
+                                  'timer',
+                                  formatSecondsToMMSS(e.target.value, true)
+                                )
+                              }
+                              style={{
+                                width: '100%',
+                                textAlign: 'center',
+                                fontSize: '15px',
+                                fontWeight: 800,
+                                color: '#FFFFFF',
+                                backgroundColor: 'transparent',
+                                border: 'none',
+                                outline: 'none',
+                                padding: 0,
+                                marginTop: '1px'
+                              }}
+                            />
+                          ) : (
+                            <input
+                              type="number"
+                              min={1}
+                              max={100}
+                              value={st.reps}
+                              onChange={e => handleUpdateCalcSet(st.id, 'reps', Math.max(1, Number(e.target.value) || 1))}
+                              style={{
+                                width: '100%',
+                                textAlign: 'center',
+                                fontSize: '15px',
+                                fontWeight: 800,
+                                color: '#FFFFFF',
+                                backgroundColor: 'transparent',
+                                border: 'none',
+                                outline: 'none',
+                                padding: 0,
+                                marginTop: '1px'
+                              }}
+                            />
+                          )}
                         </div>
 
                         {/* 6. Grey/Green Checkmark Button */}

@@ -5,6 +5,8 @@ import {
   EXERCISE_MAP,
   normalizeSlotCategory,
   isSupersetCategory,
+  isBodyweightExercise,
+  inferRoutineGymCategory,
   getDefaultSessionName,
   getDefaultAutoSessionName,
   formatTitleWithDate,
@@ -26,7 +28,9 @@ import {
   normalizeSlotLabels,
   buildPresetSlots,
   checkIsWorkoutComplete,
-  cloneSlots
+  cloneSlots,
+  parseTimerDurationSeconds,
+  formatSecondsToMMSS
 } from '../utils/workoutEngine';
 import { deleteCloudRoutineByKey } from '../utils/supabaseAuth';
 
@@ -64,6 +68,7 @@ export function useWorkoutMutations({
   gyms,
   routinePreferences,
   currentIncrementLbs,
+  userBodyweightLbs = 220,
   shareRoutinesWithFriends,
   setSavedRoutines,
   setSharedRoutines,
@@ -154,66 +159,126 @@ export function useWorkoutMutations({
     if (typeof fn === 'function') fn();
   };
 
-  const buildGeneratedAutoSlots = () => {
+  const buildGeneratedAutoSlots = (existingSlots = []) => {
+    const cleanExisting = Array.isArray(existingSlots) ? cloneSlots(existingSlots) : [];
+    const usedIds = new Set();
+    const remainingCategoryCounts = {
+      Compound: 0,
+      Superset: 0,
+      Accessory: 0
+    };
+
+    cleanExisting.forEach(slot => {
+      if (!slot) return;
+      const cat = normalizeSlotCategory(slot.category);
+      remainingCategoryCounts[cat] = (remainingCategoryCounts[cat] || 0) + 1;
+      if (isSupersetCategory(cat)) {
+        (slot.supersetExerciseIds || [slot.exerciseId, slot.secondaryExerciseId])
+          .filter(Boolean)
+          .forEach(id => usedIds.add(id));
+      } else if (slot.exerciseId) {
+        usedIds.add(slot.exerciseId);
+      }
+    });
+
     const compatiblePool = EXERCISE_LIBRARY.filter(ex =>
       isExerciseCompatibleWithGymSelection(ex, selectedGymId, gyms)
     );
     const fallbackPool = compatiblePool.length > 0 ? compatiblePool : EXERCISE_LIBRARY;
 
-    const compatCompounds = compatiblePool.filter(e => e.category === 'Compound Lift');
+    const compatCompounds = compatiblePool.filter(e => e.category === 'Compound');
     const compatAccessories = compatiblePool.filter(e => e.category === 'Accessory');
 
     let compIdx = 0;
     let accIdx = 0;
 
-    const generatedSlots = routinePreferences
-      .filter(pref => pref !== 'Warmup')
-      .map(rawPref => {
-        const pref = normalizeSlotCategory(rawPref);
-        if (pref === 'Compound Lift') {
-          const pool = compatCompounds.length > 0 ? compatCompounds : fallbackPool;
-          const pick = pool[compIdx % Math.max(1, pool.length)] || EXERCISE_MAP.dumbbell_press;
-          compIdx += 1;
-          return createWorkoutSlot({
-            category: 'Compound Lift',
-            slotLabel: `Compound Lift ${compIdx}`,
-            exerciseId: pick.id,
-            scheme: '5x8',
-            oneRepMaxes,
-            history,
-            incrementLbs: currentIncrementLbs
-          });
+    const pickUnusedFromPool = (pool, startIdx) => {
+      if (!pool || pool.length === 0) return { item: EXERCISE_MAP.dumbbell_press, nextIdx: startIdx + 1 };
+      for (let offset = 0; offset < pool.length; offset++) {
+        const candidate = pool[(startIdx + offset) % pool.length];
+        if (candidate && !usedIds.has(candidate.id)) {
+          usedIds.add(candidate.id);
+          return { item: candidate, nextIdx: startIdx + offset + 1 };
         }
-        if (pref === 'Superset') {
-          const pool = compatAccessories.length > 0 ? compatAccessories : fallbackPool;
-          const a1 = pool[accIdx % Math.max(1, pool.length)] || EXERCISE_MAP.reverse_lunge;
-          const a2 = pool[(accIdx + 1) % Math.max(1, pool.length)] || EXERCISE_MAP.front_flies;
-          accIdx += 2;
-          return createWorkoutSlot({
-            category: 'Superset',
-            slotLabel: 'Superset',
-            supersetExerciseIds: [a1.id, a2.id],
-            scheme: '5x8',
-            oneRepMaxes,
-            history,
-            incrementLbs: currentIncrementLbs
-          });
-        }
-        const pool = compatAccessories.length > 0 ? compatAccessories : fallbackPool;
-        const pick = pool[accIdx % Math.max(1, pool.length)] || EXERCISE_MAP.dumbbell_hammer_curl;
-        accIdx += 1;
+      }
+      const fallbackItem = pool[startIdx % pool.length];
+      if (fallbackItem) usedIds.add(fallbackItem.id);
+      return { item: fallbackItem, nextIdx: startIdx + 1 };
+    };
+
+    const createSlotForPref = rawPref => {
+      const pref = normalizeSlotCategory(rawPref);
+      if (pref === 'Compound') {
+        const pool = compatCompounds.length > 0 ? compatCompounds : fallbackPool;
+        const picked = pickUnusedFromPool(pool, compIdx);
+        compIdx = picked.nextIdx;
+        const pick = picked.item || EXERCISE_MAP.dumbbell_press;
         return createWorkoutSlot({
-          category: 'Accessory',
-          slotLabel: 'Accessory',
+          category: 'Compound',
+          slotLabel: `Compound ${compIdx}`,
           exerciseId: pick.id,
           scheme: '5x8',
           oneRepMaxes,
           history,
-          incrementLbs: currentIncrementLbs
+          incrementLbs: currentIncrementLbs,
+          userBodyweightLbs
         });
+      }
+      if (pref === 'Superset') {
+        const pool = compatAccessories.length > 0 ? compatAccessories : fallbackPool;
+        const picked1 = pickUnusedFromPool(pool, accIdx);
+        accIdx = picked1.nextIdx;
+        const picked2 = pickUnusedFromPool(pool, accIdx);
+        accIdx = picked2.nextIdx;
+        const a1 = picked1.item || EXERCISE_MAP.reverse_lunge;
+        const a2 = picked2.item || EXERCISE_MAP.front_flies;
+        return createWorkoutSlot({
+          category: 'Superset',
+          slotLabel: 'Superset',
+          supersetExerciseIds: [a1.id, a2.id],
+          scheme: '5x8',
+          oneRepMaxes,
+          history,
+          incrementLbs: currentIncrementLbs,
+          userBodyweightLbs
+        });
+      }
+      const pool = compatAccessories.length > 0 ? compatAccessories : fallbackPool;
+      const picked = pickUnusedFromPool(pool, accIdx);
+      accIdx = picked.nextIdx;
+      const pick = picked.item || EXERCISE_MAP.dumbbell_hammer_curl;
+      return createWorkoutSlot({
+        category: 'Accessory',
+        slotLabel: 'Accessory',
+        exerciseId: pick.id,
+        scheme: '5x8',
+        oneRepMaxes,
+        history,
+        incrementLbs: currentIncrementLbs,
+        userBodyweightLbs
       });
+    };
 
-    return normalizeSlotLabels(generatedSlots);
+    const activePrefs = (routinePreferences || []).filter(pref => pref !== 'Warmup');
+    const prefsToFill = [];
+
+    activePrefs.forEach(rawPref => {
+      const norm = normalizeSlotCategory(rawPref);
+      if (remainingCategoryCounts[norm] > 0) {
+        remainingCategoryCounts[norm] -= 1;
+      } else {
+        prefsToFill.push(norm);
+      }
+    });
+
+    if (cleanExisting.length > 0 && prefsToFill.length === 0 && cleanExisting.length < activePrefs.length) {
+      for (let i = cleanExisting.length; i < activePrefs.length; i++) {
+        prefsToFill.push(normalizeSlotCategory(activePrefs[i]));
+      }
+    }
+
+    const generatedSlots = prefsToFill.map(pref => createSlotForPref(pref));
+    return normalizeSlotLabels([...cleanExisting, ...generatedSlots]);
   };
 
   const handleOpenNewSession = () => {
@@ -241,7 +306,7 @@ export function useWorkoutMutations({
   };
 
   const handleOpenNewAutoSession = () => {
-    const autoSlots = buildGeneratedAutoSlots();
+    const autoSlots = buildGeneratedAutoSlots([]);
     const autoTitle = getDefaultAutoSessionName();
     setActiveSession({
       id: `session_${Date.now()}`,
@@ -263,7 +328,7 @@ export function useWorkoutMutations({
     const builtSlots = normalizeSlotLabels(
       cloneSlots(
         routineObj.slots ||
-          buildPresetSlots(routineObj.key, oneRepMaxes, history, currentIncrementLbs)
+          buildPresetSlots(routineObj.key, oneRepMaxes, history, currentIncrementLbs, userBodyweightLbs)
       )
     );
     const datedTitle = formatTitleWithDate(routineObj.label);
@@ -345,8 +410,13 @@ export function useWorkoutMutations({
   const handleApplyPreviewRoutine = () => {};
 
   const handleAutoBuildWorkout = () => {
-    const generatedSlots = buildGeneratedAutoSlots();
-    const autoTitle = getDefaultAutoSessionName();
+    const currentWorkout = getCurrentEditorWorkout();
+    const existingSlots = Array.isArray(currentWorkout?.slots) ? currentWorkout.slots : [];
+    const isCompletingExisting = existingSlots.length > 0;
+    const generatedSlots = buildGeneratedAutoSlots(existingSlots);
+    const autoTitle = isCompletingExisting
+      ? currentWorkout?.title || getDefaultAutoSessionName()
+      : getDefaultAutoSessionName();
     const returnTarget =
       currentView === 'historical_entry' ||
       currentView === 'routine_editor' ||
@@ -355,13 +425,18 @@ export function useWorkoutMutations({
         ? currentView
         : routineSelectReturnView || 'session';
 
-    appendSessionLog?.('AUTO_BUILD', `Generated auto workout: ${autoTitle}`);
+    appendSessionLog?.(
+      'AUTO_BUILD',
+      isCompletingExisting
+        ? `Auto-completed workout: ${autoTitle}`
+        : `Generated auto workout: ${autoTitle}`
+    );
 
     if (returnTarget === 'history' && expandedHistoryWorkoutId) {
       updateCurrentWorkoutState(prev => ({
         ...prev,
         title: autoTitle,
-        loadedRoutineTitle: 'AUTO',
+        loadedRoutineTitle: prev?.loadedRoutineTitle || 'AUTO',
         slots: generatedSlots
       }));
       return;
@@ -371,7 +446,7 @@ export function useWorkoutMutations({
       setHistoricalDraft(prev => ({
         ...(prev || { id: `hist_${Date.now()}`, workoutDate: new Date().toISOString().split('T')[0] }),
         title: autoTitle,
-        loadedRoutineTitle: 'AUTO',
+        loadedRoutineTitle: isCompletingExisting ? prev?.loadedRoutineTitle || 'AUTO' : 'AUTO',
         slots: generatedSlots
       }));
       setRoutineSelectReturnView(null);
@@ -380,7 +455,7 @@ export function useWorkoutMutations({
       setRoutineDraft(prev => ({
         ...(prev || { key: `routine_${Date.now()}`, isEditingExisting: false, defaultRestSeconds: 90 }),
         title: autoTitle,
-        loadedRoutineTitle: 'AUTO',
+        loadedRoutineTitle: isCompletingExisting ? prev?.loadedRoutineTitle || 'AUTO' : 'AUTO',
         slots: generatedSlots
       }));
       setRoutineSelectReturnView(null);
@@ -389,7 +464,7 @@ export function useWorkoutMutations({
       setActiveSession(prev => ({
         ...(prev || { id: `session_${Date.now()}`, startedAt: new Date().toISOString(), defaultRestSeconds: 90 }),
         title: autoTitle,
-        loadedRoutineTitle: 'AUTO',
+        loadedRoutineTitle: isCompletingExisting ? prev?.loadedRoutineTitle || 'AUTO' : 'AUTO',
         updatedAt: new Date().toISOString(),
         slots: generatedSlots
       }));
@@ -403,9 +478,11 @@ export function useWorkoutMutations({
     if (!currentWorkout || !currentWorkout.slots || currentWorkout.slots.length === 0) {
       return;
     }
+    const detectedGymType = inferRoutineGymCategory(currentWorkout.slots);
     setSaveConfirmTarget({
       name: currentWorkout.title || getDefaultSessionName(),
       shareWithFriends: Boolean(isCurrentEditorShared || shareRoutinesWithFriends),
+      gymType: detectedGymType,
       sourceView: currentView
     });
   };
@@ -421,11 +498,13 @@ export function useWorkoutMutations({
     const shouldShare = Boolean(confirmed?.shareWithFriends);
     const sourceView = confirmed?.sourceView || currentView;
     const normalizedSlots = normalizeSlotLabels(cloneSlots(currentWorkout.slots));
+    const routineGymType = inferRoutineGymCategory(normalizedSlots);
 
     const routineItem = {
       key: currentWorkout.key || `routine_${currentWorkout.id || Date.now()}`,
       label: finalTitle,
       author: user?.username || 'test_lifter',
+      gymType: routineGymType,
       slots: normalizedSlots
     };
     setSavedRoutines(prev => {
@@ -440,6 +519,7 @@ export function useWorkoutMutations({
         key: `shared_${currentWorkout.id || currentWorkout.key || Date.now()}`,
         label: finalTitle,
         author: user?.username || 'test_lifter',
+        gymType: routineGymType,
         slots: normalizedSlots
       };
       setSharedRoutines(prev => {
@@ -454,7 +534,7 @@ export function useWorkoutMutations({
       setIsCurrentEditorShared(false);
     }
 
-    appendSessionLog?.('SAVE_WORKOUT', `Saved "${finalTitle}" (shareWithFriends=${shouldShare})`);
+    appendSessionLog?.('SAVE_WORKOUT', `Saved "${finalTitle}" (gymType=${routineGymType}, shareWithFriends=${shouldShare})`);
     setSaveConfirmTarget(null);
     setOpenedFromRoutines(false);
 
@@ -470,6 +550,7 @@ export function useWorkoutMutations({
             ? {
                 ...w,
                 title: finalTitle,
+                gymType: routineGymType,
                 updatedAt: new Date().toISOString(),
                 slots: normalizedSlots
               }
@@ -486,6 +567,7 @@ export function useWorkoutMutations({
         ...currentWorkout,
         id: currentWorkout.id || `hist_${Date.now()}`,
         title: finalTitle,
+        gymType: routineGymType,
         startedAt: iso,
         updatedAt: new Date().toISOString(),
         isComplete: true,
@@ -501,6 +583,7 @@ export function useWorkoutMutations({
     const entry = {
       ...currentWorkout,
       title: finalTitle,
+      gymType: routineGymType,
       updatedAt: new Date().toISOString(),
       isComplete: checkIsWorkoutComplete(normalizedSlots),
       verifiedByUser: true,
@@ -517,11 +600,14 @@ export function useWorkoutMutations({
   const handleShareCurrentEditor = () => {
     const currentWorkout = getCurrentEditorWorkout();
     if (!currentWorkout || !currentWorkout.slots || currentWorkout.slots.length === 0) return;
+    const normalizedSlots = normalizeSlotLabels(cloneSlots(currentWorkout.slots));
+    const routineGymType = inferRoutineGymCategory(normalizedSlots);
     const sharedItem = {
       key: `shared_${currentWorkout.id || currentWorkout.key || Date.now()}`,
       label: currentWorkout.title || 'Shared Routine',
       author: user?.username || 'test_lifter',
-      slots: normalizeSlotLabels(cloneSlots(currentWorkout.slots))
+      gymType: routineGymType,
+      slots: normalizedSlots
     };
     setSharedRoutines(prev => {
       const exists = prev.some(r => r.label === sharedItem.label);
@@ -744,13 +830,21 @@ export function useWorkoutMutations({
               Array.isArray(prevMatrix[idx]) && prevMatrix[idx].length > 0
                 ? prevMatrix[idx]
                 : prevMatrix[0] || [];
+            const isBw = isBodyweightExercise(id);
+            const bwDefault = Math.max(0, Number(userBodyweightLbs) || 220);
             const calcMax = getHistoricalCalculated1RM(id, history, oneRepMaxes);
-            const effInc = getEffectiveIncrementForExercise(id, currentIncrementLbs);
+            const effInc = isBw ? 0 : getEffectiveIncrementForExercise(id, currentIncrementLbs);
             const totalCount = existingList.length || 5;
             return existingList.map((st, sIdx) => {
-              const lastW = calculateLastEquivalentWeightForSet(calcMax, st, totalCount, 'Superset', sIdx, slot.scheme);
-              const nextW = st.type === '1 Rep Max' ? roundTo5(calcMax) : roundToIncrement(lastW + effInc);
-              return { ...st, setNumber: sIdx + 1, lastWeight: lastW, increment: st.type === '1 Rep Max' ? 0 : effInc, weight: nextW };
+              const lastW = isBw
+                ? bwDefault
+                : calculateLastEquivalentWeightForSet(calcMax, st, totalCount, 'Superset', sIdx, slot.scheme);
+              const nextW = isBw
+                ? bwDefault
+                : st.type === '1 Rep Max'
+                  ? roundTo5(calcMax)
+                  : roundToIncrement(lastW + effInc);
+              return { ...st, setNumber: sIdx + 1, lastWeight: lastW, increment: isBw || st.type === '1 Rep Max' ? 0 : effInc, weight: nextW };
             });
           });
 
@@ -804,7 +898,8 @@ export function useWorkoutMutations({
           oneRepMaxes,
           history,
           incrementLbs: currentIncrementLbs,
-          restSeconds: slot.restSeconds || 90
+          restSeconds: slot.restSeconds || 90,
+          userBodyweightLbs
         });
 
         return {
@@ -846,6 +941,18 @@ export function useWorkoutMutations({
               increment: cleanStr.endsWith('.') ? cleanStr : safeInc,
               weight: nextWeight,
               lastEditedField: 'weight'
+            };
+          }
+
+          if (field === 'timer') {
+            const sec = parseTimerDurationSeconds(rawVal);
+            const mmss = formatSecondsToMMSS(sec, true);
+            return {
+              ...st,
+              reps: sec,
+              durationSeconds: sec,
+              timerStr: mmss,
+              lastEditedField: 'timer'
             };
           }
 
@@ -960,23 +1067,40 @@ export function useWorkoutMutations({
           const base1RM = getHistoricalCalculated1RM(exId, history, oneRepMaxes);
           const effInc = getEffectiveIncrementForExercise(exId, currentIncrementLbs);
           const nextCount = currentList.length + 1;
-          const newReps = refSet ? refSet.reps : slot.category === 'Abs' ? 45 : 8;
+          const isTimerScheme = slot.scheme === 'Timer';
+          const newReps = isTimerScheme
+            ? refSet?.durationSeconds || 120
+            : refSet
+              ? refSet.reps
+              : slot.category === 'Abs'
+                ? 45
+                : 8;
           const draftSet = {
             id: `set_${ts}_${Math.random().toString(36).slice(2, 6)}`,
             setNumber: 1,
             type: defaultSetType,
             reps: newReps,
+            ...(isTimerScheme
+              ? {
+                  durationSeconds: newReps,
+                  timerStr: formatSecondsToMMSS(newReps, true)
+                }
+              : {}),
             completed: false
           };
+          const isBw = isBodyweightExercise(exId);
+          const bwDefault = Math.max(0, Number(userBodyweightLbs) || 220);
           const lastW =
             slot.category === 'Abs'
               ? 0
-              : calculateLastEquivalentWeightForSet(base1RM, draftSet, nextCount, slot.category);
+              : isBw
+                ? bwDefault
+                : calculateLastEquivalentWeightForSet(base1RM, draftSet, nextCount, slot.category, 0, slot.scheme);
           const newSet = {
             ...draftSet,
             lastWeight: lastW,
-            increment: slot.category === 'Abs' ? 0 : effInc,
-            weight: slot.category === 'Abs' ? 0 : roundToIncrement(lastW + effInc)
+            increment: slot.category === 'Abs' || isTimerScheme || isBw ? 0 : effInc,
+            weight: slot.category === 'Abs' ? 0 : isTimerScheme || isBw ? lastW : roundToIncrement(lastW + effInc)
           };
           const combined = isTop ? [newSet, ...currentList] : [...currentList, newSet];
           return combined.map((st, idx) => ({ ...st, setNumber: idx + 1 }));
@@ -1476,7 +1600,8 @@ export function useWorkoutMutations({
         scheme: newSlotScheme,
         oneRepMaxes,
         history,
-        incrementLbs: currentIncrementLbs
+        incrementLbs: currentIncrementLbs,
+        userBodyweightLbs
       }),
       muscleGroupFilter: resolvedMuscleGroupFilter
     };

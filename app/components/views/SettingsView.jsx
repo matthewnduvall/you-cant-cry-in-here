@@ -163,7 +163,7 @@ export function SettingsView({
 
         <IOSListRow isLast={true} colors={colors}>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', width: '100%' }}>
-            {['Compound Lift', 'Accessory', 'Superset'].map(type => (
+            {['Compound', 'Accessory', 'Superset'].map(type => (
               <button
                 key={type}
                 type="button"

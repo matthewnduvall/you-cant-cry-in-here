@@ -4,7 +4,8 @@ import React, { useState } from 'react';
 import {
   EXERCISE_LIBRARY,
   EXERCISE_MAP,
-  getExRxTargetForLift
+  getExRxTargetForLift,
+  parseYMDToISO
 } from '../../data/exerciseLibrary';
 
 const SHARED_CELL_BORDER = {
@@ -21,6 +22,38 @@ const SHARED_GROUP_OUTER = {
 
 const BIG_THREE_IDS = ['barbell_bench_press', 'barbell_back_squat', 'barbell_deadlift'];
 
+const TIME_FRAME_OPTIONS = [
+  { id: '30D', label: '30 DAYS', days: 30 },
+  { id: '90D', label: '90 DAYS', days: 90 },
+  { id: '1Y', label: '1 YEAR', days: 365 },
+  { id: 'ALL', label: 'ALL', days: null }
+];
+
+const getPointTimestampMs = pt => {
+  if (Number.isFinite(pt?.timestampMs) && pt.timestampMs > 0) {
+    return pt.timestampMs;
+  }
+  const iso = parseYMDToISO(pt?.dateLabel || '');
+  const ms = new Date(iso).getTime();
+  return Number.isFinite(ms) ? ms : 0;
+};
+
+const formatBottomAxisDate = ms => {
+  const dt = new Date(ms);
+  if (Number.isNaN(dt.getTime())) return '';
+  const m = dt.getMonth() + 1;
+  const d = dt.getDate();
+  return `${m}/${d}`;
+};
+
+const formatProgressExerciseLabel = (exId, rawName) => {
+  const upper = String(rawName || '').trim().toUpperCase();
+  if (exId === 'overhead_press' || upper === 'BARBELL MILITARY OVERHEAD PRESS') {
+    return 'OHP';
+  }
+  return upper || String(exId || 'CUSTOM').toUpperCase();
+};
+
 export function ProgressionChartView({
   colors,
   chartMetric,
@@ -34,6 +67,7 @@ export function ProgressionChartView({
   totalHeightInches,
   customGoalWeights
 }) {
+  const [timeFrame, setTimeFrame] = useState('ALL');
   const [customExerciseId, setCustomExerciseId] = useState(() => {
     if (
       selectedChartLift &&
@@ -60,33 +94,66 @@ export function ProgressionChartView({
     barbell_back_squat: { short: 'SQUAT', color: '#30D158' },
     barbell_deadlift: { short: 'DEADLIFT', color: '#FFD60A' },
     [activeCustomId]: {
-      short: (customEx?.name || 'CUSTOM').toUpperCase(),
+      short: formatProgressExerciseLabel(activeCustomId, customEx?.name || 'CUSTOM'),
       color: '#00E5FF'
     }
   };
 
   const displayedLiftIds = Array.from(new Set([...BIG_THREE_IDS, activeCustomId]));
-  const activeLifts = selectedChartLift === 'ALL' ? displayedLiftIds : [isCustomActive ? activeCustomId : selectedChartLift];
+  const activeLifts =
+    selectedChartLift === 'ALL'
+      ? displayedLiftIds
+      : [isCustomActive ? activeCustomId : selectedChartLift];
 
-  // Build distinct workout entries in chronological order so each workout session is graphed as an individual entry
-  const allEntries = (() => {
-    const mapById = new Map();
-    activeLifts.forEach(id => {
-      (progressionSeriesByLift[id] || []).forEach((pt, idx) => {
-        const entryKey = pt.workoutId || `${pt.dateLabel}_${idx}`;
-        if (!mapById.has(entryKey)) {
-          mapById.set(entryKey, {
-            entryKey,
-            dateLabel: pt.dateLabel
-          });
+  // Collect all timestamps across active lifts (and fallback to all displayed lifts)
+  const rawTimestamps = activeLifts.flatMap(id =>
+    (progressionSeriesByLift[id] || []).map(getPointTimestampMs).filter(ms => ms > 0)
+  );
+  const fallbackTimestamps = displayedLiftIds.flatMap(id =>
+    (progressionSeriesByLift[id] || []).map(getPointTimestampMs).filter(ms => ms > 0)
+  );
+  const refTimestamps = rawTimestamps.length > 0 ? rawTimestamps : fallbackTimestamps;
+
+  const DAY_MS = 86400000;
+  const DEFAULT_REF_MS = 1793966400000; // Deterministic fallback if no workouts logged yet
+  const maxDataMs = refTimestamps.length > 0 ? Math.max(...refTimestamps) : DEFAULT_REF_MS;
+  const minDataMs =
+    refTimestamps.length > 0 ? Math.min(...refTimestamps) : maxDataMs - 30 * DAY_MS;
+
+  const selectedTimeFrameObj =
+    TIME_FRAME_OPTIONS.find(t => t.id === timeFrame) || TIME_FRAME_OPTIONS[3];
+
+  const domainMaxMs = maxDataMs;
+  const domainMinMs = selectedTimeFrameObj.days
+    ? domainMaxMs - selectedTimeFrameObj.days * DAY_MS
+    : minDataMs < domainMaxMs
+      ? minDataMs
+      : domainMaxMs - 30 * DAY_MS;
+
+  // Filter and strictly sort each lift's series chronologically within [domainMinMs, domainMaxMs]
+  const filteredSeriesByLift = {};
+  displayedLiftIds.forEach(id => {
+    const rawSeries = progressionSeriesByLift[id] || [];
+    const withTime = rawSeries
+      .map(pt => ({
+        ...pt,
+        timestampMs: getPointTimestampMs(pt)
+      }))
+      .filter(pt => {
+        if (pt.timestampMs <= 0) return false;
+        if (selectedTimeFrameObj.days) {
+          return pt.timestampMs >= domainMinMs && pt.timestampMs <= domainMaxMs;
         }
-      });
-    });
-    return Array.from(mapById.values());
-  })();
+        return true;
+      })
+      .sort((a, b) => a.timestampMs - b.timestampMs);
+    filteredSeriesByLift[id] = withTime;
+  });
 
   const allVals = activeLifts.flatMap(id =>
-    (progressionSeriesByLift[id] || []).map(pt => (chartMetric === 'weight' ? pt.weight : pt.volume))
+    (filteredSeriesByLift[id] || []).map(pt =>
+      chartMetric === 'weight' ? pt.weight : pt.volume
+    )
   );
 
   const rawMin = allVals.length ? Math.min(...allVals) : 0;
@@ -97,16 +164,33 @@ export function ProgressionChartView({
 
   const svgW = 360;
   const svgH = 210;
-  const padL = 44;
-  const padR = 18;
+  const padL = 40;
+  const padR = 16;
   const padT = 18;
   const padB = 30;
   const plotW = svgW - padL - padR;
   const plotH = svgH - padT - padB;
 
-  const getX = (idx, count) => (count <= 1 ? padL + plotW / 2 : padL + (idx / (count - 1)) * plotW);
+  const getXByTime = tsMs => {
+    const span = domainMaxMs - domainMinMs;
+    if (span <= 0) return padL + plotW / 2;
+    const clampedRatio = Math.max(0, Math.min(1, (tsMs - domainMinMs) / span));
+    return padL + clampedRatio * plotW;
+  };
+
   const getY = val => padT + plotH - ((val - minVal) / Math.max(1, maxVal - minVal)) * plotH;
   const yTicks = [0, 0.25, 0.5, 0.75, 1].map(t => Math.round(minVal + t * (maxVal - minVal)));
+
+  // Always generate 10 evenly spaced date ticks along the bottom X-axis for the active timeframe
+  const xDateTicks = Array.from({ length: 10 }, (_, idx) => {
+    const ratio = idx / 9;
+    const tickMs = Math.round(domainMinMs + ratio * (domainMaxMs - domainMinMs));
+    return {
+      key: `xtick_${idx}`,
+      x: padL + ratio * plotW,
+      label: formatBottomAxisDate(tickMs)
+    };
+  });
 
   return (
     <div style={{ paddingTop: '12px', paddingBottom: '36px' }}>
@@ -173,6 +257,39 @@ export function ProgressionChartView({
             >
               VOLUME
             </button>
+          </div>
+
+          {/* TIME FRAME FILTER ROW: 30 DAYS | 90 DAYS | 1 YEAR | ALL (ZERO GAP, SHARED BORDERS) */}
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
+              gap: 0
+            }}
+          >
+            {TIME_FRAME_OPTIONS.map(tf => {
+              const isActive = timeFrame === tf.id;
+              return (
+                <button
+                  key={tf.id}
+                  type="button"
+                  onClick={() => setTimeFrame(tf.id)}
+                  style={{
+                    height: '38px',
+                    padding: '0 4px',
+                    backgroundColor: isActive ? '#FFFFFF' : '#141416',
+                    color: isActive ? '#000000' : '#A0A0A0',
+                    ...SHARED_CELL_BORDER,
+                    fontSize: '11px',
+                    fontWeight: 800,
+                    textTransform: 'uppercase',
+                    cursor: 'pointer'
+                  }}
+                >
+                  {tf.label}
+                </button>
+              );
+            })}
           </div>
 
           {/* LIFT FILTER ROW: ALL | BENCH | SQUAT | DEAD | CUSTOM (ZERO GAP, SHARED BORDERS) */}
@@ -265,7 +382,7 @@ export function ProgressionChartView({
               >
                 {EXERCISE_LIBRARY.map(ex => (
                   <option key={ex.id} value={ex.id}>
-                    {ex.name.toUpperCase()} ({ex.equipment.toUpperCase()})
+                    {formatProgressExerciseLabel(ex.id, ex.name)} ({ex.equipment.toUpperCase()})
                   </option>
                 ))}
               </select>
@@ -283,7 +400,7 @@ export function ProgressionChartView({
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', marginBottom: '8px' }}>
               {activeLifts.map(id => {
                 const meta = liftMeta[id] || {
-                  short: (EXERCISE_MAP[id]?.name || id).toUpperCase(),
+                  short: formatProgressExerciseLabel(id, EXERCISE_MAP[id]?.name || id),
                   color: '#00E5FF'
                 };
                 return (
@@ -332,27 +449,29 @@ export function ProgressionChartView({
                 );
               })}
 
-              {allEntries.map((entry, idx) => {
-                const x = getX(idx, allEntries.length);
-                return (
-                  <g key={entry.entryKey}>
-                    <line x1={x} y1={padT} x2={x} y2={padT + plotH} stroke="#1E1E1E" strokeWidth="1" />
-                    <text x={x} y={svgH - 9} textAnchor="middle" fill="#A0A0A0" fontSize="9" fontWeight="800">
-                      {entry.dateLabel.toUpperCase()}
-                    </text>
-                  </g>
-                );
-              })}
+              {xDateTicks.map(tick => (
+                <g key={tick.key}>
+                  <line x1={tick.x} y1={padT} x2={tick.x} y2={padT + plotH} stroke="#1E1E1E" strokeWidth="1" />
+                  <text
+                    x={tick.x}
+                    y={svgH - 9}
+                    textAnchor="middle"
+                    fill="#A0A0A0"
+                    fontSize="8"
+                    fontWeight="800"
+                  >
+                    {tick.label}
+                  </text>
+                </g>
+              ))}
 
               {activeLifts.map(liftId => {
-                const series = progressionSeriesByLift[liftId] || [];
+                const series = filteredSeriesByLift[liftId] || [];
                 if (series.length === 0) return null;
                 const color = liftMeta[liftId]?.color || '#00E5FF';
 
-                const coords = series.map((pt, sIdx) => {
-                  const ptKey = pt.workoutId || `${pt.dateLabel}_${sIdx}`;
-                  const entryIdx = allEntries.findIndex(e => e.entryKey === ptKey);
-                  const x = entryIdx >= 0 ? getX(entryIdx, allEntries.length) : getX(sIdx, series.length);
+                const coords = series.map(pt => {
+                  const x = getXByTime(pt.timestampMs);
                   const rawVal = chartMetric === 'weight' ? pt.weight : pt.volume;
                   const y = getY(rawVal);
                   return { x, y, rawVal, dateLabel: pt.dateLabel };
@@ -409,7 +528,7 @@ export function ProgressionChartView({
               customGoalWeights
             );
             const distance = Math.max(0, goalWeight - cur1RM);
-            const series = progressionSeriesByLift[liftId] || [];
+            const series = filteredSeriesByLift[liftId] || [];
             const firstVal = series.length ? (chartMetric === 'weight' ? series[0].weight : series[0].volume) : 0;
             const latestVal = series.length
               ? chartMetric === 'weight'
@@ -431,7 +550,7 @@ export function ProgressionChartView({
               >
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: '8px' }}>
                   <span style={{ fontSize: '13px', fontWeight: 800, color: '#FFFFFF', textTransform: 'uppercase' }}>
-                    {ex.name}
+                    {formatProgressExerciseLabel(ex.id, ex.name)}
                   </span>
                   <span
                     style={{

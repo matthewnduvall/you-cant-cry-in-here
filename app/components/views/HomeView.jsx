@@ -1,103 +1,131 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { IOSListSection, IOSListRow } from '../Primitives';
-import { EXERCISE_MAP } from '../../data/exerciseLibrary';
+import { EXERCISE_MAP, formatDateYMD } from '../../data/exerciseLibrary';
 
 // ============================================================================
 // VIEW: HOME SCREEN
 // ============================================================================
 
-function getFriendSingleBig3TickerEntry(friend) {
+const SCROLLER_LIFTS = [
+  { id: 'barbell_bench_press', label: 'BENCH' },
+  { id: 'barbell_back_squat', label: 'SQUAT' },
+  { id: 'barbell_deadlift', label: 'DEADLIFT' },
+  { id: 'overhead_press', label: 'OHP' }
+];
+
+const deterministicHash = str => {
+  let h = 2166136261;
+  const s = String(str || '');
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return h >>> 0;
+};
+
+function getAthleteScrollerEntries(friend, randomSeed = 1, todayFallbackStr = '') {
   const uname = (friend?.username || 'athlete').toUpperCase();
-  const big3Map = [
-    { id: 'barbell_deadlift', label: 'DEADLIFT' },
-    { id: 'barbell_back_squat', label: 'SQUAT' },
-    { id: 'barbell_bench_press', label: 'BENCH' }
-  ];
-
   const prs = friend?.prs || {};
+  const histList = Array.isArray(friend?.history) ? friend.history : [];
 
-  // 1. If the athlete has logged session history, pick the most recently trained Squat, Bench, or Deadlift
-  if (Array.isArray(friend?.history) && friend.history.length > 0) {
-    const sortedHist = [...friend.history].sort(
-      (a, b) => new Date(b?.startedAt || 0).getTime() - new Date(a?.startedAt || 0).getTime()
-    );
+  const sortedHist = [...histList].sort(
+    (a, b) =>
+      new Date(b?.startedAt || b?.workoutDate || b?.updatedAt || 0).getTime() -
+      new Date(a?.startedAt || a?.workoutDate || a?.updatedAt || 0).getTime()
+  );
+
+  const fallbackDateRaw =
+    sortedHist[0]?.startedAt ||
+    sortedHist[0]?.workoutDate ||
+    sortedHist[0]?.updatedAt ||
+    friend?.updatedAt ||
+    null;
+
+  // Shuffle the 4 lifts (Big 3 + OHP) per athlete using randomSeed
+  const shuffledLifts = [...SCROLLER_LIFTS].sort((a, b) => {
+    const ha = deterministicHash(`${uname}_${a.id}_${randomSeed}`);
+    const hb = deterministicHash(`${uname}_${b.id}_${randomSeed}`);
+    return ha - hb;
+  });
+
+  const entries = [];
+
+  shuffledLifts.forEach(lift => {
+    let latestHistWeight = 0;
+    let bestHistWeight = 0;
+    let latestDateRaw = null;
+    let latestTimeMs = 0;
+
     for (const w of sortedHist) {
+      const wDateRaw = w?.startedAt || w?.workoutDate || w?.updatedAt || null;
+      const wTimeMs = wDateRaw ? new Date(wDateRaw).getTime() : 0;
+
       for (const slot of w?.slots || []) {
-        const match = big3Map.find(b => b.id === slot?.exerciseId);
-        if (match) {
+        const slotExIds =
+          Array.isArray(slot?.supersetExerciseIds) && slot.supersetExerciseIds.length > 0
+            ? slot.supersetExerciseIds
+            : [slot?.exerciseId, slot?.secondaryExerciseId].filter(Boolean);
+
+        slotExIds.forEach((exId, exIdx) => {
+          if (exId !== lift.id) return;
+          const sets =
+            Array.isArray(slot?.supersetSetsByExercise) && slot.supersetSetsByExercise[exIdx]
+              ? slot.supersetSetsByExercise[exIdx]
+              : slot?.sets || [];
           const maxSetW = Math.max(
             0,
-            ...(slot.sets || []).map(st => {
+            ...sets.map(st => {
               const sw = Number(st?.weight) || 0;
               const sr = Math.max(1, Number(st?.reps) || 1);
               return sr === 1 ? sw : Math.round(sw * (1 + sr / 30));
             })
           );
-          const prVal = Number(prs[match.id]) || 0;
-          const weightVal = Math.max(prVal, maxSetW);
-          if (weightVal > 0) {
-            return `@${uname}: ${match.label} 1RM ${weightVal} LB`;
+          if (maxSetW > 0) {
+            if (maxSetW > bestHistWeight) bestHistWeight = maxSetW;
+            if (!latestDateRaw || wTimeMs > latestTimeMs) {
+              latestHistWeight = maxSetW;
+              latestDateRaw = wDateRaw;
+              latestTimeMs = Number.isNaN(wTimeMs) ? 0 : wTimeMs;
+            }
           }
-        }
+        });
       }
     }
 
-    // 1b. If no Big 3 lift in history, pick the most recently trained exercise in history with weight > 0
-    for (const w of sortedHist) {
-      for (const slot of w?.slots || []) {
-        const exId = slot?.exerciseId;
-        if (!exId) continue;
-        const maxSetW = Math.max(
-          0,
-          ...(slot.sets || []).map(st => {
-            const sw = Number(st?.weight) || 0;
-            const sr = Math.max(1, Number(st?.reps) || 1);
-            return sr === 1 ? sw : Math.round(sw * (1 + sr / 30));
-          })
-        );
-        const prVal = Number(prs[exId]) || 0;
-        const weightVal = Math.max(prVal, maxSetW);
-        if (weightVal > 0) {
-          const exLabel = (EXERCISE_MAP[exId]?.name || exId).toUpperCase();
-          return `@${uname}: ${exLabel} 1RM ${weightVal} LB`;
-        }
-      }
-    }
-  }
+    const prVal = Number(prs[lift.id]) || 0;
+    const weightVal = Math.max(prVal, bestHistWeight, latestHistWeight);
 
-  // 2. Otherwise pick the lift among Squat, Bench, and Deadlift with the highest logged PR (> 0)
-  let chosen = null;
-  let bestVal = 0;
-  big3Map.forEach(item => {
-    const cur = Number(prs[item.id]) || 0;
-    if (cur > bestVal) {
-      bestVal = cur;
-      chosen = item;
+    if (weightVal > 0) {
+      const resolvedDateRaw = latestDateRaw || fallbackDateRaw;
+      const parsedTimeMs =
+        resolvedDateRaw && !Number.isNaN(new Date(resolvedDateRaw).getTime())
+          ? new Date(resolvedDateRaw).getTime()
+          : 0;
+      const dateStr =
+        resolvedDateRaw && parsedTimeMs > 0
+          ? formatDateYMD(resolvedDateRaw)
+          : todayFallbackStr;
+      const entryTimeMs = latestTimeMs > 0 ? latestTimeMs : parsedTimeMs;
+      const dayBucket = Math.floor(entryTimeMs / 86400000);
+      const dateSuffix = dateStr ? ` (${dateStr})` : '';
+
+      entries.push({
+        uname,
+        liftId: lift.id,
+        liftLabel: lift.label,
+        weightVal,
+        dateStr,
+        entryTimeMs,
+        dayBucket,
+        tieRand: deterministicHash(`${uname}_${lift.id}_${dateStr}_${randomSeed}`),
+        text: `@${uname}: ${lift.label} 1RM ${weightVal} LB${dateSuffix}`
+      });
     }
   });
 
-  if (chosen && bestVal > 0) {
-    return `@${uname}: ${chosen.label} 1RM ${bestVal} LB`;
-  }
-
-  // 3. Fallback: pick the highest logged PR across ANY exercise in friend.prs
-  let bestAnyLabel = null;
-  let bestAnyVal = 0;
-  Object.entries(prs).forEach(([exId, val]) => {
-    const num = Number(val) || 0;
-    if (num > bestAnyVal) {
-      bestAnyVal = num;
-      bestAnyLabel = (EXERCISE_MAP[exId]?.name || exId).toUpperCase();
-    }
-  });
-
-  if (bestAnyLabel && bestAnyVal > 0) {
-    return `@${uname}: ${bestAnyLabel} 1RM ${bestAnyVal} LB`;
-  }
-
-  return `@${uname}: BENCH 1RM TBD`;
+  return entries.slice(0, 4);
 }
 
 export function HomeView({
@@ -115,6 +143,13 @@ export function HomeView({
   friendsList,
   pendingIncomingRequests
 }) {
+  const [scrollerSeed, setScrollerSeed] = useState(1);
+  const [todayFallbackStr, setTodayFallbackStr] = useState('');
+  useEffect(() => {
+    setScrollerSeed(Math.floor(Math.random() * 1000000) + 2);
+    setTodayFallbackStr(formatDateYMD(new Date()));
+  }, []);
+
   const curUsername = (user?.username || '').trim().toLowerCase();
   const curEmail = (user?.email || '').trim().toLowerCase();
 
@@ -164,13 +199,27 @@ export function HomeView({
     uniqueAthletes.push(f);
   });
 
-  const tickerEntries = uniqueAthletes
-    .map(a => getFriendSingleBig3TickerEntry(a))
-    .filter(Boolean);
+  // Limit to 10 athletes, up to 4 exercises each (Big 3 + OHP) = max 40 entries, ordered by time of entry
+  const tickerEntryObjects = uniqueAthletes
+    .slice(0, 10)
+    .flatMap(a => getAthleteScrollerEntries(a, scrollerSeed, todayFallbackStr));
+
+  const sortedTickerEntries = [...tickerEntryObjects]
+    .sort((a, b) => {
+      if (b.dayBucket !== a.dayBucket) {
+        return b.dayBucket - a.dayBucket;
+      }
+      if (b.entryTimeMs !== a.entryTimeMs) {
+        return b.entryTimeMs - a.entryTimeMs;
+      }
+      return a.tieRand - b.tieRand;
+    })
+    .slice(0, 40)
+    .map(item => item.text);
 
   const friendsTickerText =
-    tickerEntries.length > 0
-      ? tickerEntries.join('   ///   ') + '   ///   '
+    sortedTickerEntries.length > 0
+      ? sortedTickerEntries.join('   ///   ') + '   ///   '
       : 'ADD FRIENDS IN SOCIAL TO STREAM LIVE 1RM UPDATES   ///   ';
 
   return (

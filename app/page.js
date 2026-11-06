@@ -97,7 +97,7 @@ export default function App() {
   // --- Add Exercise Modal State ---
   const [showAddSlotModal, setShowAddSlotModal] = useState(false);
   const [addSlotGymFilter, setAddSlotGymFilter] = useState('');
-  const [newSlotCategory, setNewSlotCategory] = useState('Compound Lift');
+  const [newSlotCategory, setNewSlotCategory] = useState('Compound');
   const [newSlotMuscleGroup, setNewSlotMuscleGroup] = useState('All Muscles');
   const [newSlotEx1, setNewSlotEx1] = useState('barbell_bench_press');
   const [newSlotSupersetIds, setNewSlotSupersetIds] = useState(['reverse_lunge', 'front_flies']);
@@ -124,8 +124,8 @@ export default function App() {
   const [stimulusGreenDays, setStimulusGreenDays] = useState(2);
   const [stimulusYellowDays, setStimulusYellowDays] = useState(4);
   const [routinePreferences, setRoutinePreferences] = useState([
-    'Compound Lift',
-    'Compound Lift',
+    'Compound',
+    'Compound',
     'Superset',
     'Superset',
     'Abs'
@@ -352,6 +352,7 @@ export default function App() {
     gyms,
     routinePreferences,
     currentIncrementLbs,
+    userBodyweightLbs,
     shareRoutinesWithFriends,
     setSavedRoutines,
     setSharedRoutines,
@@ -560,6 +561,9 @@ export default function App() {
               savedRoutines={savedRoutines}
               sharedRoutines={sharedRoutines}
               friendsList={friendsList}
+              selectedGymId={selectedGymId}
+              setSelectedGymId={setSelectedGymId}
+              gyms={gyms}
               routineSelectReturnView={routineSelectReturnView}
               handleOpenPreviewRoutine={handleOpenPreviewRoutine}
               handleDirectLoadRoutine={handleDirectLoadRoutine}

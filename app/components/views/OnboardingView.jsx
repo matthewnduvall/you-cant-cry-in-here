@@ -73,7 +73,8 @@ const SCHEME_DEFAULT_CONFIG = {
   '8x8': { sets: 8, reps: 8, setType: 'Working' },
   Pyramid: { sets: 5, reps: 4, setType: 'Top Out' },
   'Pyramid 1RM': { sets: 5, reps: 1, setType: '1 Rep Max' },
-  'Reverse Pyramid': { sets: 5, reps: 6, setType: 'Working' }
+  'Reverse Pyramid': { sets: 5, reps: 6, setType: 'Working' },
+  Timer: { sets: 5, reps: 8, setType: 'Working' }
 };
 
 function OnboardingDragBadge({ label, color = 'var(--dp-color-accent)', height = '42px' }) {
@@ -169,7 +170,7 @@ export function OnboardingView({
   const setCustomPrExerciseIds = setExternalCustomPrIds || setLocalCustomPrIds;
   const [showAddPrExercisePanel, setShowAddPrExercisePanel] = useState(false);
   const [addPrGymFilter, setAddPrGymFilter] = useState(selectedGymId || '');
-  const [addPrCategory, setAddPrCategory] = useState('Compound Lift');
+  const [addPrCategory, setAddPrCategory] = useState('Compound');
   const [addPrMuscleGroup, setAddPrMuscleGroup] = useState('All Muscles');
   const [addPrSelectedExId, setAddPrSelectedExId] = useState('barbell_row');
 
@@ -279,8 +280,8 @@ export function OnboardingView({
       };
       const prSlot = {
         id: `slot_pr_${ts}`,
-        category: normalizeSlotCategory(exObj.category || 'Compound Lift'),
-        slotLabel: normalizeSlotCategory(exObj.category || 'Compound Lift'),
+        category: normalizeSlotCategory(exObj.category || 'Compound'),
+        slotLabel: normalizeSlotCategory(exObj.category || 'Compound'),
         scheme: calcScheme || '5x5',
         restSeconds: 90,
         muscleGroupFilter: exObj.muscleGroup || 'All Muscles',
@@ -1062,7 +1063,7 @@ export function OnboardingView({
                       padding: '0 8px'
                     }}
                   >
-                    {['Compound Lift', 'Accessory'].map(cat => (
+                    {['Compound', 'Accessory'].map(cat => (
                       <option key={cat} value={cat}>
                         {cat.toUpperCase()}
                       </option>

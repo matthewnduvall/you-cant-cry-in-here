@@ -104,7 +104,7 @@ export function usePlateCalculator({
       const exObj = EXERCISE_MAP[exId] || {
         id: exId,
         name: plateCalcTarget.exerciseName || exId,
-        category: 'Compound Lift',
+        category: 'Compound',
         muscleGroup: 'All Muscles'
       };
       setOneRepMaxes(prev => ({
@@ -130,8 +130,8 @@ export function usePlateCalculator({
       };
       const prSlot = {
         id: `slot_pr_${ts}`,
-        category: normalizeSlotCategory(exObj.category || 'Compound Lift'),
-        slotLabel: normalizeSlotCategory(exObj.category || 'Compound Lift'),
+        category: normalizeSlotCategory(exObj.category || 'Compound'),
+        slotLabel: normalizeSlotCategory(exObj.category || 'Compound'),
         scheme: 'Pyramid 1RM',
         restSeconds: 90,
         muscleGroupFilter: exObj.muscleGroup || 'All Muscles',
