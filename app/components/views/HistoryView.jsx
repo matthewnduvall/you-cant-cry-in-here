@@ -17,6 +17,8 @@ import {
   getDefaultSessionName,
   getExRxTargetForLift,
   formatTodayYMD,
+  formatDateYMD,
+  parseYMDToISO,
   roundTo5
 } from '../../data/exerciseLibrary';
 import {
@@ -409,7 +411,7 @@ export function HistoryView({
         id: `hist_pr_${exObj.id}_${ts}`,
         title: `${cleanDate} - ${exObj.name} PR (${convertedOneRepMax} LB)`,
         loadedRoutineTitle: 'PERSONAL RECORD',
-        startedAt: new Date(`${cleanDate}T12:00:00`).toISOString(),
+        startedAt: parseYMDToISO(cleanDate),
         updatedAt: new Date().toISOString(),
         isComplete: true,
         verifiedByUser: true,
@@ -798,10 +800,10 @@ export function HistoryView({
           <button
             type="button"
             onClick={() => {
-              const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
+              const yesterday = formatDateYMD(new Date(Date.now() - 86400000));
               setHistoricalDraft({
                 id: `hist_${Date.now()}`,
-                title: getDefaultSessionName(),
+                title: `${yesterday} - Session`,
                 loadedRoutineTitle: 'MANUAL',
                 workoutDate: yesterday,
                 defaultRestSeconds: 90,
@@ -908,7 +910,7 @@ export function HistoryView({
                             marginTop: '1px'
                           }}
                         >
-                          {new Date(w.startedAt).toLocaleDateString()} • {(w.slots || []).length} EXERCISES
+                          {formatDateYMD(w.startedAt)} • {(w.slots || []).length} EXERCISES
                         </div>
                       </div>
 

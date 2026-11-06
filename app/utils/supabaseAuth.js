@@ -1028,3 +1028,79 @@ export async function resolveInviteFriendshipsForUser(user, outgoingInvites = []
   };
 }
 
+/**
+ * Searches registered athletes by username or email across local accounts and Supabase `user_profiles`.
+ */
+export async function searchAthletesByQuery(query, currentUser = null) {
+  const q = (query || '').trim().toLowerCase().replace(/^@/, '');
+  if (!q) return [];
+
+  const curEmail = (currentUser?.email || '').trim().toLowerCase();
+  const curUsername = (currentUser?.username || '').trim().toLowerCase();
+  const resultsByKey = new Map();
+
+  // 1. Check local registered accounts
+  const localAccounts = getLocalRegisteredAccounts();
+  Object.values(localAccounts).forEach(acc => {
+    if (!acc) return;
+    const uname = (acc.username || '').trim();
+    const email = (acc.email || '').trim().toLowerCase();
+    if (curEmail && email === curEmail) return;
+    if (curUsername && uname.toLowerCase() === curUsername) return;
+    if (uname.toLowerCase().includes(q) || email.includes(q)) {
+      const key = (uname || email).toLowerCase();
+      resultsByKey.set(key, {
+        id: acc.id || `friend_${uname.toLowerCase()}`,
+        username: uname || email.split('@')[0],
+        email,
+        prs: {},
+        sharedRoutines: []
+      });
+    }
+  });
+
+  // 2. Check Supabase user_profiles if configured
+  const { baseUrl, anonKey, isConfigured } = getSupabaseConfig();
+  if (isConfigured) {
+    const accessToken = currentUser ? await getValidSupabaseAccessToken(currentUser) : null;
+    const headers = {
+      apikey: anonKey,
+      Authorization: `Bearer ${accessToken || anonKey}`
+    };
+    try {
+      const res = await fetch(
+        `${baseUrl}/rest/v1/user_profiles?select=id,username,email,one_rep_maxes,settings`,
+        { headers }
+      );
+      if (res.ok) {
+        const rows = await res.json();
+        if (Array.isArray(rows)) {
+          rows.forEach(row => {
+            const uname = (row?.username || '').trim();
+            const email = (row?.email || '').trim().toLowerCase();
+            if (!uname && !email) return;
+            if (curEmail && email === curEmail) return;
+            if (curUsername && uname.toLowerCase() === curUsername) return;
+            if (uname.toLowerCase().includes(q) || email.includes(q)) {
+              const key = (uname || email).toLowerCase();
+              resultsByKey.set(key, {
+                id: row.id || `friend_${uname.toLowerCase()}`,
+                username: uname || email.split('@')[0],
+                email,
+                bodyweightLbs: row?.settings?.bodyMetrics?.bodyweightLbs || 200,
+                prs: row.one_rep_maxes || {},
+                sharedRoutines: []
+              });
+            }
+          });
+        }
+      }
+    } catch {
+      // ignore network error
+    }
+  }
+
+  return Array.from(resultsByKey.values());
+}
+
+

@@ -64,11 +64,34 @@ export const formatTodayYMD = () => {
   return `${y}/${m}/${d}`;
 };
 
+export const formatDateYMD = dateInput => {
+  if (!dateInput) return formatTodayYMD();
+  if (typeof dateInput === 'string') {
+    const trimmed = dateInput.trim();
+    const match = trimmed.match(/^(\d{4})[/-](\d{1,2})[/-](\d{1,2})/);
+    if (match) {
+      return `${match[1]}/${String(match[2]).padStart(2, '0')}/${String(match[3]).padStart(2, '0')}`;
+    }
+  }
+  const dt = new Date(dateInput);
+  if (Number.isNaN(dt.getTime())) return formatTodayYMD();
+  const y = dt.getFullYear();
+  const m = String(dt.getMonth() + 1).padStart(2, '0');
+  const d = String(dt.getDate()).padStart(2, '0');
+  return `${y}/${m}/${d}`;
+};
+
+export const parseYMDToISO = ymdInput => {
+  const ymd = formatDateYMD(ymdInput);
+  const isoDatePart = ymd.replace(/\//g, '-');
+  const dt = new Date(`${isoDatePart}T12:00:00`);
+  return Number.isNaN(dt.getTime()) ? new Date().toISOString() : dt.toISOString();
+};
+
 export const getDefaultSessionName = () => `${formatTodayYMD()} - Session`;
 export const getDefaultAutoSessionName = () => `${formatTodayYMD()} - Auto Session`;
 
-export const formatTodayShortDate = () =>
-  new Date().toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+export const formatTodayShortDate = () => formatTodayYMD();
 
 export const formatTitleWithDate = baseTitle => {
   if (!baseTitle || baseTitle.trim() === 'SESSION' || baseTitle.trim() === 'Custom Kinetic Routine') {

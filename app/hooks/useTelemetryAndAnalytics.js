@@ -4,10 +4,10 @@ import { useState, useEffect, useMemo } from 'react';
 import {
   EXERCISE_LIBRARY,
   EXERCISE_MAP,
-  BIG_FOUR_IDS,
   MUSCLE_GROUP_OPTIONS,
   isSupersetCategory,
-  doesExerciseInteractWithMuscleGroup
+  doesExerciseInteractWithMuscleGroup,
+  formatDateYMD
 } from '../data/exerciseLibrary';
 import { getPersonalRecord1RM } from '../utils/workoutEngine';
 
@@ -119,7 +119,7 @@ export function useTelemetryAndAnalytics({
         });
         if (top1RM > 0 || totalVol > 0) {
           points.push({
-            dateLabel: new Date(w.startedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
+            dateLabel: formatDateYMD(w.startedAt),
             weight: top1RM,
             volume: totalVol
           });

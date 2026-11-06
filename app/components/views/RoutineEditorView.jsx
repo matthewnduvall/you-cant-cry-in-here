@@ -12,7 +12,9 @@ import {
   filterAddSlotExercises,
   getFilteredExercisesForSlotInline,
   getAvailableMuscleGroupsForCategory,
-  getGymSelectionLabel
+  getGymSelectionLabel,
+  formatDateYMD,
+  parseYMDToISO
 } from '../../data/exerciseLibrary';
 import {
   normalizeSetType,
@@ -306,26 +308,32 @@ export function RoutineEditorView({
                 WORKOUT DATE
               </span>
               <input
-                type="date"
+                type="text"
+                placeholder="YYYY/MM/DD"
                 value={
-                  currentEditorWorkout.workoutDate ||
-                  (currentEditorWorkout.startedAt
-                    ? new Date(currentEditorWorkout.startedAt).toISOString().split('T')[0]
-                    : '')
+                  currentEditorWorkout.workoutDate
+                    ? String(currentEditorWorkout.workoutDate).replace(/-/g, '/')
+                    : currentEditorWorkout.startedAt
+                      ? formatDateYMD(currentEditorWorkout.startedAt)
+                      : ''
                 }
                 onChange={e => {
-                  const nextDate = e.target.value;
+                  const nextDate = e.target.value.replace(/-/g, '/');
                   if (isEmbeddedHistorySession) {
                     updateCurrentWorkoutState(prev => ({
                       ...prev,
                       workoutDate: nextDate,
-                      startedAt: nextDate ? new Date(`${nextDate}T12:00:00`).toISOString() : prev.startedAt
+                      startedAt: /^\d{4}\/\d{2}\/\d{2}$/.test(nextDate.trim())
+                        ? parseYMDToISO(nextDate)
+                        : prev.startedAt
                     }));
                   } else {
                     setHistoricalDraft?.(prev => ({ ...prev, workoutDate: nextDate }));
                   }
                 }}
                 style={{
+                  width: '130px',
+                  textAlign: 'center',
                   backgroundColor: '#101010',
                   color: '#FFFFFF',
                   border: '1px solid var(--dp-color-rule)',

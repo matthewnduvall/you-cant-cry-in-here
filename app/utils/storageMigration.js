@@ -114,7 +114,18 @@ export const normalizeWorkoutFromStorage = workout => {
   if (!workout) return null;
   const rawSlots = Array.isArray(workout.slots) ? workout.slots : [];
   const normalizedSlots = normalizeSlotLabels(rawSlots.map(normalizeSlotFromStorage).filter(Boolean));
-  return { ...workout, schemaVersion: CURRENT_SCHEMA_VERSION, slots: normalizedSlots };
+  const rawTitle = String(workout.title || '').trim();
+  const normalizedTitle = rawTitle.replace(/^(\d{4})-(\d{2})-(\d{2})\b/, '$1/$2/$3');
+  const normalizedWorkoutDate = workout.workoutDate
+    ? String(workout.workoutDate).trim().replace(/^(\d{4})-(\d{2})-(\d{2})$/, '$1/$2/$3')
+    : workout.workoutDate;
+  return {
+    ...workout,
+    title: normalizedTitle || workout.title,
+    workoutDate: normalizedWorkoutDate,
+    schemaVersion: CURRENT_SCHEMA_VERSION,
+    slots: normalizedSlots
+  };
 };
 
 export const loadHydratedAppState = () => {

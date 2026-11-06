@@ -4,6 +4,8 @@ import { useState, useMemo } from 'react';
 import {
   EXERCISE_MAP,
   formatTodayYMD,
+  formatDateYMD,
+  parseYMDToISO,
   normalizeSlotCategory,
   roundTo5
 } from '../data/exerciseLibrary';
@@ -105,10 +107,10 @@ export function usePlateCalculator({
         [exId]: roundedPR
       }));
 
-      // Always log an individual History entry when a Personal Record is entered (using chosen date or today)
+      // Always log an individual History entry when a Personal Record is entered (using chosen date or today in YYYY/MM/DD)
       const cleanDate =
         prRecordDate && String(prRecordDate).trim()
-          ? String(prRecordDate).trim()
+          ? formatDateYMD(prRecordDate)
           : formatTodayYMD();
       const ts = Date.now();
       const prSet = {
@@ -136,7 +138,7 @@ export function usePlateCalculator({
         sets: [prSet],
         secondarySets: []
       };
-      const isoDate = new Date(`${cleanDate}T12:00:00`).toISOString();
+      const isoDate = parseYMDToISO(cleanDate);
       const newHistEntry = {
         id: `hist_pr_${exObj.id}_${ts}`,
         title: `${cleanDate} - ${exObj.name} PR (${roundedPR} LB)`,

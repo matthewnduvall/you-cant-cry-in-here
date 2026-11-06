@@ -13,6 +13,7 @@ import {
   getAvailableMuscleGroupsForCategory,
   getExRxTargetForLift,
   formatTodayYMD,
+  parseYMDToISO,
   roundTo5
 } from '../../data/exerciseLibrary';
 import {
@@ -295,7 +296,7 @@ export function OnboardingView({
         id: `hist_pr_${exObj.id}_${ts}`,
         title: `${cleanDate} - ${exObj.name} PR (${convertedOneRepMax} LB)`,
         loadedRoutineTitle: 'PERSONAL RECORD',
-        startedAt: new Date(`${cleanDate}T12:00:00`).toISOString(),
+        startedAt: parseYMDToISO(cleanDate),
         updatedAt: new Date().toISOString(),
         isComplete: true,
         verifiedByUser: true,

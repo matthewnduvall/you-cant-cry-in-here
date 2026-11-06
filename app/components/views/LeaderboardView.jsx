@@ -283,7 +283,7 @@ export function LeaderboardView({
                 @{entry.name}
               </span>
               <span style={{ fontSize: '10px', fontWeight: 700, color: '#888888', textTransform: 'uppercase' }}>
-                BENCH + SQUAT + DEADLIFT • STANDING:{' '}
+                <span style={{ color: '#FFFFFF' }}>BENCH + SQUAT + DEADLIFT</span> • STANDING:{' '}
                 <strong style={{ color: 'var(--dp-color-accent)' }}>{entry.standing.toUpperCase()}</strong>
               </span>
             </div>
@@ -319,7 +319,7 @@ export function LeaderboardView({
               </span>
             </div>
             <span style={{ fontSize: '16px', fontWeight: 800, color: 'var(--dp-color-accent)' }}>
-              {entry.normalized.toFixed(2)}
+              {entry.normalized.toFixed(2)}x BW
             </span>
           </IOSListRow>
         ))}
@@ -345,12 +345,12 @@ export function LeaderboardView({
                 @{entry.name}
               </span>
               <span style={{ fontSize: '10px', fontWeight: 700, color: '#888888', textTransform: 'uppercase' }}>
-                {entry.ohp} LB OHP ÷ {entry.bw} LB BW • STANDING:{' '}
+                {entry.ohp} LB <span style={{ color: '#FFFFFF' }}>OHP</span> ÷ {entry.bw} LB BW • STANDING:{' '}
                 <strong style={{ color: 'var(--dp-color-accent)' }}>{entry.ohpStanding.toUpperCase()}</strong>
               </span>
             </div>
             <span style={{ fontSize: '16px', fontWeight: 800, color: 'var(--dp-color-accent)' }}>
-              {entry.ohpNormalized.toFixed(2)}
+              {entry.ohpNormalized.toFixed(2)}x BW
             </span>
           </IOSListRow>
         ))}
@@ -370,20 +370,21 @@ export function LeaderboardView({
                   fontSize: '14px',
                   fontWeight: 800,
                   textTransform: 'uppercase',
-                  color: entry.isSelf ? '#30D158' : '#FFFFFF',
+                  color: entry.isSelf ? '#30D158' : 'var(--dp-color-accent)',
                   whiteSpace: 'nowrap',
                   overflow: 'hidden',
                   textOverflow: 'ellipsis'
                 }}
               >
-                @{entry.name} • {entry.exerciseName}
+                @{entry.name} <span style={{ color: '#888888' }}>•</span>{' '}
+                <span style={{ color: '#FFFFFF' }}>{entry.exerciseName}</span>
               </span>
               <span style={{ fontSize: '10px', fontWeight: 700, color: '#888888', textTransform: 'uppercase' }}>
-                {entry.startWeight} LB → {entry.peakWeight} LB (+{entry.deltaLbs} LB ÷ {entry.bw} LB BW)
+                {entry.startWeight} LB → {entry.peakWeight} LB ({entry.normalizedGain.toFixed(2)}x BW GAIN)
               </span>
             </div>
             <span style={{ fontSize: '15px', fontWeight: 800, color: 'var(--dp-color-accent)', flexShrink: 0 }}>
-              {entry.normalizedGain.toFixed(2)}
+              +{entry.deltaLbs} LB
             </span>
           </IOSListRow>
         ))}

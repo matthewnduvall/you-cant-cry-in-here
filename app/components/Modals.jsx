@@ -7,7 +7,8 @@ import {
   SLOT_CATEGORIES,
   normalizeSlotCategory,
   getAvailableMuscleGroupsForCategory,
-  filterAddSlotExercises
+  filterAddSlotExercises,
+  formatTodayYMD
 } from '../data/exerciseLibrary';
 import { SET_TYPES_LIST } from '../utils/workoutEngine';
 
@@ -463,7 +464,7 @@ export function PlateCalculatorModal({
               <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                 <button
                   type="button"
-                  onClick={() => setPrRecordDate?.(new Date().toISOString().split('T')[0])}
+                  onClick={() => setPrRecordDate?.(formatTodayYMD())}
                   style={{
                     background: 'none',
                     border: 'none',
@@ -498,9 +499,10 @@ export function PlateCalculatorModal({
               </div>
             </div>
             <input
-              type="date"
-              value={prRecordDate || ''}
-              onChange={e => setPrRecordDate?.(e.target.value)}
+              type="text"
+              placeholder="YYYY/MM/DD"
+              value={(prRecordDate || '').replace(/-/g, '/')}
+              onChange={e => setPrRecordDate?.(e.target.value.replace(/-/g, '/'))}
               style={{
                 width: '100%',
                 boxSizing: 'border-box',

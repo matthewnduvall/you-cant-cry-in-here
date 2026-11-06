@@ -40,12 +40,12 @@ To keep agent edits fast and focused, views and state hooks are split into dedic
   * `app/components/views/HomeView.jsx` — Home screen (`NEW SESSION` / `CURRENT SESSION`, `AUTO SESSION`, `HISTORY`, telemetry tiles, single-entry-per-friend social scroller).
   * `app/components/views/RoutineEditorView.jsx` — Active workout session, routine editor, historical entry editor, and embedded History session editor.
   * `app/components/views/HistoryView.jsx` — `PERSONAL RECORDS` section (top) and paginated `HISTORY` list (initial 10 sessions + `SEE ALL` in pages of 100, inline expand `+`/`−` and red `✕` delete button).
-  * `app/components/views/RoutinesView.jsx` — Routine browser (`CANCEL` button at top, Default, Saved, Shared, and Friends' routines).
+  * `app/components/views/RoutinesView.jsx` — Routine browser (subdued red `CANCEL` button at top, Default, Saved, Shared, and Friends' routines).
   * `app/components/views/GymsView.jsx` — `GymsView` and `GymEditorView` for equipment presets and custom gyms.
-  * `app/components/views/GoalsView.jsx` — Primary training goal (`Strength`, `Hypertrophy`, `Maintain`), progression increments, and ExRx.net standards.
-  * `app/components/views/ProgressionChartView.jsx` — SVG progression chart for Big 3 + OHP (Weight vs. Volume).
-  * `app/components/views/StimulusMapView.jsx` — Anterior/Posterior SVG muscle stimulus diagram and telemetry list.
-  * `app/components/views/LeaderboardView.jsx` — `BIG 3 TOTAL`, `BIG 3 NORMALIZED` (`Total / BW` literal ratio + averaged Big 3 standing), and `MOST IMPROVED` (`Delta(High - Low) / BW` literal ratio) leaderboards.
+  * `app/components/views/GoalsView.jsx` — Primary training goal (`Strength`, `Hypertrophy`, `Maintain`), progression increments (barbell lifts × 2), single-line ExRx.net standards (`<Exercise> | <X LB FROM GOAL> | GOAL: <W> LB ✎`), and `+ ADD EXERCISE` custom goals button.
+  * `app/components/views/ProgressionChartView.jsx` — `PROGRESS` SVG chart (`1 REP MAX` vs. `VOLUME`) with `ALL`, `BENCH`, `SQUAT`, `DEAD`, and `CUSTOM` (any exercise) filters, plus `<X LB FROM GOAL>` summary rows.
+  * `app/components/views/StimulusMapView.jsx` — `STIMULUS` Anterior/Posterior SVG muscle stimulus diagram and telemetry list.
+  * `app/components/views/LeaderboardView.jsx` — `BIG 3 TOTAL`, `BIG 3 NORMALIZED` (`Total / BW` literal ratio + averaged Big 3 standing), `OVERHEAD PRESS NORMALIZED` (`OHP / BW`), and `MOST IMPROVED` (`Delta(High - Low) / BW` literal ratio) leaderboards.
   * `app/components/views/SocialView.jsx` — `INVITE FRIEND VIA EMAIL` (prompts email with beta code `imnotcrying` and join link), `PENDING EMAIL INVITES`, athlete search, incoming requests, and friends list.
   * `app/components/views/ProfileView.jsx` — User & Friend profile view (friend profiles hide email addresses and only show `@username`, PRs, and shared routines).
   * `app/components/views/OnboardingView.jsx` — `04 / ONBOARDING` 6-step paged wizard (sent to first-time users after account creation/login, with `SKIP →`, `BACK`, `NEXT`, `START →`, and a 1RM Scheme/Sets/Reps Converter popup on Page 3).
@@ -82,6 +82,7 @@ To keep agent edits fast and focused, views and state hooks are split into dedic
 * **Typography & Geometry:**
   * Font Family: `"Host Grotesk"`, uppercase headers, `fontWeight: 800`, tight tracking (`-0.03em` to `-0.045em`).
   * **Zero Border Radius:** Every element enforces `border-radius: 0px !important` (sharp brutalist edges).
+  * **Zero-Gap Shared Borders (`SHARED_GROUP_OUTER` & `SHARED_CELL_BORDER`):** Adjacent buttons, inputs, and rows sit flush against one another (`gap: 0`) sharing single `1px solid var(--dp-color-rule)` edges (`borderTop`/`borderLeft` on the outer group, `borderRight`/`borderBottom` on each cell) without extra bounding boxes or gaps.
   * **Mobile-First Viewport:** Centered `480px` max-width container with `2px solid #5C5C5C` left/right borders.
 
 ---
@@ -91,7 +92,7 @@ To keep agent edits fast and focused, views and state hooks are split into dedic
 ### A. Home Screen, Header & Navigation
 * **3 Primary Action Buttons on Home Screen (Single-line, Centered, Equal Size):**
   1. **`NEW SESSION →` / `CURRENT SESSION →`**: Shows `CURRENT SESSION →` **only** when `activeSession?.slots?.length > 0`; otherwise shows `NEW SESSION →`. Saving a session clears `activeSession`.
-  2. **`AUTO SESSION`**: Immediately generates a full workout using `routinePreferences` and `selectedGymId`, and opens straight into `session` view.
+  2. **`AUTO SESSION`**: White text (`#FFFFFF`) on orange background; immediately generates a full workout using `routinePreferences` and `selectedGymId`, and opens straight into `session` view.
   3. **`HISTORY ↗`**: Opens the `HistoryView` (Personal Records on top, logged History below).
 * **Social Scroller on Home Screen:**
   * Limits scrolling entries to a **single most-recent entry per friend user** across Squat, Bench, and Deadlift.
@@ -111,15 +112,19 @@ To keep agent edits fast and focused, views and state hooks are split into dedic
   * Row 1 has 3 columns (`Category`, `Muscle Group`, `Scheme`) + right-aligned Red Delete (`✕`).
   * Row 2 Exercise Selection dropdown spans all 3 columns so its right edge aligns flush with the `Scheme` box above it.
   * Auto-completed and loaded routines populate `muscleGroupFilter` accurately based on the selected exercise.
-  * Schemes include `5x5`, `5x8`, `5x8w`, `Pyramid`, **`Pyramid 1RM`** (last set is `1 Rep Max`, preceding sets are `Warmup`s ramping from $50\%$ to $85\%$ of 1RM), and `Drop Sets`.
+  * Schemes include `5x5`, `5x8`, `8x8`, `Pyramid`, **`Pyramid 1RM`** (last set is `1 Rep Max`, preceding sets are `Warmup`s ramping from $50\%$ to $85\%$ of 1RM), and `Reverse Pyramid`.
+  * **Barbell Increment Multiplier:** When set to a barbell exercise (`equipment === 'Barbell'`), the progression increment is automatically multiplied by `2` (`getEffectiveIncrementForExercise`).
+  * **Smart `RECALCULATE` Priority:** Ignores completed sets (`st.completed`). Prioritizes the last-edited field (`weight` adjusts reps; `reps` adjusts weight). If the final set is edited (e.g., changed to `1 Rep Max`), adjusts both weights and reps across incomplete sets so the final set is achievable (matching `Pyramid 1RM` when the last set is `1 Rep Max`).
+  * **Muscle Group Filters:** Includes an umbrella **`Legs`** filter matching all lower-body exercises (Thighs, Hips, Calves, Quadriceps, Hamstrings, Glutes, Adductors, Abductors).
 * **Save Confirmation Modal (`SaveConfirmModal`):**
   * Clicking `SAVE` opens a confirmation popup to confirm the workout/routine name and whether to share it with friends.
 
 ### C. History & Personal Records (`HistoryView.jsx` & `usePlateCalculator.js`)
 * **Personal Records Section (Placed Above History):**
-  * Defaults to **`TBD`** until a user logs a workout containing that exercise or manually overrides the PR.
-  * Automatically updates from the **highest calculated 1RM** across all logged History entries (`getPersonalRecord1RM`).
-  * Tapping a PR opens `PlateCalculatorModal` (`mode: 'pr'`), which includes an optional **`RECORD DATE`** picker; entering a date creates an individual History entry just for that Personal Record.
+  * **Core 5 Default Exercises (`CORE_PR_EXERCISE_IDS`):** Defaults to **Barbell Bench Press**, **Barbell Back Squat**, **Barbell Deadlift**, **Barbell Military Overhead Press**, and **Chin-Up / Pull-Up** (synced with Onboarding Page 3 of 6), plus any user-added exercises (`customPrExerciseIds`). Never auto-populate `Object.keys(oneRepMaxes)` into the displayed list.
+  * **Strictly `TBD` Until Logged in History:** `getPersonalRecord1RM` derives Personal Records strictly from logged `history` (`getBestHistory1RM`). Unlogged exercises always show **`TBD ✎`** in red (`#FF3B30`).
+  * **Logging PRs to History:** Entering a PR via `PlateCalculatorModal` (`mode: 'pr'`) or via the **`CALCULATE`** popup always creates a `PERSONAL RECORD` entry in `history` (using `prRecordDate` or today's date).
+  * **`CALCULATE` Popup Interface:** Uses the same exercise slot editor interface as the New/Current Session page, replacing the `"RECALCULATE"` button with a bright green (`#30D158`) **`"CALCULATE 1RM"`** button.
 * **History Section:**
   * Displays the **last 10 sessions** initially, with a **`SEE ALL (<TOTAL>)`** button at the bottom that paginates in pages of **100**.
   * Each History row has an expand indicator (`+` / `−`) and a **Red Delete (`✕`) button** (`type: 'history_workout'`) next to it.

@@ -8,6 +8,7 @@ import {
   getDefaultSessionName,
   getDefaultAutoSessionName,
   formatTitleWithDate,
+  parseYMDToISO,
   isExerciseCompatibleWithGymSelection,
   filterAddSlotExercises,
   getFilteredExercisesForSlotInline,
@@ -495,7 +496,7 @@ export function useWorkoutMutations({
     }
 
     if (sourceView === 'historical_entry') {
-      const iso = new Date(`${currentWorkout.workoutDate || '2026-10-28'}T12:00:00`).toISOString();
+      const iso = parseYMDToISO(currentWorkout.workoutDate || '2026/10/28');
       const entry = {
         ...currentWorkout,
         id: currentWorkout.id || `hist_${Date.now()}`,
