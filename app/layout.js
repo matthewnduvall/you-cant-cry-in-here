@@ -15,6 +15,14 @@ export const metadata = {
   title: "Crying",
   description: "You Can't Cry in Here",
   applicationName: "Crying",
+  icons: {
+    icon: [
+      { url: "/icon.svg", type: "image/svg+xml" },
+      { url: "/apple-icon.png", type: "image/png" },
+    ],
+    shortcut: "/icon.svg",
+    apple: "/apple-icon.png",
+  },
   appleWebApp: {
     capable: true,
     title: "Crying",
