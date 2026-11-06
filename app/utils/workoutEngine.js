@@ -57,10 +57,8 @@ export const getBestHistory1RM = (exerciseId, history = []) => {
   return best;
 };
 
-export const getPersonalRecord1RM = (exerciseId, history = [], oneRepMaxes = {}) => {
-  const manual = Number(oneRepMaxes?.[exerciseId]) || 0;
-  const histBest = getBestHistory1RM(exerciseId, history);
-  return Math.max(manual, histBest);
+export const getPersonalRecord1RM = (exerciseId, history = []) => {
+  return getBestHistory1RM(exerciseId, history);
 };
 
 export const getHistoricalCalculated1RM = (exerciseId, history = [], oneRepMaxes = {}) => {

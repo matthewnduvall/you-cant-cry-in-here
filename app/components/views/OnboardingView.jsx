@@ -8,14 +8,17 @@ import {
   EXERCISE_MAP,
   DEFAULT_GYM_EQUIPMENT_PRESETS,
   SLOT_CATEGORIES,
+  normalizeSlotCategory,
   filterAddSlotExercises,
   getAvailableMuscleGroupsForCategory,
   getExRxTargetForLift,
+  formatTodayYMD,
   roundTo5
 } from '../../data/exerciseLibrary';
 import {
   SCHEME_OPTIONS,
-  SET_TYPES_LIST
+  SET_TYPES_LIST,
+  normalizeSlotLabels
 } from '../../utils/workoutEngine';
 
 const SHARED_CELL_BORDER = {
@@ -145,6 +148,7 @@ export function OnboardingView({
   setTargetStandardClass,
   oneRepMaxes,
   setOneRepMaxes,
+  setHistory,
   customPrExerciseIds: externalCustomPrIds,
   setCustomPrExerciseIds: setExternalCustomPrIds,
   customGoalWeights,
@@ -158,7 +162,7 @@ export function OnboardingView({
   const [step, setStep] = useState(1);
   const totalSteps = 6;
 
-  // --- Custom Added Exercises on Page 3 (Bench, Squat, Deadlift, OHP, Incline Bench, Pull Up by default) ---
+  // --- Custom Added Exercises on Page 3 (Bench, Squat, Deadlift, OHP, Pull Up by default) ---
   const [localCustomPrIds, setLocalCustomPrIds] = useState([]);
   const customPrExerciseIds = externalCustomPrIds || localCustomPrIds;
   const setCustomPrExerciseIds = setExternalCustomPrIds || setLocalCustomPrIds;
@@ -174,8 +178,7 @@ export function OnboardingView({
   const displayedPrExerciseIds = Array.from(
     new Set([
       ...CORE_PR_EXERCISE_IDS,
-      ...customPrExerciseIds,
-      ...Object.keys(oneRepMaxes || {}).filter(id => Number(oneRepMaxes?.[id]) > 0)
+      ...(Array.isArray(customPrExerciseIds) ? customPrExerciseIds : [])
     ])
   );
   const displayedPrExercises = displayedPrExerciseIds
@@ -255,10 +258,56 @@ export function OnboardingView({
 
   const handleSaveConvertedPR = () => {
     if (!calcPopupExerciseId || convertedOneRepMax <= 0) return;
+    const exObj = EXERCISE_MAP[calcPopupExerciseId] || EXERCISE_LIBRARY[0];
     setOneRepMaxes(prev => ({
       ...prev,
       [calcPopupExerciseId]: convertedOneRepMax
     }));
+    if (setHistory) {
+      const cleanDate = formatTodayYMD();
+      const ts = Date.now();
+      const prSet = {
+        id: `set_pr_${ts}`,
+        setNumber: 1,
+        type: '1 Rep Max',
+        reps: 1,
+        lastWeight: convertedOneRepMax,
+        increment: 0,
+        weight: convertedOneRepMax,
+        completed: true
+      };
+      const prSlot = {
+        id: `slot_pr_${ts}`,
+        category: normalizeSlotCategory(exObj.category || 'Compound Lift'),
+        slotLabel: normalizeSlotCategory(exObj.category || 'Compound Lift'),
+        scheme: calcScheme || '5x5',
+        restSeconds: 90,
+        muscleGroupFilter: exObj.muscleGroup || 'All Muscles',
+        familyMuscleGroup: exObj.muscleGroup || 'Chest',
+        exerciseId: exObj.id,
+        secondaryExerciseId: null,
+        supersetExerciseIds: [exObj.id],
+        supersetSetsByExercise: [[prSet]],
+        sets: [prSet],
+        secondarySets: []
+      };
+      const newHistEntry = {
+        id: `hist_pr_${exObj.id}_${ts}`,
+        title: `${cleanDate} - ${exObj.name} PR (${convertedOneRepMax} LB)`,
+        loadedRoutineTitle: 'PERSONAL RECORD',
+        startedAt: new Date(`${cleanDate}T12:00:00`).toISOString(),
+        updatedAt: new Date().toISOString(),
+        isComplete: true,
+        verifiedByUser: true,
+        defaultRestSeconds: 90,
+        slots: normalizeSlotLabels([prSlot])
+      };
+      setHistory(prev =>
+        [newHistEntry, ...(prev || [])].sort(
+          (a, b) => new Date(b.startedAt || 0).getTime() - new Date(a.startedAt || 0).getTime()
+        )
+      );
+    }
     setCalcPopupExerciseId(null);
   };
 

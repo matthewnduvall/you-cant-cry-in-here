@@ -442,7 +442,6 @@ export const CORE_PR_EXERCISE_IDS = [
   'barbell_back_squat',
   'barbell_deadlift',
   'overhead_press',
-  'incline_bench_press',
   'chin_ups'
 ];
 export const EXRX_CLASSES = ['Untrained', 'Novice', 'Intermediate', 'Advanced', 'Elite'];

@@ -567,6 +567,8 @@ export default function App() {
             <HistoryView
               colors={colors}
               history={history}
+              setHistory={setHistory}
+              currentIncrementLbs={currentIncrementLbs}
               historySessionsExpanded={historySessionsExpanded}
               setHistorySessionsExpanded={setHistorySessionsExpanded}
               expandedHistoryWorkoutId={expandedHistoryWorkoutId}
@@ -760,6 +762,9 @@ export default function App() {
               setTargetStandardClass={setTargetStandardClass}
               oneRepMaxes={effectiveOneRepMaxes}
               setOneRepMaxes={setOneRepMaxes}
+              history={history}
+              setHistory={setHistory}
+              currentIncrementLbs={currentIncrementLbs}
               customPrExerciseIds={customPrExerciseIds}
               setCustomPrExerciseIds={setCustomPrExerciseIds}
               customGoalWeights={customGoalWeights}

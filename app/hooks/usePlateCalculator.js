@@ -3,6 +3,7 @@
 import { useState, useMemo } from 'react';
 import {
   EXERCISE_MAP,
+  formatTodayYMD,
   normalizeSlotCategory,
   roundTo5
 } from '../data/exerciseLibrary';
@@ -104,57 +105,58 @@ export function usePlateCalculator({
         [exId]: roundedPR
       }));
 
-      // If a date was entered for this Personal Record, create an individual History entry just for that record
-      if (prRecordDate && String(prRecordDate).trim()) {
-        const cleanDate = String(prRecordDate).trim();
-        const ts = Date.now();
-        const prSet = {
-          id: `set_pr_${ts}`,
-          setNumber: 1,
-          type: '1 Rep Max',
-          reps: 1,
-          lastWeight: roundedPR,
-          increment: 0,
-          weight: roundedPR,
-          completed: true
-        };
-        const prSlot = {
-          id: `slot_pr_${ts}`,
-          category: normalizeSlotCategory(exObj.category || 'Compound Lift'),
-          slotLabel: normalizeSlotCategory(exObj.category || 'Compound Lift'),
-          scheme: 'Pyramid 1RM',
-          restSeconds: 90,
-          muscleGroupFilter: exObj.muscleGroup || 'All Muscles',
-          familyMuscleGroup: exObj.muscleGroup || 'Chest',
-          exerciseId: exObj.id,
-          secondaryExerciseId: null,
-          supersetExerciseIds: [exObj.id],
-          supersetSetsByExercise: [[prSet]],
-          sets: [prSet],
-          secondarySets: []
-        };
-        const isoDate = new Date(`${cleanDate}T12:00:00`).toISOString();
-        const newHistEntry = {
-          id: `hist_pr_${exObj.id}_${ts}`,
-          title: `${cleanDate} - ${exObj.name} PR (${roundedPR} LB)`,
-          loadedRoutineTitle: 'PERSONAL RECORD',
-          startedAt: isoDate,
-          updatedAt: new Date().toISOString(),
-          isComplete: true,
-          verifiedByUser: true,
-          defaultRestSeconds: 90,
-          slots: normalizeSlotLabels([prSlot])
-        };
-        setHistory(prev =>
-          [newHistEntry, ...(prev || [])].sort(
-            (a, b) => new Date(b.startedAt || 0).getTime() - new Date(a.startedAt || 0).getTime()
-          )
-        );
-        appendSessionLog?.(
-          'PR_HISTORY_CREATE',
-          `Created PR History entry for ${exObj.name} (${roundedPR} LB on ${cleanDate})`
-        );
-      }
+      // Always log an individual History entry when a Personal Record is entered (using chosen date or today)
+      const cleanDate =
+        prRecordDate && String(prRecordDate).trim()
+          ? String(prRecordDate).trim()
+          : formatTodayYMD();
+      const ts = Date.now();
+      const prSet = {
+        id: `set_pr_${ts}`,
+        setNumber: 1,
+        type: '1 Rep Max',
+        reps: 1,
+        lastWeight: roundedPR,
+        increment: 0,
+        weight: roundedPR,
+        completed: true
+      };
+      const prSlot = {
+        id: `slot_pr_${ts}`,
+        category: normalizeSlotCategory(exObj.category || 'Compound Lift'),
+        slotLabel: normalizeSlotCategory(exObj.category || 'Compound Lift'),
+        scheme: 'Pyramid 1RM',
+        restSeconds: 90,
+        muscleGroupFilter: exObj.muscleGroup || 'All Muscles',
+        familyMuscleGroup: exObj.muscleGroup || 'Chest',
+        exerciseId: exObj.id,
+        secondaryExerciseId: null,
+        supersetExerciseIds: [exObj.id],
+        supersetSetsByExercise: [[prSet]],
+        sets: [prSet],
+        secondarySets: []
+      };
+      const isoDate = new Date(`${cleanDate}T12:00:00`).toISOString();
+      const newHistEntry = {
+        id: `hist_pr_${exObj.id}_${ts}`,
+        title: `${cleanDate} - ${exObj.name} PR (${roundedPR} LB)`,
+        loadedRoutineTitle: 'PERSONAL RECORD',
+        startedAt: isoDate,
+        updatedAt: new Date().toISOString(),
+        isComplete: true,
+        verifiedByUser: true,
+        defaultRestSeconds: 90,
+        slots: normalizeSlotLabels([prSlot])
+      };
+      setHistory(prev =>
+        [newHistEntry, ...(prev || [])].sort(
+          (a, b) => new Date(b.startedAt || 0).getTime() - new Date(a.startedAt || 0).getTime()
+        )
+      );
+      appendSessionLog?.(
+        'PR_HISTORY_CREATE',
+        `Created PR History entry for ${exObj.name} (${roundedPR} LB on ${cleanDate})`
+      );
       setPrRecordDate('');
     } else if (plateCalcTarget.mode === 'goal') {
       setCustomGoalWeights(prev => ({
