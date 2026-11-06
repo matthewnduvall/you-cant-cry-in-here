@@ -45,7 +45,7 @@ export function usePlateCalculator({
     setCalcMode('per_side');
   };
 
-  const openPlateCalculatorForSet = (slotId, exIndex, setItem, exerciseName) => {
+  const openPlateCalculatorForSet = (slotId, exIndex, setItem, exerciseName, onApplyCustom = null) => {
     decomposeWeightToPlates(Number(setItem.weight) || 135);
     setPlateCalcTarget({
       mode: 'set',
@@ -53,7 +53,8 @@ export function usePlateCalculator({
       exIndex,
       setId: setItem.id,
       setNumber: setItem.setNumber,
-      exerciseName
+      exerciseName,
+      onApplyCustom
     });
   };
 
@@ -86,13 +87,17 @@ export function usePlateCalculator({
         : computedPlateCalculatorTotal;
 
     if (plateCalcTarget.mode === 'set') {
-      handleUpdateSetField(
-        plateCalcTarget.slotId,
-        plateCalcTarget.exIndex,
-        plateCalcTarget.setId,
-        'weight',
-        finalWeightLbs
-      );
+      if (typeof plateCalcTarget.onApplyCustom === 'function') {
+        plateCalcTarget.onApplyCustom(finalWeightLbs);
+      } else {
+        handleUpdateSetField(
+          plateCalcTarget.slotId,
+          plateCalcTarget.exIndex,
+          plateCalcTarget.setId,
+          'weight',
+          finalWeightLbs
+        );
+      }
     } else if (plateCalcTarget.mode === 'pr') {
       const roundedPR = roundTo5(finalWeightLbs);
       const exId = plateCalcTarget.exerciseId;

@@ -379,7 +379,7 @@ export function useCloudAndStorageSync({
     };
   }, [isStorageHydrated, user?.id, user?.email, user?.username]);
 
-  // 3. Automatic Invite-to-Friend Resolution
+  // 3. Automatic Friend Request & Accepted Friendship Sync
   useEffect(() => {
     if (typeof window === 'undefined' || !isStorageHydrated) return;
     if (!user && (!Array.isArray(outgoingInvites) || outgoingInvites.length === 0)) return;
@@ -387,11 +387,33 @@ export function useCloudAndStorageSync({
     let cancelled = false;
     (async () => {
       try {
-        const { matchedFriends, resolvedInviteEmails } = await resolveInviteFriendshipsForUser(
-          user,
-          outgoingInvites
-        );
+        const { incomingRequests, matchedFriends, resolvedInviteEmails } =
+          await resolveInviteFriendshipsForUser(user, outgoingInvites, friendsList);
         if (cancelled) return;
+
+        if (Array.isArray(incomingRequests)) {
+          setPendingIncomingRequests(prev => {
+            const byKey = new Map();
+            (Array.isArray(prev) ? prev : []).forEach(r => {
+              if (!r) return;
+              const k = String(r.username || r.email || r.id).toLowerCase();
+              byKey.set(k, r);
+            });
+            incomingRequests.forEach(r => {
+              if (!r) return;
+              const k = String(r.username || r.email || r.id).toLowerCase();
+              byKey.set(k, r);
+            });
+            const friendKeys = new Set(
+              (Array.isArray(friendsList) ? friendsList : []).map(f =>
+                String(f?.username || f?.email || f?.id).toLowerCase()
+              )
+            );
+            return Array.from(byKey.values()).filter(
+              r => !friendKeys.has(String(r?.username || r?.email || r?.id).toLowerCase())
+            );
+          });
+        }
 
         if (Array.isArray(matchedFriends) && matchedFriends.length > 0) {
           setFriendsList(prev => {
@@ -403,7 +425,8 @@ export function useCloudAndStorageSync({
             matchedFriends.forEach(f => {
               if (!f) return;
               const k = String(f.username || f.email || f.id).toLowerCase();
-              if (!byKey.has(k)) byKey.set(k, f);
+              const existing = byKey.get(k);
+              byKey.set(k, existing ? { ...existing, ...f } : f);
             });
             return ensureDefaultMattFriend(Array.from(byKey.values()));
           });
@@ -413,7 +436,8 @@ export function useCloudAndStorageSync({
           setOutgoingInvites(prev =>
             (Array.isArray(prev) ? prev : []).filter(inv => {
               const em = (typeof inv === 'string' ? inv : inv?.email || '').trim().toLowerCase();
-              return !resolvedInviteEmails.includes(em);
+              const un = (typeof inv === 'object' && inv?.username ? inv.username : '').trim().toLowerCase();
+              return !resolvedInviteEmails.includes(em) && (!un || !resolvedInviteEmails.includes(un));
             })
           );
         }

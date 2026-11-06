@@ -7,16 +7,19 @@ import { DEFAULT_ROUTINES } from '../../data/exerciseLibrary';
 
 export function RoutinesView({
   colors,
+  user,
   savedRoutines,
   sharedRoutines,
   friendsList,
   routineSelectReturnView,
   handleDirectLoadRoutine,
-  handleCancelRoutineSelection
+  handleCancelRoutineSelection,
+  setDeleteConfirmTarget
 }) {
   const friendRoutines = friendsList.flatMap(f =>
     (f.sharedRoutines || []).map(r => ({ ...r, friendName: f.username }))
   );
+  const fallbackAuthor = (user?.username || 'athlete').replace(/^@/, '');
 
   return (
     <div style={UI.pagePad}>
@@ -75,32 +78,57 @@ export function RoutinesView({
             <span style={UI.rowSub}>No custom routines saved yet.</span>
           </IOSListRow>
         ) : (
-          savedRoutines.map((r, i) => (
-            <IOSListRow
-              key={r.key}
-              isLast={i === savedRoutines.length - 1}
-              colors={colors}
-              onClick={() => handleDirectLoadRoutine(r, routineSelectReturnView || 'session')}
-            >
-              <div>
-                <div style={UI.rowTitle}>{r.label}</div>
-                <div className="kinetic-sub" style={UI.rowSub}>{(r.slots || []).length} EXERCISES</div>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
-                <button
-                  type="button"
-                  onClick={e => {
-                    e.stopPropagation();
-                    handleDirectLoadRoutine(r, routineSelectReturnView || 'session');
-                  }}
-                  className="kinetic-btn"
-                  style={UI.pillBtn(true)}
-                >
-                  LOAD →
-                </button>
-              </div>
-            </IOSListRow>
-          ))
+          savedRoutines.map((r, i) => {
+            const authorHandle = (r.author || fallbackAuthor).replace(/^@/, '');
+            return (
+              <IOSListRow
+                key={r.key}
+                isLast={i === savedRoutines.length - 1}
+                colors={colors}
+                onClick={() => handleDirectLoadRoutine(r, routineSelectReturnView || 'session')}
+              >
+                <div>
+                  <div style={UI.rowTitle}>{r.label}</div>
+                  <div className="kinetic-sub" style={UI.rowSub}>BY @{authorHandle}</div>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+                  <button
+                    type="button"
+                    onClick={e => {
+                      e.stopPropagation();
+                      handleDirectLoadRoutine(r, routineSelectReturnView || 'session');
+                    }}
+                    className="kinetic-btn"
+                    style={UI.pillBtn(true)}
+                  >
+                    LOAD →
+                  </button>
+                  <button
+                    type="button"
+                    aria-label={`Delete ${r.label}`}
+                    onClick={e => {
+                      e.stopPropagation();
+                      setDeleteConfirmTarget?.({
+                        type: 'saved_routine',
+                        routineKey: r.key,
+                        routineLabel: r.label,
+                        label: r.label
+                      });
+                    }}
+                    className="kinetic-btn"
+                    style={{
+                      ...UI.deleteXBtn,
+                      width: '32px',
+                      height: '30px',
+                      fontSize: '12px'
+                    }}
+                  >
+                    ✕
+                  </button>
+                </div>
+              </IOSListRow>
+            );
+          })
         )}
       </IOSListSection>
 
@@ -110,29 +138,57 @@ export function RoutinesView({
             <span style={UI.rowSub}>No routines shared yet. Tap SHARE in a workout session.</span>
           </IOSListRow>
         ) : (
-          sharedRoutines.map((r, i) => (
-            <IOSListRow
-              key={r.key}
-              isLast={i === sharedRoutines.length - 1}
-              colors={colors}
-              onClick={() => handleDirectLoadRoutine(r, routineSelectReturnView || 'session')}
-            >
-              <span style={UI.rowTitle}>{r.label}</span>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
-                <button
-                  type="button"
-                  onClick={e => {
-                    e.stopPropagation();
-                    handleDirectLoadRoutine(r, routineSelectReturnView || 'session');
-                  }}
-                  className="kinetic-btn"
-                  style={UI.pillBtn(true)}
-                >
-                  LOAD →
-                </button>
-              </div>
-            </IOSListRow>
-          ))
+          sharedRoutines.map((r, i) => {
+            const authorHandle = (r.author || fallbackAuthor).replace(/^@/, '');
+            return (
+              <IOSListRow
+                key={r.key}
+                isLast={i === sharedRoutines.length - 1}
+                colors={colors}
+                onClick={() => handleDirectLoadRoutine(r, routineSelectReturnView || 'session')}
+              >
+                <div>
+                  <div style={UI.rowTitle}>{r.label}</div>
+                  <div className="kinetic-sub" style={UI.rowSub}>BY @{authorHandle}</div>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+                  <button
+                    type="button"
+                    onClick={e => {
+                      e.stopPropagation();
+                      handleDirectLoadRoutine(r, routineSelectReturnView || 'session');
+                    }}
+                    className="kinetic-btn"
+                    style={UI.pillBtn(true)}
+                  >
+                    LOAD →
+                  </button>
+                  <button
+                    type="button"
+                    aria-label={`Delete ${r.label}`}
+                    onClick={e => {
+                      e.stopPropagation();
+                      setDeleteConfirmTarget?.({
+                        type: 'shared_routine',
+                        routineKey: r.key,
+                        routineLabel: r.label,
+                        label: r.label
+                      });
+                    }}
+                    className="kinetic-btn"
+                    style={{
+                      ...UI.deleteXBtn,
+                      width: '32px',
+                      height: '30px',
+                      fontSize: '12px'
+                    }}
+                  >
+                    ✕
+                  </button>
+                </div>
+              </IOSListRow>
+            );
+          })
         )}
       </IOSListSection>
 

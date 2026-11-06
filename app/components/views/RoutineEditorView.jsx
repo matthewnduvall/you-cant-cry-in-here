@@ -347,226 +347,230 @@ export function RoutineEditorView({
           )}
 
           {/* Row 2: Top Action Row (Gyms/Equipment, Load, Auto — Shared Border, Larger Text) */}
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
-              gap: 0,
-              width: '100%',
-              alignItems: 'stretch'
-            }}
-          >
-            {/* Column 1: Gyms/Equipment */}
+          {!isEmbeddedHistorySession && (
             <div
               style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+                gap: 0,
                 width: '100%',
-                height: '48px',
-                boxSizing: 'border-box',
-                position: 'relative',
-                backgroundColor: '#161618',
-                ...SHARED_CELL_BORDER,
-                padding: '0 8px',
-                display: 'flex',
-                flexDirection: 'column',
-                justifyContent: 'center',
-                alignItems: 'center',
-                textAlign: 'center',
-                minWidth: 0
+                alignItems: 'stretch'
               }}
             >
+              {/* Column 1: Gyms/Equipment */}
               <div
                 style={{
-                  fontSize: '10px',
-                  fontWeight: 800,
-                  color: 'var(--dp-color-accent)',
-                  textTransform: 'uppercase',
-                  lineHeight: 1.15
-                }}
-              >
-                GYMS/EQUIPMENT ▾
-              </div>
-              <div
-                style={{
-                  fontSize: '13px',
-                  fontWeight: 800,
-                  color: '#FFFFFF',
-                  textTransform: 'uppercase',
-                  whiteSpace: 'nowrap',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
                   width: '100%',
-                  lineHeight: 1.25,
-                  marginTop: '1px',
-                  textAlign: 'center'
+                  height: '48px',
+                  boxSizing: 'border-box',
+                  position: 'relative',
+                  backgroundColor: '#161618',
+                  ...SHARED_CELL_BORDER,
+                  padding: '0 8px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  textAlign: 'center',
+                  minWidth: 0
                 }}
               >
-                {getGymSelectionLabel(selectedGymId, gyms)}
+                <div
+                  style={{
+                    fontSize: '10px',
+                    fontWeight: 800,
+                    color: 'var(--dp-color-accent)',
+                    textTransform: 'uppercase',
+                    lineHeight: 1.15
+                  }}
+                >
+                  GYMS/EQUIPMENT ▾
+                </div>
+                <div
+                  style={{
+                    fontSize: '13px',
+                    fontWeight: 800,
+                    color: '#FFFFFF',
+                    textTransform: 'uppercase',
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    width: '100%',
+                    lineHeight: 1.25,
+                    marginTop: '1px',
+                    textAlign: 'center'
+                  }}
+                >
+                  {getGymSelectionLabel(selectedGymId, gyms)}
+                </div>
+                <select
+                  aria-label="Select Gyms/Equipment"
+                  value={selectedGymId || ''}
+                  onChange={e => setSelectedGymId(e.target.value)}
+                  style={{
+                    position: 'absolute',
+                    inset: 0,
+                    width: '100%',
+                    height: '100%',
+                    opacity: 0,
+                    backgroundColor: '#101010',
+                    color: '#FFFFFF',
+                    cursor: 'pointer'
+                  }}
+                >
+                  {DEFAULT_GYM_EQUIPMENT_PRESETS.map(preset => (
+                    <option key={preset.id || 'full_gym'} value={preset.id}>
+                      {preset.name.toUpperCase()}
+                    </option>
+                  ))}
+                  {gyms.map(g => (
+                    <option key={g.id} value={g.id}>
+                      {g.name.toUpperCase()}
+                    </option>
+                  ))}
+                </select>
               </div>
-              <select
-                aria-label="Select Gyms/Equipment"
-                value={selectedGymId || ''}
-                onChange={e => setSelectedGymId(e.target.value)}
+
+              {/* Column 2: Routines / Load */}
+              <button
+                type="button"
+                onClick={() => {
+                  setRoutineSelectReturnView(currentView);
+                  setCurrentView('routines');
+                }}
+                className="kinetic-btn"
                 style={{
-                  position: 'absolute',
-                  inset: 0,
                   width: '100%',
-                  height: '100%',
-                  opacity: 0,
-                  backgroundColor: '#101010',
-                  color: '#FFFFFF',
-                  cursor: 'pointer'
+                  height: '48px',
+                  boxSizing: 'border-box',
+                  padding: '0 8px',
+                  backgroundColor: '#161618',
+                  ...SHARED_CELL_BORDER,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  textAlign: 'center',
+                  minWidth: 0
                 }}
               >
-                {DEFAULT_GYM_EQUIPMENT_PRESETS.map(preset => (
-                  <option key={preset.id || 'full_gym'} value={preset.id}>
-                    {preset.name.toUpperCase()}
-                  </option>
-                ))}
-                {gyms.map(g => (
-                  <option key={g.id} value={g.id}>
-                    {g.name.toUpperCase()}
-                  </option>
-                ))}
-              </select>
+                <div
+                  style={{
+                    fontSize: '10px',
+                    fontWeight: 800,
+                    color: 'var(--dp-color-accent)',
+                    textTransform: 'uppercase',
+                    lineHeight: 1.15
+                  }}
+                >
+                  ROUTINES
+                </div>
+                <div
+                  style={{
+                    fontSize: '13px',
+                    fontWeight: 800,
+                    color: '#FFFFFF',
+                    textTransform: 'uppercase',
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    width: '100%',
+                    lineHeight: 1.25,
+                    marginTop: '1px',
+                    textAlign: 'center'
+                  }}
+                >
+                  LOAD
+                </div>
+              </button>
+
+              {/* Column 3: Routines / Auto */}
+              <button
+                type="button"
+                onClick={handleAutoBuildWorkout}
+                className="kinetic-btn"
+                style={{
+                  width: '100%',
+                  height: '48px',
+                  boxSizing: 'border-box',
+                  padding: '0 8px',
+                  backgroundColor: 'var(--dp-color-accent)',
+                  color: '#101010',
+                  ...SHARED_CELL_BORDER,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  textAlign: 'center',
+                  minWidth: 0
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: '10px',
+                    fontWeight: 800,
+                    color: '#101010',
+                    textTransform: 'uppercase',
+                    lineHeight: 1.15,
+                    opacity: 0.85
+                  }}
+                >
+                  ROUTINES
+                </div>
+                <div
+                  style={{
+                    fontSize: '13px',
+                    fontWeight: 800,
+                    color: '#101010',
+                    textTransform: 'uppercase',
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    width: '100%',
+                    lineHeight: 1.25,
+                    marginTop: '1px',
+                    textAlign: 'center'
+                  }}
+                >
+                  AUTO
+                </div>
+              </button>
             </div>
+          )}
 
-            {/* Column 2: Routines / Load */}
-            <button
-              type="button"
-              onClick={() => {
-                setRoutineSelectReturnView(currentView);
-                setCurrentView('routines');
-              }}
-              className="kinetic-btn"
-              style={{
-                width: '100%',
-                height: '48px',
-                boxSizing: 'border-box',
-                padding: '0 8px',
-                backgroundColor: '#161618',
-                ...SHARED_CELL_BORDER,
-                cursor: 'pointer',
-                display: 'flex',
-                flexDirection: 'column',
-                justifyContent: 'center',
-                alignItems: 'center',
-                textAlign: 'center',
-                minWidth: 0
-              }}
-            >
-              <div
-                style={{
-                  fontSize: '10px',
-                  fontWeight: 800,
-                  color: 'var(--dp-color-accent)',
-                  textTransform: 'uppercase',
-                  lineHeight: 1.15
-                }}
-              >
-                ROUTINES
-              </div>
-              <div
-                style={{
-                  fontSize: '13px',
-                  fontWeight: 800,
-                  color: '#FFFFFF',
-                  textTransform: 'uppercase',
-                  whiteSpace: 'nowrap',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  width: '100%',
-                  lineHeight: 1.25,
-                  marginTop: '1px',
-                  textAlign: 'center'
-                }}
-              >
-                LOAD
-              </div>
-            </button>
-
-            {/* Column 3: Routines / Auto */}
-            <button
-              type="button"
-              onClick={handleAutoBuildWorkout}
-              className="kinetic-btn"
-              style={{
-                width: '100%',
-                height: '48px',
-                boxSizing: 'border-box',
-                padding: '0 8px',
-                backgroundColor: 'var(--dp-color-accent)',
-                color: '#101010',
-                ...SHARED_CELL_BORDER,
-                cursor: 'pointer',
-                display: 'flex',
-                flexDirection: 'column',
-                justifyContent: 'center',
-                alignItems: 'center',
-                textAlign: 'center',
-                minWidth: 0
-              }}
-            >
-              <div
-                style={{
-                  fontSize: '10px',
-                  fontWeight: 800,
-                  color: '#101010',
-                  textTransform: 'uppercase',
-                  lineHeight: 1.15,
-                  opacity: 0.85
-                }}
-              >
-                ROUTINES
-              </div>
-              <div
-                style={{
-                  fontSize: '13px',
-                  fontWeight: 800,
-                  color: '#101010',
-                  textTransform: 'uppercase',
-                  whiteSpace: 'nowrap',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  width: '100%',
-                  lineHeight: 1.25,
-                  marginTop: '1px',
-                  textAlign: 'center'
-                }}
-              >
-                AUTO
-              </div>
-            </button>
-          </div>
-
-          {/* Row 3: Save / Share / Reset Row (Shared Borders, hidden when session is empty) */}
-          {hasExercises && renderSaveShareResetRow()}
+          {/* Row 3: Save / Share / Reset Row (Shared Borders, hidden when session is empty or embedded in History) */}
+          {!isEmbeddedHistorySession && hasExercises && renderSaveShareResetRow()}
         </div>
       </section>
 
       {/* ALWAYS-EXPANDED EXERCISES — SHARED BORDERS, LARGER CONTROLS & TEXT */}
       <section style={{ marginBottom: '20px', padding: '0 var(--dp-spacing-gutter)' }}>
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: '8px',
-            marginBottom: '8px'
-          }}
-        >
+        {!isEmbeddedHistorySession && (
           <div
             style={{
-              fontSize: '20px',
-              fontWeight: 800,
-              letterSpacing: '-0.04em',
-              textTransform: 'uppercase',
-              color: '#FFFFFF',
-              lineHeight: 1.05
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '8px',
+              marginBottom: '8px'
             }}
           >
-            {`EXERCISES (${(currentEditorWorkout.slots || []).length})`}
+            <div
+              style={{
+                fontSize: '20px',
+                fontWeight: 800,
+                letterSpacing: '-0.04em',
+                textTransform: 'uppercase',
+                color: '#FFFFFF',
+                lineHeight: 1.05
+              }}
+            >
+              {`EXERCISES (${(currentEditorWorkout.slots || []).length})`}
+            </div>
           </div>
-        </div>
+        )}
 
         <div style={{ borderTop: '2px solid var(--dp-color-rule)' }}>
           {!hasExercises ? null : (

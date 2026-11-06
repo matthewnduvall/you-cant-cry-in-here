@@ -30,9 +30,11 @@ export function DeleteConfirmModal({
           <span>
             {deleteConfirmTarget.type === 'history_workout'
               ? 'DELETE HISTORY ENTRY?'
-              : deleteConfirmTarget.type === 'slot'
-                ? 'DELETE EXERCISE?'
-                : 'DELETE SET?'}
+              : deleteConfirmTarget.type === 'saved_routine' || deleteConfirmTarget.type === 'shared_routine'
+                ? 'DELETE ROUTINE?'
+                : deleteConfirmTarget.type === 'slot'
+                  ? 'DELETE EXERCISE?'
+                  : 'DELETE SET?'}
           </span>
           <button type="button" onClick={() => setDeleteConfirmTarget(null)} style={UI.closeXBtn}>
             ✕
@@ -314,7 +316,7 @@ export function PlateCalculatorModal({
   if (!plateCalcTarget) return null;
 
   return (
-    <div style={{ ...UI.modalBackdrop, zIndex: 80 }} onClick={() => setPlateCalcTarget(null)}>
+    <div style={{ ...UI.modalBackdrop, zIndex: 1300 }} onClick={() => setPlateCalcTarget(null)}>
       <div onClick={e => e.stopPropagation()} style={UI.modalCard('390px')}>
         <div style={UI.modalHeader}>
           <div>

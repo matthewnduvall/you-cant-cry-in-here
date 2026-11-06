@@ -954,37 +954,288 @@ export async function pushCloudStateForUser(user, payload) {
   return true;
 }
 
+const LOCAL_FRIEND_REQUESTS_KEY = 'yccih_local_friend_requests_v1';
+
+function getLocalFriendRequests() {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = window.localStorage.getItem(LOCAL_FRIEND_REQUESTS_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveLocalFriendRequests(list) {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(LOCAL_FRIEND_REQUESTS_KEY, JSON.stringify(Array.isArray(list) ? list : []));
+  } catch {
+    // ignore storage error
+  }
+}
+
 /**
- * Resolves automatic friendships for email invites:
- * 1) Checks if any email in the current user's `outgoingInvites` has registered an account (locally or in Supabase `user_profiles`).
- * 2) Checks if any registered user in Supabase `user_profiles` sent an email invite to the current user's email.
+ * Deletes a routine from Supabase `public.routines` by its `key`.
  */
-export async function resolveInviteFriendshipsForUser(user, outgoingInvites = []) {
+export async function deleteCloudRoutineByKey(user, routineKey) {
+  if (!user || !routineKey) return false;
+  const { baseUrl, anonKey, isConfigured } = getSupabaseConfig();
+  if (!isConfigured) return false;
+  const accessToken = await getValidSupabaseAccessToken(user);
+  if (!accessToken) return false;
+  try {
+    const res = await fetch(
+      `${baseUrl}/rest/v1/routines?key=eq.${encodeURIComponent(String(routineKey))}`,
+      {
+        method: 'DELETE',
+        headers: {
+          apikey: anonKey,
+          Authorization: `Bearer ${accessToken}`
+        }
+      }
+    );
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Sends a friend request from `user` to `targetAthlete`.
+ * Stores the pending request in Supabase `public.friendships` (and local fallback) so the recipient sees it in INCOMING REQUESTS.
+ */
+export async function sendFriendRequestToAthlete(user, targetAthlete) {
+  if (!user || !targetAthlete) return false;
+  const requesterUsername = (user.username || '').trim();
+  const requesterEmail = (user.email || '').trim().toLowerCase();
+  const addresseeUsername = (targetAthlete.username || '').trim();
+  const addresseeEmail = (targetAthlete.email || '').trim().toLowerCase();
+
+  // 1. Save in local requests store
+  const localReqs = getLocalFriendRequests();
+  const existsIdx = localReqs.findIndex(
+    r =>
+      ((r.requesterEmail && r.requesterEmail === requesterEmail) ||
+        (r.requesterUsername && r.requesterUsername.toLowerCase() === requesterUsername.toLowerCase())) &&
+      ((r.addresseeEmail && r.addresseeEmail === addresseeEmail) ||
+        (r.addresseeUsername && r.addresseeUsername.toLowerCase() === addresseeUsername.toLowerCase()))
+  );
+  const newEntry = {
+    id: `freq_${Date.now()}`,
+    requesterId: user.id,
+    requesterUsername,
+    requesterEmail,
+    addresseeId: targetAthlete.id,
+    addresseeUsername,
+    addresseeEmail,
+    status: 'pending',
+    createdAt: new Date().toISOString()
+  };
+  if (existsIdx >= 0) {
+    localReqs[existsIdx] = { ...localReqs[existsIdx], ...newEntry };
+  } else {
+    localReqs.push(newEntry);
+  }
+  saveLocalFriendRequests(localReqs);
+
+  // 2. Sync to Supabase public.friendships if configured
+  const { baseUrl, anonKey, isConfigured } = getSupabaseConfig();
+  if (isConfigured) {
+    const accessToken = await getValidSupabaseAccessToken(user);
+    const headers = {
+      apikey: anonKey,
+      Authorization: `Bearer ${accessToken || anonKey}`,
+      'Content-Type': 'application/json',
+      Prefer: 'resolution=merge-duplicates'
+    };
+
+    try {
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      let requesterUuid = uuidRegex.test(String(user.id || '')) ? String(user.id) : null;
+      let addresseeUuid = uuidRegex.test(String(targetAthlete.id || '')) ? String(targetAthlete.id) : null;
+
+      if (!requesterUuid || !addresseeUuid) {
+        const profRes = await fetch(
+          `${baseUrl}/rest/v1/user_profiles?select=id,username,email`,
+          { headers: { apikey: anonKey, Authorization: `Bearer ${accessToken || anonKey}` } }
+        );
+        if (profRes.ok) {
+          const rows = await profRes.json();
+          if (Array.isArray(rows)) {
+            rows.forEach(r => {
+              const rEmail = (r?.email || '').trim().toLowerCase();
+              const rUname = (r?.username || '').trim().toLowerCase();
+              if (!requesterUuid && ((requesterEmail && rEmail === requesterEmail) || (requesterUsername && rUname === requesterUsername.toLowerCase()))) {
+                requesterUuid = r.id;
+              }
+              if (!addresseeUuid && ((addresseeEmail && rEmail === addresseeEmail) || (addresseeUsername && rUname === addresseeUsername.toLowerCase()))) {
+                addresseeUuid = r.id;
+              }
+            });
+          }
+        }
+      }
+
+      if (requesterUuid && addresseeUuid) {
+        await fetch(`${baseUrl}/rest/v1/friendships`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            requester_id: requesterUuid,
+            addressee_id: addresseeUuid,
+            status: 'pending'
+          })
+        });
+      }
+    } catch {
+      // ignore network error
+    }
+  }
+  return true;
+}
+
+/**
+ * Marks an incoming friend request from `requesterAthlete` to `user` as accepted in Supabase `public.friendships` and local storage.
+ */
+export async function acceptFriendRequestFromAthlete(user, requesterAthlete) {
+  if (!user || !requesterAthlete) return false;
+  const addresseeUsername = (user.username || '').trim().toLowerCase();
+  const addresseeEmail = (user.email || '').trim().toLowerCase();
+  const requesterUsername = (requesterAthlete.username || '').trim().toLowerCase();
+  const requesterEmail = (requesterAthlete.email || '').trim().toLowerCase();
+
+  // 1. Update local requests store
+  const localReqs = getLocalFriendRequests().map(r => {
+    const matchesReq =
+      (requesterEmail && (r.requesterEmail || '').toLowerCase() === requesterEmail) ||
+      (requesterUsername && (r.requesterUsername || '').toLowerCase() === requesterUsername);
+    const matchesAddr =
+      (addresseeEmail && (r.addresseeEmail || '').toLowerCase() === addresseeEmail) ||
+      (addresseeUsername && (r.addresseeUsername || '').toLowerCase() === addresseeUsername);
+    if (matchesReq && matchesAddr) {
+      return { ...r, status: 'accepted' };
+    }
+    return r;
+  });
+  saveLocalFriendRequests(localReqs);
+
+  // 2. Update Supabase public.friendships
+  const { baseUrl, anonKey, isConfigured } = getSupabaseConfig();
+  if (isConfigured) {
+    const accessToken = await getValidSupabaseAccessToken(user);
+    if (accessToken) {
+      const headers = {
+        apikey: anonKey,
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json'
+      };
+      try {
+        if (requesterAthlete.friendshipId) {
+          await fetch(
+            `${baseUrl}/rest/v1/friendships?id=eq.${encodeURIComponent(requesterAthlete.friendshipId)}`,
+            {
+              method: 'PATCH',
+              headers,
+              body: JSON.stringify({ status: 'accepted' })
+            }
+          );
+        } else if (requesterAthlete.id && user.id) {
+          await fetch(
+            `${baseUrl}/rest/v1/friendships?requester_id=eq.${encodeURIComponent(requesterAthlete.id)}&addressee_id=eq.${encodeURIComponent(user.id)}`,
+            {
+              method: 'PATCH',
+              headers,
+              body: JSON.stringify({ status: 'accepted' })
+            }
+          );
+        }
+      } catch {
+        // ignore network error
+      }
+    }
+  }
+  return true;
+}
+
+/**
+ * Resolves incoming friend requests and accepted friendships for `user`:
+ * - Users must accept an incoming request before they are added to `friendsList` or their profile can be accessed.
+ * - Returns `{ incomingRequests, matchedFriends, resolvedInviteEmails }`.
+ */
+export async function resolveInviteFriendshipsForUser(
+  user,
+  outgoingInvites = [],
+  currentFriendsList = []
+) {
+  const incomingRequests = [];
   const matchedFriends = [];
   const resolvedInviteEmails = [];
 
   const currentEmail = (user?.email || '').trim().toLowerCase();
-  const inviteEmails = (Array.isArray(outgoingInvites) ? outgoingInvites : [])
-    .map(inv => (typeof inv === 'string' ? inv : inv?.email || '').trim().toLowerCase())
-    .filter(Boolean);
+  const currentUsername = (user?.username || '').trim().toLowerCase();
+  if (!currentEmail && !currentUsername) {
+    return { incomingRequests, matchedFriends, resolvedInviteEmails };
+  }
 
-  // 1. Check local registered accounts on this device
-  const localAccounts = getLocalRegisteredAccounts();
-  inviteEmails.forEach(email => {
-    const acc = localAccounts[email];
-    if (acc && acc.email && acc.email.toLowerCase() !== currentEmail) {
-      matchedFriends.push({
-        id: acc.id || `friend_${acc.username}`,
-        username: acc.username || acc.email.split('@')[0],
-        email: acc.email.toLowerCase(),
+  const inviteMatchers = (Array.isArray(outgoingInvites) ? outgoingInvites : [])
+    .map(inv => ({
+      email: (typeof inv === 'string' ? inv : inv?.email || '').trim().toLowerCase(),
+      username: (typeof inv === 'object' && inv?.username ? inv.username : '').trim().toLowerCase()
+    }))
+    .filter(x => x.email || x.username);
+
+  const isAlreadyInFriends = (uname, email) => {
+    const u = (uname || '').trim().toLowerCase();
+    const e = (email || '').trim().toLowerCase();
+    return (Array.isArray(currentFriendsList) ? currentFriendsList : []).some(
+      f =>
+        (u && (f?.username || '').trim().toLowerCase() === u) ||
+        (e && (f?.email || '').trim().toLowerCase() === e)
+    );
+  };
+
+  // 1. Check local friend requests store
+  const localReqs = getLocalFriendRequests();
+  localReqs.forEach(req => {
+    const rEmail = (req.requesterEmail || '').trim().toLowerCase();
+    const rUname = (req.requesterUsername || '').trim();
+    const aEmail = (req.addresseeEmail || '').trim().toLowerCase();
+    const aUname = (req.addresseeUsername || '').trim();
+
+    const isAddressedToMe =
+      (currentEmail && aEmail === currentEmail) ||
+      (currentUsername && aUname.toLowerCase() === currentUsername);
+    const isSentByMe =
+      (currentEmail && rEmail === currentEmail) ||
+      (currentUsername && rUname.toLowerCase() === currentUsername);
+
+    if (isAddressedToMe && req.status === 'pending' && !isAlreadyInFriends(rUname, rEmail)) {
+      incomingRequests.push({
+        id: req.requesterId || `friend_${(rUname || rEmail).toLowerCase()}`,
+        username: rUname || rEmail.split('@')[0],
+        email: rEmail,
         prs: {},
         sharedRoutines: []
       });
-      resolvedInviteEmails.push(email);
+    } else if ((isAddressedToMe || isSentByMe) && req.status === 'accepted') {
+      const friendUname = isSentByMe ? aUname : rUname;
+      const friendEmail = isSentByMe ? aEmail : rEmail;
+      const friendId = isSentByMe ? req.addresseeId : req.requesterId;
+      matchedFriends.push({
+        id: friendId || `friend_${(friendUname || friendEmail).toLowerCase()}`,
+        username: friendUname || friendEmail.split('@')[0],
+        email: friendEmail,
+        prs: {},
+        sharedRoutines: []
+      });
+      if (friendEmail) resolvedInviteEmails.push(friendEmail);
+      if (friendUname) resolvedInviteEmails.push(friendUname.toLowerCase());
     }
   });
 
-  // 2. Check Supabase user_profiles if configured
+  // 2. Check Supabase user_profiles, friendships, and shared routines if configured
   const { baseUrl, anonKey, isConfigured } = getSupabaseConfig();
   if (isConfigured) {
     const accessToken = user ? await getValidSupabaseAccessToken(user) : null;
@@ -994,49 +1245,191 @@ export async function resolveInviteFriendshipsForUser(user, outgoingInvites = []
     };
 
     try {
-      const res = await fetch(
-        `${baseUrl}/rest/v1/user_profiles?select=id,username,email,one_rep_maxes,settings`,
-        { headers }
-      );
-      if (res.ok) {
-        const rows = await res.json();
-        if (Array.isArray(rows)) {
-          rows.forEach(row => {
-            const rowEmail = (row?.email || '').trim().toLowerCase();
-            if (!rowEmail || rowEmail === currentEmail) return;
+      const [profilesRes, routinesRes, friendshipsRes, friendInvitesRes] = await Promise.all([
+        fetch(`${baseUrl}/rest/v1/user_profiles?select=id,username,email,one_rep_maxes,settings`, { headers }).catch(() => null),
+        fetch(`${baseUrl}/rest/v1/routines?is_shared=eq.true&select=key,user_id,author_username,label,slots`, { headers }).catch(() => null),
+        user?.id
+          ? fetch(
+              `${baseUrl}/rest/v1/friendships?or=(requester_id.eq.${encodeURIComponent(user.id)},addressee_id.eq.${encodeURIComponent(user.id)})&select=*`,
+              { headers }
+            ).catch(() => null)
+          : Promise.resolve(null),
+        currentEmail
+          ? fetch(
+              `${baseUrl}/rest/v1/friend_invites?or=(invited_email.eq.${encodeURIComponent(currentEmail)},inviter_email.eq.${encodeURIComponent(currentEmail)})&select=*`,
+              { headers }
+            ).catch(() => null)
+          : Promise.resolve(null)
+      ]);
 
-            // A) Did current user invite this profile's email?
-            if (inviteEmails.includes(rowEmail)) {
-              matchedFriends.push({
-                id: row.id || `friend_${row.username}`,
-                username: row.username || rowEmail.split('@')[0],
-                email: rowEmail,
-                prs: row.one_rep_maxes || {},
-                sharedRoutines: []
-              });
-              if (!resolvedInviteEmails.includes(rowEmail)) {
-                resolvedInviteEmails.push(rowEmail);
+      const profileRows = profilesRes && profilesRes.ok ? await profilesRes.json() : [];
+      const sharedRoutineRows = routinesRes && routinesRes.ok ? await routinesRes.json() : [];
+      const friendshipRows = friendshipsRes && friendshipsRes.ok ? await friendshipsRes.json() : [];
+      const friendInviteRows = friendInvitesRes && friendInvitesRes.ok ? await friendInvitesRes.json() : [];
+
+      const routinesByUserId = new Map();
+      const routinesByUsername = new Map();
+      if (Array.isArray(sharedRoutineRows)) {
+        sharedRoutineRows.forEach(r => {
+          const item = {
+            key: r.key,
+            label: r.label,
+            author: r.author_username,
+            slots: Array.isArray(r.slots) ? r.slots : []
+          };
+          if (r.user_id) {
+            const list = routinesByUserId.get(r.user_id) || [];
+            list.push(item);
+            routinesByUserId.set(r.user_id, list);
+          }
+          if (r.author_username) {
+            const uKey = r.author_username.toLowerCase();
+            const list = routinesByUsername.get(uKey) || [];
+            list.push(item);
+            routinesByUsername.set(uKey, list);
+          }
+        });
+      }
+
+      const profileById = new Map();
+      if (Array.isArray(profileRows)) {
+        profileRows.forEach(row => {
+          if (row?.id) profileById.set(row.id, row);
+        });
+      }
+
+      const buildFriendObjFromProfile = (row, friendshipId = null) => {
+        const uname = (row?.username || '').trim() || (row?.email || '').split('@')[0];
+        const email = (row?.email || '').trim().toLowerCase();
+        const shared =
+          routinesByUserId.get(row?.id) ||
+          routinesByUsername.get(uname.toLowerCase()) ||
+          [];
+        return {
+          id: row?.id || `friend_${uname.toLowerCase()}`,
+          friendshipId: friendshipId || undefined,
+          username: uname,
+          email,
+          bodyweightLbs: row?.settings?.bodyMetrics?.bodyweightLbs || 200,
+          prs: row?.one_rep_maxes || {},
+          sharedRoutines: shared
+        };
+      };
+
+      // A) Process explicit rows from public.friendships table
+      if (Array.isArray(friendshipRows) && user?.id) {
+        friendshipRows.forEach(fr => {
+          const isRequester = String(fr.requester_id) === String(user.id);
+          const otherId = isRequester ? fr.addressee_id : fr.requester_id;
+          const otherProfile = profileById.get(otherId);
+          if (!otherProfile) return;
+          const friendObj = buildFriendObjFromProfile(otherProfile, fr.id);
+
+          if (fr.status === 'accepted') {
+            matchedFriends.push(friendObj);
+            if (friendObj.email) resolvedInviteEmails.push(friendObj.email);
+            if (friendObj.username) resolvedInviteEmails.push(friendObj.username.toLowerCase());
+          } else if (fr.status === 'pending' && !isRequester) {
+            if (!isAlreadyInFriends(friendObj.username, friendObj.email)) {
+              incomingRequests.push(friendObj);
+            }
+          }
+        });
+      }
+
+      // A2) Process rows from public.friend_invites table
+      if (Array.isArray(friendInviteRows) && Array.isArray(profileRows)) {
+        friendInviteRows.forEach(inv => {
+          const invTargetEmail = (inv?.invited_email || '').trim().toLowerCase();
+          const invSenderEmail = (inv?.inviter_email || '').trim().toLowerCase();
+          const invSenderUname = (inv?.inviter_username || '').trim().toLowerCase();
+
+          if (currentEmail && invTargetEmail === currentEmail) {
+            const senderProfile = profileRows.find(
+              p =>
+                (inv.inviter_user_id && p.id === inv.inviter_user_id) ||
+                (invSenderEmail && (p.email || '').trim().toLowerCase() === invSenderEmail) ||
+                (invSenderUname && (p.username || '').trim().toLowerCase() === invSenderUname)
+            );
+            if (senderProfile) {
+              const friendObj = buildFriendObjFromProfile(senderProfile);
+              if (inv.status === 'accepted') {
+                matchedFriends.push(friendObj);
+              } else if (!isAlreadyInFriends(friendObj.username, friendObj.email)) {
+                incomingRequests.push(friendObj);
               }
             }
+          }
+        });
+      }
 
-            // B) Did this profile invite the current user's email?
-            const rowInvites = Array.isArray(row?.settings?.outgoingInvites)
-              ? row.settings.outgoingInvites
-              : [];
-            const invitedCurrent = rowInvites.some(
-              inv => (typeof inv === 'string' ? inv : inv?.email || '').trim().toLowerCase() === currentEmail
+      // B) Cross-check user_profiles settings (outgoingInvites & friendsList)
+      if (Array.isArray(profileRows)) {
+        profileRows.forEach(row => {
+          const rowEmail = (row?.email || '').trim().toLowerCase();
+          const rowUname = (row?.username || '').trim();
+          const rowUnameLower = rowUname.toLowerCase();
+          if (!rowEmail && !rowUnameLower) return;
+          if (currentEmail && rowEmail === currentEmail) return;
+          if (currentUsername && rowUnameLower === currentUsername) return;
+
+          const rowInvites = Array.isArray(row?.settings?.outgoingInvites)
+            ? row.settings.outgoingInvites
+            : [];
+          const rowFriends = Array.isArray(row?.settings?.friendsList)
+            ? row.settings.friendsList
+            : [];
+
+          // Did this profile send a friend invite to the current user?
+          const invitedCurrentUser = rowInvites.some(inv => {
+            const invEmail = (typeof inv === 'string' ? inv : inv?.email || '').trim().toLowerCase();
+            const invUname = (typeof inv === 'object' && inv?.username ? inv.username : '').trim().toLowerCase();
+            return (
+              (currentEmail && invEmail === currentEmail) ||
+              (currentUsername && (invUname === currentUsername || invEmail === currentUsername))
             );
-            if (currentEmail && invitedCurrent) {
-              matchedFriends.push({
-                id: row.id || `friend_${row.username}`,
-                username: row.username || rowEmail.split('@')[0],
-                email: rowEmail,
-                prs: row.one_rep_maxes || {},
-                sharedRoutines: []
-              });
-            }
           });
-        }
+
+          // Did this profile already accept the current user into their friendsList?
+          const hasCurrentUserInTheirFriends = rowFriends.some(f => {
+            const fEmail = (f?.email || '').trim().toLowerCase();
+            const fUname = (f?.username || '').trim().toLowerCase();
+            return (
+              (currentEmail && fEmail === currentEmail) ||
+              (currentUsername && fUname === currentUsername)
+            );
+          });
+
+          // Did current user invite this profile?
+          const currentInvitedThisRow = inviteMatchers.some(
+            m =>
+              (m.email && (m.email === rowEmail || m.email === rowUnameLower)) ||
+              (m.username && m.username === rowUnameLower)
+          );
+
+          if (currentInvitedThisRow && hasCurrentUserInTheirFriends) {
+            // Recipient accepted the invite! Move to friendsList
+            const friendObj = buildFriendObjFromProfile(row);
+            matchedFriends.push(friendObj);
+            if (rowEmail) resolvedInviteEmails.push(rowEmail);
+            if (rowUnameLower) resolvedInviteEmails.push(rowUnameLower);
+          } else if (invitedCurrentUser && !isAlreadyInFriends(rowUname, rowEmail)) {
+            // Incoming friend request waiting for current user to accept
+            const reqObj = buildFriendObjFromProfile(row);
+            if (
+              !incomingRequests.some(
+                r =>
+                  (r.username || '').toLowerCase() === rowUnameLower ||
+                  (rowEmail && (r.email || '').toLowerCase() === rowEmail)
+              )
+            ) {
+              incomingRequests.push(reqObj);
+            }
+          } else if (isAlreadyInFriends(rowUname, rowEmail)) {
+            // Refresh existing accepted friend's PRs and shared routines
+            matchedFriends.push(buildFriendObjFromProfile(row));
+          }
+        });
       }
     } catch {
       // ignore network error
@@ -1044,6 +1437,7 @@ export async function resolveInviteFriendshipsForUser(user, outgoingInvites = []
   }
 
   return {
+    incomingRequests,
     matchedFriends,
     resolvedInviteEmails
   };

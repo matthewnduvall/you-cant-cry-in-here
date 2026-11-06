@@ -553,6 +553,7 @@ export default function App() {
           {currentView === 'routines' && (
             <RoutinesView
               colors={colors}
+              user={user}
               savedRoutines={savedRoutines}
               sharedRoutines={sharedRoutines}
               friendsList={friendsList}
@@ -560,6 +561,7 @@ export default function App() {
               handleOpenPreviewRoutine={handleOpenPreviewRoutine}
               handleDirectLoadRoutine={handleDirectLoadRoutine}
               handleCancelRoutineSelection={handleCancelRoutineSelection}
+              setDeleteConfirmTarget={setDeleteConfirmTarget}
             />
           )}
 
@@ -591,6 +593,7 @@ export default function App() {
               setHistoricalDraft={setHistoricalDraft}
               setCurrentView={setCurrentView}
               openPlateCalculatorForPR={openPlateCalculatorForPR}
+              openPlateCalculatorForSet={openPlateCalculatorForSet}
               setDeleteConfirmTarget={setDeleteConfirmTarget}
               buildHistoryWorkoutEditorProps={buildHistoryWorkoutEditorProps}
             />

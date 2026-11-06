@@ -10,12 +10,64 @@ This guide walks through how to implement server-sent signup invitations from an
    * Purchase `youcantcryinhere.com` via Vercel Domains, Cloudflare, or Namecheap.
 2. **Create a Resend Account:**
    * Go to [https://resend.com](https://resend.com) (free tier includes 3,000 emails/month, 100/day).
-3. **Verify `youcantcryinhere.com` in Resend:**
-   * In the Resend Dashboard, go to **Domains → Add Domain** and enter `youcantcryinhere.com`.
-   * Add the **SPF**, **DKIM**, and **DMARC** DNS records (`TXT` and `MX`) provided by Resend to your domain's DNS settings.
-4. **Create an API Key:**
-   * Go to **API Keys → Create API Key** in Resend.
-   * Add `RESEND_API_KEY=re_xxxxxxxxx` to your Vercel Project Environment Variables (and `.env.local`).
+3. **Verify `youcantcryinhere.com` in Resend (Detailed Walkthrough):**
+   * **Step A — Add the Domain in Resend:**
+     1. Log into [https://resend.com](https://resend.com) and click **Domains** in the left sidebar.
+     2. Click **Add Domain**.
+     3. Enter `youcantcryinhere.com`, leave the region as default (e.g., `us-east-1`), and click **Add**.
+   * **Step B — Copy the DNS Records Shown by Resend:**
+     Resend will display a table of **3 to 4 DNS records** that prove you own `youcantcryinhere.com` and authorize Resend's servers to send emails on its behalf (so emails land in the inbox instead of Spam):
+     1. **DKIM Record (`TXT`)** — Signs outgoing emails cryptographically:
+        * **Type:** `TXT`
+        * **Name / Host:** `resend._domainkey`
+        * **Value / Content:** `p=MIGfMA0GCSqGSIb3DQEBAQUAA...` *(copy the exact long string from Resend)*
+     2. **SPF Record (`MX` + `TXT` on `send`)** — Authorizes Amazon SES / Resend mail servers:
+        * **Type:** `MX`
+        * **Name / Host:** `send`
+        * **Value / Content:** `feedback-smtp.us-east-1.amazonses.com`
+        * **Priority:** `10`
+        * **Type:** `TXT`
+        * **Name / Host:** `send`
+        * **Value / Content:** `v=spf1 include:amazonses.com ~all`
+     3. **DMARC Record (`TXT`, optional but recommended):**
+        * **Type:** `TXT`
+        * **Name / Host:** `_dmarc`
+        * **Value / Content:** `v=DMARC1; p=none;`
+   * **Step C — Paste the Records Into Your Domain Registrar's DNS Settings:**
+     * **If your domain is on Vercel Domains:** Go to **Vercel Dashboard → Domains → `youcantcryinhere.com` → DNS Records**, and add each record above (`Name`, `Type`, `Value`, and `Priority` for the `MX` record).
+     * **If your domain is on Cloudflare / Namecheap / GoDaddy:** Open the **DNS Management** page for `youcantcryinhere.com` and add each record. *(Note: On Cloudflare, set the orange cloud toggle to **DNS Only / Grey Cloud** for these email records.)*
+   * **Step D — Click "Verify DNS Records" in Resend:**
+     * Back in Resend, click **Verify DNS Records** at the top right.
+     * DNS propagation usually takes **1–10 minutes**. Once verified, the domain status badge in Resend will turn green (**Verified**). Once verified, you can send from *any* address `@youcantcryinhere.com` (e.g., `invites@youcantcryinhere.com`, `noreply@youcantcryinhere.com`) without creating separate mailboxes.
+
+4. **Create an API Key & Add It to Vercel and `.env.local` (Detailed Walkthrough):**
+   * **Step A — Generate the Key in Resend:**
+     1. In the Resend left sidebar, click **API Keys**.
+     2. Click **Create API Key**.
+     3. Set **Name** to `youcantcryinhere-production`.
+     4. Set **Permission** to **Sending access** (or **Full access**) and **Domain** to `youcantcryinhere.com` (or **All Domains**).
+     5. Click **Add**.
+     6. **Copy the key immediately** (it starts with `re_...`, e.g., `re_123abc456def...`) — Resend only shows this secret once.
+   * **Step B — Add to Local Development (`.env.local`):**
+     1. Open (or create) `.env.local` in the root folder of your repository (`c:\Users\matth\youcantcryinhere\.env.local`).
+     2. Add these two lines:
+        ```env
+        RESEND_API_KEY=re_your_copied_api_key_here
+        NEXT_PUBLIC_APP_URL=https://youcantcryinhere.com
+        ```
+   * **Step C — Add to Vercel Production Environment Variables:**
+     1. Open your [Vercel Dashboard](https://vercel.com/dashboard) and select your **you-cant-cry-in-here** project.
+     2. Click **Settings** (top nav) → **Environment Variables** (left sidebar).
+     3. Add Variable 1:
+        * **Key:** `RESEND_API_KEY`
+        * **Value:** `re_your_copied_api_key_here`
+        * **Environments:** Keep **Production**, **Preview**, and **Development** checked, then click **Save**.
+     4. Add Variable 2:
+        * **Key:** `NEXT_PUBLIC_APP_URL`
+        * **Value:** `https://youcantcryinhere.com` *(or your current Vercel URL until your custom domain is live)*
+        * **Sensitive / Visibility:** Make sure the **Sensitive** toggle is **OFF** (set to **Config** / Plaintext, *not* Secret, because Vercel requires `NEXT_PUBLIC_` variables to use `Config` visibility).
+        * **Environments:** Production, Preview, Development → click **Save**.
+     5. **Redeploy on Vercel:** Go to the **Deployments** tab in Vercel, click the `•••` menu on the latest deployment, and click **Redeploy** so the serverless function picks up the new environment variables.
 
 ---
 

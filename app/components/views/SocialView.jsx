@@ -1,8 +1,13 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { IOSListSection, IOSListRow } from '../Primitives';
-import { searchAthletesByQuery } from '../../utils/supabaseAuth';
+import {
+  searchAthletesByQuery,
+  sendFriendRequestToAthlete,
+  acceptFriendRequestFromAthlete,
+  resolveInviteFriendshipsForUser
+} from '../../utils/supabaseAuth';
 
 export function SocialView({
   colors,
@@ -11,6 +16,9 @@ export function SocialView({
   setFriendSearchQuery,
   pendingIncomingRequests,
   setPendingIncomingRequests,
+  outgoingInvites = [],
+  setOutgoingInvites,
+  onSendEmailInvite,
   friendsList,
   setFriendsList,
   setViewingFriendProfile,
@@ -19,6 +27,177 @@ export function SocialView({
   const [searchedAthletes, setSearchedAthletes] = useState([]);
   const [hasSearched, setHasSearched] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
+
+  const [inviteEmailInput, setInviteEmailInput] = useState('');
+  const [isSendingInviteEmail, setIsSendingInviteEmail] = useState(false);
+  const [inviteEmailFeedback, setInviteEmailFeedback] = useState(null);
+
+  const handleSendServerEmailInvite = async () => {
+    const cleanEmail = (inviteEmailInput || '').trim().toLowerCase();
+    if (!cleanEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
+      setInviteEmailFeedback({
+        ok: false,
+        message: 'PLEASE ENTER A VALID EMAIL ADDRESS.'
+      });
+      return;
+    }
+
+    setIsSendingInviteEmail(true);
+    setInviteEmailFeedback(null);
+    try {
+      const res = await fetch('/api/invite', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          targetEmail: cleanEmail,
+          inviterUsername: user?.username || 'athlete',
+          inviterEmail: user?.email || '',
+          inviterUserId: user?.id || null
+        })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data?.ok === false) {
+        setInviteEmailFeedback({
+          ok: false,
+          message: (data?.error || 'FAILED TO SEND INVITE EMAIL.').toUpperCase()
+        });
+        return;
+      }
+
+      onSendEmailInvite?.(cleanEmail);
+      setInviteEmailInput('');
+      setInviteEmailFeedback({
+        ok: true,
+        message: `INVITE SENT TO ${cleanEmail.toUpperCase()}!`
+      });
+    } catch {
+      setInviteEmailFeedback({
+        ok: false,
+        message: 'NETWORK ERROR SENDING INVITE EMAIL.'
+      });
+    } finally {
+      setIsSendingInviteEmail(false);
+    }
+  };
+
+  // Sync incoming requests & accepted friendships whenever SocialView opens
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const { incomingRequests, matchedFriends, resolvedInviteEmails } =
+          await resolveInviteFriendshipsForUser(user, outgoingInvites, friendsList);
+        if (cancelled) return;
+
+        if (Array.isArray(incomingRequests)) {
+          setPendingIncomingRequests(prev => {
+            const byKey = new Map();
+            (Array.isArray(prev) ? prev : []).forEach(r => {
+              if (!r) return;
+              const k = String(r.username || r.email || r.id).toLowerCase();
+              byKey.set(k, r);
+            });
+            incomingRequests.forEach(r => {
+              if (!r) return;
+              const k = String(r.username || r.email || r.id).toLowerCase();
+              byKey.set(k, r);
+            });
+            const friendKeys = new Set(
+              (Array.isArray(friendsList) ? friendsList : []).map(f =>
+                String(f?.username || f?.email || f?.id).toLowerCase()
+              )
+            );
+            return Array.from(byKey.values()).filter(
+              r => !friendKeys.has(String(r?.username || r?.email || r?.id).toLowerCase())
+            );
+          });
+        }
+
+        if (Array.isArray(matchedFriends) && matchedFriends.length > 0) {
+          setFriendsList(prev => {
+            const byKey = new Map();
+            (Array.isArray(prev) ? prev : []).forEach(f => {
+              if (!f) return;
+              const k = String(f.username || f.email || f.id).toLowerCase();
+              byKey.set(k, f);
+            });
+            matchedFriends.forEach(f => {
+              if (!f) return;
+              const k = String(f.username || f.email || f.id).toLowerCase();
+              const existing = byKey.get(k);
+              byKey.set(k, existing ? { ...existing, ...f } : f);
+            });
+            return Array.from(byKey.values());
+          });
+        }
+
+        if (Array.isArray(resolvedInviteEmails) && resolvedInviteEmails.length > 0 && setOutgoingInvites) {
+          setOutgoingInvites(prev =>
+            (Array.isArray(prev) ? prev : []).filter(inv => {
+              const em = (typeof inv === 'string' ? inv : inv?.email || '').trim().toLowerCase();
+              const un = (typeof inv === 'object' && inv?.username ? inv.username : '').trim().toLowerCase();
+              return !resolvedInviteEmails.includes(em) && (!un || !resolvedInviteEmails.includes(un));
+            })
+          );
+        }
+      } catch {
+        // ignore sync error
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id, user?.email, user?.username]);
+
+  const handleSendFriendInvite = async athlete => {
+    if (!athlete) return;
+    const cleanEmail = (athlete.email || '').trim().toLowerCase();
+    const cleanUsername = (athlete.username || '').trim();
+    if (setOutgoingInvites) {
+      setOutgoingInvites(prev => {
+        const existing = Array.isArray(prev) ? prev : [];
+        const already = existing.some(item => {
+          const em = (typeof item === 'string' ? item : item?.email || '').trim().toLowerCase();
+          const un = (typeof item === 'object' && item?.username ? item.username : '').trim().toLowerCase();
+          return (cleanEmail && em === cleanEmail) || (cleanUsername && un === cleanUsername.toLowerCase());
+        });
+        if (already) return existing;
+        return [
+          ...existing,
+          {
+            id: athlete.id,
+            username: cleanUsername,
+            email: cleanEmail,
+            invitedAt: new Date().toISOString(),
+            inviterUsername: user?.username || 'athlete'
+          }
+        ];
+      });
+    }
+    await sendFriendRequestToAthlete(user, athlete);
+  };
+
+  const handleAcceptFriendInvite = async req => {
+    if (!req) return;
+    setFriendsList(prev => {
+      const list = Array.isArray(prev) ? prev : [];
+      const exists = list.some(
+        f =>
+          (f.username || '').toLowerCase() === (req.username || '').toLowerCase() ||
+          (req.email && (f.email || '').toLowerCase() === req.email.toLowerCase())
+      );
+      return exists ? list : [...list, req];
+    });
+    setPendingIncomingRequests(prev =>
+      (Array.isArray(prev) ? prev : []).filter(
+        r =>
+          (r.username || '').toLowerCase() !== (req.username || '').toLowerCase() &&
+          (!req.email || (r.email || '').toLowerCase() !== req.email.toLowerCase())
+      )
+    );
+    await acceptFriendRequestFromAthlete(user, req);
+  };
 
   const handleRunAthleteSearch = async () => {
     const q = (friendSearchQuery || '').trim();
@@ -54,6 +233,79 @@ export function SocialView({
 
   return (
     <div style={{ paddingTop: '14px' }}>
+      <IOSListSection
+        header="INVITE FRIEND VIA EMAIL"
+        footer="Sends an official invitation from invites@youcantcryinhere.com with the beta access code (imnotcrying) and a direct sign-up link."
+        colors={colors}
+      >
+        <IOSListRow isLast={!inviteEmailFeedback} colors={colors}>
+          <div style={{ display: 'flex', width: '100%', gap: 0 }}>
+            <input
+              type="email"
+              placeholder="ENTER FRIEND'S EMAIL ADDRESS..."
+              value={inviteEmailInput}
+              onChange={e => {
+                setInviteEmailInput(e.target.value);
+                if (inviteEmailFeedback) setInviteEmailFeedback(null);
+              }}
+              onKeyDown={e => {
+                if (e.key === 'Enter' && !isSendingInviteEmail) {
+                  handleSendServerEmailInvite();
+                }
+              }}
+              style={{
+                flex: 1,
+                minWidth: 0,
+                backgroundColor: '#101010',
+                color: '#FFFFFF',
+                border: '2px solid var(--dp-color-rule)',
+                borderRight: 'none',
+                padding: '10px 12px',
+                fontSize: '13px',
+                fontWeight: 800,
+                textTransform: 'uppercase',
+                outline: 'none'
+              }}
+            />
+            <button
+              type="button"
+              disabled={isSendingInviteEmail}
+              onClick={handleSendServerEmailInvite}
+              className="kinetic-btn"
+              style={{
+                padding: '10px 16px',
+                backgroundColor: 'var(--dp-color-accent)',
+                color: '#101010',
+                border: '2px solid var(--dp-color-rule)',
+                fontSize: '12px',
+                fontWeight: 800,
+                textTransform: 'uppercase',
+                cursor: isSendingInviteEmail ? 'default' : 'pointer',
+                opacity: isSendingInviteEmail ? 0.6 : 1,
+                flexShrink: 0,
+                whiteSpace: 'nowrap'
+              }}
+            >
+              {isSendingInviteEmail ? 'SENDING...' : 'SEND INVITE'}
+            </button>
+          </div>
+        </IOSListRow>
+        {inviteEmailFeedback && (
+          <IOSListRow isLast={true} colors={colors}>
+            <span
+              style={{
+                fontSize: '12px',
+                fontWeight: 800,
+                color: inviteEmailFeedback.ok ? '#30D158' : '#FF3B30',
+                textTransform: 'uppercase'
+              }}
+            >
+              {inviteEmailFeedback.message}
+            </span>
+          </IOSListRow>
+        )}
+      </IOSListSection>
+
       <IOSListSection header="FIND ATHLETES" colors={colors}>
         <IOSListRow
           isLast={!hasSearched}
@@ -126,6 +378,21 @@ export function SocialView({
                   (f.username || '').toLowerCase() === (athlete.username || '').toLowerCase() ||
                   (athlete.email && (f.email || '').toLowerCase() === athlete.email.toLowerCase())
               );
+              const incomingRequestMatch = (pendingIncomingRequests || []).find(
+                r =>
+                  (r.username || '').toLowerCase() === (athlete.username || '').toLowerCase() ||
+                  (athlete.email && (r.email || '').toLowerCase() === athlete.email.toLowerCase())
+              );
+              const isInviteSent = (outgoingInvites || []).some(inv => {
+                const em = (typeof inv === 'string' ? inv : inv?.email || '').trim().toLowerCase();
+                const un = (typeof inv === 'object' && inv?.username ? inv.username : '').trim().toLowerCase();
+                return (
+                  (athlete.email && em === athlete.email.toLowerCase()) ||
+                  (athlete.username &&
+                    (un === athlete.username.toLowerCase() || em === athlete.username.toLowerCase()))
+                );
+              });
+
               return (
                 <IOSListRow
                   key={athlete.id || athlete.username || idx}
@@ -159,12 +426,42 @@ export function SocialView({
                     >
                       VIEW PROFILE →
                     </button>
+                  ) : incomingRequestMatch ? (
+                    <button
+                      type="button"
+                      onClick={() => handleAcceptFriendInvite(incomingRequestMatch)}
+                      style={{
+                        padding: '6px 12px',
+                        backgroundColor: 'var(--dp-color-accent)',
+                        color: '#101010',
+                        border: '2px solid #FFFFFF',
+                        fontSize: '11px',
+                        fontWeight: 800,
+                        textTransform: 'uppercase',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      ACCEPT
+                    </button>
+                  ) : isInviteSent ? (
+                    <span
+                      style={{
+                        padding: '6px 12px',
+                        backgroundColor: '#18181B',
+                        color: '#A0A0A0',
+                        border: '2px solid var(--dp-color-rule)',
+                        fontSize: '11px',
+                        fontWeight: 800,
+                        textTransform: 'uppercase',
+                        userSelect: 'none'
+                      }}
+                    >
+                      INVITE SENT
+                    </span>
                   ) : (
                     <button
                       type="button"
-                      onClick={() => {
-                        setFriendsList(prev => [...(prev || []), athlete]);
-                      }}
+                      onClick={() => handleSendFriendInvite(athlete)}
                       style={{
                         padding: '6px 12px',
                         backgroundColor: 'var(--dp-color-accent)',
@@ -189,16 +486,13 @@ export function SocialView({
       {pendingIncomingRequests.length > 0 && (
         <IOSListSection header="INCOMING REQUESTS" colors={colors}>
           {pendingIncomingRequests.map((req, idx) => (
-            <IOSListRow key={req.id} isLast={idx === pendingIncomingRequests.length - 1} colors={colors}>
+            <IOSListRow key={req.id || req.username || idx} isLast={idx === pendingIncomingRequests.length - 1} colors={colors}>
               <div>
                 <div style={{ fontSize: '15px', fontWeight: 800, textTransform: 'uppercase' }}>@{req.username}</div>
               </div>
               <button
                 type="button"
-                onClick={() => {
-                  setFriendsList(prev => [...prev, req]);
-                  setPendingIncomingRequests(prev => prev.filter(r => r.id !== req.id));
-                }}
+                onClick={() => handleAcceptFriendInvite(req)}
                 style={{
                   padding: '6px 12px', backgroundColor: 'var(--dp-color-accent)',
                   color: '#101010', border: '2px solid #FFFFFF', fontSize: '11px', fontWeight: 800, cursor: 'pointer'

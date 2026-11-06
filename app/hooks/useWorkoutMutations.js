@@ -28,6 +28,7 @@ import {
   checkIsWorkoutComplete,
   cloneSlots
 } from '../utils/workoutEngine';
+import { deleteCloudRoutineByKey } from '../utils/supabaseAuth';
 
 export function useWorkoutMutations({
   currentView,
@@ -592,6 +593,30 @@ export function useWorkoutMutations({
         setExpandedHistoryWorkoutId(null);
       }
       appendSessionLog?.('DELETE_HISTORY', `Deleted history workout: ${deleteConfirmTarget.label || targetWorkoutId}`);
+      setDeleteConfirmTarget(null);
+      return;
+    }
+    if (deleteConfirmTarget.type === 'saved_routine') {
+      const { routineKey, routineLabel } = deleteConfirmTarget;
+      setSavedRoutines(prev =>
+        (prev || []).filter(r => r.key !== routineKey && r.label !== routineLabel)
+      );
+      if (routineKey) {
+        deleteCloudRoutineByKey(user, routineKey);
+      }
+      appendSessionLog?.('DELETE_SAVED_ROUTINE', `Deleted saved routine: ${routineLabel || routineKey}`);
+      setDeleteConfirmTarget(null);
+      return;
+    }
+    if (deleteConfirmTarget.type === 'shared_routine') {
+      const { routineKey, routineLabel } = deleteConfirmTarget;
+      setSharedRoutines(prev =>
+        (prev || []).filter(r => r.key !== routineKey && r.label !== routineLabel)
+      );
+      if (routineKey) {
+        deleteCloudRoutineByKey(user, routineKey);
+      }
+      appendSessionLog?.('DELETE_SHARED_ROUTINE', `Deleted shared routine: ${routineLabel || routineKey}`);
       setDeleteConfirmTarget(null);
       return;
     }

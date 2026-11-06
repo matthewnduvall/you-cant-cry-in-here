@@ -125,6 +125,7 @@ export function HistoryView({
   setHistoricalDraft,
   setCurrentView,
   openPlateCalculatorForPR,
+  openPlateCalculatorForSet,
   setDeleteConfirmTarget,
   buildHistoryWorkoutEditorProps
 }) {
@@ -143,6 +144,7 @@ export function HistoryView({
 
   // --- 1RM Converter Popup Slot State (Matches New/Current Session Exercise Editor) ---
   const [calcSlot, setCalcSlot] = useState(null);
+  const [calcPrDate, setCalcPrDate] = useState('');
   const [lastEditedCalcSetId, setLastEditedCalcSetId] = useState(null);
   const [draggedCalcSetIdx, setDraggedCalcSetIdx] = useState(null);
 
@@ -228,6 +230,7 @@ export function HistoryView({
       incrementLbs: currentIncrementLbs
     });
     setLastEditedCalcSetId(null);
+    setCalcPrDate(formatTodayYMD());
     setCalcSlot(initialSlot);
   };
 
@@ -380,7 +383,10 @@ export function HistoryView({
 
     // Log Personal Record entry to History so Personal Records reflect logged history
     if (setHistory) {
-      const cleanDate = formatTodayYMD();
+      const cleanDate =
+        calcPrDate && String(calcPrDate).trim()
+          ? formatDateYMD(calcPrDate)
+          : formatTodayYMD();
       const ts = Date.now();
       const prSet = {
         id: `set_pr_${ts}`,
@@ -1285,7 +1291,7 @@ export function HistoryView({
                       ))}
                     </select>
 
-                    {/* Column 3: Calculated 1RM Box + Red Close Button */}
+                    {/* Column 3: Date Entry Box + Red Close Button */}
                     <div
                       style={{
                         display: 'grid',
@@ -1295,7 +1301,12 @@ export function HistoryView({
                         minWidth: 0
                       }}
                     >
-                      <div
+                      <input
+                        type="text"
+                        aria-label="Personal Record Date (YYYY/MM/DD)"
+                        placeholder="YYYY/MM/DD"
+                        value={calcPrDate}
+                        onChange={e => setCalcPrDate(e.target.value.replace(/-/g, '/'))}
                         style={{
                           width: '100%',
                           minWidth: 0,
@@ -1303,21 +1314,15 @@ export function HistoryView({
                           boxSizing: 'border-box',
                           backgroundColor: '#18181B',
                           ...SHARED_CELL_BORDER,
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
+                          textAlign: 'center',
                           fontSize: '12px',
                           fontWeight: 800,
                           color: 'var(--dp-color-accent)',
                           textTransform: 'uppercase',
-                          whiteSpace: 'nowrap',
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
+                          outline: 'none',
                           padding: '0 4px'
                         }}
-                      >
-                        {slot1RMText}
-                      </div>
+                      />
 
                       <button
                         type="button"
@@ -1496,9 +1501,26 @@ export function HistoryView({
                           </div>
                         )}
 
-                        {/* 4. CURRENT Weight Input */}
+                        {/* 4. CURRENT Weight Button (Opens Weight Selection Pop-Up) */}
                         {normCat !== 'Abs' && (
-                          <div
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (openPlateCalculatorForSet) {
+                                openPlateCalculatorForSet(
+                                  calcSlot.id,
+                                  0,
+                                  st,
+                                  ex1.name,
+                                  newWeight =>
+                                    handleUpdateCalcSet(
+                                      st.id,
+                                      'weight',
+                                      Math.max(0, Number(newWeight) || 0)
+                                    )
+                                );
+                              }
+                            }}
                             style={{
                               width: '100%',
                               minWidth: 0,
@@ -1510,33 +1532,27 @@ export function HistoryView({
                               display: 'flex',
                               flexDirection: 'column',
                               alignItems: 'center',
-                              justifyContent: 'center'
+                              justifyContent: 'center',
+                              cursor: 'pointer',
+                              whiteSpace: 'nowrap',
+                              overflow: 'hidden'
                             }}
                           >
                             <span style={{ fontSize: '9px', fontWeight: 800, color: '#9A9A9A', lineHeight: 1 }}>
                               CURRENT
                             </span>
-                            <input
-                              type="number"
-                              min={0}
-                              max={2000}
-                              step={5}
-                              value={st.weight}
-                              onChange={e => handleUpdateCalcSet(st.id, 'weight', Math.max(0, Number(e.target.value) || 0))}
+                            <span
                               style={{
-                                width: '100%',
-                                textAlign: 'center',
                                 fontSize: '15px',
                                 fontWeight: 800,
                                 color: 'var(--dp-color-accent)',
-                                backgroundColor: 'transparent',
-                                border: 'none',
-                                outline: 'none',
-                                padding: 0,
+                                lineHeight: 1.2,
                                 marginTop: '1px'
                               }}
-                            />
-                          </div>
+                            >
+                              {st.weight}
+                            </span>
+                          </button>
                         )}
 
                         {/* 5. REPS Input */}
