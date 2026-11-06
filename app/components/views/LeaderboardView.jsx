@@ -8,7 +8,6 @@ import {
   getExRxCurrentClass
 } from '../../data/exerciseLibrary';
 
-const DEFAULT_STARTING_RATIO = 0.78;
 const BIG_THREE_LIFT_IDS = ['barbell_bench_press', 'barbell_back_squat', 'barbell_deadlift'];
 const STANDING_SCALE = ['Below Untrained', ...EXRX_CLASSES]; // ['Below Untrained', 'Untrained', 'Novice', 'Intermediate', 'Advanced', 'Elite']
 
@@ -17,14 +16,13 @@ function formatRankLabel(rank) {
 }
 
 function getAverageBig3Standing(prs = {}, bw = 220, heightInches = 70) {
-  const scores = BIG_THREE_LIFT_IDS.map(liftId => {
-    const fallback =
-      liftId === 'barbell_bench_press'
-        ? 185
-        : liftId === 'barbell_back_squat'
-          ? 265
-          : 315;
-    const val = Number(prs?.[liftId]) || fallback;
+  const loggedVals = BIG_THREE_LIFT_IDS.map(liftId => Number(prs?.[liftId]) || 0);
+  if (loggedVals.every(v => v <= 0)) {
+    return 'Unlogged';
+  }
+  const scores = BIG_THREE_LIFT_IDS.map((liftId, i) => {
+    const val = loggedVals[i];
+    if (val <= 0) return 0;
     const cls = getExRxCurrentClass(liftId, val, bw, heightInches);
     const idx = STANDING_SCALE.indexOf(cls);
     return idx >= 0 ? idx : 0;
@@ -73,11 +71,11 @@ export function LeaderboardView({
     return true;
   });
 
-  // 1. BIG 3 TOTAL, BIG 3 NORMALIZED & OVERHEAD PRESS NORMALIZED
-  const selfBench = Number(oneRepMaxes.barbell_bench_press) || 225;
-  const selfSquat = Number(oneRepMaxes.barbell_back_squat) || 285;
-  const selfDead = Number(oneRepMaxes.barbell_deadlift) || 335;
-  const selfOhp = Number(oneRepMaxes.overhead_press) || 135;
+  // 1. BIG 3 TOTAL, BIG 3 NORMALIZED & OVERHEAD PRESS NORMALIZED (Strictly from logged PRs — no fake fallbacks)
+  const selfBench = Number(oneRepMaxes.barbell_bench_press) || 0;
+  const selfSquat = Number(oneRepMaxes.barbell_back_squat) || 0;
+  const selfDead = Number(oneRepMaxes.barbell_deadlift) || 0;
+  const selfOhp = Number(oneRepMaxes.overhead_press) || 0;
   const selfBig3Total = selfBench + selfSquat + selfDead;
   const selfStanding = getAverageBig3Standing(
     {
@@ -88,12 +86,10 @@ export function LeaderboardView({
     selfBw,
     totalHeightInches
   );
-  const selfOhpStanding = getExRxCurrentClass(
-    'overhead_press',
-    selfOhp,
-    selfBw,
-    totalHeightInches
-  );
+  const selfOhpStanding =
+    selfOhp > 0
+      ? getExRxCurrentClass('overhead_press', selfOhp, selfBw, totalHeightInches)
+      : 'Unlogged';
 
   const rawAthletes = [
     {
@@ -110,10 +106,10 @@ export function LeaderboardView({
     },
     ...distinctFriends.map((f, i) => {
       const fBw = Math.max(50, Number(f.bodyweightLbs || f.bodyweight) || 200);
-      const fBench = Number(f.prs?.barbell_bench_press) || 185;
-      const fSquat = Number(f.prs?.barbell_back_squat) || 265;
-      const fDead = Number(f.prs?.barbell_deadlift) || 315;
-      const fOhp = Number(f.prs?.overhead_press) || 125;
+      const fBench = Number(f.prs?.barbell_bench_press) || 0;
+      const fSquat = Number(f.prs?.barbell_back_squat) || 0;
+      const fDead = Number(f.prs?.barbell_deadlift) || 0;
+      const fOhp = Number(f.prs?.overhead_press) || 0;
       const fTotal = fBench + fSquat + fDead;
       const fStanding = getAverageBig3Standing(
         {
@@ -124,7 +120,8 @@ export function LeaderboardView({
         fBw,
         70
       );
-      const fOhpStanding = getExRxCurrentClass('overhead_press', fOhp, fBw, 70);
+      const fOhpStanding =
+        fOhp > 0 ? getExRxCurrentClass('overhead_press', fOhp, fBw, 70) : 'Unlogged';
       return {
         id: f.id || `friend_${f.username}_${i}`,
         name: f.username || `athlete_${i + 1}`,
@@ -203,13 +200,10 @@ export function LeaderboardView({
     if (existing) {
       startWeight = existing.minVal;
       peakWeight = currentPr > 0 ? Math.max(existing.maxVal, currentPr) : existing.maxVal;
-    } else if (currentPr > 0) {
-      startWeight = Math.round((currentPr * DEFAULT_STARTING_RATIO) / 5) * 5;
-      peakWeight = currentPr;
     }
 
     const deltaLbs = Math.max(0, peakWeight - startWeight);
-    if (deltaLbs > 0) {
+    if (startWeight > 0 && deltaLbs > 0) {
       improvementEntries.push({
         id: `self_imp_${exId}`,
         name: selfName,
@@ -225,20 +219,17 @@ export function LeaderboardView({
     }
   });
 
-  // Friends' lift improvements (delta between lowest logged/starting value and highest logged value, divided by bodyweight)
+  // Friends' lift improvements (strictly from logged startingPrs -> peakWeight, no synthetic fallback)
   distinctFriends.forEach((f, i) => {
     const fBw = Math.max(50, Number(f.bodyweightLbs || f.bodyweight) || 200);
     const fPrs = f.prs || {};
     const fStartPrs = f.startingPrs || {};
     Object.entries(fPrs).forEach(([exId, prVal]) => {
       const peakWeight = Number(prVal) || 0;
-      if (peakWeight <= 0) return;
+      const startWeight = Number(fStartPrs[exId]) || 0;
+      if (peakWeight <= 0 || startWeight <= 0) return;
       const exObj = EXERCISE_MAP[exId];
       if (!exObj || exObj.isBodyweight) return;
-      const startWeight =
-        Number(fStartPrs[exId]) > 0
-          ? Number(fStartPrs[exId])
-          : Math.round((peakWeight * DEFAULT_STARTING_RATIO) / 5) * 5;
       const deltaLbs = Math.max(0, peakWeight - startWeight);
       if (deltaLbs > 0) {
         improvementEntries.push({
@@ -357,37 +348,45 @@ export function LeaderboardView({
       </IOSListSection>
 
       <IOSListSection header="MOST IMPROVED" colors={colors}>
-        {mostImprovedEntries.map((entry, idx, arr) => (
-          <IOSListRow
-            key={`most_imp_${entry.id}_${idx}`}
-            indexLabel={formatRankLabel(entry.rank)}
-            isLast={idx === arr.length - 1}
-            colors={colors}
-          >
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', minWidth: 0, paddingRight: '8px' }}>
-              <span
-                style={{
-                  fontSize: '14px',
-                  fontWeight: 800,
-                  textTransform: 'uppercase',
-                  color: entry.isSelf ? '#30D158' : 'var(--dp-color-accent)',
-                  whiteSpace: 'nowrap',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis'
-                }}
-              >
-                @{entry.name} <span style={{ color: '#888888' }}>•</span>{' '}
-                <span style={{ color: '#FFFFFF' }}>{entry.exerciseName}</span>
-              </span>
-              <span style={{ fontSize: '10px', fontWeight: 700, color: '#888888', textTransform: 'uppercase' }}>
-                {entry.startWeight} LB → {entry.peakWeight} LB ({entry.normalizedGain.toFixed(2)}x BW GAIN)
-              </span>
-            </div>
-            <span style={{ fontSize: '15px', fontWeight: 800, color: 'var(--dp-color-accent)', flexShrink: 0 }}>
-              +{entry.deltaLbs} LB
+        {mostImprovedEntries.length === 0 ? (
+          <IOSListRow isLast={true} colors={colors}>
+            <span style={{ fontSize: '12px', fontWeight: 700, color: '#888888', textTransform: 'uppercase' }}>
+              NO LOGGED IMPROVEMENTS YET.
             </span>
           </IOSListRow>
-        ))}
+        ) : (
+          mostImprovedEntries.map((entry, idx, arr) => (
+            <IOSListRow
+              key={`most_imp_${entry.id}_${idx}`}
+              indexLabel={formatRankLabel(entry.rank)}
+              isLast={idx === arr.length - 1}
+              colors={colors}
+            >
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', minWidth: 0, paddingRight: '8px' }}>
+                <span
+                  style={{
+                    fontSize: '14px',
+                    fontWeight: 800,
+                    textTransform: 'uppercase',
+                    color: entry.isSelf ? '#30D158' : 'var(--dp-color-accent)',
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis'
+                  }}
+                >
+                  @{entry.name} <span style={{ color: '#888888' }}>•</span>{' '}
+                  <span style={{ color: '#FFFFFF' }}>{entry.exerciseName}</span>
+                </span>
+                <span style={{ fontSize: '10px', fontWeight: 700, color: '#888888', textTransform: 'uppercase' }}>
+                  {entry.startWeight} LB → {entry.peakWeight} LB ({entry.normalizedGain.toFixed(2)}x BW GAIN)
+                </span>
+              </div>
+              <span style={{ fontSize: '15px', fontWeight: 800, color: 'var(--dp-color-accent)', flexShrink: 0 }}>
+                +{entry.deltaLbs} LB
+              </span>
+            </IOSListRow>
+          ))
+        )}
       </IOSListSection>
     </div>
   );

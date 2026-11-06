@@ -10,16 +10,14 @@ import { IOSListSection, IOSListRow } from '../Primitives';
 function getFriendSingleBig3TickerEntry(friend) {
   const uname = (friend?.username || 'athlete').toUpperCase();
   const big3Map = [
-    { id: 'barbell_deadlift', label: 'DEADLIFT', fallback: 315 },
-    { id: 'barbell_back_squat', label: 'SQUAT', fallback: 265 },
-    { id: 'barbell_bench_press', label: 'BENCH', fallback: 185 }
+    { id: 'barbell_deadlift', label: 'DEADLIFT' },
+    { id: 'barbell_back_squat', label: 'SQUAT' },
+    { id: 'barbell_bench_press', label: 'BENCH' }
   ];
 
-  if (friend?.latestBig3Update && friend.latestBig3Update.label && friend.latestBig3Update.weight) {
-    return `@${uname}: ${String(friend.latestBig3Update.label).toUpperCase()} 1RM ${friend.latestBig3Update.weight} LB`;
-  }
+  const prs = friend?.prs || {};
 
-  // If the friend has logged session history, pick the most recent Squat, Bench, or Deadlift entry
+  // If the athlete has logged session history, pick the most recently trained Squat, Bench, or Deadlift
   if (Array.isArray(friend?.history) && friend.history.length > 0) {
     const sortedHist = [...friend.history].sort(
       (a, b) => new Date(b?.startedAt || 0).getTime() - new Date(a?.startedAt || 0).getTime()
@@ -36,34 +34,39 @@ function getFriendSingleBig3TickerEntry(friend) {
               return sr === 1 ? sw : Math.round(sw * (1 + sr / 30));
             })
           );
-          const weightVal = maxSetW > 0 ? maxSetW : friend?.prs?.[match.id] || match.fallback;
-          return `@${uname}: ${match.label} 1RM ${weightVal} LB`;
+          const prVal = Number(prs[match.id]) || 0;
+          const weightVal = Math.max(prVal, maxSetW);
+          if (weightVal > 0) {
+            return `@${uname}: ${match.label} 1RM ${weightVal} LB`;
+          }
         }
       }
     }
   }
 
-  // Otherwise pick the lift among Squat, Bench, and Deadlift with the largest recent gain or highest PR
-  const prs = friend?.prs || {};
-  const startPrs = friend?.startingPrs || {};
-  let chosen = big3Map[0];
-  let bestGain = -1;
+  // Otherwise pick the lift among Squat, Bench, and Deadlift with the highest logged PR (> 0)
+  let chosen = null;
+  let bestVal = 0;
   big3Map.forEach(item => {
-    const cur = Number(prs[item.id]) || item.fallback;
-    const base = Number(startPrs[item.id]) || Math.round(cur * 0.8);
-    const gain = cur - base;
-    if (gain > bestGain) {
-      bestGain = gain;
+    const cur = Number(prs[item.id]) || 0;
+    if (cur > bestVal) {
+      bestVal = cur;
       chosen = item;
     }
   });
 
-  const weightVal = Number(prs[chosen.id]) || chosen.fallback;
-  return `@${uname}: ${chosen.label} 1RM ${weightVal} LB`;
+  if (!chosen || bestVal <= 0) {
+    return null;
+  }
+
+  return `@${uname}: ${chosen.label} 1RM ${bestVal} LB`;
 }
 
 export function HomeView({
   colors,
+  user,
+  oneRepMaxes = {},
+  history = [],
   hasActiveSession,
   handleOpenNewSession,
   handleOpenNewAutoSession,
@@ -74,20 +77,60 @@ export function HomeView({
   friendsList,
   pendingIncomingRequests
 }) {
-  // Deduplicate friendsList so each friend user has strictly a single entry in the scroller
-  const uniqueFriends = [];
+  const curUsername = (user?.username || '').trim().toLowerCase();
+  const curEmail = (user?.email || '').trim().toLowerCase();
+
+  // Build deduplicated athlete list for the scroller, using live user PRs/history for the signed-in user
+  const uniqueAthletes = [];
   const seenKeys = new Set();
+
+  if (user && (curUsername || curEmail)) {
+    const selfKey = curUsername || curEmail;
+    seenKeys.add(selfKey);
+    if (curEmail === 'matthew.n.duvall@gmail.com' || curUsername === 'matt') {
+      seenKeys.add('matt');
+      seenKeys.add('matthew.n.duvall@gmail.com');
+    }
+    uniqueAthletes.push({
+      id: user.id || 'self',
+      username: user.username || curEmail.split('@')[0],
+      email: curEmail,
+      prs: oneRepMaxes,
+      history
+    });
+  }
+
   (friendsList || []).forEach(f => {
     if (!f) return;
-    const key = String(f.username || f.email || f.id || '').trim().toLowerCase();
-    if (!key || seenKeys.has(key)) return;
+    const fUname = String(f.username || '').trim().toLowerCase();
+    const fEmail = String(f.email || '').trim().toLowerCase();
+    const key = fUname || fEmail || String(f.id || '').toLowerCase();
+    if (!key || seenKeys.has(key) || (fEmail && seenKeys.has(fEmail))) return;
+
+    // If not signed in and this is the default matt entry, merge local oneRepMaxes/history so it reflects current PRs
+    if (f.id === 'friend_matt_default' || fUname === 'matt') {
+      seenKeys.add(key);
+      if (fEmail) seenKeys.add(fEmail);
+      uniqueAthletes.push({
+        ...f,
+        prs: Object.keys(oneRepMaxes || {}).length > 0 ? oneRepMaxes : f.prs,
+        history: Array.isArray(history) && history.length > 0 ? history : f.history
+      });
+      return;
+    }
+
     seenKeys.add(key);
-    uniqueFriends.push(f);
+    if (fEmail) seenKeys.add(fEmail);
+    uniqueAthletes.push(f);
   });
 
+  const tickerEntries = uniqueAthletes
+    .map(a => getFriendSingleBig3TickerEntry(a))
+    .filter(Boolean);
+
   const friendsTickerText =
-    uniqueFriends.length > 0
-      ? uniqueFriends.map(f => getFriendSingleBig3TickerEntry(f)).join('   ///   ') + '   ///   '
+    tickerEntries.length > 0
+      ? tickerEntries.join('   ///   ') + '   ///   '
       : 'ADD FRIENDS IN SOCIAL TO STREAM LIVE 1RM UPDATES   ///   ';
 
   return (

@@ -46,7 +46,7 @@ export async function POST(request) {
           YOU CAN'T CRY IN HERE
         </h1>
         <p style="font-size:14px;line-height:1.5;font-weight:700;color:#E0E0E0;margin:0 0 18px 0;">
-          <strong style="color:#FFFFFF;">@${senderHandle}</strong> invited you to join <strong>You Can't Cry in Here</strong> to track 1RMs, share routines, and compete on the leaderboards.
+          <strong style="color:#FFFFFF;">@${senderHandle}</strong> invited you to join &ldquo;You Can't Cry in Here&rdquo; to track workouts and stop crying.
         </p>
         <div style="background-color:#18181B;padding:12px 14px;border:1px solid #5C5C5C;margin-bottom:20px;">
           <div style="font-size:10px;font-weight:800;color:#A0A0A0;text-transform:uppercase;margin-bottom:4px;">

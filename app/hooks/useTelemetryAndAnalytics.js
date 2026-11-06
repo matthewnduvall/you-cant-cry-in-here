@@ -85,43 +85,51 @@ export function useTelemetryAndAnalytics({
   }, [history, stimulusGreenDays, stimulusYellowDays, stimulusNowMs]);
 
   const progressionSeriesByLift = useMemo(() => {
-    const sorted = [...history].sort((a, b) => new Date(a.startedAt).getTime() - new Date(b.startedAt).getTime());
+    const sorted = [...(history || [])].sort(
+      (a, b) => new Date(a.startedAt || 0).getTime() - new Date(b.startedAt || 0).getTime()
+    );
     const map = {};
     EXERCISE_LIBRARY.forEach(ex => {
       const liftId = ex.id;
       const points = [];
-      sorted.forEach(w => {
+      sorted.forEach((w, wIdx) => {
         let top1RM = 0;
         let totalVol = 0;
+
+        const accumulateSetsForExercise = setsList => {
+          const arr = Array.isArray(setsList) ? setsList : [];
+          const hasCompleted = arr.some(s => s && s.completed && Number(s.weight) > 0);
+          arr.forEach(s => {
+            if (!s || Number(s.weight) <= 0) return;
+            if (hasCompleted && !s.completed) return;
+            const wVal = Number(s.weight) || 0;
+            const rVal = Math.max(1, Number(s.reps) || 1);
+            const est1RM = rVal === 1 ? wVal : Math.round(wVal * (1 + rVal / 30));
+            if (est1RM > top1RM) top1RM = est1RM;
+            totalVol += wVal * rVal;
+          });
+        };
+
         (w.slots || []).forEach(slot => {
-          if (isSupersetCategory(slot.category) && Array.isArray(slot.supersetExerciseIds) && slot.supersetExerciseIds.includes(liftId)) {
-            const supersetSets = slot.supersetSetsByExercise?.[liftId] || [];
-            supersetSets.forEach(s => {
-              if (s.completed && s.weight > 0) {
-                const wVal = Number(s.weight) || 0;
-                const rVal = Math.max(1, Number(s.reps) || 1);
-                const est1RM = rVal === 1 ? wVal : Math.round(wVal * (1 + rVal / 30));
-                if (est1RM > top1RM) top1RM = est1RM;
-                totalVol += wVal * rVal;
+          if (isSupersetCategory(slot.category) && Array.isArray(slot.supersetSetsByExercise)) {
+            const ids =
+              slot.supersetExerciseIds || [slot.exerciseId, slot.secondaryExerciseId].filter(Boolean);
+            ids.forEach((id, idx) => {
+              if (id === liftId) {
+                accumulateSetsForExercise(slot.supersetSetsByExercise[idx]);
               }
             });
           } else if (slot.exerciseId === liftId) {
-            (slot.sets || []).forEach(s => {
-              if (s.completed && s.weight > 0) {
-                const wVal = Number(s.weight) || 0;
-                const rVal = Math.max(1, Number(s.reps) || 1);
-                const est1RM = rVal === 1 ? wVal : Math.round(wVal * (1 + rVal / 30));
-                if (est1RM > top1RM) top1RM = est1RM;
-                totalVol += wVal * rVal;
-              }
-            });
+            accumulateSetsForExercise(slot.sets);
           }
         });
+
         if (top1RM > 0 || totalVol > 0) {
           points.push({
+            workoutId: w.id || `workout_${wIdx}`,
             dateLabel: formatDateYMD(w.startedAt),
             weight: top1RM,
-            volume: totalVol
+            volume: Math.round(totalVol)
           });
         }
       });

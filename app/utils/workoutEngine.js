@@ -7,6 +7,7 @@ import {
   EXERCISE_MAP,
   normalizeSlotCategory,
   isSupersetCategory,
+  formatDateYMD,
   roundTo5,
   roundToIncrement
 } from '../data/exerciseLibrary';
@@ -26,8 +27,12 @@ export const normalizeSetType = rawType => {
   return 'Working';
 };
 
-export const getBestHistory1RM = (exerciseId, history = []) => {
+export const getBestHistory1RMInfo = (exerciseId, history = []) => {
   let best = 0;
+  let bestWorkoutId = null;
+  let bestSlotId = null;
+  let bestDateLabel = '';
+
   (history || []).forEach(w => {
     (w?.slots || []).forEach(slot => {
       const scanSets = setsList => {
@@ -38,7 +43,12 @@ export const getBestHistory1RM = (exerciseId, history = []) => {
           if (hasCompleted && !st.completed) return;
           const reps = Math.max(1, Number(st.reps) || 1);
           const est = reps === 1 ? Number(st.weight) : Math.round(Number(st.weight) * (1 + reps / 30));
-          if (est > best) best = est;
+          if (est > best) {
+            best = est;
+            bestWorkoutId = w?.id || null;
+            bestSlotId = slot?.id || null;
+            bestDateLabel = w?.startedAt ? formatDateYMD(w.startedAt) : '';
+          }
         });
       };
 
@@ -54,7 +64,17 @@ export const getBestHistory1RM = (exerciseId, history = []) => {
       }
     });
   });
-  return best;
+
+  return {
+    best,
+    workoutId: bestWorkoutId,
+    slotId: bestSlotId,
+    dateLabel: bestDateLabel
+  };
+};
+
+export const getBestHistory1RM = (exerciseId, history = []) => {
+  return getBestHistory1RMInfo(exerciseId, history).best;
 };
 
 export const getPersonalRecord1RM = (exerciseId, history = []) => {

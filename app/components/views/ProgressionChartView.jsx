@@ -68,9 +68,23 @@ export function ProgressionChartView({
   const displayedLiftIds = Array.from(new Set([...BIG_THREE_IDS, activeCustomId]));
   const activeLifts = selectedChartLift === 'ALL' ? displayedLiftIds : [isCustomActive ? activeCustomId : selectedChartLift];
 
-  const allDates = Array.from(
-    new Set(activeLifts.flatMap(id => (progressionSeriesByLift[id] || []).map(pt => pt.dateLabel)))
-  );
+  // Build distinct workout entries in chronological order so each workout session is graphed as an individual entry
+  const allEntries = (() => {
+    const mapById = new Map();
+    activeLifts.forEach(id => {
+      (progressionSeriesByLift[id] || []).forEach((pt, idx) => {
+        const entryKey = pt.workoutId || `${pt.dateLabel}_${idx}`;
+        if (!mapById.has(entryKey)) {
+          mapById.set(entryKey, {
+            entryKey,
+            dateLabel: pt.dateLabel
+          });
+        }
+      });
+    });
+    return Array.from(mapById.values());
+  })();
+
   const allVals = activeLifts.flatMap(id =>
     (progressionSeriesByLift[id] || []).map(pt => (chartMetric === 'weight' ? pt.weight : pt.volume))
   );
@@ -318,13 +332,13 @@ export function ProgressionChartView({
                 );
               })}
 
-              {allDates.map((dLabel, idx) => {
-                const x = getX(idx, allDates.length);
+              {allEntries.map((entry, idx) => {
+                const x = getX(idx, allEntries.length);
                 return (
-                  <g key={dLabel}>
+                  <g key={entry.entryKey}>
                     <line x1={x} y1={padT} x2={x} y2={padT + plotH} stroke="#1E1E1E" strokeWidth="1" />
                     <text x={x} y={svgH - 9} textAnchor="middle" fill="#A0A0A0" fontSize="9" fontWeight="800">
-                      {dLabel.toUpperCase()}
+                      {entry.dateLabel.toUpperCase()}
                     </text>
                   </g>
                 );
@@ -336,8 +350,9 @@ export function ProgressionChartView({
                 const color = liftMeta[liftId]?.color || '#00E5FF';
 
                 const coords = series.map((pt, sIdx) => {
-                  const dateIdx = allDates.indexOf(pt.dateLabel);
-                  const x = dateIdx >= 0 ? getX(dateIdx, allDates.length) : getX(sIdx, series.length);
+                  const ptKey = pt.workoutId || `${pt.dateLabel}_${sIdx}`;
+                  const entryIdx = allEntries.findIndex(e => e.entryKey === ptKey);
+                  const x = entryIdx >= 0 ? getX(entryIdx, allEntries.length) : getX(sIdx, series.length);
                   const rawVal = chartMetric === 'weight' ? pt.weight : pt.volume;
                   const y = getY(rawVal);
                   return { x, y, rawVal, dateLabel: pt.dateLabel };
@@ -442,11 +457,10 @@ export function ProgressionChartView({
                   }}
                 >
                   <span>
-                    START: {firstVal} {chartMetric === 'weight' ? 'LB' : 'VOL'} → LATEST: {latestVal}{' '}
-                    {chartMetric === 'weight' ? 'LB' : 'VOL'}
+                    START: {firstVal} LB → LATEST: {latestVal} LB
                   </span>
                   <span style={{ color: delta >= 0 ? '#30D158' : '#FF3B30' }}>
-                    {delta >= 0 ? `+${delta}` : delta} {chartMetric === 'weight' ? 'LB' : 'VOL'}
+                    {delta >= 0 ? `+${delta}` : delta} LB
                   </span>
                 </div>
               </div>

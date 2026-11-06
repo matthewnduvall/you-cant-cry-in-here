@@ -140,7 +140,7 @@ export async function POST(request) {
         html: `
           <div style="background:#101010;color:#FFFFFF;padding:24px;font-family:sans-serif;border:2px solid #5C5C5C;max-width:480px;">
             <h2 style="color:#FF6B00;text-transform:uppercase;margin-top:0;">YOU CAN'T CRY IN HERE</h2>
-            <p style="font-weight:700;">@${inviterUsername || 'An athlete'} invited you to join You Can't Cry in Here to track 1RMs, share routines, and compete on the leaderboards.</p>
+            <p style="font-weight:700;">@${inviterUsername || 'An athlete'} invited you to join &ldquo;You Can't Cry in Here&rdquo; to track workouts and stop crying.</p>
             <p style="background:#18181B;padding:12px;border:1px solid #5C5C5C;font-weight:800;">
               BETA TESTER CODE: <span style="color:#FF6B00;">imnotcrying</span>
             </p>

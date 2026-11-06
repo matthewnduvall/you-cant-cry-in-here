@@ -494,6 +494,9 @@ export default function App() {
           {currentView === 'home' && (
             <HomeView
               colors={colors}
+              user={user}
+              oneRepMaxes={effectiveOneRepMaxes}
+              history={history}
               hasActiveSession={Boolean(activeSession?.slots?.length > 0)}
               handleOpenNewSession={handleOpenNewSession}
               handleOpenNewAutoSession={handleOpenNewAutoSession}

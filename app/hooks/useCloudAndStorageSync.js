@@ -15,7 +15,8 @@ import {
   pushCloudStateForUser,
   resolveInviteFriendshipsForUser
 } from '../utils/supabaseAuth';
-import { getInitial1RMs } from '../utils/workoutEngine';
+import { getInitial1RMs, getBestHistory1RM } from '../utils/workoutEngine';
+import { EXERCISE_LIBRARY } from '../data/exerciseLibrary';
 
 export function useCloudAndStorageSync({
   isStorageHydrated,
@@ -456,11 +457,19 @@ export function useCloudAndStorageSync({
     if (typeof window === 'undefined' || !isStorageHydrated) return;
     const debounceTimer = setTimeout(() => {
       try {
+        const historyBackedOneRepMaxes = {};
+        EXERCISE_LIBRARY.forEach(ex => {
+          const best = getBestHistory1RM(ex.id, history);
+          if (best > 0) {
+            historyBackedOneRepMaxes[ex.id] = best;
+          }
+        });
+
         const payload = {
           schemaVersion: CURRENT_SCHEMA_VERSION,
           updatedAt: new Date().toISOString(),
           user,
-          oneRepMaxes,
+          oneRepMaxes: historyBackedOneRepMaxes,
           history,
           activeSession,
           savedRoutines,

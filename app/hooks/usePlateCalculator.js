@@ -58,13 +58,13 @@ export function usePlateCalculator({
     });
   };
 
-  const openPlateCalculatorForPR = (exerciseId, exerciseName, currentWeight) => {
+  const openPlateCalculatorForPR = (exerciseId, exerciseName, currentWeight, loggedDate = '') => {
     const startW =
       Number(currentWeight) > 0
         ? Number(currentWeight)
         : EXERCISE_MAP[exerciseId]?.default1RM || 135;
     decomposeWeightToPlates(startW);
-    setPrRecordDate('');
+    setPrRecordDate(loggedDate && String(loggedDate).trim() ? formatDateYMD(loggedDate) : formatTodayYMD());
     setPlateCalcTarget({ mode: 'pr', exerciseId, exerciseName });
   };
 

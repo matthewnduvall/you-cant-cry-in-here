@@ -43,13 +43,12 @@ export const isAccessoryCategory = cat => normalizeSlotCategory(cat) === 'Access
 // Standardized with https://exrx.net/Lists/Directory Body Part Directory
 export const MUSCLE_GROUP_OPTIONS = [
   'All Muscles',
-  'Legs',
   'Neck',
   'Shoulders',
-  'Chest',
-  'Back',
   'Upper Arms',
   'Forearms',
+  'Back',
+  'Chest',
   'Waist',
   'Hips',
   'Thighs',
@@ -175,8 +174,8 @@ export const EXERCISE_LIBRARY = [
   mkEx('dumbbell_pullover', 'Dumbbell Pullover', 'Dumbbell', ['Dumbbell', 'Flat / Incline Bench'], 'Accessory', 'Chest', ['Pectoralis Major - Sternal', 'Latissimus Dorsi', 'Serratus Anterior'], false, 75, ['front_flies', 'band_pulldown']),
 
   // --- BACK (General Back, Latissimus Dorsi, Trapezius, Rhomboids, Infraspinatus & Teres Minor) ---
-  mkEx('barbell_deadlift', 'Barbell Deadlift', 'Barbell', ['Barbell', 'Weight Plates'], 'Compound Lift', 'Back', ['Erector Spinae', 'Gluteus Maximus', 'Hamstrings', 'General Back', 'Trapezius - Upper', 'Forearms'], true, 335, ['landmine_rdl', 'dumbbell_rdl', 'barbell_row']),
-  mkEx('chin_ups', 'Chin-Up / Pull-Up', 'Bodyweight / Weighted', ['Pull-Up Bar'], 'Compound Lift', 'Back', ['Latissimus Dorsi', 'Biceps Brachii', 'Brachialis', 'Rhomboids', 'Trapezius - Lower'], true, 210, ['cable_pulldown', 'barbell_row', 'dumbbell_row']),
+  mkEx('barbell_deadlift', 'Barbell Deadlift', 'Barbell', ['Barbell', 'Weight Plates'], 'Compound Lift', 'Back', ['Erector Spinae', 'Gluteus Maximus', 'Hamstrings', 'General Back', 'Trapezius - Upper', 'Forearms'], true, 350, ['landmine_rdl', 'dumbbell_rdl', 'barbell_row']),
+  mkEx('chin_ups', 'Chin-Up / Pull-Up', 'Bodyweight / Weighted', ['Pull-Up Bar'], 'Compound Lift', 'Back', ['Latissimus Dorsi', 'Biceps Brachii', 'Brachialis', 'Rhomboids', 'Trapezius - Lower'], true, 220, ['cable_pulldown', 'barbell_row', 'dumbbell_row']),
   mkEx('barbell_row', 'Barbell Bent-Over Row', 'Barbell', ['Barbell', 'Weight Plates'], 'Compound Lift', 'Back', ['General Back', 'Latissimus Dorsi', 'Rhomboids', 'Trapezius - Middle', 'Deltoid - Posterior', 'Biceps Brachii'], false, 195, ['meadows_row', 'dumbbell_row', 'chin_ups']),
   mkEx('pendlay_row', 'Barbell Pendlay Row', 'Barbell', ['Barbell', 'Weight Plates'], 'Compound Lift', 'Back', ['General Back', 'Latissimus Dorsi', 'Rhomboids', 'Trapezius - Middle'], false, 185, ['barbell_row', 'dumbbell_row']),
   mkEx('meadows_row', "Landmine Meadow's Row", 'Landmine / Barbell', ['Landmine', 'Barbell', 'Weight Plates'], 'Compound Lift', 'Back', ['Latissimus Dorsi', 'Rhomboids', 'Trapezius - Middle', 'Deltoid - Posterior', 'Biceps Brachii'], false, 165, ['barbell_row', 'dumbbell_row', 'chin_ups']),
@@ -191,7 +190,7 @@ export const EXERCISE_LIBRARY = [
   mkEx('cable_face_pull', 'Cable Face Pull', 'Cable', ['Cable Machine'], 'Accessory', 'Back', ['Infraspinatus & Teres Minor', 'Deltoid - Posterior', 'Trapezius - Middle', 'Rhomboids'], false, 65, ['reverse_flies']),
 
   // --- SHOULDERS (Deltoid - Anterior, Deltoid - Lateral, Deltoid - Posterior, Supraspinatus) ---
-  mkEx('overhead_press', 'Barbell Military Overhead Press', 'Barbell', ['Barbell', 'Weight Plates'], 'Compound Lift', 'Shoulders', ['Deltoid - Anterior', 'Deltoid - Lateral', 'Triceps Brachii', 'Trapezius - Upper', 'Serratus Anterior'], true, 145, ['dumbbell_shoulder_press', 'arnold_press']),
+  mkEx('overhead_press', 'Barbell Military Overhead Press', 'Barbell', ['Barbell', 'Weight Plates'], 'Compound Lift', 'Shoulders', ['Deltoid - Anterior', 'Deltoid - Lateral', 'Triceps Brachii', 'Trapezius - Upper', 'Serratus Anterior'], true, 155, ['dumbbell_shoulder_press', 'arnold_press']),
   mkEx('push_press', 'Barbell Push Press', 'Barbell', ['Barbell', 'Weight Plates'], 'Compound Lift', 'Shoulders', ['Deltoid - Anterior', 'Deltoid - Lateral', 'Triceps Brachii', 'Quadriceps', 'Gluteus Maximus'], false, 165, ['overhead_press', 'dumbbell_shoulder_press']),
   mkEx('dumbbell_shoulder_press', 'Dumbbell Shoulder Press', 'Dumbbell', ['Dumbbell'], 'Compound Lift', 'Shoulders', ['Deltoid - Anterior', 'Deltoid - Lateral', 'Triceps Brachii'], false, 125, ['overhead_press', 'arnold_press']),
   mkEx('arnold_press', 'Dumbbell Arnold Press', 'Dumbbell', ['Dumbbell'], 'Compound Lift', 'Shoulders', ['Deltoid - Anterior', 'Deltoid - Lateral', 'Triceps Brachii'], false, 110, ['dumbbell_shoulder_press', 'overhead_press']),
@@ -204,7 +203,7 @@ export const EXERCISE_LIBRARY = [
   mkEx('reverse_flies', 'Dumbbell Rear Delt Raise', 'Dumbbell', ['Dumbbell'], 'Accessory', 'Shoulders', ['Deltoid - Posterior', 'Infraspinatus & Teres Minor', 'Rhomboids', 'Trapezius - Middle'], false, 55, ['cable_face_pull', 'side_raise_dumbbell']),
 
   // --- THIGHS (Quadriceps, Hamstrings, Hip Adductors) ---
-  mkEx('barbell_back_squat', 'Barbell Back Squat', 'Barbell', ['Barbell', 'Squat Rack', 'Weight Plates'], 'Compound Lift', 'Thighs', ['Quadriceps', 'Gluteus Maximus', 'Hip Adductors', 'Hamstrings', 'Erector Spinae'], true, 285, ['front_squat', 'split_squat', 'goblet_squat']),
+  mkEx('barbell_back_squat', 'Barbell Back Squat', 'Barbell', ['Barbell', 'Squat Rack', 'Weight Plates'], 'Compound Lift', 'Thighs', ['Quadriceps', 'Gluteus Maximus', 'Hip Adductors', 'Hamstrings', 'Erector Spinae'], true, 300, ['front_squat', 'split_squat', 'goblet_squat']),
   mkEx('front_squat', 'Barbell Front Squat', 'Barbell', ['Barbell', 'Squat Rack', 'Weight Plates'], 'Compound Lift', 'Thighs', ['Quadriceps', 'Gluteus Maximus', 'Rectus Abdominis', 'Erector Spinae'], false, 225, ['barbell_back_squat', 'goblet_squat']),
   mkEx('zercher_squat', 'Barbell Zercher Squat', 'Barbell', ['Barbell', 'Squat Rack', 'Weight Plates'], 'Compound Lift', 'Thighs', ['Quadriceps', 'Gluteus Maximus', 'Erector Spinae', 'Biceps Brachii'], false, 215, ['front_squat', 'barbell_back_squat']),
   mkEx('split_squat', 'Dumbbell Bulgarian Split Squat', 'Dumbbell / Barbell', ['Dumbbell'], 'Compound Lift', 'Thighs', ['Quadriceps', 'Gluteus Maximus', 'Hamstrings'], false, 155, ['reverse_lunge', 'barbell_back_squat']),
@@ -281,131 +280,29 @@ export const doesExerciseInteractWithMuscleGroup = (ex, muscleGroupFilter) => {
   if (!muscleGroupFilter || muscleGroupFilter === 'All Muscles' || muscleGroupFilter === 'All') {
     return true;
   }
-  const primary = (ex.muscleGroup || '').toLowerCase();
-  const specs = (ex.specificMuscles || []).map(s => s.toLowerCase());
-  const target = muscleGroupFilter.toLowerCase();
+  const primary = (ex.muscleGroup || '').trim().toLowerCase();
+  const target = String(muscleGroupFilter || '').trim().toLowerCase();
 
+  // Direct match against the 10 ExRx.net Body Part Directory groups:
+  // Neck, Shoulders, Upper Arms, Forearms, Back, Chest, Waist, Hips, Thighs, Calves
   if (primary === target) return true;
 
-  if (target === 'neck') {
-    return primary === 'neck' || specs.some(s => s.includes('sternocleidomastoid') || s.includes('splenius'));
+  // Legacy alias handling
+  if ((target === 'upper arms' || target === 'arms') && (primary === 'upper arms' || primary === 'arms')) {
+    return true;
   }
-  if (target === 'shoulders') {
-    return primary === 'shoulders' || specs.some(s => s.includes('deltoid') || s.includes('supraspinatus'));
+  if ((target === 'waist' || target === 'core' || target === 'abs') && (primary === 'waist' || ex.category === 'Abs')) {
+    return true;
   }
-  if (target === 'chest') {
-    return primary === 'chest' || specs.some(s => s.includes('pectoral') || s.includes('serratus'));
+  if (target === 'legs' && (primary === 'thighs' || primary === 'hips' || primary === 'calves')) {
+    return true;
   }
-  if (target === 'back') {
-    return (
-      primary === 'back' ||
-      specs.some(
-        s =>
-          s.includes('latissimus') ||
-          s.includes('lats') ||
-          s.includes('trapezius') ||
-          s.includes('rhomboid') ||
-          s.includes('infraspinatus') ||
-          s.includes('teres') ||
-          s.includes('general back')
-      )
-    );
-  }
-  if (target === 'upper arms' || target === 'arms') {
-    return (
-      primary === 'upper arms' ||
-      primary === 'arms' ||
-      specs.some(s => s.includes('bicep') || s.includes('tricep') || s.includes('brachialis'))
-    );
-  }
-  if (target === 'forearms') {
-    return (
-      primary === 'forearms' ||
-      specs.some(s => s.includes('brachioradialis') || s.includes('wrist') || s.includes('forearm'))
-    );
-  }
-  if (target === 'waist' || target === 'core' || target === 'abs') {
-    return (
-      primary === 'waist' ||
-      primary === 'core' ||
-      ex.category === 'Abs' ||
-      specs.some(
-        s =>
-          s.includes('abdominis') ||
-          s.includes('oblique') ||
-          s.includes('erector spinae') ||
-          s.includes('quadratus') ||
-          s.includes('abs') ||
-          s.includes('core')
-      )
-    );
-  }
-  if (target === 'hips') {
-    return (
-      primary === 'hips' ||
-      specs.some(s => s.includes('glute') || s.includes('abductor') || s.includes('hip flexor'))
-    );
-  }
-  if (target === 'legs') {
-    return (
-      primary === 'legs' ||
-      primary === 'thighs' ||
-      primary === 'hips' ||
-      primary === 'calves' ||
-      specs.some(
-        s =>
-          s.includes('quadriceps') ||
-          s.includes('hamstrings') ||
-          s.includes('adductor') ||
-          s.includes('glute') ||
-          s.includes('abductor') ||
-          s.includes('calf') ||
-          s.includes('calves') ||
-          s.includes('gastrocnemius') ||
-          s.includes('soleus') ||
-          s.includes('tibialis')
-      )
-    );
-  }
-  if (target === 'thighs') {
-    return (
-      primary === 'thighs' ||
-      specs.some(s => s.includes('quadriceps') || s.includes('hamstrings') || s.includes('adductor'))
-    );
-  }
-  if (target === 'calves') {
-    return (
-      primary === 'calves' ||
-      specs.some(s => s.includes('gastrocnemius') || s.includes('soleus') || s.includes('tibialis') || s.includes('calves'))
-    );
-  }
+
   return false;
 };
 
-export const getAvailableMuscleGroupsForCategory = (category, selectedGymId = '', customGyms = []) => {
-  const normCat = normalizeSlotCategory(category);
-  const byGym = EXERCISE_LIBRARY.filter(ex =>
-    isExerciseCompatibleWithGymSelection(ex, selectedGymId, customGyms)
-  );
-  const gymBase = byGym.length > 0 ? byGym : EXERCISE_LIBRARY;
-
-  let catPool;
-  if (normCat === 'Abs') {
-    const m = gymBase.filter(e => e.category === 'Abs');
-    catPool = m.length > 0 ? m : EXERCISE_LIBRARY.filter(e => e.category === 'Abs');
-  } else if (normCat === 'Compound Lift') {
-    const m = gymBase.filter(e => e.category === 'Compound Lift');
-    catPool = m.length > 0 ? m : EXERCISE_LIBRARY.filter(e => e.category === 'Compound Lift');
-  } else if (normCat === 'Accessory') {
-    const m = gymBase.filter(e => e.category === 'Accessory');
-    catPool = m.length > 0 ? m : EXERCISE_LIBRARY.filter(e => e.category === 'Accessory');
-  } else {
-    catPool = gymBase;
-  }
-
-  return MUSCLE_GROUP_OPTIONS.filter(
-    mg => mg === 'All Muscles' || catPool.some(ex => doesExerciseInteractWithMuscleGroup(ex, mg))
-  );
+export const getAvailableMuscleGroupsForCategory = () => {
+  return MUSCLE_GROUP_OPTIONS;
 };
 
 export const filterAddSlotExercises = (gymFilterId, category, customGyms = [], muscleGroupFilter = 'All Muscles') => {
@@ -429,8 +326,22 @@ export const filterAddSlotExercises = (gymFilterId, category, customGyms = [], m
     }
   }
 
-  const byMuscle = catPool.filter(ex => doesExerciseInteractWithMuscleGroup(ex, muscleGroupFilter));
-  return sortExercisesAlphabetically(byMuscle.length > 0 ? byMuscle : catPool);
+  if (!muscleGroupFilter || muscleGroupFilter === 'All Muscles' || muscleGroupFilter === 'All') {
+    return sortExercisesAlphabetically(catPool);
+  }
+
+  const byMuscleInCat = catPool.filter(ex => doesExerciseInteractWithMuscleGroup(ex, muscleGroupFilter));
+  if (byMuscleInCat.length > 0) {
+    return sortExercisesAlphabetically(byMuscleInCat);
+  }
+
+  const byMuscleInGym = gymBase.filter(ex => doesExerciseInteractWithMuscleGroup(ex, muscleGroupFilter));
+  if (byMuscleInGym.length > 0) {
+    return sortExercisesAlphabetically(byMuscleInGym);
+  }
+
+  const byMuscleAll = EXERCISE_LIBRARY.filter(ex => doesExerciseInteractWithMuscleGroup(ex, muscleGroupFilter));
+  return sortExercisesAlphabetically(byMuscleAll.length > 0 ? byMuscleAll : catPool);
 };
 
 export const getFilteredExercisesForSlotInline = (slot, selectedGymId, customGyms = []) => {
@@ -455,8 +366,22 @@ export const getFilteredExercisesForSlotInline = (slot, selectedGymId, customGym
     catPool = activePoolBase;
   }
 
-  const byMuscle = catPool.filter(ex => doesExerciseInteractWithMuscleGroup(ex, muscleFilter));
-  return sortExercisesAlphabetically(byMuscle.length > 0 ? byMuscle : catPool);
+  if (!muscleFilter || muscleFilter === 'All Muscles' || muscleFilter === 'All') {
+    return sortExercisesAlphabetically(catPool);
+  }
+
+  const byMuscleInCat = catPool.filter(ex => doesExerciseInteractWithMuscleGroup(ex, muscleFilter));
+  if (byMuscleInCat.length > 0) {
+    return sortExercisesAlphabetically(byMuscleInCat);
+  }
+
+  const byMuscleInGym = activePoolBase.filter(ex => doesExerciseInteractWithMuscleGroup(ex, muscleFilter));
+  if (byMuscleInGym.length > 0) {
+    return sortExercisesAlphabetically(byMuscleInGym);
+  }
+
+  const byMuscleAll = EXERCISE_LIBRARY.filter(ex => doesExerciseInteractWithMuscleGroup(ex, muscleFilter));
+  return sortExercisesAlphabetically(byMuscleAll.length > 0 ? byMuscleAll : catPool);
 };
 
 export const BIG_FOUR_IDS = ['barbell_bench_press', 'barbell_back_squat', 'barbell_deadlift', 'overhead_press'];
@@ -469,26 +394,143 @@ export const CORE_PR_EXERCISE_IDS = [
 ];
 export const EXRX_CLASSES = ['Untrained', 'Novice', 'Intermediate', 'Advanced', 'Elite'];
 
+// Official ExRx.net Male Weightlifting Strength Standards Tables (in lbs)
+// Reference: https://exrx.net/Testing/WeightLifting/StrengthStandards
+export const EXRX_BODYWEIGHT_BRACKETS = [114, 123, 132, 148, 165, 181, 198, 220, 242, 275, 319];
+
+export const EXRX_STANDARDS_TABLES = {
+  // https://exrx.net/Testing/WeightLifting/BenchPressStandards
+  barbell_bench_press: {
+    114: { Untrained: 85, Novice: 105, Intermediate: 130, Advanced: 175, Elite: 220 },
+    123: { Untrained: 90, Novice: 115, Intermediate: 140, Advanced: 190, Elite: 240 },
+    132: { Untrained: 100, Novice: 125, Intermediate: 155, Advanced: 205, Elite: 260 },
+    148: { Untrained: 110, Novice: 140, Intermediate: 170, Advanced: 230, Elite: 290 },
+    165: { Untrained: 120, Novice: 155, Intermediate: 185, Advanced: 255, Elite: 320 },
+    181: { Untrained: 130, Novice: 165, Intermediate: 200, Advanced: 275, Elite: 345 },
+    198: { Untrained: 135, Novice: 175, Intermediate: 215, Advanced: 290, Elite: 365 },
+    220: { Untrained: 140, Novice: 185, Intermediate: 225, Advanced: 305, Elite: 385 },
+    242: { Untrained: 145, Novice: 190, Intermediate: 235, Advanced: 320, Elite: 400 },
+    275: { Untrained: 150, Novice: 195, Intermediate: 240, Advanced: 330, Elite: 415 },
+    319: { Untrained: 155, Novice: 200, Intermediate: 245, Advanced: 340, Elite: 425 }
+  },
+  // https://exrx.net/Testing/WeightLifting/SquatStandards
+  barbell_back_squat: {
+    114: { Untrained: 80, Novice: 145, Intermediate: 175, Advanced: 240, Elite: 320 },
+    123: { Untrained: 85, Novice: 155, Intermediate: 190, Advanced: 260, Elite: 345 },
+    132: { Untrained: 95, Novice: 170, Intermediate: 205, Advanced: 285, Elite: 370 },
+    148: { Untrained: 105, Novice: 190, Intermediate: 230, Advanced: 315, Elite: 410 },
+    165: { Untrained: 115, Novice: 205, Intermediate: 250, Advanced: 340, Elite: 445 },
+    181: { Untrained: 120, Novice: 220, Intermediate: 270, Advanced: 370, Elite: 480 },
+    198: { Untrained: 130, Novice: 235, Intermediate: 285, Advanced: 390, Elite: 505 },
+    220: { Untrained: 135, Novice: 245, Intermediate: 300, Advanced: 410, Elite: 530 },
+    242: { Untrained: 140, Novice: 255, Intermediate: 310, Advanced: 425, Elite: 550 },
+    275: { Untrained: 145, Novice: 265, Intermediate: 320, Advanced: 440, Elite: 570 },
+    319: { Untrained: 150, Novice: 270, Intermediate: 330, Advanced: 455, Elite: 585 }
+  },
+  // https://exrx.net/Testing/WeightLifting/DeadliftStandards
+  barbell_deadlift: {
+    114: { Untrained: 95, Novice: 180, Intermediate: 205, Advanced: 295, Elite: 385 },
+    123: { Untrained: 105, Novice: 195, Intermediate: 220, Advanced: 315, Elite: 410 },
+    132: { Untrained: 115, Novice: 210, Intermediate: 240, Advanced: 340, Elite: 435 },
+    148: { Untrained: 130, Novice: 235, Intermediate: 270, Advanced: 380, Elite: 480 },
+    165: { Untrained: 140, Novice: 255, Intermediate: 295, Advanced: 410, Elite: 520 },
+    181: { Untrained: 150, Novice: 275, Intermediate: 315, Advanced: 440, Elite: 550 },
+    198: { Untrained: 160, Novice: 290, Intermediate: 335, Advanced: 465, Elite: 575 },
+    220: { Untrained: 165, Novice: 305, Intermediate: 350, Advanced: 485, Elite: 595 },
+    242: { Untrained: 175, Novice: 320, Intermediate: 365, Advanced: 500, Elite: 610 },
+    275: { Untrained: 180, Novice: 330, Intermediate: 375, Advanced: 515, Elite: 620 },
+    319: { Untrained: 185, Novice: 340, Intermediate: 385, Advanced: 525, Elite: 630 }
+  },
+  // https://exrx.net/Testing/WeightLifting/PressStandards
+  overhead_press: {
+    114: { Untrained: 55, Novice: 75, Intermediate: 90, Advanced: 110, Elite: 150 },
+    123: { Untrained: 60, Novice: 80, Intermediate: 100, Advanced: 120, Elite: 160 },
+    132: { Untrained: 65, Novice: 85, Intermediate: 105, Advanced: 130, Elite: 175 },
+    148: { Untrained: 70, Novice: 95, Intermediate: 115, Advanced: 145, Elite: 195 },
+    165: { Untrained: 75, Novice: 105, Intermediate: 125, Advanced: 155, Elite: 210 },
+    181: { Untrained: 80, Novice: 110, Intermediate: 135, Advanced: 170, Elite: 225 },
+    198: { Untrained: 85, Novice: 120, Intermediate: 145, Advanced: 180, Elite: 240 },
+    220: { Untrained: 90, Novice: 125, Intermediate: 155, Advanced: 190, Elite: 255 },
+    242: { Untrained: 95, Novice: 130, Intermediate: 160, Advanced: 195, Elite: 265 },
+    275: { Untrained: 95, Novice: 135, Intermediate: 165, Advanced: 205, Elite: 275 },
+    319: { Untrained: 100, Novice: 140, Intermediate: 170, Advanced: 210, Elite: 280 }
+  },
+  chin_ups: {
+    114: { Untrained: 80, Novice: 105, Intermediate: 125, Advanced: 165, Elite: 210 },
+    123: { Untrained: 85, Novice: 115, Intermediate: 135, Advanced: 180, Elite: 225 },
+    132: { Untrained: 95, Novice: 120, Intermediate: 150, Advanced: 195, Elite: 245 },
+    148: { Untrained: 105, Novice: 135, Intermediate: 165, Advanced: 220, Elite: 275 },
+    165: { Untrained: 115, Novice: 150, Intermediate: 180, Advanced: 245, Elite: 305 },
+    181: { Untrained: 125, Novice: 160, Intermediate: 195, Advanced: 265, Elite: 330 },
+    198: { Untrained: 130, Novice: 170, Intermediate: 210, Advanced: 280, Elite: 350 },
+    220: { Untrained: 135, Novice: 180, Intermediate: 220, Advanced: 295, Elite: 370 },
+    242: { Untrained: 140, Novice: 185, Intermediate: 230, Advanced: 310, Elite: 385 },
+    275: { Untrained: 145, Novice: 190, Intermediate: 235, Advanced: 320, Elite: 400 },
+    319: { Untrained: 150, Novice: 195, Intermediate: 240, Advanced: 330, Elite: 410 }
+  }
+};
+
 export const EXRX_RATIOS = {
-  barbell_bench_press: { Untrained: 0.61, Novice: 0.79, Intermediate: 0.98, Advanced: 1.34, Elite: 1.66 },
-  barbell_back_squat: { Untrained: 0.57, Novice: 1.05, Intermediate: 1.29, Advanced: 1.75, Elite: 2.27 },
-  barbell_deadlift: { Untrained: 0.71, Novice: 1.31, Intermediate: 1.50, Advanced: 2.11, Elite: 2.61 },
-  overhead_press: { Untrained: 0.40, Novice: 0.55, Intermediate: 0.69, Advanced: 0.87, Elite: 1.16 },
-  incline_bench_press: { Untrained: 0.50, Novice: 0.67, Intermediate: 0.83, Advanced: 1.13, Elite: 1.41 },
-  chin_ups: { Untrained: 0.55, Novice: 0.75, Intermediate: 0.95, Advanced: 1.25, Elite: 1.53 }
+  barbell_bench_press: { Untrained: 0.64, Novice: 0.84, Intermediate: 1.02, Advanced: 1.39, Elite: 1.75 },
+  barbell_back_squat: { Untrained: 0.61, Novice: 1.11, Intermediate: 1.36, Advanced: 1.86, Elite: 2.41 },
+  barbell_deadlift: { Untrained: 0.75, Novice: 1.39, Intermediate: 1.59, Advanced: 2.20, Elite: 2.70 },
+  overhead_press: { Untrained: 0.41, Novice: 0.57, Intermediate: 0.70, Advanced: 0.86, Elite: 1.16 },
+  incline_bench_press: { Untrained: 0.52, Novice: 0.68, Intermediate: 0.86, Advanced: 1.16, Elite: 1.45 },
+  chin_ups: { Untrained: 0.61, Novice: 0.82, Intermediate: 1.00, Advanced: 1.34, Elite: 1.68 }
 };
 
 export const roundTo5 = val => Math.max(5, Math.round(val / 5) * 5);
 export const roundToIncrement = val => Math.max(0, Math.round((Number(val) || 0) * 4) / 4);
 
+const interpolateExRxTable = (table, targetClass, bw) => {
+  const cls = EXRX_CLASSES.includes(targetClass) ? targetClass : 'Intermediate';
+  const brackets = EXRX_BODYWEIGHT_BRACKETS;
+  const safeBw = Math.max(90, Number(bw) || 220);
+
+  if (safeBw <= brackets[0]) {
+    const scale = safeBw / brackets[0];
+    return roundTo5((table[brackets[0]][cls] || 135) * scale);
+  }
+  const lastB = brackets[brackets.length - 1];
+  if (safeBw >= lastB) {
+    return roundTo5(table[lastB][cls] || 225);
+  }
+
+  for (let i = 0; i < brackets.length - 1; i++) {
+    const bLow = brackets[i];
+    const bHigh = brackets[i + 1];
+    if (safeBw === bLow) {
+      return table[bLow][cls];
+    }
+    if (safeBw === bHigh) {
+      return table[bHigh][cls];
+    }
+    if (safeBw > bLow && safeBw < bHigh) {
+      const t = (safeBw - bLow) / (bHigh - bLow);
+      const valLow = table[bLow][cls];
+      const valHigh = table[bHigh][cls];
+      return roundTo5(valLow + t * (valHigh - valLow));
+    }
+  }
+  return table[220][cls];
+};
+
 export const getExRxTargetForLift = (liftId, targetClass, bodyweightLbs = 220, heightInches = 70, customGoals = {}) => {
   if (targetClass === 'Custom' && customGoals && customGoals[liftId]) {
     return Number(customGoals[liftId]);
   }
-  const ratios = EXRX_RATIOS[liftId] || EXRX_RATIOS.barbell_bench_press;
-  const ratio = ratios[targetClass] || ratios.Intermediate;
-  const heightAdj = 1 + (70 - (heightInches || 70)) * 0.003;
-  return roundTo5((bodyweightLbs || 220) * ratio * heightAdj);
+  const cls = EXRX_CLASSES.includes(targetClass) ? targetClass : 'Intermediate';
+  const table = EXRX_STANDARDS_TABLES[liftId];
+  if (table) {
+    return interpolateExRxTable(table, cls, bodyweightLbs);
+  }
+
+  // For additional exercises not in the core 5 tables, scale along the ExRx Bench Press curve
+  // anchored to the exercise's 220 lb Intermediate default1RM
+  const exObj = EXERCISE_MAP[liftId];
+  const base220Intermediate = exObj?.default1RM || 225;
+  const benchTargetAtBw = interpolateExRxTable(EXRX_STANDARDS_TABLES.barbell_bench_press, cls, bodyweightLbs);
+  return roundTo5(benchTargetAtBw * (base220Intermediate / 225));
 };
 
 export const getExRxCurrentClass = (liftId, current1RM, bodyweightLbs = 220, heightInches = 70) => {

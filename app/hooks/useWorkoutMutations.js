@@ -709,15 +709,28 @@ export function useWorkoutMutations({
             ? EXERCISE_MAP[changes.exerciseId].muscleGroup
             : slot.familyMuscleGroup || currentEx.muscleGroup || 'Chest';
 
-        const nextCategory = normalizeSlotCategory(changes.category ?? slot.category);
+        let nextCategory = normalizeSlotCategory(changes.category ?? slot.category);
         const availMuscleGroups = getAvailableMuscleGroupsForCategory(nextCategory, selectedGymId, gyms);
-        const rawNextMuscleFilter =
-          changes.muscleGroupFilter !== undefined
-            ? changes.muscleGroupFilter
-            : changes.exerciseId && EXERCISE_MAP[changes.exerciseId]?.muscleGroup
-              ? EXERCISE_MAP[changes.exerciseId].muscleGroup
-              : slot.muscleGroupFilter || currentEx.muscleGroup || 'All Muscles';
-        const nextMuscleFilter = availMuscleGroups.includes(rawNextMuscleFilter)
+        let rawNextMuscleFilter;
+        if (changes.muscleGroupFilter !== undefined) {
+          rawNextMuscleFilter = changes.muscleGroupFilter;
+        } else if (changes.exerciseId && EXERCISE_MAP[changes.exerciseId]?.muscleGroup) {
+          rawNextMuscleFilter = EXERCISE_MAP[changes.exerciseId].muscleGroup;
+        } else if (changes.category) {
+          if (nextCategory === 'Abs') {
+            rawNextMuscleFilter = 'Waist';
+          } else {
+            const prevMg = slot.muscleGroupFilter || currentEx.muscleGroup || 'All Muscles';
+            const hasInNewCat =
+              prevMg === 'All Muscles' ||
+              isSupersetCategory(nextCategory) ||
+              EXERCISE_LIBRARY.some(e => e.category === nextCategory && e.muscleGroup === prevMg);
+            rawNextMuscleFilter = hasInNewCat ? prevMg : 'All Muscles';
+          }
+        } else {
+          rawNextMuscleFilter = slot.muscleGroupFilter || currentEx.muscleGroup || 'All Muscles';
+        }
+        let nextMuscleFilter = availMuscleGroups.includes(rawNextMuscleFilter)
           ? rawNextMuscleFilter
           : 'All Muscles';
         const nextScheme = changes.scheme ?? slot.scheme;
@@ -787,6 +800,17 @@ export function useWorkoutMutations({
           } else {
             if (!candidatePool.some(e => e.id === nextExId)) {
               nextExId = (candidatePool[0] || currentEx).id;
+            }
+            if (
+              changes.muscleGroupFilter !== undefined &&
+              !changes.category &&
+              EXERCISE_MAP[nextExId]?.category &&
+              EXERCISE_MAP[nextExId].category !== nextCategory
+            ) {
+              nextCategory = normalizeSlotCategory(EXERCISE_MAP[nextExId].category);
+            }
+            if (changes.category && nextMuscleFilter === 'All Muscles' && EXERCISE_MAP[nextExId]?.muscleGroup) {
+              nextMuscleFilter = EXERCISE_MAP[nextExId].muscleGroup;
             }
           }
         }

@@ -21,7 +21,8 @@ import {
   calculateLastEquivalentWeightForSet,
   getEffectiveIncrementForExercise,
   getHistoricalCalculated1RM,
-  getPersonalRecord1RM
+  getPersonalRecord1RM,
+  getBestHistory1RMInfo
 } from '../../utils/workoutEngine';
 
 const SHARED_CELL_BORDER = {
@@ -977,6 +978,23 @@ export function RoutineEditorView({
 
               const prValA = getPersonalRecord1RM(supIds[0], history, oneRepMaxes);
               const prValB = isSuperset ? getPersonalRecord1RM(supIds[1], history, oneRepMaxes) : 0;
+              const bestInfoA = isEmbeddedHistorySession ? getBestHistory1RMInfo(supIds[0], history) : null;
+              const bestInfoB =
+                isEmbeddedHistorySession && isSuperset ? getBestHistory1RMInfo(supIds[1], history) : null;
+              const isPrA = Boolean(
+                isEmbeddedHistorySession &&
+                  bestInfoA?.best > 0 &&
+                  bestInfoA?.workoutId === currentEditorWorkout.id &&
+                  (!bestInfoA?.slotId || bestInfoA.slotId === slot.id)
+              );
+              const isPrB = Boolean(
+                isEmbeddedHistorySession &&
+                  isSuperset &&
+                  bestInfoB?.best > 0 &&
+                  bestInfoB?.workoutId === currentEditorWorkout.id &&
+                  (!bestInfoB?.slotId || bestInfoB.slotId === slot.id)
+              );
+              const isSlotPR = isPrA || isPrB;
               const slot1RMText =
                 normCat === 'Abs'
                   ? '1RM: --'
@@ -1171,46 +1189,72 @@ export function RoutineEditorView({
                                 inlineExercisePool.some(e => e.id === exId) || !exObj
                                   ? inlineExercisePool
                                   : [exObj, ...inlineExercisePool];
+                              const isThisSupExPR = idx === 0 ? isPrA : isPrB;
                               return (
-                                <select
+                                <div
                                   key={idx}
-                                  aria-label={`Superset Exercise ${idx + 1}`}
-                                  value={exId}
-                                  onChange={e => {
-                                    const nextIds = [...supIds];
-                                    nextIds[idx] = e.target.value;
-                                    handleUpdateSlotCategoryOrExercise(slot.id, { supersetExerciseIds: nextIds });
-                                  }}
                                   style={{
                                     width: '100%',
                                     minWidth: 0,
                                     height: '40px',
                                     boxSizing: 'border-box',
                                     backgroundColor: '#141416',
-                                    color: '#FFFFFF',
                                     ...SHARED_CELL_BORDER,
-                                    padding: '0 8px',
-                                    fontSize: '13px',
-                                    fontWeight: 800,
-                                    textTransform: 'uppercase',
-                                    cursor: 'pointer'
+                                    display: 'flex',
+                                    alignItems: 'center'
                                   }}
                                 >
-                                  {supSelectPool.map(ex => (
-                                    <option key={ex.id} value={ex.id}>
-                                      {ex.name.toUpperCase()} ({ex.equipment.toUpperCase()})
-                                    </option>
-                                  ))}
-                                </select>
+                                  <select
+                                    aria-label={`Superset Exercise ${idx + 1}`}
+                                    value={exId}
+                                    onChange={e => {
+                                      const nextIds = [...supIds];
+                                      nextIds[idx] = e.target.value;
+                                      handleUpdateSlotCategoryOrExercise(slot.id, { supersetExerciseIds: nextIds });
+                                    }}
+                                    style={{
+                                      flex: 1,
+                                      width: '100%',
+                                      minWidth: 0,
+                                      height: '100%',
+                                      boxSizing: 'border-box',
+                                      backgroundColor: '#141416',
+                                      color: '#FFFFFF',
+                                      border: 'none',
+                                      padding: '0 8px',
+                                      fontSize: '13px',
+                                      fontWeight: 800,
+                                      textTransform: 'uppercase',
+                                      cursor: 'pointer'
+                                    }}
+                                  >
+                                    {supSelectPool.map(ex => (
+                                      <option key={ex.id} value={ex.id}>
+                                        {ex.name.toUpperCase()} ({ex.equipment.toUpperCase()})
+                                      </option>
+                                    ))}
+                                  </select>
+                                  {isThisSupExPR && (
+                                    <span
+                                      style={{
+                                        backgroundColor: '#30D158',
+                                        color: '#101010',
+                                        fontSize: '10px',
+                                        fontWeight: 900,
+                                        padding: '1px 5px',
+                                        lineHeight: 1.2,
+                                        marginRight: '6px',
+                                        flexShrink: 0
+                                      }}
+                                    >
+                                      PR
+                                    </span>
+                                  )}
+                                </div>
                               );
                             })
                           ) : (
-                            <select
-                              aria-label="Select Exercise"
-                              value={slot.exerciseId}
-                              onChange={e =>
-                                handleUpdateSlotCategoryOrExercise(slot.id, { exerciseId: e.target.value })
-                              }
+                            <div
                               style={{
                                 gridColumn: 'span 2',
                                 width: '100%',
@@ -1218,21 +1262,56 @@ export function RoutineEditorView({
                                 height: '40px',
                                 boxSizing: 'border-box',
                                 backgroundColor: '#141416',
-                                color: '#FFFFFF',
                                 ...SHARED_CELL_BORDER,
-                                padding: '0 8px',
-                                fontSize: '13px',
-                                fontWeight: 800,
-                                textTransform: 'uppercase',
-                                cursor: 'pointer'
+                                display: 'flex',
+                                alignItems: 'center'
                               }}
                             >
-                              {singleSelectPool.map(ex => (
-                                <option key={ex.id} value={ex.id}>
-                                  {ex.name.toUpperCase()} ({ex.equipment.toUpperCase()})
-                                </option>
-                              ))}
-                            </select>
+                              <select
+                                aria-label="Select Exercise"
+                                value={slot.exerciseId}
+                                onChange={e =>
+                                  handleUpdateSlotCategoryOrExercise(slot.id, { exerciseId: e.target.value })
+                                }
+                                style={{
+                                  flex: 1,
+                                  width: '100%',
+                                  minWidth: 0,
+                                  height: '100%',
+                                  boxSizing: 'border-box',
+                                  backgroundColor: '#141416',
+                                  color: '#FFFFFF',
+                                  border: 'none',
+                                  padding: '0 8px',
+                                  fontSize: '13px',
+                                  fontWeight: 800,
+                                  textTransform: 'uppercase',
+                                  cursor: 'pointer'
+                                }}
+                              >
+                                {singleSelectPool.map(ex => (
+                                  <option key={ex.id} value={ex.id}>
+                                    {ex.name.toUpperCase()} ({ex.equipment.toUpperCase()})
+                                  </option>
+                                ))}
+                              </select>
+                              {isSlotPR && (
+                                <span
+                                  style={{
+                                    backgroundColor: '#30D158',
+                                    color: '#101010',
+                                    fontSize: '10px',
+                                    fontWeight: 900,
+                                    padding: '1px 5px',
+                                    lineHeight: 1.2,
+                                    marginRight: '8px',
+                                    flexShrink: 0
+                                  }}
+                                >
+                                  PR
+                                </span>
+                              )}
+                            </div>
                           )}
 
                           {/* Column 3: Calculated 1RM Box + Red Remove Exercise Button */}

@@ -29,6 +29,7 @@ import {
   generateSetsForScheme,
   calculateLastEquivalentWeightForSet,
   getEffectiveIncrementForExercise,
+  getBestHistory1RMInfo,
   normalizeSlotLabels
 } from '../../utils/workoutEngine';
 
@@ -256,6 +257,9 @@ export function HistoryView({
         if (pool.length > 0 && !pool.some(e => e.id === next.exerciseId)) {
           next.exerciseId = pool[0].id;
         }
+        if (EXERCISE_MAP[next.exerciseId]?.category) {
+          next.category = normalizeSlotCategory(EXERCISE_MAP[next.exerciseId].category);
+        }
       } else if (changes.exerciseId) {
         const chosenEx = EXERCISE_MAP[changes.exerciseId];
         if (chosenEx?.muscleGroup) {
@@ -263,7 +267,7 @@ export function HistoryView({
         }
       }
 
-      if (changes.category || changes.exerciseId || changes.scheme) {
+      if (changes.category || changes.exerciseId || changes.scheme || changes.muscleGroupFilter !== undefined) {
         const exObj = EXERCISE_MAP[next.exerciseId] || EXERCISE_LIBRARY[0];
         const base1RM = Number(oneRepMaxes?.[exObj.id]) || exObj.default1RM || 135;
         const newSets = generateSetsForScheme(
@@ -434,6 +438,30 @@ export function HistoryView({
     setCalcSlot(null);
   };
 
+  // Track which History workout IDs store the all-time highest 1RM / calculated 1RM for any exercise
+  const prWorkoutIds = (() => {
+    const ids = new Set();
+    const exerciseIdsInHistory = new Set(EXERCISE_LIBRARY.map(e => e.id));
+    (history || []).forEach(w => {
+      (w?.slots || []).forEach(slot => {
+        if (slot?.exerciseId) exerciseIdsInHistory.add(slot.exerciseId);
+        if (slot?.secondaryExerciseId) exerciseIdsInHistory.add(slot.secondaryExerciseId);
+        if (Array.isArray(slot?.supersetExerciseIds)) {
+          slot.supersetExerciseIds.forEach(id => {
+            if (id) exerciseIdsInHistory.add(id);
+          });
+        }
+      });
+    });
+    exerciseIdsInHistory.forEach(exId => {
+      const info = getBestHistory1RMInfo(exId, history);
+      if (info.best > 0 && info.workoutId) {
+        ids.add(info.workoutId);
+      }
+    });
+    return ids;
+  })();
+
   const stdActionBtnStyle = {
     width: '96px',
     height: '44px',
@@ -477,121 +505,31 @@ export function HistoryView({
             ...SHARED_GROUP_OUTER
           }}
         >
-          {displayedPrExercises.map(ex => {
-            const rawVal = Number(oneRepMaxes?.[ex.id]) || 0;
-            const isTBD = rawVal <= 0;
-            const current1RM = isTBD ? 0 : rawVal;
-            const goal1RM = getExRxTargetForLift(
-              ex.id,
-              targetStandardClass,
-              userBodyweightLbs,
-              totalHeightInches,
-              customGoalWeights
-            );
-            const diffFromGoal = !isTBD && goal1RM ? goal1RM - current1RM : null;
-
-            return (
-              <div
-                key={ex.id}
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'minmax(0, 1fr) 96px 96px',
-                  gap: 0,
-                  alignItems: 'stretch',
-                  backgroundColor: '#141416'
-                }}
-              >
-                <div
-                  style={{
-                    padding: '8px 12px',
-                    minWidth: 0,
-                    display: 'flex',
-                    flexDirection: 'column',
-                    justifyContent: 'center',
-                    ...SHARED_CELL_BORDER
-                  }}
-                >
-                  <div
-                    style={{
-                      fontSize: '13px',
-                      fontWeight: 800,
-                      color: '#FFFFFF',
-                      textTransform: 'uppercase',
-                      whiteSpace: 'nowrap',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis'
-                    }}
-                  >
-                    {ex.name}
-                  </div>
-                  <div
-                    style={{
-                      fontSize: '10px',
-                      fontWeight: 700,
-                      color: colors?.secondaryLabel || '#A0A0A0',
-                      marginTop: '1px'
-                    }}
-                  >
-                    {isTBD
-                      ? `${targetStandardClass.toUpperCase()} GOAL: ${goal1RM} LB`
-                      : diffFromGoal > 0
-                        ? `${targetStandardClass.toUpperCase()} GOAL: ${goal1RM} LB (${diffFromGoal} LB TO GOAL)`
-                        : `${targetStandardClass.toUpperCase()} GOAL: ${goal1RM} LB (ACHIEVED +${Math.abs(diffFromGoal)} LB)`}
-                  </div>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => open1RMConverterModal(ex.id)}
-                  style={{
-                    ...stdActionBtnStyle,
-                    height: '100%',
-                    minHeight: '48px',
-                    backgroundColor: '#1C1C20',
-                    color: '#FFFFFF'
-                  }}
-                >
-                  CALCULATE
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => openPlateCalculatorForPR(ex.id, ex.name, current1RM)}
-                  style={{
-                    ...stdActionBtnStyle,
-                    height: '100%',
-                    minHeight: '48px',
-                    backgroundColor: isTBD
-                      ? '#FF3B30'
-                      : 'var(--dp-color-accent)',
-                    color: isTBD ? '#FFFFFF' : '#000000'
-                  }}
-                >
-                  {isTBD ? 'TBD ✎' : `${current1RM} LB ✎`}
-                </button>
-              </div>
-            );
-          })}
-
-          {/* ADD USER-SELECTED EXERCISE WITH FILTERS (SHARED BORDERS) */}
+          {/* + ADD WORKOUT / EXERCISE TO PERSONAL RECORDS (TOP OF STACK, MATCHING + LOG PAST WORKOUT) */}
           {!showAddPrExercisePanel ? (
             <button
               type="button"
               onClick={() => setShowAddPrExercisePanel(true)}
+              className="kinetic-btn"
               style={{
                 width: '100%',
                 height: '46px',
                 padding: '0 12px',
-                backgroundColor: '#18181B',
-                color: 'var(--dp-color-accent)',
+                backgroundColor: 'var(--dp-color-accent)',
+                color: '#101010',
                 ...SHARED_CELL_BORDER,
                 fontSize: '12px',
                 fontWeight: 800,
                 textTransform: 'uppercase',
-                cursor: 'pointer'
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                cursor: 'pointer',
+                boxSizing: 'border-box'
               }}
             >
-              + ADD WORKOUT / EXERCISE TO PERSONAL RECORDS
+              <span>+ ADD WORKOUT / EXERCISE TO PERSONAL RECORDS</span>
+              <span>→</span>
             </button>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
@@ -775,6 +713,120 @@ export function HistoryView({
               </div>
             </div>
           )}
+
+          {displayedPrExercises.map(ex => {
+            const prInfo = getBestHistory1RMInfo(ex.id, history);
+            const rawVal = Number(oneRepMaxes?.[ex.id]) || prInfo.best || 0;
+            const isTBD = rawVal <= 0;
+            const current1RM = isTBD ? 0 : rawVal;
+            const loggedDateLabel = prInfo.dateLabel || '';
+            const goal1RM = getExRxTargetForLift(
+              ex.id,
+              targetStandardClass,
+              userBodyweightLbs,
+              totalHeightInches,
+              customGoalWeights
+            );
+            const diffFromGoal = !isTBD && goal1RM ? goal1RM - current1RM : null;
+
+            return (
+              <div
+                key={ex.id}
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'minmax(0, 1fr) 96px 96px',
+                  gap: 0,
+                  alignItems: 'stretch',
+                  backgroundColor: '#141416'
+                }}
+              >
+                <div
+                  style={{
+                    padding: '8px 12px',
+                    minWidth: 0,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'center',
+                    ...SHARED_CELL_BORDER
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: '13px',
+                      fontWeight: 800,
+                      color: '#FFFFFF',
+                      textTransform: 'uppercase',
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis'
+                    }}
+                  >
+                    {ex.name}
+                  </div>
+                  <div
+                    style={{
+                      fontSize: '10px',
+                      fontWeight: 700,
+                      color: colors?.secondaryLabel || '#A0A0A0',
+                      marginTop: '1px'
+                    }}
+                  >
+                    {isTBD
+                      ? `${targetStandardClass.toUpperCase()} GOAL: ${goal1RM} LB`
+                      : diffFromGoal > 0
+                        ? `${targetStandardClass.toUpperCase()} GOAL: ${goal1RM} LB (${diffFromGoal} LB TO GOAL)`
+                        : `${targetStandardClass.toUpperCase()} GOAL: ${goal1RM} LB (ACHIEVED +${Math.abs(diffFromGoal)} LB)`}
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => open1RMConverterModal(ex.id)}
+                  style={{
+                    ...stdActionBtnStyle,
+                    height: '100%',
+                    minHeight: '48px',
+                    backgroundColor: '#1C1C20',
+                    color: '#FFFFFF'
+                  }}
+                >
+                  CALCULATE
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => openPlateCalculatorForPR(ex.id, ex.name, current1RM, loggedDateLabel)}
+                  style={{
+                    ...stdActionBtnStyle,
+                    height: '100%',
+                    minHeight: '48px',
+                    flexDirection: 'column',
+                    backgroundColor: isTBD
+                      ? '#FF3B30'
+                      : 'var(--dp-color-accent)',
+                    color: isTBD ? '#FFFFFF' : '#000000'
+                  }}
+                >
+                  <span style={{ lineHeight: 1.1 }}>
+                    {isTBD ? 'TBD ✎' : `${current1RM} LB ✎`}
+                  </span>
+                  {!isTBD && loggedDateLabel && (
+                    <span
+                      style={{
+                        fontSize: '9px',
+                        fontWeight: 800,
+                        lineHeight: 1.1,
+                        marginTop: '2px',
+                        opacity: 0.85
+                      }}
+                    >
+                      {loggedDateLabel}
+                    </span>
+                  )}
+                </button>
+              </div>
+            );
+          })}
         </div>
       </section>
 
@@ -897,16 +949,42 @@ export function HistoryView({
                       >
                         <div
                           style={{
-                            fontSize: '13px',
-                            fontWeight: 800,
-                            color: '#FFFFFF',
-                            textTransform: 'uppercase',
-                            whiteSpace: 'nowrap',
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis'
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            minWidth: 0
                           }}
                         >
-                          {w.title}
+                          <div
+                            style={{
+                              fontSize: '13px',
+                              fontWeight: 800,
+                              color: '#FFFFFF',
+                              textTransform: 'uppercase',
+                              whiteSpace: 'nowrap',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              minWidth: 0
+                            }}
+                          >
+                            {w.title}
+                          </div>
+                          {prWorkoutIds.has(w.id) && (
+                            <span
+                              style={{
+                                backgroundColor: '#30D158',
+                                color: '#101010',
+                                fontSize: '10px',
+                                fontWeight: 900,
+                                padding: '1px 5px',
+                                lineHeight: 1.2,
+                                letterSpacing: '0.02em',
+                                flexShrink: 0
+                              }}
+                            >
+                              PR
+                            </span>
+                          )}
                         </div>
                         <div
                           style={{

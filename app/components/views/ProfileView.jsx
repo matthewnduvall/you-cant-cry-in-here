@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { IOSListSection, IOSListRow } from '../Primitives';
-import { EXERCISE_LIBRARY } from '../../data/exerciseLibrary';
+import { CORE_PR_EXERCISE_IDS, EXERCISE_MAP } from '../../data/exerciseLibrary';
 
 export function ProfileView({
   colors,
@@ -76,25 +76,33 @@ export function ProfileView({
       </IOSListSection>
 
       <IOSListSection header="PERSONAL RECORDS" colors={colors}>
-        {EXERCISE_LIBRARY.filter(e => e.isPriority).map((ex, i, arr) => {
-          const rawVal = Number(profPRs?.[ex.id]) || 0;
-          const isTBD = rawVal <= 0;
-          return (
-            <IOSListRow
-              key={ex.id}
-              isLast={i === arr.length - 1}
-              colors={colors}
-              onClick={!isFriend ? () => openPlateCalculatorForPR(ex.id, ex.name, isTBD ? ex.default1RM : rawVal) : undefined}
-            >
-              <span style={{ fontSize: '14px', fontWeight: 800, textTransform: 'uppercase' }}>{ex.name}</span>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
-                <span style={{ fontSize: '15px', fontWeight: 800, color: 'var(--dp-color-accent)' }}>
-                  {isTBD ? 'TBD' : `${rawVal} LB`} {!isFriend && '✎'}
-                </span>
-              </div>
-            </IOSListRow>
-          );
-        })}
+        {Array.from(
+          new Set([
+            ...CORE_PR_EXERCISE_IDS,
+            ...Object.keys(profPRs || {}).filter(id => Number(profPRs[id]) > 0)
+          ])
+        )
+          .map(id => EXERCISE_MAP[id])
+          .filter(Boolean)
+          .map((ex, i, arr) => {
+            const rawVal = Number(profPRs?.[ex.id]) || 0;
+            const isTBD = rawVal <= 0;
+            return (
+              <IOSListRow
+                key={ex.id}
+                isLast={i === arr.length - 1}
+                colors={colors}
+                onClick={!isFriend ? () => openPlateCalculatorForPR(ex.id, ex.name, isTBD ? ex.default1RM : rawVal) : undefined}
+              >
+                <span style={{ fontSize: '14px', fontWeight: 800, textTransform: 'uppercase' }}>{ex.name}</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+                  <span style={{ fontSize: '15px', fontWeight: 800, color: 'var(--dp-color-accent)' }}>
+                    {isTBD ? 'TBD' : `${rawVal} LB`} {!isFriend && '✎'}
+                  </span>
+                </div>
+              </IOSListRow>
+            );
+          })}
       </IOSListSection>
 
       <IOSListSection header="SHARED ROUTINES" colors={colors}>
