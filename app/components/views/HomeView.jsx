@@ -160,12 +160,7 @@ export function HomeView({
   const seenKeys = new Set();
 
   if (user && (curUsername || curEmail)) {
-    if (curUsername) seenKeys.add(curUsername);
-    if (curEmail) seenKeys.add(curEmail);
-    if (curEmail === 'matthew.n.duvall@gmail.com' || curUsername === 'matt') {
-      seenKeys.add('matt');
-      seenKeys.add('matthew.n.duvall@gmail.com');
-    }
+    if (user.id) seenKeys.add(String(user.id));
     uniqueAthletes.push({
       id: user.id || 'self',
       username: user.username || curEmail.split('@')[0],
@@ -183,18 +178,10 @@ export function HomeView({
     });
   }
 
+  // Friends are accepted friendships keyed by account id (one entry per account, never yourself)
   (friendsList || []).forEach(f => {
-    if (!f) return;
-    const fUname = String(f.username || '').trim().toLowerCase();
-    const fEmail = String(f.email || '').trim().toLowerCase();
-    const key = fUname || fEmail || String(f.id || '').toLowerCase();
-    if (!key) return;
-    if ((fUname && seenKeys.has(fUname)) || (fEmail && seenKeys.has(fEmail)) || seenKeys.has(key)) {
-      return;
-    }
-
-    if (fUname) seenKeys.add(fUname);
-    if (fEmail) seenKeys.add(fEmail);
+    const key = String(f?.id || '');
+    if (!key || seenKeys.has(key)) return;
     seenKeys.add(key);
     uniqueAthletes.push(f);
   });

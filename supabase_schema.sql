@@ -91,18 +91,126 @@ CREATE TABLE IF NOT EXISTS public.friendships (
   UNIQUE(requester_id, addressee_id)
 );
 
+-- Email invites sent from Social. The inviter is always the signed-in user who sent it (enforced by RLS),
+-- so an invite can't be forged on someone else's behalf. When the invited email signs up, a trigger
+-- (section 11) makes the two athletes friends.
+CREATE TABLE IF NOT EXISTS public.friend_invites (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  inviter_user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+  inviter_username TEXT,
+  inviter_email TEXT,
+  invited_email TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+ALTER TABLE public.friend_invites ADD COLUMN IF NOT EXISTS inviter_user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE;
+ALTER TABLE public.friend_invites ADD COLUMN IF NOT EXISTS inviter_username TEXT;
+ALTER TABLE public.friend_invites ADD COLUMN IF NOT EXISTS inviter_email TEXT;
+ALTER TABLE public.friend_invites ADD COLUMN IF NOT EXISTS invited_email TEXT;
+ALTER TABLE public.friend_invites ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'pending';
+ALTER TABLE public.friend_invites ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+
 -- 5. Enable Row-Level Security (RLS)
 ALTER TABLE public.user_profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.workout_history ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.routines ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.friendships ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.friend_invites ENABLE ROW LEVEL SECURITY;
 
--- 6. RLS Policies for user_profiles (Owners can edit; anyone can view profiles for Social/Search & Username Lookup)
+-- Policies are additive (any permissive policy grants access), so clear every existing policy on
+-- these tables — including ones created by hand in the dashboard or by older versions of this
+-- script — before recreating the intended set below.
+DO $$
+DECLARE pol RECORD;
+BEGIN
+  FOR pol IN
+    SELECT policyname, tablename FROM pg_policies
+    WHERE schemaname = 'public'
+      AND tablename IN ('user_profiles', 'workout_history', 'routines', 'friendships', 'friend_invites')
+  LOOP
+    EXECUTE format('DROP POLICY IF EXISTS %I ON public.%I', pol.policyname, pol.tablename);
+  END LOOP;
+END $$;
+
+-- 5b. Friendship helper functions
+-- Friendships are the single source of truth for who can see whose data. A friend is an
+-- 'accepted' row in public.friendships in either direction. Deleting the row (either athlete can)
+-- immediately revokes access both ways.
+
+-- True when the two athletes have an accepted friendship. SECURITY DEFINER so the policies below can
+-- consult friendships without recursing through friendships' own RLS.
+CREATE OR REPLACE FUNCTION public.are_friends(a UUID, b UUID)
+RETURNS BOOLEAN
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.friendships f
+    WHERE f.status = 'accepted'
+      AND ((f.requester_id = a AND f.addressee_id = b) OR (f.requester_id = b AND f.addressee_id = a))
+  );
+$$;
+
+-- The caller's friendships with the other athlete's id + username (no email), for the Social page.
+CREATE OR REPLACE FUNCTION public.my_friendships()
+RETURNS TABLE (friendship_id UUID, other_id UUID, other_username TEXT, status TEXT, direction TEXT)
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public
+AS $$
+  SELECT f.id,
+         CASE WHEN f.requester_id = auth.uid() THEN f.addressee_id ELSE f.requester_id END,
+         p.username,
+         f.status,
+         CASE WHEN f.requester_id = auth.uid() THEN 'outgoing' ELSE 'incoming' END
+  FROM public.friendships f
+  LEFT JOIN public.user_profiles p
+    ON p.id = CASE WHEN f.requester_id = auth.uid() THEN f.addressee_id ELSE f.requester_id END
+  WHERE auth.uid() IS NOT NULL
+    AND (f.requester_id = auth.uid() OR f.addressee_id = auth.uid());
+$$;
+
+-- Athlete search for signed-in users: partial username match or an exact email match.
+-- Returns only id + username so emails and stats are never exposed to non-friends.
+CREATE OR REPLACE FUNCTION public.search_athletes(q TEXT)
+RETURNS TABLE (id UUID, username TEXT)
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public
+AS $$
+  SELECT p.id, p.username
+  FROM public.user_profiles p
+  WHERE auth.uid() IS NOT NULL
+    AND p.id <> auth.uid()
+    AND length(trim(coalesce(q, ''))) >= 2
+    AND (
+      p.username ILIKE '%' || replace(replace(trim(ltrim(q, '@')), '%', ''), '_', '\_') || '%'
+      OR lower(p.email) = lower(trim(q))
+    )
+  ORDER BY p.username
+  LIMIT 25;
+$$;
+
+-- Sign in with a username: returns the account email for an exact username match (needed because
+-- Supabase password sign-in takes an email). Exact matches only, one account at a time.
+CREATE OR REPLACE FUNCTION public.resolve_login_email(identifier TEXT)
+RETURNS TEXT
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public
+AS $$
+  SELECT lower(p.email) FROM public.user_profiles p
+  WHERE lower(p.username) = lower(trim(ltrim(identifier, '@')))
+  LIMIT 1;
+$$;
+
+REVOKE ALL ON FUNCTION public.my_friendships() FROM PUBLIC, anon;
+REVOKE ALL ON FUNCTION public.search_athletes(TEXT) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.my_friendships() TO authenticated;
+GRANT EXECUTE ON FUNCTION public.search_athletes(TEXT) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.resolve_login_email(TEXT) TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.are_friends(UUID, UUID) TO anon, authenticated;
+
+-- 6. RLS Policies for user_profiles (owners and accepted friends can view; owners can edit)
 DROP POLICY IF EXISTS "Anyone authenticated can view profiles" ON public.user_profiles;
 DROP POLICY IF EXISTS "Anyone can view profiles" ON public.user_profiles;
-CREATE POLICY "Anyone can view profiles"
+DROP POLICY IF EXISTS "Owners and friends can view profiles" ON public.user_profiles;
+CREATE POLICY "Owners and friends can view profiles"
   ON public.user_profiles FOR SELECT
-  USING (true);
+  USING (auth.uid() = id OR public.are_friends(auth.uid(), id));
 
 DROP POLICY IF EXISTS "Users can insert own profile" ON public.user_profiles;
 CREATE POLICY "Users can insert own profile"
@@ -177,12 +285,13 @@ ON CONFLICT (id) DO UPDATE
       one_rep_maxes = COALESCE(public.user_profiles.one_rep_maxes, '{}'::jsonb) || COALESCE(EXCLUDED.one_rep_maxes, '{}'::jsonb),
       settings = COALESCE(public.user_profiles.settings, '{}'::jsonb) || COALESCE(EXCLUDED.settings, '{}'::jsonb);
 
--- 7. RLS Policies for workout_history (Anyone can view workout_history for friend PRs & Leaderboards; owners can insert/update/delete)
+-- 7. RLS Policies for workout_history (owners and accepted friends can view; owners can insert/update/delete)
 DROP POLICY IF EXISTS "Users can view own workout history" ON public.workout_history;
 DROP POLICY IF EXISTS "Anyone can view workout history" ON public.workout_history;
-CREATE POLICY "Anyone can view workout history"
+DROP POLICY IF EXISTS "Owners and friends can view workout history" ON public.workout_history;
+CREATE POLICY "Owners and friends can view workout history"
   ON public.workout_history FOR SELECT
-  USING (true);
+  USING (auth.uid() = user_id OR public.are_friends(auth.uid(), user_id));
 
 DROP POLICY IF EXISTS "Users can insert own workout history" ON public.workout_history;
 CREATE POLICY "Users can insert own workout history"
@@ -199,11 +308,12 @@ CREATE POLICY "Users can delete own workout history"
   ON public.workout_history FOR DELETE
   USING (auth.uid() = user_id);
 
--- 8. RLS Policies for routines (Users can view own routines OR routines marked is_shared = true)
+-- 8. RLS Policies for routines (owners see all of theirs; accepted friends see shared ones)
 DROP POLICY IF EXISTS "Users can view own or shared routines" ON public.routines;
-CREATE POLICY "Users can view own or shared routines"
+DROP POLICY IF EXISTS "Owners and friends can view routines" ON public.routines;
+CREATE POLICY "Owners and friends can view routines"
   ON public.routines FOR SELECT
-  USING (auth.uid() = user_id OR is_shared = TRUE);
+  USING (auth.uid() = user_id OR (is_shared = TRUE AND public.are_friends(auth.uid(), user_id)));
 
 DROP POLICY IF EXISTS "Users can insert own routines" ON public.routines;
 CREATE POLICY "Users can insert own routines"
@@ -226,17 +336,134 @@ CREATE POLICY "Users can view own friendships"
   ON public.friendships FOR SELECT
   USING (auth.uid() = requester_id OR auth.uid() = addressee_id);
 
+-- Requests always start as 'pending' and can't target yourself
 DROP POLICY IF EXISTS "Users can send friend requests" ON public.friendships;
 CREATE POLICY "Users can send friend requests"
   ON public.friendships FOR INSERT
-  WITH CHECK (auth.uid() = requester_id);
+  WITH CHECK (auth.uid() = requester_id AND status = 'pending' AND requester_id <> addressee_id);
 
+-- Either athlete can remove the friendship (revokes access both ways)
 DROP POLICY IF EXISTS "Users can delete own friendships" ON public.friendships;
 CREATE POLICY "Users can delete own friendships"
   ON public.friendships FOR DELETE
   USING (auth.uid() = requester_id OR auth.uid() = addressee_id);
 
+-- Only the recipient can accept or decline (the requester can't accept their own request)
 DROP POLICY IF EXISTS "Users can update friendship status" ON public.friendships;
-CREATE POLICY "Users can update friendship status"
+DROP POLICY IF EXISTS "Recipients can answer friend requests" ON public.friendships;
+CREATE POLICY "Recipients can answer friend requests"
   ON public.friendships FOR UPDATE
-  USING (auth.uid() = requester_id OR auth.uid() = addressee_id);
+  USING (auth.uid() = addressee_id)
+  WITH CHECK (auth.uid() = addressee_id);
+
+-- 10. RLS Policies for friend_invites (only the signed-in inviter can create or see their invites)
+DROP POLICY IF EXISTS "Inviters can create invites" ON public.friend_invites;
+CREATE POLICY "Inviters can create invites"
+  ON public.friend_invites FOR INSERT
+  WITH CHECK (auth.uid() = inviter_user_id);
+
+DROP POLICY IF EXISTS "Inviters can view their invites" ON public.friend_invites;
+CREATE POLICY "Inviters can view their invites"
+  ON public.friend_invites FOR SELECT
+  USING (auth.uid() = inviter_user_id);
+
+-- 11. New-athlete friendships: every new profile becomes friends with @matt (the default friend) and
+-- with anyone who emailed them an invite. Runs inside the database so it can't be skipped or forged.
+CREATE OR REPLACE FUNCTION public.handle_new_profile_friendships()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER SET search_path = public
+AS $$
+DECLARE
+  default_friend_id UUID;
+  inv RECORD;
+BEGIN
+  SELECT id INTO default_friend_id
+  FROM public.user_profiles
+  WHERE lower(email) = 'matthew.n.duvall@gmail.com'
+  LIMIT 1;
+
+  IF default_friend_id IS NOT NULL AND default_friend_id <> NEW.id THEN
+    INSERT INTO public.friendships (requester_id, addressee_id, status)
+    SELECT default_friend_id, NEW.id, 'accepted'
+    WHERE NOT EXISTS (
+      SELECT 1 FROM public.friendships f
+      WHERE (f.requester_id = default_friend_id AND f.addressee_id = NEW.id)
+         OR (f.requester_id = NEW.id AND f.addressee_id = default_friend_id)
+    );
+  END IF;
+
+  IF NEW.email IS NOT NULL THEN
+    FOR inv IN
+      SELECT DISTINCT inviter_user_id FROM public.friend_invites
+      WHERE lower(invited_email) = lower(NEW.email)
+        AND inviter_user_id IS NOT NULL
+        AND inviter_user_id <> NEW.id
+    LOOP
+      INSERT INTO public.friendships (requester_id, addressee_id, status)
+      SELECT inv.inviter_user_id, NEW.id, 'accepted'
+      WHERE NOT EXISTS (
+        SELECT 1 FROM public.friendships f
+        WHERE (f.requester_id = inv.inviter_user_id AND f.addressee_id = NEW.id)
+           OR (f.requester_id = NEW.id AND f.addressee_id = inv.inviter_user_id)
+      );
+    END LOOP;
+    UPDATE public.friend_invites SET status = 'accepted'
+    WHERE lower(invited_email) = lower(NEW.email) AND status <> 'accepted';
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+-- Existing athletes who receive an invite: the app calls this on every friendship sync. It accepts
+-- invites addressed to the caller's own verified account email, then marks them used so removing the
+-- friend later sticks.
+CREATE OR REPLACE FUNCTION public.claim_my_invites()
+RETURNS INTEGER
+LANGUAGE plpgsql
+SECURITY DEFINER SET search_path = public
+AS $$
+DECLARE
+  my_email TEXT;
+  claimed INTEGER := 0;
+  inv RECORD;
+BEGIN
+  IF auth.uid() IS NULL THEN
+    RETURN 0;
+  END IF;
+  SELECT lower(email) INTO my_email FROM auth.users WHERE id = auth.uid();
+  IF my_email IS NULL THEN
+    RETURN 0;
+  END IF;
+
+  FOR inv IN
+    SELECT DISTINCT inviter_user_id FROM public.friend_invites
+    WHERE lower(invited_email) = my_email
+      AND status <> 'accepted'
+      AND inviter_user_id IS NOT NULL
+      AND inviter_user_id <> auth.uid()
+  LOOP
+    INSERT INTO public.friendships (requester_id, addressee_id, status)
+    SELECT inv.inviter_user_id, auth.uid(), 'accepted'
+    WHERE NOT EXISTS (
+      SELECT 1 FROM public.friendships f
+      WHERE (f.requester_id = inv.inviter_user_id AND f.addressee_id = auth.uid())
+         OR (f.requester_id = auth.uid() AND f.addressee_id = inv.inviter_user_id)
+    );
+    claimed := claimed + 1;
+  END LOOP;
+
+  UPDATE public.friend_invites SET status = 'accepted'
+  WHERE lower(invited_email) = my_email AND status <> 'accepted';
+  RETURN claimed;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.claim_my_invites() FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.claim_my_invites() TO authenticated;
+
+DROP TRIGGER IF EXISTS on_user_profile_created_friendships ON public.user_profiles;
+CREATE TRIGGER on_user_profile_created_friendships
+  AFTER INSERT ON public.user_profiles
+  FOR EACH ROW EXECUTE FUNCTION public.handle_new_profile_friendships();

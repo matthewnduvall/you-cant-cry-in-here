@@ -4,9 +4,8 @@ import { useState, useEffect, useRef } from 'react';
 import {
   PERSISTENCE_KEY,
   CURRENT_SCHEMA_VERSION,
-  DEFAULT_MATT_FRIEND,
-  ensureDefaultMattFriend,
-  mergeFriendsIntoList,
+  applyFriendshipSync,
+  applyOutgoingInvitesSync,
   normalizeWorkoutFromStorage,
   normalizeSlotFromStorage,
   loadHydratedAppState
@@ -14,7 +13,7 @@ import {
 import {
   fetchCloudStateForUser,
   pushCloudStateForUser,
-  resolveInviteFriendshipsForUser
+  syncFriendshipsForUser
 } from '../utils/supabaseAuth';
 import { getInitial1RMs, getBestHistory1RM } from '../utils/workoutEngine';
 import { EXERCISE_LIBRARY, normalizeSlotCategory } from '../data/exerciseLibrary';
@@ -79,9 +78,7 @@ export function useCloudAndStorageSync({
   shareStatsWithFriends,
   setShareStatsWithFriends,
   shareRoutinesWithFriends,
-  setShareRoutinesWithFriends,
-  removedFriends = [],
-  setRemovedFriends
+  setShareRoutinesWithFriends
 }) {
   const cloudSyncReadyForUserKeyRef = useRef(null);
   const [cloudPullReadyTick, setCloudPullReadyTick] = useState(0);
@@ -102,9 +99,7 @@ export function useCloudAndStorageSync({
       if (hydrated.savedRoutines) setSavedRoutines(hydrated.savedRoutines);
       if (hydrated.sharedRoutines) setSharedRoutines(hydrated.sharedRoutines);
       if (hydrated.gyms) setGyms(hydrated.gyms);
-      const hydratedRemoved = hydrated.settings?.social?.removedFriends || [];
-      setRemovedFriends?.(hydratedRemoved);
-      setFriendsList(ensureDefaultMattFriend(hydrated.friendsList, hydratedRemoved));
+      setFriendsList(hydrated.friendsList || []);
       if (hydrated.pendingIncomingRequests) setPendingIncomingRequests(hydrated.pendingIncomingRequests);
       if (hydrated.outgoingInvites) setOutgoingInvites(hydrated.outgoingInvites);
       if (hydrated.settings) {
@@ -170,25 +165,9 @@ export function useCloudAndStorageSync({
       else setSignupBetaCode('imnotcrying');
       if (invitedEmail) setSignupEmail(invitedEmail);
 
-      if (hydrated?.user) {
-        setFriendsList(prev => {
-          const list = ensureDefaultMattFriend(prev, hydrated.settings?.social?.removedFriends);
-          const exists = list.some(
-            f => (f.username || '').toLowerCase() === inviteFrom.toLowerCase()
-          );
-          if (exists) return list;
-          return [
-            ...list,
-            {
-              id: `friend_${inviteFrom.toLowerCase()}`,
-              username: inviteFrom,
-              email: inviteFromEmail,
-              prs: {},
-              sharedRoutines: []
-            }
-          ];
-        });
-      } else {
+      // Signed-in athletes: the invite is claimed server-side on the next friendship sync
+      // (claim_my_invites), so nothing is added locally here.
+      if (!hydrated?.user) {
         setAuthMode('signup');
         setCurrentView('auth');
       }
@@ -307,18 +286,8 @@ export function useCloudAndStorageSync({
             });
           }
 
-          const cloudRemovedFriends = Array.isArray(cloud.settings?.social?.removedFriends)
-            ? cloud.settings.social.removedFriends
-            : null;
-          if (cloudRemovedFriends) setRemovedFriends?.(cloudRemovedFriends);
-          const effectiveRemoved = cloudRemovedFriends || removedFriends;
-          if (Array.isArray(cloud.friendsList) && cloud.friendsList.length > 0) {
-            setFriendsList(prev =>
-              mergeFriendsIntoList(prev, cloud.friendsList, effectiveRemoved, { preferIncoming: false })
-            );
-          } else if (cloudRemovedFriends) {
-            setFriendsList(prev => ensureDefaultMattFriend(prev, cloudRemovedFriends));
-          }
+          // Friends are not restored from the cloud snapshot; the friendship sync below loads them
+          // from public.friendships.
 
           if (Array.isArray(cloud.outgoingInvites) && cloud.outgoingInvites.length > 0) {
             setOutgoingInvites(prev => {
@@ -385,72 +354,30 @@ export function useCloudAndStorageSync({
     };
   }, [isStorageHydrated, user?.id, user?.email, user?.username]);
 
-  // 3. Automatic Friend Request & Accepted Friendship Sync
+  // 3. Friendship sync: public.friendships is the source of truth (accepted friends + pending
+  // requests). Friends removed by either athlete disappear here.
   useEffect(() => {
     if (typeof window === 'undefined' || !isStorageHydrated) return;
-    if (!user && (!Array.isArray(outgoingInvites) || outgoingInvites.length === 0)) return;
+    if (!user) {
+      // Signed out: keep no friends' data on this device
+      setFriendsList([]);
+      setPendingIncomingRequests([]);
+      return;
+    }
 
     let cancelled = false;
     (async () => {
-      try {
-        const { incomingRequests, matchedFriends, resolvedInviteEmails } =
-          await resolveInviteFriendshipsForUser(user, outgoingInvites, friendsList);
-        if (cancelled) return;
-
-        if (Array.isArray(incomingRequests)) {
-          setPendingIncomingRequests(prev => {
-            const byKey = new Map();
-            (Array.isArray(prev) ? prev : []).forEach(r => {
-              if (!r) return;
-              const k = String(r.username || r.email || r.id).toLowerCase();
-              byKey.set(k, r);
-            });
-            incomingRequests.forEach(r => {
-              if (!r) return;
-              const k = String(r.username || r.email || r.id).toLowerCase();
-              byKey.set(k, r);
-            });
-            const friendKeys = new Set(
-              (Array.isArray(friendsList) ? friendsList : []).map(f =>
-                String(f?.username || f?.email || f?.id).toLowerCase()
-              )
-            );
-            return Array.from(byKey.values()).filter(
-              r => !friendKeys.has(String(r?.username || r?.email || r?.id).toLowerCase())
-            );
-          });
-        }
-
-        if (Array.isArray(matchedFriends) && matchedFriends.length > 0) {
-          setFriendsList(prev =>
-            mergeFriendsIntoList(prev, matchedFriends, removedFriends, { preferIncoming: true })
-          );
-        }
-
-        if (Array.isArray(resolvedInviteEmails) && resolvedInviteEmails.length > 0) {
-          setOutgoingInvites(prev =>
-            (Array.isArray(prev) ? prev : []).filter(inv => {
-              const em = (typeof inv === 'string' ? inv : inv?.email || '').trim().toLowerCase();
-              const un = (typeof inv === 'object' && inv?.username ? inv.username : '').trim().toLowerCase();
-              return !resolvedInviteEmails.includes(em) && (!un || !resolvedInviteEmails.includes(un));
-            })
-          );
-        }
-      } catch {
-        // ignore resolution error
-      }
+      const result = await syncFriendshipsForUser(user);
+      if (cancelled || !result.ok) return;
+      setFriendsList(prev => applyFriendshipSync(prev, result));
+      setPendingIncomingRequests(result.incomingRequests);
+      setOutgoingInvites(prev => applyOutgoingInvitesSync(prev, result));
     })();
 
     return () => {
       cancelled = true;
     };
-  }, [
-    isStorageHydrated,
-    user?.id,
-    user?.email,
-    cloudPullReadyTick,
-    `${outgoingInvites?.length || 0}_${friendsList?.length || 0}`
-  ]);
+  }, [isStorageHydrated, user?.id, cloudPullReadyTick]);
 
   // 4. Debounced Automatic Versioned Persistence & Cloud Push
   useEffect(() => {
@@ -497,7 +424,7 @@ export function useCloudAndStorageSync({
             },
             stimulus: { greenDays: stimulusGreenDays, yellowDays: stimulusYellowDays },
             routinePreferences,
-            social: { shareStatsWithFriends, shareRoutinesWithFriends, removedFriends },
+            social: { shareStatsWithFriends, shareRoutinesWithFriends },
             selectedGymId
           }
         };
@@ -539,7 +466,6 @@ export function useCloudAndStorageSync({
     routinePreferences,
     shareStatsWithFriends,
     shareRoutinesWithFriends,
-    removedFriends,
     selectedGymId,
     cloudPullReadyTick
   ]);
@@ -581,7 +507,6 @@ export function useCloudAndStorageSync({
           if (rehydrated.sharedRoutines) setSharedRoutines(rehydrated.sharedRoutines);
           if (rehydrated.gyms) setGyms(rehydrated.gyms);
           if (rehydrated.friendsList) setFriendsList(rehydrated.friendsList);
-          setRemovedFriends?.(rehydrated.settings.social.removedFriends || []);
           setUserBodyweightLbs(rehydrated.settings.bodyMetrics.bodyweightLbs);
           setUserHeightFeet(rehydrated.settings.bodyMetrics.heightFeet);
           setUserHeightInches(rehydrated.settings.bodyMetrics.heightInches);
@@ -614,8 +539,7 @@ export function useCloudAndStorageSync({
     setSavedRoutines([]);
     setSharedRoutines([]);
     setGyms([]);
-    setFriendsList([DEFAULT_MATT_FRIEND]);
-    setRemovedFriends?.([]);
+    setFriendsList([]);
     setPendingIncomingRequests([]);
     setOutgoingInvites([]);
     setUserBodyweightLbs(220);

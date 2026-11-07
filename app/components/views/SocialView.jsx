@@ -7,9 +7,10 @@ import {
   sendFriendRequestToAthlete,
   acceptFriendRequestFromAthlete,
   removeFriendshipWithAthlete,
-  resolveInviteFriendshipsForUser
+  syncFriendshipsForUser,
+  getValidSupabaseAccessToken
 } from '../../utils/supabaseAuth';
-import { isSameFriend, mergeFriendsIntoList } from '../../utils/storageMigration';
+import { isSameFriend, applyFriendshipSync, applyOutgoingInvitesSync } from '../../utils/storageMigration';
 import { DeleteButton } from '../Controls';
 
 export function SocialView({
@@ -24,8 +25,6 @@ export function SocialView({
   onSendEmailInvite,
   friendsList,
   setFriendsList,
-  removedFriends = [],
-  setRemovedFriends,
   setDeleteConfirmTarget,
   appendSessionLog,
   setViewingFriendProfile,
@@ -38,6 +37,16 @@ export function SocialView({
   const [inviteEmailInput, setInviteEmailInput] = useState('');
   const [isSendingInviteEmail, setIsSendingInviteEmail] = useState(false);
   const [inviteEmailFeedback, setInviteEmailFeedback] = useState(null);
+
+  // Re-reads friendships from the server (the source of truth) and updates the cached lists.
+  const refreshFriendships = async (isCancelled = () => false) => {
+    if (!user) return;
+    const result = await syncFriendshipsForUser(user);
+    if (isCancelled() || !result.ok) return;
+    setFriendsList(prev => applyFriendshipSync(prev, result));
+    setPendingIncomingRequests(result.incomingRequests);
+    setOutgoingInvites?.(prev => applyOutgoingInvitesSync(prev, result));
+  };
 
   const handleSendServerEmailInvite = async () => {
     const cleanEmail = (inviteEmailInput || '').trim().toLowerCase();
@@ -52,15 +61,16 @@ export function SocialView({
     setIsSendingInviteEmail(true);
     setInviteEmailFeedback(null);
     try {
+      // The invite is recorded as coming from the signed-in account (verified server-side)
+      const accessToken = user ? await getValidSupabaseAccessToken(user) : null;
+      if (!accessToken) {
+        setInviteEmailFeedback({ ok: false, message: 'SIGN IN TO SEND INVITES.' });
+        return;
+      }
       const res = await fetch('/api/invite', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          targetEmail: cleanEmail,
-          inviterUsername: user?.username || 'athlete',
-          inviterEmail: user?.email || '',
-          inviterUserId: user?.id || null
-        })
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+        body: JSON.stringify({ targetEmail: cleanEmail })
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || data?.ok === false) {
@@ -87,67 +97,16 @@ export function SocialView({
     }
   };
 
-  // Sync incoming requests & accepted friendships whenever SocialView opens
+  // Sync friendships whenever Social opens
   useEffect(() => {
-    if (!user) return;
     let cancelled = false;
-    (async () => {
-      try {
-        const { incomingRequests, matchedFriends, resolvedInviteEmails } =
-          await resolveInviteFriendshipsForUser(user, outgoingInvites, friendsList);
-        if (cancelled) return;
-
-        if (Array.isArray(incomingRequests)) {
-          setPendingIncomingRequests(prev => {
-            const byKey = new Map();
-            (Array.isArray(prev) ? prev : []).forEach(r => {
-              if (!r) return;
-              const k = String(r.username || r.email || r.id).toLowerCase();
-              byKey.set(k, r);
-            });
-            incomingRequests.forEach(r => {
-              if (!r) return;
-              const k = String(r.username || r.email || r.id).toLowerCase();
-              byKey.set(k, r);
-            });
-            const friendKeys = new Set(
-              (Array.isArray(friendsList) ? friendsList : []).map(f =>
-                String(f?.username || f?.email || f?.id).toLowerCase()
-              )
-            );
-            return Array.from(byKey.values()).filter(
-              r => !friendKeys.has(String(r?.username || r?.email || r?.id).toLowerCase())
-            );
-          });
-        }
-
-        if (Array.isArray(matchedFriends) && matchedFriends.length > 0) {
-          setFriendsList(prev =>
-            mergeFriendsIntoList(prev, matchedFriends, removedFriends, { preferIncoming: true })
-          );
-        }
-
-        if (Array.isArray(resolvedInviteEmails) && resolvedInviteEmails.length > 0 && setOutgoingInvites) {
-          setOutgoingInvites(prev =>
-            (Array.isArray(prev) ? prev : []).filter(inv => {
-              const em = (typeof inv === 'string' ? inv : inv?.email || '').trim().toLowerCase();
-              const un = (typeof inv === 'object' && inv?.username ? inv.username : '').trim().toLowerCase();
-              return !resolvedInviteEmails.includes(em) && (!un || !resolvedInviteEmails.includes(un));
-            })
-          );
-        }
-      } catch {
-        // ignore sync error
-      }
-    })();
+    refreshFriendships(() => cancelled);
     return () => {
       cancelled = true;
     };
-  }, [user?.id, user?.email, user?.username]);
+  }, [user?.id]);
 
-  // Re-friending someone takes them back off the removed list.
-  const unremoveFriend = athlete => setRemovedFriends?.(prev => (prev || []).filter(r => !isSameFriend(r, athlete)));
-
+  // Removing a friend deletes the friendship on the server, which revokes access both ways.
   const handleRemoveFriend = friend => {
     setDeleteConfirmTarget?.({
       type: 'friend',
@@ -155,65 +114,44 @@ export function SocialView({
       verb: 'remove',
       label: `@${friend.username}`,
       confirmLabel: 'REMOVE ✕',
-      onConfirm: () => {
-        const record = { id: friend.id, username: friend.username, email: friend.email };
-        setRemovedFriends?.(prev => [...(prev || []).filter(r => !isSameFriend(r, record)), record]);
-        setFriendsList(prev => (Array.isArray(prev) ? prev : []).filter(f => !isSameFriend(f, record)));
-        removeFriendshipWithAthlete(user, friend);
-        appendSessionLog?.('FRIEND_REMOVED', `Removed friend @${friend.username}`);
+      onConfirm: async () => {
+        setFriendsList(prev => (Array.isArray(prev) ? prev : []).filter(f => !isSameFriend(f, friend)));
+        const ok = await removeFriendshipWithAthlete(user, friend);
+        appendSessionLog?.('FRIEND_REMOVED', `Removed friend @${friend.username}${ok ? '' : ' (server delete failed)'}`);
+        if (!ok) await refreshFriendships();
       }
     });
   };
 
   const handleSendFriendInvite = async athlete => {
     if (!athlete) return;
-    unremoveFriend(athlete);
-    const cleanEmail = (athlete.email || '').trim().toLowerCase();
-    const cleanUsername = (athlete.username || '').trim();
-    if (setOutgoingInvites) {
-      setOutgoingInvites(prev => {
-        const existing = Array.isArray(prev) ? prev : [];
-        const already = existing.some(item => {
-          const em = (typeof item === 'string' ? item : item?.email || '').trim().toLowerCase();
-          const un = (typeof item === 'object' && item?.username ? item.username : '').trim().toLowerCase();
-          return (cleanEmail && em === cleanEmail) || (cleanUsername && un === cleanUsername.toLowerCase());
-        });
-        if (already) return existing;
-        return [
-          ...existing,
-          {
-            id: athlete.id,
-            username: cleanUsername,
-            email: cleanEmail,
-            invitedAt: new Date().toISOString(),
-            inviterUsername: user?.username || 'athlete'
-          }
-        ];
-      });
+    setOutgoingInvites?.(prev => {
+      const existing = Array.isArray(prev) ? prev : [];
+      if (existing.some(item => typeof item === 'object' && isSameFriend(item, athlete))) return existing;
+      return [
+        ...existing,
+        { id: athlete.id, username: athlete.username, invitedAt: new Date().toISOString() }
+      ];
+    });
+    const result = await sendFriendRequestToAthlete(user, athlete);
+    if (!result.ok) {
+      setOutgoingInvites?.(prev => (Array.isArray(prev) ? prev : []).filter(item => !isSameFriend(item, athlete)));
+      return;
     }
-    await sendFriendRequestToAthlete(user, athlete);
+    if (result.status !== 'requested') await refreshFriendships();
   };
 
   const handleAcceptFriendInvite = async req => {
     if (!req) return;
-    unremoveFriend(req);
-    setFriendsList(prev => {
-      const list = Array.isArray(prev) ? prev : [];
-      const exists = list.some(
-        f =>
-          (f.username || '').toLowerCase() === (req.username || '').toLowerCase() ||
-          (req.email && (f.email || '').toLowerCase() === req.email.toLowerCase())
-      );
-      return exists ? list : [...list, req];
-    });
-    setPendingIncomingRequests(prev =>
-      (Array.isArray(prev) ? prev : []).filter(
-        r =>
-          (r.username || '').toLowerCase() !== (req.username || '').toLowerCase() &&
-          (!req.email || (r.email || '').toLowerCase() !== req.email.toLowerCase())
-      )
-    );
+    setPendingIncomingRequests(prev => (Array.isArray(prev) ? prev : []).filter(r => r.id !== req.id));
     await acceptFriendRequestFromAthlete(user, req);
+    await refreshFriendships();
+  };
+
+  const handleDeclineFriendInvite = async req => {
+    if (!req) return;
+    setPendingIncomingRequests(prev => (Array.isArray(prev) ? prev : []).filter(r => r.id !== req.id));
+    await removeFriendshipWithAthlete(user, req);
   };
 
   const handleRunAthleteSearch = async () => {
@@ -228,21 +166,12 @@ export function SocialView({
     try {
       const remoteMatches = await searchAthletesByQuery(q, user);
       const lowerQ = q.toLowerCase().replace(/^@/, '');
-      const localFriendMatches = (friendsList || []).filter(
-        f =>
-          f &&
-          ((f.username || '').toLowerCase().includes(lowerQ) ||
-            (f.email || '').toLowerCase().includes(lowerQ))
-      );
-      const mergedMap = new Map();
-      [...localFriendMatches, ...remoteMatches].forEach(item => {
-        if (!item) return;
-        const key = (item.username || item.email || item.id || '').toLowerCase();
-        if (key && !mergedMap.has(key)) {
-          mergedMap.set(key, item);
-        }
+      const friendMatches = (friendsList || []).filter(f => (f.username || '').toLowerCase().includes(lowerQ));
+      const byId = new Map();
+      [...friendMatches, ...remoteMatches].forEach(item => {
+        if (item?.id && !byId.has(item.id)) byId.set(item.id, item);
       });
-      setSearchedAthletes(Array.from(mergedMap.values()));
+      setSearchedAthletes(Array.from(byId.values()));
     } finally {
       setIsSearching(false);
     }
@@ -385,30 +314,19 @@ export function SocialView({
           searchedAthletes.length === 0 ? (
             <IOSListRow isLast={true} colors={colors}>
               <span style={{ fontSize: '12px', fontWeight: 700, color: '#888888', textTransform: 'uppercase' }}>
-                NO ATHLETES FOUND FOR &quot;{friendSearchQuery.trim().toUpperCase()}&quot;.
+                {user
+                  ? <>NO ATHLETES FOUND FOR &quot;{friendSearchQuery.trim().toUpperCase()}&quot;. SEARCH A USERNAME OR AN EXACT EMAIL.</>
+                  : 'SIGN IN TO SEARCH FOR ATHLETES.'}
               </span>
             </IOSListRow>
           ) : (
             searchedAthletes.map((athlete, idx) => {
-              const isAlreadyFriend = (friendsList || []).some(
-                f =>
-                  (f.username || '').toLowerCase() === (athlete.username || '').toLowerCase() ||
-                  (athlete.email && (f.email || '').toLowerCase() === athlete.email.toLowerCase())
+              const existingFriend = (friendsList || []).find(f => isSameFriend(f, athlete));
+              const isAlreadyFriend = Boolean(existingFriend);
+              const incomingRequestMatch = (pendingIncomingRequests || []).find(r => r.id === athlete.id);
+              const isInviteSent = (outgoingInvites || []).some(
+                inv => typeof inv === 'object' && isSameFriend(inv, athlete)
               );
-              const incomingRequestMatch = (pendingIncomingRequests || []).find(
-                r =>
-                  (r.username || '').toLowerCase() === (athlete.username || '').toLowerCase() ||
-                  (athlete.email && (r.email || '').toLowerCase() === athlete.email.toLowerCase())
-              );
-              const isInviteSent = (outgoingInvites || []).some(inv => {
-                const em = (typeof inv === 'string' ? inv : inv?.email || '').trim().toLowerCase();
-                const un = (typeof inv === 'object' && inv?.username ? inv.username : '').trim().toLowerCase();
-                return (
-                  (athlete.email && em === athlete.email.toLowerCase()) ||
-                  (athlete.username &&
-                    (un === athlete.username.toLowerCase() || em === athlete.username.toLowerCase()))
-                );
-              });
 
               return (
                 <IOSListRow
@@ -423,10 +341,6 @@ export function SocialView({
                     <button
                       type="button"
                       onClick={() => {
-                        const existingFriend =
-                          (friendsList || []).find(
-                            f => (f.username || '').toLowerCase() === (athlete.username || '').toLowerCase()
-                          ) || athlete;
                         setViewingFriendProfile(existingFriend);
                         setCurrentView('friend_profile');
                       }}
@@ -473,7 +387,7 @@ export function SocialView({
                         userSelect: 'none'
                       }}
                     >
-                      INVITE SENT
+                      REQUEST SENT
                     </span>
                   ) : (
                     <button
@@ -507,16 +421,19 @@ export function SocialView({
               <div>
                 <div style={{ fontSize: '15px', fontWeight: 800, textTransform: 'uppercase' }}>@{req.username}</div>
               </div>
-              <button
-                type="button"
-                onClick={() => handleAcceptFriendInvite(req)}
-                style={{
-                  padding: '6px 12px', backgroundColor: 'var(--dp-color-accent)',
-                  color: '#101010', border: '2px solid #FFFFFF', fontSize: '11px', fontWeight: 800, cursor: 'pointer'
-                }}
-              >
-                ACCEPT
-              </button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+                <button
+                  type="button"
+                  onClick={() => handleAcceptFriendInvite(req)}
+                  style={{
+                    padding: '6px 12px', backgroundColor: 'var(--dp-color-accent)',
+                    color: '#101010', border: '2px solid #FFFFFF', fontSize: '11px', fontWeight: 800, cursor: 'pointer'
+                  }}
+                >
+                  ACCEPT
+                </button>
+                <DeleteButton label={`Decline @${req.username}`} onClick={() => handleDeclineFriendInvite(req)} />
+              </div>
             </IOSListRow>
           ))}
         </IOSListSection>
@@ -531,8 +448,7 @@ export function SocialView({
           .filter(
             f =>
               !friendSearchQuery.trim() ||
-              f.username.toLowerCase().includes(friendSearchQuery.toLowerCase()) ||
-              (f.email || '').toLowerCase().includes(friendSearchQuery.toLowerCase())
+              (f.username || '').toLowerCase().includes(friendSearchQuery.toLowerCase().replace(/^@/, ''))
           )
           .map((friend, i, arr) => (
             <IOSListRow

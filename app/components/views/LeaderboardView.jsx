@@ -57,17 +57,15 @@ export function LeaderboardView({
   totalHeightInches = 70,
   history = []
 }) {
-  const curUsername = (user?.username || '').trim().toLowerCase();
-  const curEmail = (user?.email || '').trim().toLowerCase();
   const selfName = user?.username || 'you (logged out)';
   const selfBw = Math.max(50, Number(userBodyweightLbs) || 220);
 
+  // One entry per friend account (by id), never yourself
+  const seenFriendIds = new Set(user?.id ? [String(user.id)] : []);
   const distinctFriends = (friendsList || []).filter(f => {
-    if (!f) return false;
-    const fUser = (f.username || '').trim().toLowerCase();
-    const fEmail = (f.email || '').trim().toLowerCase();
-    if (curEmail && fEmail && curEmail === fEmail) return false;
-    if (curUsername && fUser && curUsername === fUser) return false;
+    const id = String(f?.id || '');
+    if (!id || seenFriendIds.has(id)) return false;
+    seenFriendIds.add(id);
     return true;
   });
 

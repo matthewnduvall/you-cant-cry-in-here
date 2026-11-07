@@ -4,7 +4,8 @@ import React, { useEffect, useState } from 'react';
 import { IOSListSection, IOSListRow } from '../Primitives';
 import { CORE_PR_EXERCISE_IDS, EXERCISE_LIBRARY, EXERCISE_MAP } from '../../data/exerciseLibrary';
 import { getBestHistory1RM } from '../../utils/workoutEngine';
-import { fetchAthleteProfileSnapshot, resolveInviteFriendshipsForUser } from '../../utils/supabaseAuth';
+import { fetchAthleteProfileSnapshot, syncFriendshipsForUser } from '../../utils/supabaseAuth';
+import { isSameFriend, applyFriendshipSync } from '../../utils/storageMigration';
 
 const PROFILE_PR_LIMIT = 10;
 
@@ -27,127 +28,36 @@ export function ProfileView({
 }) {
   const isFriend = currentView === 'friend_profile' && viewingFriendProfile;
   const [showAllPrs, setShowAllPrs] = useState(false);
+  const [friendUnavailable, setFriendUnavailable] = useState(false);
 
-  // Refresh the friend's profile live from Supabase when viewing a friend's profile
+  // Refresh the friend's profile from the server by account id. RLS only returns it while you are
+  // still friends; if the friendship was removed (by either athlete), drop the cached copy.
   useEffect(() => {
-    if (!isFriend || !viewingFriendProfile) return;
+    if (!isFriend || !viewingFriendProfile?.id || !user) return;
     let cancelled = false;
     (async () => {
-      try {
-        // Load the friend's own profile row directly (works even when the friendship only exists locally),
-        // then merge in anything the friendship resolver finds.
-        const [directSnapshot, { matchedFriends: resolvedFriends }] = await Promise.all([
-          fetchAthleteProfileSnapshot(viewingFriendProfile, user),
-          resolveInviteFriendshipsForUser(
-            user || { username: 'guest', email: '' },
-            [],
-            [...(friendsList || []), viewingFriendProfile]
-          )
-        ]);
-        const matchedFriends = [
-          ...(directSnapshot ? [directSnapshot] : []),
-          ...(Array.isArray(resolvedFriends) ? resolvedFriends : [])
-        ];
-        if (cancelled || matchedFriends.length === 0) return;
-
-        const targetUname = (viewingFriendProfile.username || '').trim().toLowerCase();
-        const targetEmail = (viewingFriendProfile.email || '').trim().toLowerCase();
-        const targetEmailPrefix = targetEmail ? targetEmail.split('@')[0] : '';
-
-        const matchingEntries = matchedFriends.filter(f => {
-          if (!f) return false;
-          const fU = (f.username || '').trim().toLowerCase();
-          const fE = (f.email || '').trim().toLowerCase();
-          const fEPrefix = fE ? fE.split('@')[0] : '';
-          return (
-            (viewingFriendProfile.id && String(f.id) === String(viewingFriendProfile.id)) ||
-            (targetUname && (fU === targetUname || fEPrefix === targetUname)) ||
-            (targetEmail && fE === targetEmail) ||
-            (targetEmailPrefix && fU === targetEmailPrefix)
-          );
-        });
-
-        if (matchingEntries.length > 0) {
-          const mergedPrs = { ...(viewingFriendProfile.prs || {}) };
-          const historyMap = new Map();
-          (viewingFriendProfile.history || []).forEach(w => {
-            if (w && w.id) historyMap.set(w.id, w);
-          });
-          const routinesMap = new Map();
-          (viewingFriendProfile.sharedRoutines || []).forEach(r => {
-            if (r && r.key) routinesMap.set(r.key, r);
-          });
-
-          let latestMeta = {};
-          matchingEntries.forEach(entry => {
-            latestMeta = { ...latestMeta, ...entry };
-            Object.entries(entry.prs || {}).forEach(([k, v]) => {
-              const num = Number(v) || 0;
-              if (num > (Number(mergedPrs[k]) || 0)) {
-                mergedPrs[k] = num;
-              }
-            });
-            (entry.history || []).forEach(w => {
-              if (w && w.id && !historyMap.has(w.id)) {
-                historyMap.set(w.id, w);
-              }
-            });
-            (entry.sharedRoutines || []).forEach(r => {
-              if (r && r.key && !routinesMap.has(r.key)) {
-                routinesMap.set(r.key, r);
-              }
-            });
-          });
-
-          const mergedHistory = Array.from(historyMap.values()).sort(
-            (a, b) => new Date(b?.startedAt || 0).getTime() - new Date(a?.startedAt || 0).getTime()
-          );
-
-          const updatedFriend = {
-            ...viewingFriendProfile,
-            ...latestMeta,
-            username: viewingFriendProfile.username || latestMeta.username,
-            prs: mergedPrs,
-            history: mergedHistory,
-            sharedRoutines: Array.from(routinesMap.values())
-          };
-          setViewingFriendProfile?.(updatedFriend);
-          setFriendsList?.(prev =>
-            (Array.isArray(prev) ? prev : []).map(f => {
-              const fU = (f?.username || '').trim().toLowerCase();
-              const fE = (f?.email || '').trim().toLowerCase();
-              const fEPrefix = fE ? fE.split('@')[0] : '';
-              if (
-                (targetUname && (fU === targetUname || fEPrefix === targetUname)) ||
-                (targetEmail && fE === targetEmail) ||
-                (targetEmailPrefix && fU === targetEmailPrefix)
-              ) {
-                return updatedFriend;
-              }
-              return f;
-            })
-          );
-        }
-      } catch {
-        // ignore network error
+      const snapshot = await fetchAthleteProfileSnapshot(viewingFriendProfile, user);
+      if (cancelled) return;
+      if (snapshot) {
+        const updatedFriend = { ...viewingFriendProfile, ...snapshot };
+        setViewingFriendProfile?.(updatedFriend);
+        setFriendsList?.(prev => (Array.isArray(prev) ? prev : []).map(f => (isSameFriend(f, updatedFriend) ? { ...f, ...snapshot } : f)));
+        return;
       }
+      // No row: confirm the friendship is gone (not just a network error) before clearing the cache
+      const sync = await syncFriendshipsForUser(user);
+      if (cancelled || !sync.ok || sync.friends.some(fr => isSameFriend(fr, viewingFriendProfile))) return;
+      setFriendsList?.(prev => applyFriendshipSync(prev, sync));
+      setFriendUnavailable(true);
     })();
-
     return () => {
       cancelled = true;
     };
-  }, [isFriend, viewingFriendProfile?.username, viewingFriendProfile?.email, user?.id]);
+  }, [isFriend, viewingFriendProfile?.id, user?.id]);
 
-  // Also check if `friendsList` has newer PRs for `viewingFriendProfile`
+  // Prefer the cached friends-list copy (kept fresh by the friendship sync)
   const liveFriendMatch = isFriend
-    ? (friendsList || []).find(
-        f =>
-          f &&
-          ((viewingFriendProfile.username &&
-            (f.username || '').toLowerCase() === viewingFriendProfile.username.toLowerCase()) ||
-            (viewingFriendProfile.email &&
-              (f.email || '').toLowerCase() === viewingFriendProfile.email.toLowerCase()))
-      ) || viewingFriendProfile
+    ? (friendsList || []).find(f => isSameFriend(f, viewingFriendProfile)) || viewingFriendProfile
     : null;
 
   const profUser = isFriend
@@ -215,6 +125,18 @@ export function ProfileView({
           </button>
         </div>
       )}
+      {isFriend && friendUnavailable && (
+        <IOSListSection header="PROFILE UNAVAILABLE" colors={colors}>
+          <IOSListRow isLast={true} colors={colors}>
+            <span style={{ fontSize: '12px', fontWeight: 700, color: '#A0A0A0', lineHeight: 1.4 }}>
+              You and @{viewingFriendProfile.username} are no longer friends, so their profile is private.
+            </span>
+          </IOSListRow>
+        </IOSListSection>
+      )}
+
+      {!(isFriend && friendUnavailable) && (
+      <>
       <IOSListSection header="ATHLETE IDENTITY" colors={colors}>
         <IOSListRow isLast={isFriend || !user} colors={colors}>
           <div>
@@ -310,6 +232,8 @@ export function ProfileView({
           ))
         )}
       </IOSListSection>
+      </>
+      )}
     </div>
   );
 }

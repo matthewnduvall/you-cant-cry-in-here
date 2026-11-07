@@ -282,17 +282,16 @@ export async function signInUserAccount({ identifier, username, email, password 
 
   if (!resolvedEmail && isConfigured) {
     try {
-      const lookupRes = await fetch(
-        `${baseUrl}/rest/v1/user_profiles?username=ilike.${encodeURIComponent(rawIdentifier)}&select=email,username`,
-        {
-          headers: buildSupabaseHeaders(anonKey)
-        }
-      );
+      // Profiles aren't publicly readable, so resolve the username through the database function
+      const lookupRes = await fetch(`${baseUrl}/rest/v1/rpc/resolve_login_email`, {
+        method: 'POST',
+        headers: buildSupabaseHeaders(anonKey, null, { 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ identifier: rawIdentifier })
+      });
       if (lookupRes.ok) {
-        const rows = await lookupRes.json();
-        if (Array.isArray(rows) && rows[0]?.email) {
-          resolvedEmail = rows[0].email.trim().toLowerCase();
-          if (rows[0].username) resolvedUsernameFromLookup = rows[0].username;
+        const foundEmail = await lookupRes.json();
+        if (typeof foundEmail === 'string' && foundEmail) {
+          resolvedEmail = foundEmail.trim().toLowerCase();
         }
       }
     } catch {
@@ -954,7 +953,8 @@ export async function pushCloudStateForUser(user, payload) {
         body: JSON.stringify({
           data: {
             username: user.username,
-            yccih_cloud_state_v3: payload
+            // Friends' data is never stored in your account; friendships come from public.friendships
+            yccih_cloud_state_v3: { ...payload, friendsList: [], pendingIncomingRequests: [] }
           }
         })
       })
@@ -990,7 +990,6 @@ export async function pushCloudStateForUser(user, payload) {
     oneRepMaxes: payload.oneRepMaxes || {},
     gyms: payload.gyms || [],
     activeSession: payload.activeSession || null,
-    friendsList: payload.friendsList || [],
     outgoingInvites: payload.outgoingInvites || [],
     savedRoutines: payload.savedRoutines || [],
     sharedRoutines: payload.sharedRoutines || [],
@@ -1195,84 +1194,6 @@ function buildAthleteFromProfileRow(
 }
 
 /**
- * Fetches one athlete's public profile directly (by id, username, or email) along with their
- * workout_history and shared routines. Works regardless of how the friendship was recorded, so
- * friend profiles always show cloud PRs. Missing tables are tolerated.
- */
-export async function fetchAthleteProfileSnapshot(athlete, currentUser = null) {
-  const { baseUrl, anonKey, isConfigured } = getSupabaseConfig();
-  if (!isConfigured || !athlete) return null;
-
-  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-  const id = uuidRegex.test(String(athlete.id || '')) ? String(athlete.id) : '';
-  const uname = (athlete.username || '').trim().replace(/^@/, '');
-  const email = (athlete.email || '').trim().toLowerCase();
-  const filter = id
-    ? `id=eq.${encodeURIComponent(id)}`
-    : email
-      ? `email=ilike.${encodeURIComponent(email)}`
-      : uname
-        ? `username=ilike.${encodeURIComponent(uname)}`
-        : '';
-  if (!filter) return null;
-
-  const accessToken = currentUser ? await getValidSupabaseAccessToken(currentUser) : null;
-  const fetchJson = async url => {
-    try {
-      let res = await fetch(url, { headers: buildSupabaseHeaders(anonKey, accessToken) });
-      if (!res.ok && accessToken) {
-        res = await fetch(url, { headers: buildSupabaseHeaders(anonKey, null) });
-      }
-      return res.ok ? await res.json() : null;
-    } catch {
-      return null;
-    }
-  };
-
-  const profileRows = await fetchJson(
-    `${baseUrl}/rest/v1/user_profiles?${filter}&select=id,username,email,one_rep_maxes,settings&limit=1`
-  );
-  const row = Array.isArray(profileRows) ? profileRows[0] : null;
-  if (!row?.id) return null;
-
-  const [historyRows, routineRows] = await Promise.all([
-    fetchJson(
-      `${baseUrl}/rest/v1/workout_history?user_id=eq.${encodeURIComponent(row.id)}&select=id,title,preset_used,started_at,slots&order=started_at.desc`
-    ),
-    fetchJson(
-      `${baseUrl}/rest/v1/routines?user_id=eq.${encodeURIComponent(row.id)}&is_shared=eq.true&select=key,author_username,label,is_shared,slots`
-    )
-  ]);
-
-  return buildAthleteFromProfileRow(row, {
-    tableHistory: Array.isArray(historyRows) ? historyRows.map(mapHistoryTableRow) : [],
-    sharedRoutines: Array.isArray(routineRows) ? routineRows.map(mapRoutineTableRow) : null
-  });
-}
-
-const LOCAL_FRIEND_REQUESTS_KEY = 'yccih_local_friend_requests_v1';
-
-function getLocalFriendRequests() {
-  if (typeof window === 'undefined') return [];
-  try {
-    const raw = window.localStorage.getItem(LOCAL_FRIEND_REQUESTS_KEY);
-    const parsed = raw ? JSON.parse(raw) : [];
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
-}
-
-function saveLocalFriendRequests(list) {
-  if (typeof window === 'undefined') return;
-  try {
-    window.localStorage.setItem(LOCAL_FRIEND_REQUESTS_KEY, JSON.stringify(Array.isArray(list) ? list : []));
-  } catch {
-    // ignore storage error
-  }
-}
-
-/**
  * Deletes a routine from Supabase `public.routines` by its `key`.
  */
 export async function deleteCloudRoutineByKey(user, routineKey) {
@@ -1298,712 +1219,223 @@ export async function deleteCloudRoutineByKey(user, routineKey) {
   }
 }
 
-/**
- * Sends a friend request from `user` to `targetAthlete`.
- * Stores the pending request in Supabase `public.friendships` (and local fallback) so the recipient sees it in INCOMING REQUESTS.
- */
-export async function sendFriendRequestToAthlete(user, targetAthlete) {
-  if (!user || !targetAthlete) return false;
-  const requesterUsername = (user.username || '').trim();
-  const requesterEmail = (user.email || '').trim().toLowerCase();
-  const addresseeUsername = (targetAthlete.username || '').trim();
-  const addresseeEmail = (targetAthlete.email || '').trim().toLowerCase();
+// ============================================================================
+// SOCIAL: FRIENDSHIPS, SEARCH & FRIEND PROFILES
+// Friendships live only in public.friendships, keyed by Supabase account ids. Row-level security
+// (supabase_schema.sql) lets an athlete read a profile, history, or shared routines only when they
+// own it or have an accepted friendship with its owner, so removing a friend revokes access both
+// ways. Every call below uses the signed-in user's token.
+// ============================================================================
 
-  // 1. Save in local requests store
-  const localReqs = getLocalFriendRequests();
-  const existsIdx = localReqs.findIndex(
-    r =>
-      ((r.requesterEmail && r.requesterEmail === requesterEmail) ||
-        (r.requesterUsername && r.requesterUsername.toLowerCase() === requesterUsername.toLowerCase())) &&
-      ((r.addresseeEmail && r.addresseeEmail === addresseeEmail) ||
-        (r.addresseeUsername && r.addresseeUsername.toLowerCase() === addresseeUsername.toLowerCase()))
-  );
-  const newEntry = {
-    id: `freq_${Date.now()}`,
-    requesterId: user.id,
-    requesterUsername,
-    requesterEmail,
-    addresseeId: targetAthlete.id,
-    addresseeUsername,
-    addresseeEmail,
-    status: 'pending',
-    createdAt: new Date().toISOString()
-  };
-  if (existsIdx >= 0) {
-    localReqs[existsIdx] = { ...localReqs[existsIdx], ...newEntry };
-  } else {
-    localReqs.push(newEntry);
-  }
-  saveLocalFriendRequests(localReqs);
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+export const isUuid = value => UUID_RE.test(String(value || ''));
 
-  // 2. Sync to Supabase public.friendships if configured
-  const { baseUrl, anonKey, isConfigured } = getSupabaseConfig();
-  if (isConfigured) {
-    const accessToken = await getValidSupabaseAccessToken(user);
-    const headers = buildSupabaseHeaders(anonKey, accessToken, {
-      'Content-Type': 'application/json',
-      Prefer: 'resolution=merge-duplicates'
-    });
+const LEGACY_LOCAL_FRIEND_REQUESTS_KEY = 'yccih_local_friend_requests_v1';
 
-    try {
-      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-      let requesterUuid = uuidRegex.test(String(user.id || '')) ? String(user.id) : null;
-      let addresseeUuid = uuidRegex.test(String(targetAthlete.id || '')) ? String(targetAthlete.id) : null;
-
-      if (!requesterUuid || !addresseeUuid) {
-        const profRes = await fetch(
-          `${baseUrl}/rest/v1/user_profiles?select=id,username,email`,
-          { headers: buildSupabaseHeaders(anonKey, accessToken) }
-        );
-        if (profRes.ok) {
-          const rows = await profRes.json();
-          if (Array.isArray(rows)) {
-            rows.forEach(r => {
-              const rEmail = (r?.email || '').trim().toLowerCase();
-              const rUname = (r?.username || '').trim().toLowerCase();
-              if (!requesterUuid && ((requesterEmail && rEmail === requesterEmail) || (requesterUsername && rUname === requesterUsername.toLowerCase()))) {
-                requesterUuid = r.id;
-              }
-              if (!addresseeUuid && ((addresseeEmail && rEmail === addresseeEmail) || (addresseeUsername && rUname === addresseeUsername.toLowerCase()))) {
-                addresseeUuid = r.id;
-              }
-            });
-          }
-        }
-      }
-
-      if (requesterUuid && addresseeUuid) {
-        await fetch(`${baseUrl}/rest/v1/friendships`, {
-          method: 'POST',
-          headers,
-          body: JSON.stringify({
-            requester_id: requesterUuid,
-            addressee_id: addresseeUuid,
-            status: 'pending'
-          })
-        });
-      }
-    } catch {
-      // ignore network error
-    }
-  }
-  return true;
-}
-
-/**
- * Marks an incoming friend request from `requesterAthlete` to `user` as accepted in Supabase `public.friendships` and local storage.
- */
-/**
- * Removes a friendship: deletes local friend-request records between the two athletes and the
- * Supabase `friendships` row in either direction (needs the delete policy in supabase_schema.sql).
- */
-export async function removeFriendshipWithAthlete(user, athlete) {
-  if (!user || !athlete) return false;
-  const norm = v => (v || '').trim().toLowerCase();
-  const me = [norm(user.email), norm(user.username)].filter(Boolean);
-  const them = [norm(athlete.email), norm(athlete.username)].filter(Boolean);
-  const involves = (email, uname, keys) => keys.includes(norm(email)) || keys.includes(norm(uname));
-
-  saveLocalFriendRequests(
-    getLocalFriendRequests().filter(
-      req =>
-        !(
-          (involves(req.requesterEmail, req.requesterUsername, me) &&
-            involves(req.addresseeEmail, req.addresseeUsername, them)) ||
-          (involves(req.requesterEmail, req.requesterUsername, them) &&
-            involves(req.addresseeEmail, req.addresseeUsername, me))
-        )
-    )
-  );
-
-  const { baseUrl, anonKey, isConfigured } = getSupabaseConfig();
-  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-  if (!isConfigured || !uuidRegex.test(String(user.id || '')) || !uuidRegex.test(String(athlete.id || ''))) {
-    return true;
-  }
-  const accessToken = await getValidSupabaseAccessToken(user);
-  if (!accessToken) return true;
-  const a = encodeURIComponent(user.id);
-  const b = encodeURIComponent(athlete.id);
+// Device-only friend requests from older builds; friendships are server-side now.
+function clearLegacyLocalFriendRequests() {
+  if (typeof window === 'undefined') return;
   try {
-    await fetch(
-      `${baseUrl}/rest/v1/friendships?or=(and(requester_id.eq.${a},addressee_id.eq.${b}),and(requester_id.eq.${b},addressee_id.eq.${a}))`,
-      { method: 'DELETE', headers: buildSupabaseHeaders(anonKey, accessToken) }
-    );
+    window.localStorage.removeItem(LEGACY_LOCAL_FRIEND_REQUESTS_KEY);
   } catch {
-    // non-blocking; the removed-friends list still hides them locally and across devices
+    // ignore storage error
   }
-  return true;
 }
 
-export async function acceptFriendRequestFromAthlete(user, requesterAthlete) {
-  if (!user || !requesterAthlete) return false;
-  const addresseeUsername = (user.username || '').trim().toLowerCase();
-  const addresseeEmail = (user.email || '').trim().toLowerCase();
-  const requesterUsername = (requesterAthlete.username || '').trim().toLowerCase();
-  const requesterEmail = (requesterAthlete.email || '').trim().toLowerCase();
-
-  // 1. Update local requests store
-  const localReqs = getLocalFriendRequests().map(r => {
-    const matchesReq =
-      (requesterEmail && (r.requesterEmail || '').toLowerCase() === requesterEmail) ||
-      (requesterUsername && (r.requesterUsername || '').toLowerCase() === requesterUsername);
-    const matchesAddr =
-      (addresseeEmail && (r.addresseeEmail || '').toLowerCase() === addresseeEmail) ||
-      (addresseeUsername && (r.addresseeUsername || '').toLowerCase() === addresseeUsername);
-    if (matchesReq && matchesAddr) {
-      return { ...r, status: 'accepted' };
-    }
-    return r;
-  });
-  saveLocalFriendRequests(localReqs);
-
-  // 2. Update Supabase public.friendships
+// Authenticated PostgREST request as the signed-in athlete. Returns { ok, status, data }.
+async function authedRequest(user, path, { method = 'GET', body, prefer } = {}) {
   const { baseUrl, anonKey, isConfigured } = getSupabaseConfig();
-  if (isConfigured) {
-    const accessToken = await getValidSupabaseAccessToken(user);
-    if (accessToken) {
-      const headers = buildSupabaseHeaders(anonKey, accessToken, {
-        'Content-Type': 'application/json'
-      });
-      try {
-        if (requesterAthlete.friendshipId) {
-          await fetch(
-            `${baseUrl}/rest/v1/friendships?id=eq.${encodeURIComponent(requesterAthlete.friendshipId)}`,
-            {
-              method: 'PATCH',
-              headers,
-              body: JSON.stringify({ status: 'accepted' })
-            }
-          );
-        } else if (requesterAthlete.id && user.id) {
-          await fetch(
-            `${baseUrl}/rest/v1/friendships?requester_id=eq.${encodeURIComponent(requesterAthlete.id)}&addressee_id=eq.${encodeURIComponent(user.id)}`,
-            {
-              method: 'PATCH',
-              headers,
-              body: JSON.stringify({ status: 'accepted' })
-            }
-          );
-        }
-      } catch {
-        // ignore network error
-      }
+  if (!isConfigured || !user) return { ok: false, status: 0, data: null };
+  const accessToken = await getValidSupabaseAccessToken(user);
+  if (!accessToken) return { ok: false, status: 401, data: null };
+  try {
+    const res = await fetch(`${baseUrl}${path}`, {
+      method,
+      headers: buildSupabaseHeaders(anonKey, accessToken, {
+        ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
+        ...(prefer ? { Prefer: prefer } : {})
+      }),
+      body: body !== undefined ? JSON.stringify(body) : undefined
+    });
+    const text = await res.text();
+    let data = null;
+    try {
+      data = text ? JSON.parse(text) : null;
+    } catch {
+      data = null;
     }
+    return { ok: res.ok, status: res.status, data };
+  } catch {
+    return { ok: false, status: 0, data: null };
   }
-  return true;
 }
 
 /**
- * Resolves incoming friend requests and accepted friendships for `user`:
- * - Users must accept an incoming request before they are added to `friendsList` or their profile can be accessed.
- * - Returns `{ incomingRequests, matchedFriends, resolvedInviteEmails }`.
+ * Loads full profiles (PRs, history, shared routines) for the given friend ids. RLS returns only
+ * athletes who are accepted friends. Returns null if the request failed (so callers keep cached data).
  */
-export async function resolveInviteFriendshipsForUser(
-  user,
-  outgoingInvites = [],
-  currentFriendsList = []
-) {
-  const incomingRequests = [];
-  const rawMatchedFriends = [];
-  const resolvedInviteEmails = [];
+async function fetchFriendProfiles(user, ids) {
+  const cleanIds = Array.from(new Set((ids || []).filter(isUuid)));
+  if (cleanIds.length === 0) return [];
+  const inList = `(${cleanIds.map(encodeURIComponent).join(',')})`;
+  const [profilesRes, historyRes, routinesRes] = await Promise.all([
+    authedRequest(user, `/rest/v1/user_profiles?id=in.${inList}&select=id,username,email,one_rep_maxes,settings`),
+    authedRequest(
+      user,
+      `/rest/v1/workout_history?user_id=in.${inList}&select=id,user_id,title,preset_used,started_at,slots&order=started_at.desc`
+    ),
+    authedRequest(
+      user,
+      `/rest/v1/routines?user_id=in.${inList}&is_shared=eq.true&select=key,user_id,author_username,label,is_shared,slots`
+    )
+  ]);
+  if (!profilesRes.ok || !Array.isArray(profilesRes.data)) return null;
 
-  const currentEmail = (user?.email || '').trim().toLowerCase();
-  const currentUsername = (user?.username || '').trim().toLowerCase();
-  if (!currentEmail && !currentUsername) {
-    return { incomingRequests, matchedFriends: [], resolvedInviteEmails };
-  }
-
-  const inviteMatchers = (Array.isArray(outgoingInvites) ? outgoingInvites : [])
-    .map(inv => ({
-      email: (typeof inv === 'string' ? inv : inv?.email || '').trim().toLowerCase(),
-      username: (typeof inv === 'object' && inv?.username ? inv.username : '').trim().toLowerCase()
-    }))
-    .filter(x => x.email || x.username);
-
-  const isAlreadyInFriends = (uname, email, rowId = null) => {
-    const u = (uname || '').trim().toLowerCase();
-    const e = (email || '').trim().toLowerCase();
-    const ePrefix = e ? e.split('@')[0] : '';
-    const rId = rowId ? String(rowId).toLowerCase() : '';
-    return (Array.isArray(currentFriendsList) ? currentFriendsList : []).some(f => {
-      const fU = (f?.username || '').trim().toLowerCase();
-      const fE = (f?.email || '').trim().toLowerCase();
-      const fEPrefix = fE ? fE.split('@')[0] : '';
-      const fId = String(f?.id || '').toLowerCase();
-      return (
-        (rId && fId === rId) ||
-        (u && (fU === u || (fEPrefix && fEPrefix === u))) ||
-        (e && fE === e) ||
-        (ePrefix && fU === ePrefix) ||
-        (u && fU && (ePrefix.startsWith(fU) || u.startsWith(fU) || fU.startsWith(u)))
-      );
-    });
-  };
-
-  // 1. Check local friend requests store
-  const localReqs = getLocalFriendRequests();
-  localReqs.forEach(req => {
-    const rEmail = (req.requesterEmail || '').trim().toLowerCase();
-    const rUname = (req.requesterUsername || '').trim();
-    const aEmail = (req.addresseeEmail || '').trim().toLowerCase();
-    const aUname = (req.addresseeUsername || '').trim();
-
-    const isAddressedToMe =
-      (currentEmail && aEmail === currentEmail) ||
-      (currentUsername && aUname.toLowerCase() === currentUsername);
-    const isSentByMe =
-      (currentEmail && rEmail === currentEmail) ||
-      (currentUsername && rUname.toLowerCase() === currentUsername);
-
-    if (isAddressedToMe && req.status === 'pending' && !isAlreadyInFriends(rUname, rEmail)) {
-      incomingRequests.push({
-        id: req.requesterId || `friend_${(rUname || rEmail).toLowerCase()}`,
-        username: rUname || rEmail.split('@')[0],
-        email: rEmail,
-        prs: {},
-        sharedRoutines: []
-      });
-    } else if ((isAddressedToMe || isSentByMe) && req.status === 'accepted') {
-      const friendUname = isSentByMe ? aUname : rUname;
-      const friendEmail = isSentByMe ? aEmail : rEmail;
-      const friendId = isSentByMe ? req.addresseeId : req.requesterId;
-      rawMatchedFriends.push({
-        id: friendId || `friend_${(friendUname || friendEmail).toLowerCase()}`,
-        username: friendUname || friendEmail.split('@')[0],
-        email: friendEmail,
-        prs: {},
-        sharedRoutines: []
-      });
-      if (friendEmail) resolvedInviteEmails.push(friendEmail);
-      if (friendUname) resolvedInviteEmails.push(friendUname.toLowerCase());
-    }
+  const historyByUser = new Map();
+  (Array.isArray(historyRes.data) ? historyRes.data : []).forEach(h => {
+    const list = historyByUser.get(h.user_id) || [];
+    list.push(mapHistoryTableRow(h));
+    historyByUser.set(h.user_id, list);
+  });
+  const routinesByUser = new Map();
+  (Array.isArray(routinesRes.data) ? routinesRes.data : []).forEach(r => {
+    const list = routinesByUser.get(r.user_id) || [];
+    list.push(mapRoutineTableRow(r));
+    routinesByUser.set(r.user_id, list);
   });
 
-  // 2. Check Supabase user_profiles, friendships, and shared routines if configured
-  const { baseUrl, anonKey, isConfigured } = getSupabaseConfig();
-  if (isConfigured) {
-    const accessToken = user ? await getValidSupabaseAccessToken(user) : null;
-    const primaryHeaders = buildSupabaseHeaders(anonKey, accessToken);
-    const anonOnlyHeaders = buildSupabaseHeaders(anonKey, null);
-    const legacyBearerAnonHeaders = {
-      apikey: anonKey,
-      Authorization: `Bearer ${anonKey}`
+  return profilesRes.data.map(row =>
+    buildAthleteFromProfileRow(row, {
+      tableHistory: historyByUser.get(row.id) || [],
+      sharedRoutines: routinesByUser.get(row.id) || null
+    })
+  );
+}
+
+/**
+ * Fetches one friend's profile snapshot by account id. Returns null if they aren't (or are no
+ * longer) an accepted friend, or the request failed.
+ */
+export async function fetchAthleteProfileSnapshot(athlete, currentUser = null) {
+  if (!currentUser || !isUuid(athlete?.id)) return null;
+  const profiles = await fetchFriendProfiles(currentUser, [athlete.id]);
+  return Array.isArray(profiles) && profiles[0] ? profiles[0] : null;
+}
+
+/**
+ * Reads the signed-in athlete's friendships from the server.
+ * Returns { ok, friends, incomingRequests, outgoingRequests, profilesLoaded }:
+ * - friends: accepted friendships with full profile data (when profilesLoaded)
+ * - incomingRequests / outgoingRequests: pending requests ({ id, username, friendshipId })
+ * When ok is false (offline, signed out), callers should keep what they already have.
+ */
+export async function syncFriendshipsForUser(user) {
+  const empty = { ok: false, friends: [], incomingRequests: [], outgoingRequests: [], profilesLoaded: false };
+  if (!user || !isUuid(user.id)) return empty;
+  // Accept any email invites addressed to this account before reading friendships
+  await authedRequest(user, '/rest/v1/rpc/claim_my_invites', { method: 'POST', body: {} });
+  const res = await authedRequest(user, '/rest/v1/rpc/my_friendships', { method: 'POST', body: {} });
+  if (!res.ok || !Array.isArray(res.data)) return empty;
+  clearLegacyLocalFriendRequests();
+
+  const rows = res.data.filter(r => isUuid(r?.other_id));
+  const accepted = rows.filter(r => r.status === 'accepted');
+  const profiles = await fetchFriendProfiles(
+    user,
+    accepted.map(r => r.other_id)
+  );
+  const profileById = new Map((profiles || []).map(p => [p.id, p]));
+
+  const friends = accepted.map(r => {
+    const profile = profileById.get(r.other_id);
+    return {
+      prs: {},
+      history: [],
+      sharedRoutines: [],
+      ...(profile || {}),
+      id: r.other_id,
+      friendshipId: r.friendship_id,
+      username: profile?.username || r.other_username || 'athlete'
     };
-
-    const fetchWithAnonFallback = async url => {
-      try {
-        let res = await fetch(url, { headers: primaryHeaders });
-        if (!res.ok && accessToken) {
-          res = await fetch(url, { headers: anonOnlyHeaders });
-        }
-        if (!res.ok && !anonOnlyHeaders.Authorization) {
-          res = await fetch(url, { headers: legacyBearerAnonHeaders });
-        }
-        return res;
-      } catch {
-        return null;
-      }
-    };
-
-    try {
-      const [profilesRes, routinesRes, historyRes, friendshipsRes, friendInvitesRes] = await Promise.all([
-        fetchWithAnonFallback(`${baseUrl}/rest/v1/user_profiles?select=id,username,email,one_rep_maxes,settings`),
-        fetchWithAnonFallback(`${baseUrl}/rest/v1/routines?select=key,user_id,author_username,label,is_shared,slots`),
-        fetchWithAnonFallback(
-          `${baseUrl}/rest/v1/workout_history?select=id,user_id,title,preset_used,started_at,slots&order=started_at.desc&limit=300`
-        ),
-        user?.id
-          ? fetchWithAnonFallback(
-              `${baseUrl}/rest/v1/friendships?or=(requester_id.eq.${encodeURIComponent(user.id)},addressee_id.eq.${encodeURIComponent(user.id)})&select=*`
-            )
-          : Promise.resolve(null),
-        currentEmail
-          ? fetchWithAnonFallback(
-              `${baseUrl}/rest/v1/friend_invites?or=(invited_email.eq.${encodeURIComponent(currentEmail)},inviter_email.eq.${encodeURIComponent(currentEmail)})&select=*`
-            )
-          : Promise.resolve(null)
-      ]);
-
-      const profileRows = profilesRes && profilesRes.ok ? await profilesRes.json() : [];
-      const allRoutineRows = routinesRes && routinesRes.ok ? await routinesRes.json() : [];
-      const allHistoryRows = historyRes && historyRes.ok ? await historyRes.json() : [];
-      const friendshipRows = friendshipsRes && friendshipsRes.ok ? await friendshipsRes.json() : [];
-      const friendInviteRows = friendInvitesRes && friendInvitesRes.ok ? await friendInvitesRes.json() : [];
-
-      const routinesByUserId = new Map();
-      const routinesByUsername = new Map();
-      const allRoutinesByUserId = new Map();
-      if (Array.isArray(allRoutineRows)) {
-        allRoutineRows.forEach(r => {
-          const item = {
-            key: r.key,
-            label: r.label,
-            author: r.author_username,
-            isShared: Boolean(r.is_shared),
-            slots: Array.isArray(r.slots) ? r.slots : []
-          };
-          if (r.user_id) {
-            const allList = allRoutinesByUserId.get(r.user_id) || [];
-            allList.push(item);
-            allRoutinesByUserId.set(r.user_id, allList);
-          }
-          if (r.is_shared) {
-            if (r.user_id) {
-              const list = routinesByUserId.get(r.user_id) || [];
-              list.push(item);
-              routinesByUserId.set(r.user_id, list);
-            }
-            if (r.author_username) {
-              const uKey = r.author_username.toLowerCase();
-              const list = routinesByUsername.get(uKey) || [];
-              list.push(item);
-              routinesByUsername.set(uKey, list);
-            }
-          }
-        });
-      }
-
-      const historyByUserId = new Map();
-      if (Array.isArray(allHistoryRows)) {
-        allHistoryRows.forEach(h => {
-          if (!h?.user_id) return;
-          const list = historyByUserId.get(h.user_id) || [];
-          list.push({
-            id: h.id,
-            title: h.title,
-            loadedRoutineTitle: h.preset_used || 'MANUAL',
-            startedAt: h.started_at,
-            slots: Array.isArray(h.slots) ? h.slots : []
-          });
-          historyByUserId.set(h.user_id, list);
-        });
-      }
-
-      const profileById = new Map();
-      if (Array.isArray(profileRows)) {
-        profileRows.forEach(row => {
-          if (row?.id) profileById.set(row.id, row);
-        });
-      }
-
-      const buildFriendObjFromProfile = (row, friendshipId = null) => {
-        const uname = ((row?.username || '').trim() || (row?.email || '').split('@')[0]).toLowerCase();
-        return buildAthleteFromProfileRow(
-          row,
-          {
-            tableHistory: historyByUserId.get(row?.id) || [],
-            sharedRoutines: routinesByUserId.get(row?.id) || routinesByUsername.get(uname) || null,
-            allUserRoutines: allRoutinesByUserId.get(row?.id) || []
-          },
-          friendshipId
-        );
-      };
-
-      // A) Process explicit rows from public.friendships table
-      if (Array.isArray(friendshipRows) && user?.id) {
-        friendshipRows.forEach(fr => {
-          const isRequester = String(fr.requester_id) === String(user.id);
-          const otherId = isRequester ? fr.addressee_id : fr.requester_id;
-          const otherProfile = profileById.get(otherId);
-          if (!otherProfile) return;
-          const friendObj = buildFriendObjFromProfile(otherProfile, fr.id);
-
-          if (fr.status === 'accepted') {
-            rawMatchedFriends.push(friendObj);
-            if (friendObj.email) resolvedInviteEmails.push(friendObj.email);
-            if (friendObj.username) resolvedInviteEmails.push(friendObj.username.toLowerCase());
-          } else if (fr.status === 'pending' && !isRequester) {
-            if (!isAlreadyInFriends(friendObj.username, friendObj.email)) {
-              incomingRequests.push(friendObj);
-            }
-          }
-        });
-      }
-
-      // A2) Process rows from public.friend_invites table (both when current user is invitee AND when current user is inviter)
-      if (Array.isArray(friendInviteRows) && Array.isArray(profileRows)) {
-        friendInviteRows.forEach(inv => {
-          const invTargetEmail = (inv?.invited_email || '').trim().toLowerCase();
-          const invSenderEmail = (inv?.inviter_email || '').trim().toLowerCase();
-          const invSenderUname = (inv?.inviter_username || '').trim().toLowerCase();
-
-          if (currentEmail && invTargetEmail === currentEmail) {
-            const senderProfile = profileRows.find(
-              p =>
-                (inv.inviter_user_id && p.id === inv.inviter_user_id) ||
-                (invSenderEmail && (p.email || '').trim().toLowerCase() === invSenderEmail) ||
-                (invSenderUname && (p.username || '').trim().toLowerCase() === invSenderUname)
-            );
-            if (senderProfile) {
-              const friendObj = buildFriendObjFromProfile(senderProfile);
-              if (inv.status === 'accepted' || isAlreadyInFriends(friendObj.username, friendObj.email)) {
-                rawMatchedFriends.push(friendObj);
-              } else {
-                incomingRequests.push(friendObj);
-              }
-            }
-          } else if (
-            (currentEmail && invSenderEmail === currentEmail) ||
-            (currentUsername && invSenderUname === currentUsername)
-          ) {
-            // Current user sent this email invite — if the invited athlete has registered a profile, connect them!
-            const targetProfile = profileRows.find(
-              p => invTargetEmail && (p.email || '').trim().toLowerCase() === invTargetEmail
-            );
-            if (targetProfile) {
-              const friendObj = buildFriendObjFromProfile(targetProfile);
-              rawMatchedFriends.push(friendObj);
-              if (friendObj.email) resolvedInviteEmails.push(friendObj.email);
-              if (friendObj.username) resolvedInviteEmails.push(friendObj.username.toLowerCase());
-            }
-          }
-        });
-      }
-
-      // B) Cross-check user_profiles settings (outgoingInvites & friendsList)
-      if (Array.isArray(profileRows)) {
-        profileRows.forEach(row => {
-          const rowEmail = (row?.email || '').trim().toLowerCase();
-          const rowUname = (row?.username || '').trim();
-          const rowUnameLower = rowUname.toLowerCase();
-          if (!rowEmail && !rowUnameLower) return;
-          if (currentEmail && rowEmail === currentEmail) return;
-          if (currentUsername && rowUnameLower === currentUsername) return;
-
-          const rowInvites = Array.isArray(row?.settings?.outgoingInvites)
-            ? row.settings.outgoingInvites
-            : [];
-          const rowFriends = Array.isArray(row?.settings?.friendsList)
-            ? row.settings.friendsList
-            : [];
-
-          // Did this profile send a friend invite to the current user?
-          const invitedCurrentUser = rowInvites.some(inv => {
-            const invEmail = (typeof inv === 'string' ? inv : inv?.email || '').trim().toLowerCase();
-            const invUname = (typeof inv === 'object' && inv?.username ? inv.username : '').trim().toLowerCase();
-            return (
-              (currentEmail && invEmail === currentEmail) ||
-              (currentUsername && (invUname === currentUsername || invEmail === currentUsername))
-            );
-          });
-
-          // Did this profile already accept the current user into their friendsList?
-          const hasCurrentUserInTheirFriends = rowFriends.some(f => {
-            const fEmail = (f?.email || '').trim().toLowerCase();
-            const fUname = (f?.username || '').trim().toLowerCase();
-            return (
-              (currentEmail && fEmail === currentEmail) ||
-              (currentUsername && fUname === currentUsername)
-            );
-          });
-
-          // Did current user invite this profile?
-          const currentInvitedThisRow = inviteMatchers.some(
-            m =>
-              (m.email && (m.email === rowEmail || m.email === rowUnameLower)) ||
-              (m.username && m.username === rowUnameLower)
-          );
-
-          if (
-            isAlreadyInFriends(rowUname, rowEmail, row?.id) ||
-            hasCurrentUserInTheirFriends ||
-            (currentInvitedThisRow && hasCurrentUserInTheirFriends)
-          ) {
-            // Mutual or accepted friend — refresh live PRs, recentHistory, and shared routines from profile
-            const friendObj = buildFriendObjFromProfile(row);
-            rawMatchedFriends.push(friendObj);
-            if (currentInvitedThisRow) {
-              if (rowEmail) resolvedInviteEmails.push(rowEmail);
-              if (rowUnameLower) resolvedInviteEmails.push(rowUnameLower);
-            }
-          } else if (invitedCurrentUser && !isAlreadyInFriends(rowUname, rowEmail)) {
-            // Incoming friend request waiting for current user to accept
-            const reqObj = buildFriendObjFromProfile(row);
-            if (
-              !incomingRequests.some(
-                r =>
-                  (r.username || '').toLowerCase() === rowUnameLower ||
-                  (rowEmail && (r.email || '').toLowerCase() === rowEmail)
-              )
-            ) {
-              incomingRequests.push(reqObj);
-            }
-          }
-        });
-      }
-    } catch {
-      // ignore network error
-    }
-  }
-
-  // Deduplicate and merge all matchedFriends so local stub entries (`prs: {}`) never shadow rich Supabase profile data
-  const dedupedFriends = [];
-  rawMatchedFriends.forEach(item => {
-    if (!item) return;
-    const itemU = (item.username || '').trim().toLowerCase();
-    const itemE = (item.email || '').trim().toLowerCase();
-    const itemEPrefix = itemE ? itemE.split('@')[0] : '';
-    const existingIdx = dedupedFriends.findIndex(existing => {
-      const exU = (existing.username || '').trim().toLowerCase();
-      const exE = (existing.email || '').trim().toLowerCase();
-      const exEPrefix = exE ? exE.split('@')[0] : '';
-      return (
-        (item.id && existing.id && String(item.id) === String(existing.id)) ||
-        (itemU && (exU === itemU || exEPrefix === itemU)) ||
-        (itemE && exE === itemE) ||
-        (itemEPrefix && exU === itemEPrefix)
-      );
-    });
-
-    if (existingIdx >= 0) {
-      const existing = dedupedFriends[existingIdx];
-      const mergedPrs = { ...(existing.prs || {}) };
-      Object.entries(item.prs || {}).forEach(([k, v]) => {
-        const num = Number(v) || 0;
-        if (num > (Number(mergedPrs[k]) || 0)) {
-          mergedPrs[k] = num;
-        }
-      });
-      const historyMap = new Map();
-      [...(existing.history || []), ...(item.history || [])].forEach(w => {
-        if (w && w.id && !historyMap.has(w.id)) {
-          historyMap.set(w.id, w);
-        }
-      });
-      const routinesMap = new Map();
-      [...(existing.sharedRoutines || []), ...(item.sharedRoutines || [])].forEach(r => {
-        if (r && r.key && !routinesMap.has(r.key)) {
-          routinesMap.set(r.key, r);
-        }
-      });
-      dedupedFriends[existingIdx] = {
-        ...existing,
-        ...item,
-        id:
-          existing.id && !String(existing.id).startsWith('friend_')
-            ? existing.id
-            : item.id || existing.id,
-        username: item.username || existing.username,
-        email: item.email || existing.email,
-        prs: mergedPrs,
-        history: Array.from(historyMap.values()).sort(
-          (a, b) => new Date(b?.startedAt || 0).getTime() - new Date(a?.startedAt || 0).getTime()
-        ),
-        sharedRoutines: Array.from(routinesMap.values())
-      };
-    } else {
-      dedupedFriends.push(item);
-    }
+  });
+  const toRequest = r => ({
+    id: r.other_id,
+    friendshipId: r.friendship_id,
+    username: r.other_username || 'athlete',
+    prs: {},
+    sharedRoutines: []
   });
 
   return {
-    incomingRequests,
-    matchedFriends: dedupedFriends,
-    resolvedInviteEmails
+    ok: true,
+    friends,
+    incomingRequests: rows.filter(r => r.status === 'pending' && r.direction === 'incoming').map(toRequest),
+    outgoingRequests: rows.filter(r => r.status === 'pending' && r.direction === 'outgoing').map(toRequest),
+    profilesLoaded: profiles !== null
   };
 }
 
 /**
- * Searches registered athletes by username or email across local accounts and Supabase `user_profiles`.
+ * Sends a friend request to an athlete found through search. If they already sent you one, this
+ * accepts it instead. Returns { ok, status: 'requested' | 'accepted' | 'exists' | 'error' }.
  */
-export async function searchAthletesByQuery(query, currentUser = null) {
-  const q = (query || '').trim().toLowerCase().replace(/^@/, '');
-  if (!q) return [];
-
-  const curEmail = (currentUser?.email || '').trim().toLowerCase();
-  const curUsername = (currentUser?.username || '').trim().toLowerCase();
-  const resultsByKey = new Map();
-
-  // 1. Check local registered accounts
-  const localAccounts = getLocalRegisteredAccounts();
-  Object.values(localAccounts).forEach(acc => {
-    if (!acc) return;
-    const uname = (acc.username || '').trim();
-    const email = (acc.email || '').trim().toLowerCase();
-    if (curEmail && email === curEmail) return;
-    if (curUsername && uname.toLowerCase() === curUsername) return;
-    if (uname.toLowerCase().includes(q) || email.includes(q)) {
-      const key = (uname || email).toLowerCase();
-      resultsByKey.set(key, {
-        id: acc.id || `friend_${uname.toLowerCase()}`,
-        username: uname || email.split('@')[0],
-        email,
-        prs: {},
-        sharedRoutines: []
-      });
-    }
-  });
-
-  // 2. Check Supabase user_profiles if configured
-  const { baseUrl, anonKey, isConfigured } = getSupabaseConfig();
-  if (isConfigured) {
-    const accessToken = currentUser ? await getValidSupabaseAccessToken(currentUser) : null;
-    try {
-      let res = await fetch(
-        `${baseUrl}/rest/v1/user_profiles?select=id,username,email,one_rep_maxes,settings`,
-        { headers: buildSupabaseHeaders(anonKey, accessToken) }
-      );
-      if (!res.ok && accessToken) {
-        res = await fetch(
-          `${baseUrl}/rest/v1/user_profiles?select=id,username,email,one_rep_maxes,settings`,
-          { headers: buildSupabaseHeaders(anonKey, null) }
-        );
-      }
-      if (res.ok) {
-        const rows = await res.json();
-        if (Array.isArray(rows)) {
-          rows.forEach(row => {
-            const uname = (row?.username || '').trim();
-            const email = (row?.email || '').trim().toLowerCase();
-            if (!uname && !email) return;
-            if (curEmail && email === curEmail) return;
-            if (curUsername && uname.toLowerCase() === curUsername) return;
-            if (uname.toLowerCase().includes(q) || email.includes(q)) {
-              const key = (uname || email).toLowerCase();
-              const mergedPrs = {
-                ...(row?.settings?.oneRepMaxes || {}),
-                ...(row?.one_rep_maxes || {})
-              };
-              const recentHist = Array.isArray(row?.settings?.recentHistory)
-                ? row.settings.recentHistory
-                : [];
-              recentHist.forEach(w => {
-                (w?.slots || []).forEach(slot => {
-                  const exId = slot?.exerciseId;
-                  if (!exId) return;
-                  (slot?.sets || []).forEach(st => {
-                    const sw = Number(st?.weight) || 0;
-                    if (sw <= 0) return;
-                    const sr = Math.max(1, Number(st?.reps) || 1);
-                    const est = sr === 1 ? sw : Math.round(sw * (1 + sr / 30));
-                    if (est > (Number(mergedPrs[exId]) || 0)) {
-                      mergedPrs[exId] = est;
-                    }
-                  });
-                });
-              });
-              resultsByKey.set(key, {
-                id: row.id || `friend_${uname.toLowerCase()}`,
-                username: uname || email.split('@')[0],
-                email,
-                bodyweightLbs: row?.settings?.bodyMetrics?.bodyweightLbs || 200,
-                prs: mergedPrs,
-                history: recentHist,
-                sharedRoutines: Array.isArray(row?.settings?.sharedRoutines)
-                  ? row.settings.sharedRoutines
-                  : []
-              });
-            }
-          });
-        }
-      }
-    } catch {
-      // ignore network error
-    }
+export async function sendFriendRequestToAthlete(user, targetAthlete) {
+  if (!user || !isUuid(user.id) || !isUuid(targetAthlete?.id) || user.id === targetAthlete.id) {
+    return { ok: false, status: 'error' };
   }
-
-  return Array.from(resultsByKey.values());
+  const existing = await authedRequest(user, '/rest/v1/rpc/my_friendships', { method: 'POST', body: {} });
+  const row = Array.isArray(existing.data) ? existing.data.find(r => r.other_id === targetAthlete.id) : null;
+  if (row) {
+    if (row.status === 'pending' && row.direction === 'incoming') {
+      const accepted = await acceptFriendRequestFromAthlete(user, { ...targetAthlete, friendshipId: row.friendship_id });
+      return { ok: accepted, status: accepted ? 'accepted' : 'error' };
+    }
+    return { ok: true, status: 'exists' };
+  }
+  const res = await authedRequest(user, '/rest/v1/friendships', {
+    method: 'POST',
+    body: { requester_id: user.id, addressee_id: targetAthlete.id, status: 'pending' }
+  });
+  return { ok: res.ok, status: res.ok ? 'requested' : 'error' };
 }
 
+/** Accepts an incoming friend request (by its friendship row id). */
+export async function acceptFriendRequestFromAthlete(user, requesterAthlete) {
+  if (!user || !isUuid(requesterAthlete?.friendshipId)) return false;
+  const res = await authedRequest(
+    user,
+    `/rest/v1/friendships?id=eq.${encodeURIComponent(requesterAthlete.friendshipId)}`,
+    { method: 'PATCH', body: { status: 'accepted' } }
+  );
+  return res.ok;
+}
 
+/**
+ * Removes a friendship (or cancels/declines a request) with an athlete, in either direction.
+ * Once the row is gone neither athlete can read the other's profile, history, or routines.
+ */
+export async function removeFriendshipWithAthlete(user, athlete) {
+  if (!user || !isUuid(user.id) || !isUuid(athlete?.id)) return false;
+  const a = encodeURIComponent(user.id);
+  const b = encodeURIComponent(athlete.id);
+  const res = await authedRequest(
+    user,
+    `/rest/v1/friendships?or=(and(requester_id.eq.${a},addressee_id.eq.${b}),and(requester_id.eq.${b},addressee_id.eq.${a}))`,
+    { method: 'DELETE' }
+  );
+  return res.ok;
+}
+
+/**
+ * Searches athletes by partial username or exact email. Results contain only id + username;
+ * emails and stats of non-friends are never returned.
+ */
+export async function searchAthletesByQuery(query, currentUser = null) {
+  const q = (query || '').trim();
+  if (q.length < 2 || !currentUser) return [];
+  const res = await authedRequest(currentUser, '/rest/v1/rpc/search_athletes', { method: 'POST', body: { q } });
+  if (!res.ok || !Array.isArray(res.data)) return [];
+  return res.data
+    .filter(row => isUuid(row?.id) && row.id !== currentUser.id)
+    .map(row => ({ id: row.id, username: row.username || 'athlete', prs: {}, sharedRoutines: [] }));
+}

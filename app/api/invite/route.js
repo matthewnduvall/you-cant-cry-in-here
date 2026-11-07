@@ -1,10 +1,32 @@
 import { NextResponse } from 'next/server';
 
+const escapeHtml = value =>
+  String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+
+const getSupabaseServerConfig = () => ({
+  supabaseUrl: (process.env.NEXT_PUBLIC_SUPABASE_URL || '')
+    .trim()
+    .replace(/\/rest\/v1\/?$/i, '')
+    .replace(/\/auth\/v1\/?$/i, '')
+    .replace(/\/+$/, ''),
+  supabaseAnonKey: (process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '').trim()
+});
+
+/**
+ * Sends a sign-up invite email. The inviter must be signed in: their identity comes from their
+ * Supabase session (Authorization: Bearer <access token>), never from the request body, and the
+ * invite is recorded as them so RLS (inviter_user_id = auth.uid()) applies. When the invited email
+ * signs up, the database makes the two athletes friends.
+ */
 export async function POST(request) {
   try {
     const body = await request.json().catch(() => ({}));
-    const { targetEmail, inviterUsername, inviterEmail, inviterUserId } = body;
-    const cleanTarget = (targetEmail || '').trim().toLowerCase();
+    const cleanTarget = (body?.targetEmail || '').trim().toLowerCase();
 
     if (!cleanTarget || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanTarget)) {
       return NextResponse.json(
@@ -21,16 +43,57 @@ export async function POST(request) {
       );
     }
 
+    // Verify the inviter's session with Supabase
+    const { supabaseUrl, supabaseAnonKey } = getSupabaseServerConfig();
+    const authHeader = request.headers.get('authorization') || '';
+    const accessToken = authHeader.toLowerCase().startsWith('bearer ') ? authHeader.slice(7).trim() : '';
+    if (!supabaseUrl || !supabaseAnonKey || !accessToken) {
+      return NextResponse.json({ ok: false, error: 'Sign in to send invites.' }, { status: 401 });
+    }
+    const userHeaders = { apikey: supabaseAnonKey, Authorization: `Bearer ${accessToken}` };
+    const userRes = await fetch(`${supabaseUrl}/auth/v1/user`, { headers: userHeaders });
+    const authUser = userRes.ok ? await userRes.json().catch(() => null) : null;
+    if (!authUser?.id) {
+      return NextResponse.json({ ok: false, error: 'Your session expired. Sign in again to send invites.' }, { status: 401 });
+    }
+    const inviterEmail = (authUser.email || '').trim().toLowerCase();
+    if (inviterEmail && inviterEmail === cleanTarget) {
+      return NextResponse.json({ ok: false, error: "You can't invite yourself." }, { status: 400 });
+    }
+    const profileRes = await fetch(
+      `${supabaseUrl}/rest/v1/user_profiles?id=eq.${encodeURIComponent(authUser.id)}&select=username`,
+      { headers: userHeaders }
+    );
+    const profileRows = profileRes.ok ? await profileRes.json().catch(() => []) : [];
+    const senderHandle = String(
+      profileRows?.[0]?.username || authUser.user_metadata?.username || inviterEmail.split('@')[0] || 'athlete'
+    ).replace(/^@/, '');
+
+    // Record the invite as the signed-in inviter (RLS rejects anything else)
+    const inviteRes = await fetch(`${supabaseUrl}/rest/v1/friend_invites`, {
+      method: 'POST',
+      headers: { ...userHeaders, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        inviter_user_id: authUser.id,
+        inviter_username: senderHandle,
+        inviter_email: inviterEmail || null,
+        invited_email: cleanTarget,
+        status: 'pending'
+      })
+    });
+    if (!inviteRes.ok) {
+      return NextResponse.json({ ok: false, error: 'Could not record the invite. Try again.' }, { status: 502 });
+    }
+
     const rawOrigin =
       process.env.NEXT_PUBLIC_APP_URL ||
       request.headers.get('origin') ||
       'https://youcantcryinhere.com';
     const origin = rawOrigin.replace(/\/+$/, '');
-    const senderHandle = (inviterUsername || 'athlete').replace(/^@/, '');
+    const safeHandle = escapeHtml(senderHandle);
 
     const joinParams = new URLSearchParams({
       invite_from: senderHandle,
-      ...(inviterEmail ? { invite_from_email: inviterEmail.trim().toLowerCase() } : {}),
       invited_email: cleanTarget,
       beta_code: 'imnotcrying'
     });
@@ -46,7 +109,7 @@ export async function POST(request) {
           YOU CAN'T CRY IN HERE
         </h1>
         <p style="font-size:14px;line-height:1.5;font-weight:700;color:#E0E0E0;margin:0 0 18px 0;">
-          <strong style="color:#FFFFFF;">@${senderHandle}</strong> invited you to join &ldquo;You Can't Cry in Here&rdquo; to track workouts and stop crying.
+          <strong style="color:#FFFFFF;">@${safeHandle}</strong> invited you to join &ldquo;You Can't Cry in Here&rdquo; to track workouts and stop crying.
         </p>
         <div style="background-color:#18181B;padding:12px 14px;border:1px solid #5C5C5C;margin-bottom:20px;">
           <div style="font-size:10px;font-weight:800;color:#A0A0A0;text-transform:uppercase;margin-bottom:4px;">
@@ -56,12 +119,12 @@ export async function POST(request) {
             imnotcrying
           </div>
         </div>
-        <a href="${joinUrl}" style="display:block;text-align:center;padding:14px 20px;background-color:#FF6B00;color:#101010;font-size:13px;font-weight:800;text-decoration:none;text-transform:uppercase;border:2px solid #FFFFFF;">
+        <a href="${escapeHtml(joinUrl)}" style="display:block;text-align:center;padding:14px 20px;background-color:#FF6B00;color:#101010;font-size:13px;font-weight:800;text-decoration:none;text-transform:uppercase;border:2px solid #FFFFFF;">
           ACCEPT INVITE &amp; SIGN UP &rarr;
         </a>
         <p style="font-size:11px;color:#888888;margin:18px 0 0 0;line-height:1.4;">
           Or copy and paste this link into your browser:<br/>
-          <a href="${joinUrl}" style="color:#FF6B00;word-break:break-all;">${joinUrl}</a>
+          <a href="${escapeHtml(joinUrl)}" style="color:#FF6B00;word-break:break-all;">${escapeHtml(joinUrl)}</a>
         </p>
       </div>
     `;
@@ -75,7 +138,7 @@ export async function POST(request) {
       body: JSON.stringify({
         from: "You Can't Cry in Here <invites@youcantcryinhere.com>",
         to: [cleanTarget],
-        ...(inviterEmail ? { reply_to: inviterEmail.trim().toLowerCase() } : {}),
+        ...(inviterEmail ? { reply_to: inviterEmail } : {}),
         subject: `@${senderHandle} invited you to You Can't Cry in Here`,
         html: emailHtml
       })
@@ -93,37 +156,6 @@ export async function POST(request) {
         },
         { status: resendRes.status || 500 }
       );
-    }
-
-    // 2. Record invite in Supabase public.friend_invites if configured
-    const supabaseUrl = (process.env.NEXT_PUBLIC_SUPABASE_URL || '')
-      .trim()
-      .replace(/\/rest\/v1\/?$/i, '')
-      .replace(/\/auth\/v1\/?$/i, '')
-      .replace(/\/+$/, '');
-    const supabaseAnonKey = (process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '').trim();
-    if (supabaseUrl && supabaseAnonKey) {
-      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-      const validUserId = uuidRegex.test(String(inviterUserId || '')) ? inviterUserId : null;
-      const inviteHeaders = {
-        apikey: supabaseAnonKey,
-        'Content-Type': 'application/json',
-        Prefer: 'resolution=merge-duplicates'
-      };
-      if (supabaseAnonKey.startsWith('eyJ')) {
-        inviteHeaders.Authorization = `Bearer ${supabaseAnonKey}`;
-      }
-      await fetch(`${supabaseUrl}/rest/v1/friend_invites`, {
-        method: 'POST',
-        headers: inviteHeaders,
-        body: JSON.stringify({
-          ...(validUserId ? { inviter_user_id: validUserId } : {}),
-          inviter_username: senderHandle,
-          inviter_email: inviterEmail ? inviterEmail.trim().toLowerCase() : null,
-          invited_email: cleanTarget,
-          status: 'pending'
-        })
-      }).catch(() => {});
     }
 
     return NextResponse.json({
