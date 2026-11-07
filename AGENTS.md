@@ -11,7 +11,7 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 # AGENTS.md — Project Context & Rules for "You Can't Cry in Here"
 
-> **Note for Antigravity Agent:** This file contains the complete product, design, architectural, and domain context for *You Can't Cry in Here*. Always follow these rules and target the specific modular files listed in Section 2 when making edits.
+> **Note for coding agents (Claude Code, etc.):** This file contains the complete product, design, architectural, and domain context for *You Can't Cry in Here*. Always follow these rules and target the specific modular files listed in Section 2 when making edits.
 
 ---
 
@@ -29,7 +29,7 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 To keep agent edits fast and focused, views and state hooks are split into dedicated files:
 
 * **App Shell & Header:**
-  * `app/page.js` — Top-level state wiring, view router, and modal mounts (~640 lines).
+  * `app/page.js` — Top-level state wiring, view router, and modal mounts (~900 lines).
   * `app/components/AppHeaderAndDrawer.jsx` — Sticky top navigation bar (Menu `☰`, title, `FEEDBACK` button, `SessionRestTimerBar`) and slide-out Hamburger Drawer.
 * **Custom State & Domain Hooks (`app/hooks/`):**
   * `app/hooks/useCloudAndStorageSync.js` — `localStorage` hydration, password recovery hash & email invite URL param detection (`?invite_from=...&beta_code=imnotcrying`), Supabase cloud pull/push, automatic invite-to-friend resolution, and `.json` backup export/import/reset.
@@ -61,12 +61,16 @@ To keep agent edits fast and focused, views and state hooks are split into dedic
   * `app/utils/supabaseAuth.js` — Supabase Auth, cloud state sync, and `resolveInviteFriendshipsForUser`.
   * `app/utils/storageMigration.js` — Schema V3 local storage hydration and migration.
   * `app/api/feedback/route.js` — Serverless endpoint for sending user feedback + session logs to `matthew.n.duvall@gmail.com`.
+  * `app/api/invite/route.js` — Server-sent email invites via Resend (`RESEND_API_KEY`, `NEXT_PUBLIC_APP_URL`); setup steps in `EMAIL_INVITE_SETUP.md`.
+  * `app/data/exercises.csv` + `app/data/csvRawLoader.cjs` — Raw exercise data, imported as a string via the custom Turbopack `*.csv` rule in `next.config.mjs`.
+  * `app/styles/kineticTokens.js` — `IOS_DARK` palette and `KINETIC_CSS` global style string.
+* **Environment (`.env.local`, gitignored):** `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `RESEND_API_KEY`, `NEXT_PUBLIC_APP_URL`.
 
 ---
 
 ## 3. Critical Next.js 16 & Environment Rules
 1. **No Unstable `Date.now()` in Client Prerender:** Because Next.js 16 `cacheComponents` is enabled, **never** call `Date.now()` directly inside a `useMemo` or top-level render body of a `'use client'` component. Always read `Date.now()` inside a `useEffect` (e.g., `stimulusNowMs`) or event handler.
-2. **Do Not Run `npm run build` in the Sandboxed Terminal:** On Windows, Antigravity's terminal sandbox blocks Next.js 16 Turbopack worker sockets from spawning. Make code edits directly and let the user run `npm run dev` / `npm run build` in their external PowerShell window unless terminal sandbox permissions are disabled.
+2. **Verifying Changes:** Run `npm run lint` after edits. `npm run build` is the full check (it surfaces prerender errors like the `Date.now()` rule above). If a sandboxed terminal blocks Turbopack worker sockets on Windows, ask the user to run the command in their own PowerShell window instead.
 
 ---
 
