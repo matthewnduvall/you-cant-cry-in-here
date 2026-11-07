@@ -397,10 +397,18 @@ export const createWorkoutSlot = ({
   history = [],
   incrementLbs = 0,
   restSeconds = 90,
-  userBodyweightLbs = 220
+  userBodyweightLbs = 220,
+  // Optional { [exerciseId]: estimated1RM } used only when the exercise has no logged history
+  // (e.g. converting a barbell lift's 1RM to a dumbbell equivalent after an equipment swap).
+  base1RMOverrides = null
 }) => {
   const uid = `slot_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
   const normCat = normalizeSlotCategory(category);
+  const resolveBase1RM = id => {
+    const override = Number(base1RMOverrides?.[id]) || 0;
+    if (override > 0 && getBestHistory1RM(id, history) <= 0) return override;
+    return getHistoricalCalculated1RM(id, history, oneRepMaxes);
+  };
 
   if (normCat === 'Superset') {
     const rawIds =
@@ -412,7 +420,7 @@ export const createWorkoutSlot = ({
     const cleanIds = [exA, exB];
 
     const setsByExercise = cleanIds.map(id => {
-      const calcMax = getHistoricalCalculated1RM(id, history, oneRepMaxes);
+      const calcMax = resolveBase1RM(id);
       return generateSetsForScheme(scheme, calcMax, 'Superset', id, incrementLbs, userBodyweightLbs);
     });
     return {
@@ -432,7 +440,7 @@ export const createWorkoutSlot = ({
   }
 
   const ex1 = EXERCISE_MAP[exerciseId] || EXERCISE_LIBRARY[0];
-  const calcMax1 = getHistoricalCalculated1RM(ex1.id, history, oneRepMaxes);
+  const calcMax1 = resolveBase1RM(ex1.id);
   const sets1 = generateSetsForScheme(scheme, calcMax1, normCat, ex1.id, incrementLbs, userBodyweightLbs);
 
   return {

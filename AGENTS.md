@@ -119,13 +119,14 @@ To keep agent edits fast and focused, views and state hooks are split into dedic
   * Schemes include `5x5`, `5x8`, `8x8`, `Pyramid`, **`Pyramid 1RM`** (last set is `1 Rep Max`, preceding sets are `Warmup`s ramping from $50\%$ to $85\%$ of 1RM), and `Reverse Pyramid`.
   * **Barbell Increment Multiplier:** When set to a barbell exercise (`equipment === 'Barbell'`), the progression increment is automatically multiplied by `2` (`getEffectiveIncrementForExercise`).
   * **Smart `RECALCULATE` Priority:** Ignores completed sets (`st.completed`). Prioritizes the last-edited field (`weight` adjusts reps; `reps` adjusts weight). If the final set is edited (e.g., changed to `1 Rep Max`), adjusts both weights and reps across incomplete sets so the final set is achievable (matching `Pyramid 1RM` when the last set is `1 Rep Max`).
+  * **Gym/Equipment Swap (`handleChangeGymSelection`):** Changing the `GYMS/EQUIPMENT` dropdown in the session/routine editor swaps every slot with no completed sets to its closest equivalent for that equipment (`findEquivalentExerciseForGym`, e.g. Barbell Bench Press → Dumbbell Bench Press). Weights come from the new exercise's history + increment, else the old 1RM converted by `convertEquivalent1RM` (dumbbell ≈ 0.65× barbell), stored on the slot as `estimated1RMs` so repeated swaps don't drift.
   * **Muscle Group Filters:** Includes an umbrella **`Legs`** filter matching all lower-body exercises (Thighs, Hips, Calves, Quadriceps, Hamstrings, Glutes, Adductors, Abductors).
 * **Save Confirmation Modal (`SaveConfirmModal`):**
   * Clicking `SAVE` opens a confirmation popup to confirm the workout/routine name and whether to share it with friends.
 
 ### C. History & Personal Records (`HistoryView.jsx` & `usePlateCalculator.js`)
 * **Personal Records Section (Placed Above History):**
-  * **Core 5 Default Exercises (`CORE_PR_EXERCISE_IDS`):** Defaults to **Barbell Bench Press**, **Barbell Back Squat**, **Barbell Deadlift**, **Barbell Military Overhead Press**, and **Chin-Up / Pull-Up** (synced with Onboarding Page 3 of 6), plus any user-added exercises (`customPrExerciseIds`). Never auto-populate `Object.keys(oneRepMaxes)` into the displayed list.
+  * **Core 4 Default Exercises (`CORE_PR_EXERCISE_IDS`):** Defaults to **Barbell Bench Press**, **Barbell Back Squat**, **Barbell Deadlift**, and **Barbell Military Overhead Press** (synced with Onboarding Page 3 of 6). Chin-ups/pull-ups are not defaults; they are bodyweight exercises (`ex.isBodyweight`, set from `computeIsBodyweight` in `exerciseLibrary.js`), plus any user-added exercises (`customPrExerciseIds`). Never auto-populate `Object.keys(oneRepMaxes)` into the displayed list.
   * **Strictly `TBD` Until Logged in History:** `getPersonalRecord1RM` derives Personal Records strictly from logged `history` (`getBestHistory1RM`). Unlogged exercises always show **`TBD ✎`** in red (`#FF3B30`).
   * **Logging PRs to History:** Entering a PR via `PlateCalculatorModal` (`mode: 'pr'`) or via the **`CALCULATE`** popup always creates a `PERSONAL RECORD` entry in `history` (using `prRecordDate` or today's date).
   * **`CALCULATE` Popup Interface:** Uses the same exercise slot editor interface as the New/Current Session page, replacing the `"RECALCULATE"` button with a bright green (`#30D158`) **`"CALCULATE 1RM"`** button.
@@ -140,6 +141,9 @@ To keep agent edits fast and focused, views and state hooks are split into dedic
   * When the invited user joins, both users automatically become friends.
 * **Friend Profiles (`ProfileView.jsx`):**
   * Never display a friend's email address—only display `@<username>`.
+  * PRs load directly from the friend's `user_profiles` row + `workout_history` (`fetchAthleteProfileSnapshot`), independent of how the friendship was recorded.
+  * Profile PR lists show the top 10 (heaviest first) with a `SEE ALL (<N>)` toggle.
+* **Footer:** Every view renders `Copyright © 2026 MaNoDuV LLC` at the bottom of the app column (`app/page.js`).
 * **Feedback Delivery (`FeedbackModal` & `app/api/feedback/route.js`):**
   * Prompts `ENTER YOUR FEEDBACK BELOW. IT WILL BE AUTOMATICALLY SENT WITH DIAGNOSTIC LOGS FROM THIS SESSION (<N> LOG EVENTS).`
   * Sends via `/api/feedback` + client-side `formsubmit.co/ajax/matthew.n.duvall@gmail.com`, and automatically triggers a pre-filled `mailto:matthew.n.duvall@gmail.com` fallback if active delivery is not confirmed.

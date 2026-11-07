@@ -225,7 +225,7 @@ export const parseExercisesCsv = rawCsv => {
       .map(s => s.trim())
       .filter(Boolean);
 
-    result.push({
+    const entry = {
       id,
       name,
       equipment,
@@ -236,7 +236,9 @@ export const parseExercisesCsv = rawCsv => {
       isPriority,
       default1RM,
       alternatives
-    });
+    };
+    entry.isBodyweight = computeIsBodyweight(entry);
+    result.push(entry);
   }
 
   return result;
@@ -369,8 +371,7 @@ export const CORE_PR_EXERCISE_IDS = [
   'barbell_bench_press',
   'barbell_back_squat',
   'barbell_deadlift',
-  'overhead_press',
-  'chin_ups'
+  'overhead_press'
 ];
 export const EXRX_CLASSES = ['Untrained', 'Novice', 'Intermediate', 'Advanced', 'Elite'];
 
@@ -522,11 +523,11 @@ export const getExRxCurrentClass = (liftId, current1RM, bodyweightLbs = 220, hei
   return matched;
 };
 
-export const isBodyweightExercise = exOrId => {
-  const ex = typeof exOrId === 'string' ? EXERCISE_MAP[exOrId] : exOrId;
+// Hoisted so parseExercisesCsv can tag `isBodyweight` while the library is being built.
+function computeIsBodyweight(ex) {
   if (!ex) return false;
   const eq = (ex.equipment || '').toLowerCase();
-  return (
+  if (
     eq.includes('bodyweight') ||
     eq.includes('body weight') ||
     eq.includes('isometric') ||
@@ -534,10 +535,116 @@ export const isBodyweightExercise = exOrId => {
     eq.includes('suspended') ||
     eq.includes('plyometric') ||
     eq.includes('stretch')
-  );
+  ) {
+    return true;
+  }
+  // Chin-ups / pull-ups move the athlete's own body (incl. partner/band assistance);
+  // cable, machine, and plate-weighted variants keep their external-load programming.
+  const isChinOrPullUp = /\b(chin|pull)[\s-]?ups?\b/i.test(ex.name || '');
+  return isChinOrPullUp && !/cable|lever|machine|weighted/.test(eq);
+}
+
+export const isBodyweightExercise = exOrId => {
+  const ex = typeof exOrId === 'string' ? EXERCISE_MAP[exOrId] : exOrId;
+  return computeIsBodyweight(ex);
 };
 
-export const ROUTINE_GYM_CATEGORIES = ['all', 'barbell', 'dumbbell', 'kettlebell', 'bodyweight'];
+// ---------------------------------------------------------------------------
+// Equipment-swap helpers: find the closest equivalent exercise for a new gym/equipment
+// selection, and convert a 1RM between equipment types.
+// ---------------------------------------------------------------------------
+
+const EQUIPMENT_NAME_WORDS =
+  /\b(barbell|dumbbells?|kettlebells?|cable|lever|smith|machine|ez|bar|bodyweight|weighted|plate|loaded|selectorized|landmine|sled|suspended|band|assisted|alternating|single|one|arm|isolateral)\b/g;
+
+const MOVEMENT_SYNONYMS = { military: 'shoulder', overhead: 'shoulder', rdl: 'romanian', curls: 'curl' };
+
+const movementTokens = name =>
+  new Set(
+    String(name || '')
+      .toLowerCase()
+      .replace(/\([^)]*\)/g, ' ')
+      .replace(/[^a-z\s-]/g, ' ')
+      .replace(/-/g, ' ')
+      .replace(EQUIPMENT_NAME_WORDS, ' ')
+      .split(/\s+/)
+      .filter(t => t.length > 1)
+      .map(t => MOVEMENT_SYNONYMS[t] || t)
+  );
+
+const overlapScore = (a, b) => {
+  if (!a.size || !b.size) return 0;
+  let shared = 0;
+  a.forEach(t => {
+    if (b.has(t)) shared += 1;
+  });
+  return shared / new Set([...a, ...b]).size;
+};
+
+/**
+ * Returns the id of the exercise most similar to `exerciseId` that fits the gym selection,
+ * the original id if it already fits, or null when nothing compatible targets the same muscles.
+ */
+export const findEquivalentExerciseForGym = (exerciseId, gymSelectionId, customGyms = [], excludeIds = []) => {
+  const source = EXERCISE_MAP[exerciseId];
+  if (!source) return null;
+  if (isExerciseCompatibleWithGymSelection(source, gymSelectionId, customGyms)) return source.id;
+
+  const sourceTokens = movementTokens(source.name);
+  const sourceMuscles = new Set(source.specificMuscles || []);
+  let best = null;
+  let bestScore = 0;
+
+  EXERCISE_LIBRARY.forEach(cand => {
+    if (cand.id === source.id || excludeIds.includes(cand.id)) return;
+    if (!isExerciseCompatibleWithGymSelection(cand, gymSelectionId, customGyms)) return;
+    const nameScore = overlapScore(sourceTokens, movementTokens(cand.name));
+    const sameGroup = cand.muscleGroup === source.muscleGroup;
+    // Cross-muscle-group matches must share a movement word (e.g. Deadlift → Romanian Deadlift).
+    if (!sameGroup && nameScore === 0) return;
+    let score = nameScore * 3 + (sameGroup ? 1 : 0);
+    score += overlapScore(sourceMuscles, new Set(cand.specificMuscles || []));
+    if (cand.category === source.category) score += 0.5;
+    if ((source.alternatives || []).includes(cand.id) || (cand.alternatives || []).includes(source.id)) {
+      score += 1;
+    }
+    if (cand.isPriority) score += 0.1;
+    if (score > bestScore) {
+      bestScore = score;
+      best = cand;
+    }
+  });
+
+  return best ? best.id : null;
+};
+
+// Relative loading vs. a barbell for the same movement (dumbbells ≈ 35% lower total load).
+const EQUIPMENT_LOAD_FACTORS = [
+  ['smith', 0.9],
+  ['barbell', 1],
+  ['dumbbell', 0.65],
+  ['kettlebell', 0.65],
+  ['cable', 0.75],
+  ['lever', 0.9],
+  ['machine', 0.9]
+];
+
+const getEquipmentLoadFactor = ex => {
+  const eq = (ex?.equipment || '').toLowerCase();
+  const match = EQUIPMENT_LOAD_FACTORS.find(([key]) => eq.includes(key));
+  return match ? match[1] : 1;
+};
+
+/** Converts a 1RM on one exercise to an estimated 1RM on an equivalent exercise. */
+export const convertEquivalent1RM = (fromExerciseId, toExerciseId, from1RM) => {
+  const fromEx = EXERCISE_MAP[fromExerciseId];
+  const toEx = EXERCISE_MAP[toExerciseId];
+  const base = Number(from1RM) || 0;
+  if (!fromEx || !toEx || base <= 0) return 0;
+  return roundTo5((base * getEquipmentLoadFactor(toEx)) / getEquipmentLoadFactor(fromEx));
+};
+
+export const ROUTINE_GYM_CATEGORIES =['all', 'barbell', 'dumbbell', 'kettlebell', 'bodyweight'];
 
 export const classifySingleExerciseGymCategory = exOrId => {
   const ex = typeof exOrId === 'string' ? EXERCISE_MAP[exOrId] : exOrId;
