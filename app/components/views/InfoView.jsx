@@ -71,26 +71,9 @@ export function InfoView({
         <IOSListRow isLast={true} colors={colors}>
           <div style={{ width: '100%', lineHeight: 1.5, fontSize: '14px', color: '#E0E0E0' }}>
             {/* 2.1 CROSS-DEVICE CLOUD SYNC */}
-            <div>
-              <p style={{ marginBottom: '4px' }}>
-                <strong style={{ color: 'var(--dp-color-accent)' }}>2.1 CROSS-DEVICE CLOUD SYNC:</strong> When signed in to your account, your workout history, personal records (1RMs), custom routines, gym equipment presets, active sessions, and settings automatically synchronize with Supabase Cloud so your training data seamlessly follows you across your phone, tablet, and computer.
-              </p>
-              <div style={stepBoxStyle}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
-                  <span style={{ fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', color: user ? '#30D158' : '#A0A0A0' }}>
-                    {user ? `SIGNED IN AS @${user.username}` : 'STATUS: OFFLINE / NOT SIGNED IN'}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => setCurrentView(user ? 'profile' : 'auth')}
-                    className="kinetic-btn"
-                    style={{ ...UI.pillBtn(Boolean(user)), padding: '6px 10px', fontSize: '11px' }}
-                  >
-                    {user ? 'PROFILE →' : 'SIGN IN / SYNC →'}
-                  </button>
-                </div>
-              </div>
-            </div>
+            <p style={{ marginBottom: '12px' }}>
+              <strong style={{ color: 'var(--dp-color-accent)' }}>2.1 CROSS-DEVICE CLOUD SYNC:</strong> When signed in to your account, your workout history, personal records (1RMs), custom routines, gym equipment presets, active sessions, and settings automatically synchronize with Supabase Cloud so your training data seamlessly follows you across your phone, tablet, and computer.
+            </p>
 
             {/* 2.2 ON-DEVICE RETENTION */}
             <p style={{ marginBottom: '12px' }}>

@@ -96,19 +96,26 @@ export async function POST(request) {
     }
 
     // 2. Record invite in Supabase public.friend_invites if configured
-    const supabaseUrl = (process.env.NEXT_PUBLIC_SUPABASE_URL || '').replace(/\/+$/, '');
-    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+    const supabaseUrl = (process.env.NEXT_PUBLIC_SUPABASE_URL || '')
+      .trim()
+      .replace(/\/rest\/v1\/?$/i, '')
+      .replace(/\/auth\/v1\/?$/i, '')
+      .replace(/\/+$/, '');
+    const supabaseAnonKey = (process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '').trim();
     if (supabaseUrl && supabaseAnonKey) {
       const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
       const validUserId = uuidRegex.test(String(inviterUserId || '')) ? inviterUserId : null;
+      const inviteHeaders = {
+        apikey: supabaseAnonKey,
+        'Content-Type': 'application/json',
+        Prefer: 'resolution=merge-duplicates'
+      };
+      if (supabaseAnonKey.startsWith('eyJ')) {
+        inviteHeaders.Authorization = `Bearer ${supabaseAnonKey}`;
+      }
       await fetch(`${supabaseUrl}/rest/v1/friend_invites`, {
         method: 'POST',
-        headers: {
-          apikey: supabaseAnonKey,
-          Authorization: `Bearer ${supabaseAnonKey}`,
-          'Content-Type': 'application/json',
-          Prefer: 'resolution=merge-duplicates'
-        },
+        headers: inviteHeaders,
         body: JSON.stringify({
           ...(validUserId ? { inviter_user_id: validUserId } : {}),
           inviter_username: senderHandle,

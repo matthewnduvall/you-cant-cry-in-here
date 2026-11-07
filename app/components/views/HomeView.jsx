@@ -217,10 +217,17 @@ export function HomeView({
     .slice(0, 40)
     .map(item => item.text);
 
-  const friendsTickerText =
+  const baseTickerText =
     sortedTickerEntries.length > 0
       ? sortedTickerEntries.join('   ///   ') + '   ///   '
       : 'ADD FRIENDS IN SOCIAL TO STREAM LIVE 1RM UPDATES   ///   ';
+
+  const repeatCount = Math.max(1, Math.ceil(90 / Math.max(1, baseTickerText.length)));
+  const friendsTickerText = baseTickerText.repeat(repeatCount);
+
+  // Constant linear character/pixel speed (~11.5 chars/sec, 1/4 of the previous 7s fixed-duration speed)
+  // Scales duration proportionally to total character length so speed never changes with entry count.
+  const marqueeDurationSec = Math.max(8, Math.round(friendsTickerText.length * 0.087 * 10) / 10);
 
   return (
     <div>
@@ -264,7 +271,13 @@ export function HomeView({
         <div style={{ flex: 1, overflow: 'hidden', padding: '8px 0' }}>
           <div
             className="kinetic-marquee-track"
-            style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase' }}
+            style={{
+              '--dp-marquee-duration': `${marqueeDurationSec}s`,
+              fontSize: '11px',
+              fontWeight: 800,
+              letterSpacing: '0.08em',
+              textTransform: 'uppercase'
+            }}
           >
             <span style={{ paddingRight: '32px' }}>{friendsTickerText}</span>
             <span aria-hidden="true" style={{ paddingRight: '32px' }}>{friendsTickerText}</span>

@@ -2,7 +2,7 @@
 
 import React, { useEffect } from 'react';
 import { IOSListSection, IOSListRow } from '../Primitives';
-import { CORE_PR_EXERCISE_IDS, EXERCISE_MAP } from '../../data/exerciseLibrary';
+import { CORE_PR_EXERCISE_IDS, EXERCISE_LIBRARY, EXERCISE_MAP } from '../../data/exerciseLibrary';
 import { getBestHistory1RM } from '../../utils/workoutEngine';
 import { resolveInviteFriendshipsForUser } from '../../utils/supabaseAuth';
 
@@ -40,42 +40,75 @@ export function ProfileView({
 
         const targetUname = (viewingFriendProfile.username || '').trim().toLowerCase();
         const targetEmail = (viewingFriendProfile.email || '').trim().toLowerCase();
-        const freshMatch = matchedFriends.find(
-          f =>
-            (targetUname && (f?.username || '').trim().toLowerCase() === targetUname) ||
-            (targetEmail && (f?.email || '').trim().toLowerCase() === targetEmail) ||
-            (viewingFriendProfile.id && String(f?.id) === String(viewingFriendProfile.id))
-        );
+        const targetEmailPrefix = targetEmail ? targetEmail.split('@')[0] : '';
 
-        if (freshMatch) {
+        const matchingEntries = matchedFriends.filter(f => {
+          if (!f) return false;
+          const fU = (f.username || '').trim().toLowerCase();
+          const fE = (f.email || '').trim().toLowerCase();
+          const fEPrefix = fE ? fE.split('@')[0] : '';
+          return (
+            (viewingFriendProfile.id && String(f.id) === String(viewingFriendProfile.id)) ||
+            (targetUname && (fU === targetUname || fEPrefix === targetUname)) ||
+            (targetEmail && fE === targetEmail) ||
+            (targetEmailPrefix && fU === targetEmailPrefix)
+          );
+        });
+
+        if (matchingEntries.length > 0) {
           const mergedPrs = { ...(viewingFriendProfile.prs || {}) };
-          Object.entries(freshMatch.prs || {}).forEach(([k, v]) => {
-            const num = Number(v) || 0;
-            if (num > (Number(mergedPrs[k]) || 0)) {
-              mergedPrs[k] = num;
-            }
+          const historyMap = new Map();
+          (viewingFriendProfile.history || []).forEach(w => {
+            if (w && w.id) historyMap.set(w.id, w);
           });
+          const routinesMap = new Map();
+          (viewingFriendProfile.sharedRoutines || []).forEach(r => {
+            if (r && r.key) routinesMap.set(r.key, r);
+          });
+
+          let latestMeta = {};
+          matchingEntries.forEach(entry => {
+            latestMeta = { ...latestMeta, ...entry };
+            Object.entries(entry.prs || {}).forEach(([k, v]) => {
+              const num = Number(v) || 0;
+              if (num > (Number(mergedPrs[k]) || 0)) {
+                mergedPrs[k] = num;
+              }
+            });
+            (entry.history || []).forEach(w => {
+              if (w && w.id && !historyMap.has(w.id)) {
+                historyMap.set(w.id, w);
+              }
+            });
+            (entry.sharedRoutines || []).forEach(r => {
+              if (r && r.key && !routinesMap.has(r.key)) {
+                routinesMap.set(r.key, r);
+              }
+            });
+          });
+
+          const mergedHistory = Array.from(historyMap.values()).sort(
+            (a, b) => new Date(b?.startedAt || 0).getTime() - new Date(a?.startedAt || 0).getTime()
+          );
+
           const updatedFriend = {
             ...viewingFriendProfile,
-            ...freshMatch,
+            ...latestMeta,
+            username: viewingFriendProfile.username || latestMeta.username,
             prs: mergedPrs,
-            history:
-              Array.isArray(freshMatch.history) && freshMatch.history.length > 0
-                ? freshMatch.history
-                : viewingFriendProfile.history || [],
-            sharedRoutines:
-              Array.isArray(freshMatch.sharedRoutines) && freshMatch.sharedRoutines.length > 0
-                ? freshMatch.sharedRoutines
-                : viewingFriendProfile.sharedRoutines || []
+            history: mergedHistory,
+            sharedRoutines: Array.from(routinesMap.values())
           };
           setViewingFriendProfile?.(updatedFriend);
           setFriendsList?.(prev =>
             (Array.isArray(prev) ? prev : []).map(f => {
               const fU = (f?.username || '').trim().toLowerCase();
               const fE = (f?.email || '').trim().toLowerCase();
+              const fEPrefix = fE ? fE.split('@')[0] : '';
               if (
-                (targetUname && fU === targetUname) ||
-                (targetEmail && fE === targetEmail)
+                (targetUname && (fU === targetUname || fEPrefix === targetUname)) ||
+                (targetEmail && fE === targetEmail) ||
+                (targetEmailPrefix && fU === targetEmailPrefix)
               ) {
                 return updatedFriend;
               }
@@ -109,17 +142,19 @@ export function ProfileView({
     ? liveFriendMatch
     : user || { username: 'guest', email: 'Not Signed In' };
 
-  const profHistory = isFriend ? liveFriendMatch?.history || [] : history || [];
+  const profHistory = isFriend
+    ? (liveFriendMatch?.history?.length ? liveFriendMatch.history : viewingFriendProfile?.history) || []
+    : history || [];
   const rawProfPRs = isFriend
     ? { ...(viewingFriendProfile?.prs || {}), ...(liveFriendMatch?.prs || {}) }
     : oneRepMaxes || {};
 
   const profPRs = { ...rawProfPRs };
   if (Array.isArray(profHistory) && profHistory.length > 0) {
-    CORE_PR_EXERCISE_IDS.forEach(exId => {
-      const bestHist = getBestHistory1RM(exId, profHistory);
-      if (bestHist > (Number(profPRs[exId]) || 0)) {
-        profPRs[exId] = bestHist;
+    EXERCISE_LIBRARY.forEach(ex => {
+      const bestHist = getBestHistory1RM(ex.id, profHistory);
+      if (bestHist > (Number(profPRs[ex.id]) || 0)) {
+        profPRs[ex.id] = bestHist;
       }
     });
   }
@@ -130,6 +165,30 @@ export function ProfileView({
 
   return (
     <div style={{ paddingTop: '14px' }}>
+      {isFriend && (
+        <div style={{ padding: '0 var(--dp-spacing-gutter)', marginBottom: '12px' }}>
+          <button
+            type="button"
+            onClick={() => setCurrentView('social')}
+            className="kinetic-btn"
+            style={{
+              padding: '8px 14px',
+              backgroundColor: '#161618',
+              color: '#FFFFFF',
+              border: '2px solid var(--dp-color-rule)',
+              fontSize: '12px',
+              fontWeight: 800,
+              textTransform: 'uppercase',
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px'
+            }}
+          >
+            ← BACK TO SOCIAL
+          </button>
+        </div>
+      )}
       <IOSListSection header="ATHLETE IDENTITY" colors={colors}>
         <IOSListRow isLast={isFriend || !user} colors={colors}>
           <div>

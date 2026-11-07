@@ -314,31 +314,44 @@ export function useCloudAndStorageSync({
 
           if (Array.isArray(cloud.friendsList) && cloud.friendsList.length > 0) {
             setFriendsList(prev => {
-              const byKey = new Map();
-              ensureDefaultMattFriend(prev).forEach(f => {
-                const k = String(f.username || f.email || f.id).toLowerCase();
-                byKey.set(k, f);
-              });
+              const list = [...ensureDefaultMattFriend(prev)];
               cloud.friendsList.forEach(f => {
                 if (!f) return;
-                const k = String(f.username || f.email || f.id).toLowerCase();
-                const existing = byKey.get(k);
-                byKey.set(
-                  k,
-                  existing
-                    ? {
-                        ...existing,
-                        ...f,
-                        prs: mergeFriendPrs(existing.prs, f.prs),
-                        history:
-                          Array.isArray(existing.history) && existing.history.length > 0
-                            ? existing.history
-                            : f.history || []
-                      }
-                    : f
-                );
+                const fU = (f.username || '').trim().toLowerCase();
+                const fE = (f.email || '').trim().toLowerCase();
+                const fEPrefix = fE ? fE.split('@')[0] : '';
+                const existingIdx = list.findIndex(item => {
+                  if (!item) return false;
+                  const iU = (item.username || '').trim().toLowerCase();
+                  const iE = (item.email || '').trim().toLowerCase();
+                  const iEPrefix = iE ? iE.split('@')[0] : '';
+                  return (
+                    (f.id && item.id && String(f.id) === String(item.id)) ||
+                    (fU && (iU === fU || iEPrefix === fU)) ||
+                    (fE && iE === fE) ||
+                    (fEPrefix && iU === fEPrefix)
+                  );
+                });
+                if (existingIdx >= 0) {
+                  const existing = list[existingIdx];
+                  list[existingIdx] = {
+                    ...existing,
+                    ...f,
+                    prs: mergeFriendPrs(existing.prs, f.prs),
+                    history:
+                      Array.isArray(existing.history) && existing.history.length > 0
+                        ? existing.history
+                        : f.history || [],
+                    sharedRoutines:
+                      Array.isArray(existing.sharedRoutines) && existing.sharedRoutines.length > 0
+                        ? existing.sharedRoutines
+                        : f.sharedRoutines || []
+                  };
+                } else {
+                  list.push(f);
+                }
               });
-              return ensureDefaultMattFriend(Array.from(byKey.values()));
+              return ensureDefaultMattFriend(list);
             });
           }
 
@@ -445,31 +458,44 @@ export function useCloudAndStorageSync({
 
         if (Array.isArray(matchedFriends) && matchedFriends.length > 0) {
           setFriendsList(prev => {
-            const byKey = new Map();
-            ensureDefaultMattFriend(prev).forEach(f => {
-              const k = String(f.username || f.email || f.id).toLowerCase();
-              byKey.set(k, f);
-            });
+            const list = [...ensureDefaultMattFriend(prev)];
             matchedFriends.forEach(f => {
               if (!f) return;
-              const k = String(f.username || f.email || f.id).toLowerCase();
-              const existing = byKey.get(k);
-              byKey.set(
-                k,
-                existing
-                  ? {
-                      ...existing,
-                      ...f,
-                      prs: mergeFriendPrs(existing.prs, f.prs),
-                      history:
-                        Array.isArray(f.history) && f.history.length > 0
-                          ? f.history
-                          : existing.history || []
-                    }
-                  : f
-              );
+              const fU = (f.username || '').trim().toLowerCase();
+              const fE = (f.email || '').trim().toLowerCase();
+              const fEPrefix = fE ? fE.split('@')[0] : '';
+              const existingIdx = list.findIndex(item => {
+                if (!item) return false;
+                const iU = (item.username || '').trim().toLowerCase();
+                const iE = (item.email || '').trim().toLowerCase();
+                const iEPrefix = iE ? iE.split('@')[0] : '';
+                return (
+                  (f.id && item.id && String(f.id) === String(item.id)) ||
+                  (fU && (iU === fU || iEPrefix === fU)) ||
+                  (fE && iE === fE) ||
+                  (fEPrefix && iU === fEPrefix)
+                );
+              });
+              if (existingIdx >= 0) {
+                const existing = list[existingIdx];
+                list[existingIdx] = {
+                  ...existing,
+                  ...f,
+                  prs: mergeFriendPrs(existing.prs, f.prs),
+                  history:
+                    Array.isArray(f.history) && f.history.length > 0
+                      ? f.history
+                      : existing.history || [],
+                  sharedRoutines:
+                    Array.isArray(f.sharedRoutines) && f.sharedRoutines.length > 0
+                      ? f.sharedRoutines
+                      : existing.sharedRoutines || []
+                };
+              } else {
+                list.push(f);
+              }
             });
-            return ensureDefaultMattFriend(Array.from(byKey.values()));
+            return ensureDefaultMattFriend(list);
           });
         }
 
@@ -494,6 +520,7 @@ export function useCloudAndStorageSync({
     isStorageHydrated,
     user?.id,
     user?.email,
+    cloudPullReadyTick,
     `${outgoingInvites?.length || 0}_${friendsList?.length || 0}`
   ]);
 

@@ -23,6 +23,26 @@ export const getSupabaseConfig = () => {
   };
 };
 
+/**
+ * Builds headers compatible with both legacy JWT anon keys (`eyJ...`) and
+ * Supabase publishable API keys (`sb_publishable_...`).
+ * When `anonKey` is a publishable key and no user JWT `accessToken` is present,
+ * omitting `Authorization: Bearer sb_publishable_...` allows Supabase's gateway
+ * to inject the `anon` JWT role instead of PostgREST rejecting a 1-part token.
+ */
+export const buildSupabaseHeaders = (anonKey, accessToken = null, extraHeaders = {}) => {
+  const headers = {
+    apikey: anonKey,
+    ...extraHeaders
+  };
+  if (accessToken && String(accessToken).startsWith('eyJ')) {
+    headers.Authorization = `Bearer ${accessToken}`;
+  } else if (anonKey && String(anonKey).startsWith('eyJ')) {
+    headers.Authorization = `Bearer ${anonKey}`;
+  }
+  return headers;
+};
+
 export const getLocalRegisteredAccounts = () => {
   if (typeof window === 'undefined') return {};
   try {
@@ -265,10 +285,7 @@ export async function signInUserAccount({ identifier, username, email, password 
       const lookupRes = await fetch(
         `${baseUrl}/rest/v1/user_profiles?username=ilike.${encodeURIComponent(rawIdentifier)}&select=email,username`,
         {
-          headers: {
-            apikey: anonKey,
-            Authorization: `Bearer ${anonKey}`
-          }
+          headers: buildSupabaseHeaders(anonKey)
         }
       );
       if (lookupRes.ok) {
@@ -297,11 +314,7 @@ export async function signInUserAccount({ identifier, username, email, password 
   if (isConfigured && resolvedEmail) {
     const res = await fetch(`${baseUrl}/auth/v1/token?grant_type=password`, {
       method: 'POST',
-      headers: {
-        apikey: anonKey,
-        Authorization: `Bearer ${anonKey}`,
-        'Content-Type': 'application/json'
-      },
+      headers: buildSupabaseHeaders(anonKey, null, { 'Content-Type': 'application/json' }),
       body: JSON.stringify({
         email: resolvedEmail,
         password: cleanPass
@@ -319,45 +332,53 @@ export async function signInUserAccount({ identifier, username, email, password 
         localMatch?.username ||
         resolvedEmail.split('@')[0];
 
-      // Fetch username from public.user_profiles if available, or backfill row on sign-in
+      // Fetch username from public.user_profiles if available, and sync metadata PRs/history into user_profiles
       if (accessToken && authUser.id) {
         try {
           const profRes = await fetch(
-            `${baseUrl}/rest/v1/user_profiles?id=eq.${authUser.id}&select=username,email`,
+            `${baseUrl}/rest/v1/user_profiles?id=eq.${authUser.id}&select=id,username,email,one_rep_maxes,settings`,
             {
-              headers: {
-                apikey: anonKey,
-                Authorization: `Bearer ${accessToken}`
-              }
+              headers: buildSupabaseHeaders(anonKey, accessToken)
             }
           );
-          let hasExistingProfile = false;
+          let existingProfileRow = null;
           if (profRes.ok) {
             const rows = await profRes.json();
             if (Array.isArray(rows) && rows.length > 0) {
-              hasExistingProfile = true;
+              existingProfileRow = rows[0];
               if (rows[0]?.username) {
                 resolvedUsername = rows[0].username;
               }
             }
           }
-          if (!hasExistingProfile) {
-            await fetch(`${baseUrl}/rest/v1/user_profiles`, {
-              method: 'POST',
-              headers: {
-                apikey: anonKey,
-                Authorization: `Bearer ${accessToken}`,
-                'Content-Type': 'application/json',
-                Prefer: 'resolution=merge-duplicates'
-              },
-              body: JSON.stringify({
-                id: authUser.id,
-                email: (authUser.email || resolvedEmail).toLowerCase(),
-                username: resolvedUsername,
-                updated_at: new Date().toISOString()
-              })
-            }).catch(() => {});
-          }
+          const metaSnap = authUser.user_metadata?.yccih_cloud_state_v3 || null;
+          const mergedMaxes = {
+            ...(metaSnap?.oneRepMaxes || {}),
+            ...(existingProfileRow?.one_rep_maxes || {})
+          };
+          const mergedSettings = {
+            ...(metaSnap?.settings || {}),
+            ...(existingProfileRow?.settings || {}),
+            oneRepMaxes: mergedMaxes,
+            recentHistory:
+              Array.isArray(metaSnap?.history) && metaSnap.history.length > 0
+                ? metaSnap.history.slice(0, 30)
+                : existingProfileRow?.settings?.recentHistory || []
+          };
+          await fetch(`${baseUrl}/rest/v1/user_profiles?on_conflict=id`, {
+            method: 'POST',
+            headers: buildSupabaseHeaders(anonKey, accessToken, {
+              'Content-Type': 'application/json',
+              Prefer: 'resolution=merge-duplicates'
+            }),
+            body: JSON.stringify({
+              id: authUser.id,
+              email: (authUser.email || resolvedEmail).toLowerCase(),
+              username: resolvedUsername,
+              one_rep_maxes: mergedMaxes,
+              settings: mergedSettings
+            })
+          }).catch(() => {});
         } catch {
           // ignore profile lookup error
         }
@@ -633,11 +654,7 @@ export async function getValidSupabaseAccessToken(user) {
         try {
           const res = await fetch(`${baseUrl}/auth/v1/token?grant_type=refresh_token`, {
             method: 'POST',
-            headers: {
-              apikey: anonKey,
-              Authorization: `Bearer ${anonKey}`,
-              'Content-Type': 'application/json'
-            },
+            headers: buildSupabaseHeaders(anonKey, null, { 'Content-Type': 'application/json' }),
             body: JSON.stringify({ refresh_token: saved.refreshToken })
           });
           if (res.ok) {
@@ -672,11 +689,7 @@ export async function getValidSupabaseAccessToken(user) {
         try {
           const res = await fetch(`${baseUrl}/auth/v1/token?grant_type=password`, {
             method: 'POST',
-            headers: {
-              apikey: anonKey,
-              Authorization: `Bearer ${anonKey}`,
-              'Content-Type': 'application/json'
-            },
+            headers: buildSupabaseHeaders(anonKey, null, { 'Content-Type': 'application/json' }),
             body: JSON.stringify({ email: loginEmail, password: localMatch.password })
           });
           if (res.ok) {
@@ -721,10 +734,7 @@ export async function fetchCloudStateForUser(user) {
   const accessToken = await getValidSupabaseAccessToken(user);
   if (!accessToken) return null;
 
-  const headers = {
-    apikey: anonKey,
-    Authorization: `Bearer ${accessToken}`
-  };
+  const headers = buildSupabaseHeaders(anonKey, accessToken);
 
   let metadataSnapshot = null;
   let profileRow = null;
@@ -740,7 +750,10 @@ export async function fetchCloudStateForUser(user) {
         }
       }),
     user.id
-      ? fetch(`${baseUrl}/rest/v1/user_profiles?id=eq.${encodeURIComponent(user.id)}&select=*`, { headers })
+      ? fetch(
+          `${baseUrl}/rest/v1/user_profiles?id=eq.${encodeURIComponent(user.id)}&select=id,username,email,one_rep_maxes,settings`,
+          { headers }
+        )
           .then(r => (r.ok ? r.json() : null))
           .then(rows => {
             if (Array.isArray(rows) && rows[0]) profileRow = rows[0];
@@ -748,7 +761,7 @@ export async function fetchCloudStateForUser(user) {
       : Promise.resolve(),
     user.id
       ? fetch(
-          `${baseUrl}/rest/v1/workout_history?user_id=eq.${encodeURIComponent(user.id)}&order=started_at.desc`,
+          `${baseUrl}/rest/v1/workout_history?user_id=eq.${encodeURIComponent(user.id)}&select=id,user_id,title,preset_used,started_at,slots&order=started_at.desc`,
           { headers }
         )
           .then(r => (r.ok ? r.json() : null))
@@ -758,7 +771,7 @@ export async function fetchCloudStateForUser(user) {
       : Promise.resolve(),
     user.id
       ? fetch(
-          `${baseUrl}/rest/v1/routines?user_id=eq.${encodeURIComponent(user.id)}&order=updated_at.desc`,
+          `${baseUrl}/rest/v1/routines?user_id=eq.${encodeURIComponent(user.id)}&select=key,user_id,author_username,label,is_shared,slots`,
           { headers }
         )
           .then(r => (r.ok ? r.json() : null))
@@ -772,6 +785,48 @@ export async function fetchCloudStateForUser(user) {
     return null;
   }
 
+  // If metadataSnapshot has PRs or history not yet reflected in public.user_profiles, immediately backfill user_profiles
+  if (metadataSnapshot && user.id) {
+    const metaMaxes = metadataSnapshot.oneRepMaxes || {};
+    const profMaxes = profileRow?.one_rep_maxes || {};
+    const mergedMaxes = { ...metaMaxes, ...profMaxes };
+    Object.entries(metaMaxes).forEach(([k, v]) => {
+      if ((Number(v) || 0) > (Number(mergedMaxes[k]) || 0)) {
+        mergedMaxes[k] = Number(v);
+      }
+    });
+    const metaHist = Array.isArray(metadataSnapshot.history) ? metadataSnapshot.history : [];
+    const profHist = Array.isArray(profileRow?.settings?.recentHistory)
+      ? profileRow.settings.recentHistory
+      : [];
+    const needsBackfill =
+      Object.keys(mergedMaxes).length > Object.keys(profMaxes).length ||
+      (metaHist.length > 0 && profHist.length === 0);
+
+    if (needsBackfill) {
+      const backfillSettings = {
+        ...(metadataSnapshot.settings || {}),
+        ...(profileRow?.settings || {}),
+        oneRepMaxes: mergedMaxes,
+        recentHistory: metaHist.length > 0 ? metaHist.slice(0, 30) : profHist
+      };
+      fetch(`${baseUrl}/rest/v1/user_profiles?on_conflict=id`, {
+        method: 'POST',
+        headers: buildSupabaseHeaders(anonKey, accessToken, {
+          'Content-Type': 'application/json',
+          Prefer: 'resolution=merge-duplicates'
+        }),
+        body: JSON.stringify({
+          id: String(user.id),
+          email: (user.email || '').trim().toLowerCase() || undefined,
+          username: user.username || undefined,
+          one_rep_maxes: mergedMaxes,
+          settings: backfillSettings
+        })
+      }).catch(() => {});
+    }
+  }
+
   const mappedHistoryFromTable = Array.isArray(historyRows)
     ? historyRows.map(row => ({
         id: row.id,
@@ -779,10 +834,10 @@ export async function fetchCloudStateForUser(user) {
         loadedRoutineTitle: row.preset_used || 'MANUAL',
         gymId: row.gym_id || '',
         startedAt: row.started_at,
-        updatedAt: row.updated_at,
+        updatedAt: row.updated_at || row.started_at,
         defaultRestSeconds: row.default_rest_seconds || 90,
-        isComplete: Boolean(row.is_complete),
-        verifiedByUser: Boolean(row.verified_by_user),
+        isComplete: row.is_complete !== undefined ? Boolean(row.is_complete) : true,
+        verifiedByUser: row.verified_by_user !== undefined ? Boolean(row.verified_by_user) : true,
         slots: Array.isArray(row.slots) ? row.slots : []
       }))
     : [];
@@ -810,17 +865,20 @@ export async function fetchCloudStateForUser(user) {
     : [];
 
   return {
-    updatedAt: profileRow?.updated_at || metadataSnapshot?.updatedAt || null,
+    updatedAt: profileRow?.updated_at || profileRow?.settings?.updatedAt || metadataSnapshot?.updatedAt || null,
     oneRepMaxes: {
       ...(metadataSnapshot?.oneRepMaxes || {}),
+      ...(profileRow?.settings?.oneRepMaxes || {}),
       ...(profileRow?.one_rep_maxes || {})
     },
     history:
       mappedHistoryFromTable.length > 0
         ? mappedHistoryFromTable
-        : Array.isArray(metadataSnapshot?.history)
-          ? metadataSnapshot.history
-          : [],
+        : Array.isArray(profileRow?.settings?.recentHistory) && profileRow.settings.recentHistory.length > 0
+          ? profileRow.settings.recentHistory
+          : Array.isArray(metadataSnapshot?.history)
+            ? metadataSnapshot.history
+            : [],
     activeSession:
       profileRow?.settings?.activeSession !== undefined
         ? profileRow.settings.activeSession
@@ -840,9 +898,11 @@ export async function fetchCloudStateForUser(user) {
     gyms:
       Array.isArray(profileRow?.gyms) && profileRow.gyms.length > 0
         ? profileRow.gyms
-        : Array.isArray(metadataSnapshot?.gyms)
-          ? metadataSnapshot.gyms
-          : [],
+        : Array.isArray(profileRow?.settings?.gyms) && profileRow.settings.gyms.length > 0
+          ? profileRow.settings.gyms
+          : Array.isArray(metadataSnapshot?.gyms)
+            ? metadataSnapshot.gyms
+            : [],
     friendsList:
       Array.isArray(profileRow?.settings?.friendsList) && profileRow.settings.friendsList.length > 0
         ? profileRow.settings.friendsList
@@ -868,20 +928,15 @@ export async function pushCloudStateForUser(user, payload) {
   if (!isConfigured) return false;
 
   const accessToken = await getValidSupabaseAccessToken(user);
-  const bearerToken = accessToken || anonKey;
 
-  const jsonHeaders = {
-    apikey: anonKey,
-    Authorization: `Bearer ${bearerToken}`,
+  const jsonHeaders = buildSupabaseHeaders(anonKey, accessToken, {
     'Content-Type': 'application/json',
     Prefer: 'resolution=merge-duplicates'
-  };
+  });
 
-  const patchHeaders = {
-    apikey: anonKey,
-    Authorization: `Bearer ${bearerToken}`,
+  const patchHeaders = buildSupabaseHeaders(anonKey, accessToken, {
     'Content-Type': 'application/json'
-  };
+  });
 
   const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   let resolvedUserId = uuidRegex.test(String(user.id || '')) ? String(user.id) : null;
@@ -893,11 +948,9 @@ export async function pushCloudStateForUser(user, payload) {
     tasks.push(
       fetch(`${baseUrl}/auth/v1/user`, {
         method: 'PUT',
-        headers: {
-          apikey: anonKey,
-          Authorization: `Bearer ${accessToken}`,
+        headers: buildSupabaseHeaders(anonKey, accessToken, {
           'Content-Type': 'application/json'
-        },
+        }),
         body: JSON.stringify({
           data: {
             username: user.username,
@@ -917,10 +970,7 @@ export async function pushCloudStateForUser(user, payload) {
         ? `email=ilike.${encodeURIComponent(cleanEmail)}`
         : `username=ilike.${encodeURIComponent(cleanUname)}`;
       const lookupRes = await fetch(`${baseUrl}/rest/v1/user_profiles?${filter}&select=id`, {
-        headers: {
-          apikey: anonKey,
-          Authorization: `Bearer ${bearerToken}`
-        }
+        headers: buildSupabaseHeaders(anonKey, accessToken)
       });
       if (lookupRes.ok) {
         const rows = await lookupRes.json();
@@ -935,19 +985,22 @@ export async function pushCloudStateForUser(user, payload) {
 
   const profileSettingsObj = {
     ...(payload.settings || {}),
+    schemaVersion: payload.schemaVersion || 3,
+    updatedAt: payload.updatedAt || new Date().toISOString(),
     oneRepMaxes: payload.oneRepMaxes || {},
+    gyms: payload.gyms || [],
     activeSession: payload.activeSession || null,
     friendsList: payload.friendsList || [],
     outgoingInvites: payload.outgoingInvites || [],
-    recentHistory: Array.isArray(payload.history) ? payload.history.slice(0, 30) : []
+    savedRoutines: payload.savedRoutines || [],
+    sharedRoutines: payload.sharedRoutines || [],
+    recentHistory: Array.isArray(payload.history) ? payload.history.slice(0, 50) : []
   };
 
+  // Send only guaranteed core columns (one_rep_maxes, settings) so PostgREST never rejects with PGRST204
   const profileUpdateBody = {
-    schema_version: payload.schemaVersion || 3,
     one_rep_maxes: payload.oneRepMaxes || {},
-    settings: profileSettingsObj,
-    gyms: payload.gyms || [],
-    updated_at: payload.updatedAt || new Date().toISOString()
+    settings: profileSettingsObj
   };
 
   if (resolvedUserId) {
@@ -973,20 +1026,14 @@ export async function pushCloudStateForUser(user, payload) {
       })
     );
 
-    // 3. Sync workout_history rows
+    // 3. Sync workout_history rows (using guaranteed core columns)
     if (Array.isArray(payload.history) && payload.history.length > 0) {
       const historyRows = payload.history.map(w => ({
         id: String(w.id),
         user_id: resolvedUserId,
-        schema_version: 3,
         title: w.title || 'Workout Session',
         preset_used: w.loadedRoutineTitle || 'MANUAL',
-        gym_id: w.gymId || '',
         started_at: w.startedAt || new Date().toISOString(),
-        updated_at: w.updatedAt || new Date().toISOString(),
-        default_rest_seconds: Number(w.defaultRestSeconds) || 90,
-        is_complete: Boolean(w.isComplete),
-        verified_by_user: Boolean(w.verifiedByUser),
         slots: Array.isArray(w.slots) ? w.slots : []
       }));
       tasks.push(
@@ -998,7 +1045,7 @@ export async function pushCloudStateForUser(user, payload) {
       );
     }
 
-    // 4. Sync routines rows (saved & shared)
+    // 4. Sync routines rows (saved & shared, using guaranteed core columns)
     const allRoutines = [
       ...(Array.isArray(payload.savedRoutines)
         ? payload.savedRoutines.map(r => ({ ...r, isShared: false }))
@@ -1014,9 +1061,7 @@ export async function pushCloudStateForUser(user, payload) {
         author_username: r.author || user.username || 'athlete',
         label: r.label || 'Custom Routine',
         is_shared: Boolean(r.isShared),
-        schema_version: 3,
-        slots: Array.isArray(r.slots) ? r.slots : [],
-        updated_at: new Date().toISOString()
+        slots: Array.isArray(r.slots) ? r.slots : []
       }));
       tasks.push(
         fetch(`${baseUrl}/rest/v1/routines?on_conflict=key`, {
@@ -1134,12 +1179,10 @@ export async function sendFriendRequestToAthlete(user, targetAthlete) {
   const { baseUrl, anonKey, isConfigured } = getSupabaseConfig();
   if (isConfigured) {
     const accessToken = await getValidSupabaseAccessToken(user);
-    const headers = {
-      apikey: anonKey,
-      Authorization: `Bearer ${accessToken || anonKey}`,
+    const headers = buildSupabaseHeaders(anonKey, accessToken, {
       'Content-Type': 'application/json',
       Prefer: 'resolution=merge-duplicates'
-    };
+    });
 
     try {
       const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -1149,7 +1192,7 @@ export async function sendFriendRequestToAthlete(user, targetAthlete) {
       if (!requesterUuid || !addresseeUuid) {
         const profRes = await fetch(
           `${baseUrl}/rest/v1/user_profiles?select=id,username,email`,
-          { headers: { apikey: anonKey, Authorization: `Bearer ${accessToken || anonKey}` } }
+          { headers: buildSupabaseHeaders(anonKey, accessToken) }
         );
         if (profRes.ok) {
           const rows = await profRes.json();
@@ -1216,11 +1259,9 @@ export async function acceptFriendRequestFromAthlete(user, requesterAthlete) {
   if (isConfigured) {
     const accessToken = await getValidSupabaseAccessToken(user);
     if (accessToken) {
-      const headers = {
-        apikey: anonKey,
-        Authorization: `Bearer ${accessToken}`,
+      const headers = buildSupabaseHeaders(anonKey, accessToken, {
         'Content-Type': 'application/json'
-      };
+      });
       try {
         if (requesterAthlete.friendshipId) {
           await fetch(
@@ -1260,13 +1301,13 @@ export async function resolveInviteFriendshipsForUser(
   currentFriendsList = []
 ) {
   const incomingRequests = [];
-  const matchedFriends = [];
+  const rawMatchedFriends = [];
   const resolvedInviteEmails = [];
 
   const currentEmail = (user?.email || '').trim().toLowerCase();
   const currentUsername = (user?.username || '').trim().toLowerCase();
   if (!currentEmail && !currentUsername) {
-    return { incomingRequests, matchedFriends, resolvedInviteEmails };
+    return { incomingRequests, matchedFriends: [], resolvedInviteEmails };
   }
 
   const inviteMatchers = (Array.isArray(outgoingInvites) ? outgoingInvites : [])
@@ -1290,7 +1331,8 @@ export async function resolveInviteFriendshipsForUser(
         (rId && fId === rId) ||
         (u && (fU === u || (fEPrefix && fEPrefix === u))) ||
         (e && fE === e) ||
-        (ePrefix && fU === ePrefix)
+        (ePrefix && fU === ePrefix) ||
+        (u && fU && (ePrefix.startsWith(fU) || u.startsWith(fU) || fU.startsWith(u)))
       );
     });
   };
@@ -1322,7 +1364,7 @@ export async function resolveInviteFriendshipsForUser(
       const friendUname = isSentByMe ? aUname : rUname;
       const friendEmail = isSentByMe ? aEmail : rEmail;
       const friendId = isSentByMe ? req.addresseeId : req.requesterId;
-      matchedFriends.push({
+      rawMatchedFriends.push({
         id: friendId || `friend_${(friendUname || friendEmail).toLowerCase()}`,
         username: friendUname || friendEmail.split('@')[0],
         email: friendEmail,
@@ -1338,20 +1380,21 @@ export async function resolveInviteFriendshipsForUser(
   const { baseUrl, anonKey, isConfigured } = getSupabaseConfig();
   if (isConfigured) {
     const accessToken = user ? await getValidSupabaseAccessToken(user) : null;
-    const authHeaders = {
-      apikey: anonKey,
-      Authorization: `Bearer ${accessToken || anonKey}`
-    };
-    const anonHeaders = {
+    const primaryHeaders = buildSupabaseHeaders(anonKey, accessToken);
+    const anonOnlyHeaders = buildSupabaseHeaders(anonKey, null);
+    const legacyBearerAnonHeaders = {
       apikey: anonKey,
       Authorization: `Bearer ${anonKey}`
     };
 
     const fetchWithAnonFallback = async url => {
       try {
-        const res = await fetch(url, { headers: authHeaders });
-        if (res.status === 401 && accessToken) {
-          return await fetch(url, { headers: anonHeaders });
+        let res = await fetch(url, { headers: primaryHeaders });
+        if (!res.ok && accessToken) {
+          res = await fetch(url, { headers: anonOnlyHeaders });
+        }
+        if (!res.ok && !anonOnlyHeaders.Authorization) {
+          res = await fetch(url, { headers: legacyBearerAnonHeaders });
         }
         return res;
       } catch {
@@ -1440,35 +1483,54 @@ export async function resolveInviteFriendshipsForUser(
         });
       }
 
+      const scanSetArrayIntoPrs = (exId, setsArr, targetPrs) => {
+        if (!exId || !Array.isArray(setsArr)) return;
+        setsArr.forEach(st => {
+          const sw = Number(st?.weight) || 0;
+          if (sw <= 0) return;
+          const sr = Math.max(1, Number(st?.reps) || 1);
+          const est = sr === 1 ? sw : Math.round(sw * (1 + sr / 30));
+          if (est > (Number(targetPrs[exId]) || 0)) {
+            targetPrs[exId] = est;
+          }
+        });
+      };
+
       const scanSlotsIntoPrs = (slotsList, targetPrs) => {
         (Array.isArray(slotsList) ? slotsList : []).forEach(slot => {
-          const exId = slot?.exerciseId;
-          if (!exId) return;
-          (slot?.sets || []).forEach(st => {
-            const sw = Number(st?.weight) || 0;
-            if (sw <= 0) return;
-            const sr = Math.max(1, Number(st?.reps) || 1);
-            const est = sr === 1 ? sw : Math.round(sw * (1 + sr / 30));
-            if (est > (Number(targetPrs[exId]) || 0)) {
-              targetPrs[exId] = est;
-            }
-          });
+          if (slot?.exerciseId) {
+            scanSetArrayIntoPrs(slot.exerciseId, slot?.sets, targetPrs);
+          }
+          if (slot?.secondaryExerciseId) {
+            scanSetArrayIntoPrs(slot.secondaryExerciseId, slot?.secondarySets, targetPrs);
+          }
+          if (Array.isArray(slot?.supersetExerciseIds) && Array.isArray(slot?.supersetSetsByExercise)) {
+            slot.supersetExerciseIds.forEach((supExId, idx) => {
+              scanSetArrayIntoPrs(supExId, slot.supersetSetsByExercise[idx], targetPrs);
+            });
+          }
         });
       };
 
       const buildFriendObjFromProfile = (row, friendshipId = null) => {
         const uname = (row?.username || '').trim() || (row?.email || '').split('@')[0];
         const email = (row?.email || '').trim().toLowerCase();
+        const sharedFromSettings = Array.isArray(row?.settings?.sharedRoutines)
+          ? row.settings.sharedRoutines
+          : [];
         const shared =
           routinesByUserId.get(row?.id) ||
           routinesByUsername.get(uname.toLowerCase()) ||
-          [];
+          sharedFromSettings;
         const settingsHistory = Array.isArray(row?.settings?.recentHistory)
           ? row.settings.recentHistory
           : [];
+        const embeddedMetaHistory = Array.isArray(row?.settings?.yccih_cloud_state_v3?.history)
+          ? row.settings.yccih_cloud_state_v3.history
+          : [];
         const tableHistory = historyByUserId.get(row?.id) || [];
         const historyMap = new Map();
-        [...tableHistory, ...settingsHistory].forEach(w => {
+        [...tableHistory, ...settingsHistory, ...embeddedMetaHistory].forEach(w => {
           if (w && w.id && !historyMap.has(w.id)) {
             historyMap.set(w.id, w);
           }
@@ -1490,13 +1552,22 @@ export async function resolveInviteFriendshipsForUser(
 
         mergePrSource(row?.one_rep_maxes);
         mergePrSource(row?.settings?.oneRepMaxes);
+        mergePrSource(row?.settings?.prs);
+        mergePrSource(row?.settings?.yccih_cloud_state_v3?.oneRepMaxes);
         mergePrSource(row?.settings?.goals?.customGoalWeights);
 
         rowHistory.forEach(w => scanSlotsIntoPrs(w?.slots, mergedPrs));
         if (row?.settings?.activeSession?.slots) {
           scanSlotsIntoPrs(row.settings.activeSession.slots, mergedPrs);
         }
-        const userRoutines = allRoutinesByUserId.get(row?.id) || shared;
+        const settingsSavedRoutines = Array.isArray(row?.settings?.savedRoutines)
+          ? row.settings.savedRoutines
+          : [];
+        const userRoutines = [
+          ...(allRoutinesByUserId.get(row?.id) || []),
+          ...shared,
+          ...settingsSavedRoutines
+        ];
         userRoutines.forEach(r => scanSlotsIntoPrs(r?.slots, mergedPrs));
 
         return {
@@ -1521,7 +1592,7 @@ export async function resolveInviteFriendshipsForUser(
           const friendObj = buildFriendObjFromProfile(otherProfile, fr.id);
 
           if (fr.status === 'accepted') {
-            matchedFriends.push(friendObj);
+            rawMatchedFriends.push(friendObj);
             if (friendObj.email) resolvedInviteEmails.push(friendObj.email);
             if (friendObj.username) resolvedInviteEmails.push(friendObj.username.toLowerCase());
           } else if (fr.status === 'pending' && !isRequester) {
@@ -1549,7 +1620,7 @@ export async function resolveInviteFriendshipsForUser(
             if (senderProfile) {
               const friendObj = buildFriendObjFromProfile(senderProfile);
               if (inv.status === 'accepted' || isAlreadyInFriends(friendObj.username, friendObj.email)) {
-                matchedFriends.push(friendObj);
+                rawMatchedFriends.push(friendObj);
               } else {
                 incomingRequests.push(friendObj);
               }
@@ -1564,7 +1635,7 @@ export async function resolveInviteFriendshipsForUser(
             );
             if (targetProfile) {
               const friendObj = buildFriendObjFromProfile(targetProfile);
-              matchedFriends.push(friendObj);
+              rawMatchedFriends.push(friendObj);
               if (friendObj.email) resolvedInviteEmails.push(friendObj.email);
               if (friendObj.username) resolvedInviteEmails.push(friendObj.username.toLowerCase());
             }
@@ -1623,7 +1694,7 @@ export async function resolveInviteFriendshipsForUser(
           ) {
             // Mutual or accepted friend — refresh live PRs, recentHistory, and shared routines from profile
             const friendObj = buildFriendObjFromProfile(row);
-            matchedFriends.push(friendObj);
+            rawMatchedFriends.push(friendObj);
             if (currentInvitedThisRow) {
               if (rowEmail) resolvedInviteEmails.push(rowEmail);
               if (rowUnameLower) resolvedInviteEmails.push(rowUnameLower);
@@ -1648,9 +1719,69 @@ export async function resolveInviteFriendshipsForUser(
     }
   }
 
+  // Deduplicate and merge all matchedFriends so local stub entries (`prs: {}`) never shadow rich Supabase profile data
+  const dedupedFriends = [];
+  rawMatchedFriends.forEach(item => {
+    if (!item) return;
+    const itemU = (item.username || '').trim().toLowerCase();
+    const itemE = (item.email || '').trim().toLowerCase();
+    const itemEPrefix = itemE ? itemE.split('@')[0] : '';
+    const existingIdx = dedupedFriends.findIndex(existing => {
+      const exU = (existing.username || '').trim().toLowerCase();
+      const exE = (existing.email || '').trim().toLowerCase();
+      const exEPrefix = exE ? exE.split('@')[0] : '';
+      return (
+        (item.id && existing.id && String(item.id) === String(existing.id)) ||
+        (itemU && (exU === itemU || exEPrefix === itemU)) ||
+        (itemE && exE === itemE) ||
+        (itemEPrefix && exU === itemEPrefix)
+      );
+    });
+
+    if (existingIdx >= 0) {
+      const existing = dedupedFriends[existingIdx];
+      const mergedPrs = { ...(existing.prs || {}) };
+      Object.entries(item.prs || {}).forEach(([k, v]) => {
+        const num = Number(v) || 0;
+        if (num > (Number(mergedPrs[k]) || 0)) {
+          mergedPrs[k] = num;
+        }
+      });
+      const historyMap = new Map();
+      [...(existing.history || []), ...(item.history || [])].forEach(w => {
+        if (w && w.id && !historyMap.has(w.id)) {
+          historyMap.set(w.id, w);
+        }
+      });
+      const routinesMap = new Map();
+      [...(existing.sharedRoutines || []), ...(item.sharedRoutines || [])].forEach(r => {
+        if (r && r.key && !routinesMap.has(r.key)) {
+          routinesMap.set(r.key, r);
+        }
+      });
+      dedupedFriends[existingIdx] = {
+        ...existing,
+        ...item,
+        id:
+          existing.id && !String(existing.id).startsWith('friend_')
+            ? existing.id
+            : item.id || existing.id,
+        username: item.username || existing.username,
+        email: item.email || existing.email,
+        prs: mergedPrs,
+        history: Array.from(historyMap.values()).sort(
+          (a, b) => new Date(b?.startedAt || 0).getTime() - new Date(a?.startedAt || 0).getTime()
+        ),
+        sharedRoutines: Array.from(routinesMap.values())
+      };
+    } else {
+      dedupedFriends.push(item);
+    }
+  });
+
   return {
     incomingRequests,
-    matchedFriends,
+    matchedFriends: dedupedFriends,
     resolvedInviteEmails
   };
 }
@@ -1690,15 +1821,17 @@ export async function searchAthletesByQuery(query, currentUser = null) {
   const { baseUrl, anonKey, isConfigured } = getSupabaseConfig();
   if (isConfigured) {
     const accessToken = currentUser ? await getValidSupabaseAccessToken(currentUser) : null;
-    const headers = {
-      apikey: anonKey,
-      Authorization: `Bearer ${accessToken || anonKey}`
-    };
     try {
-      const res = await fetch(
+      let res = await fetch(
         `${baseUrl}/rest/v1/user_profiles?select=id,username,email,one_rep_maxes,settings`,
-        { headers }
+        { headers: buildSupabaseHeaders(anonKey, accessToken) }
       );
+      if (!res.ok && accessToken) {
+        res = await fetch(
+          `${baseUrl}/rest/v1/user_profiles?select=id,username,email,one_rep_maxes,settings`,
+          { headers: buildSupabaseHeaders(anonKey, null) }
+        );
+      }
       if (res.ok) {
         const rows = await res.json();
         if (Array.isArray(rows)) {
@@ -1710,13 +1843,38 @@ export async function searchAthletesByQuery(query, currentUser = null) {
             if (curUsername && uname.toLowerCase() === curUsername) return;
             if (uname.toLowerCase().includes(q) || email.includes(q)) {
               const key = (uname || email).toLowerCase();
+              const mergedPrs = {
+                ...(row?.settings?.oneRepMaxes || {}),
+                ...(row?.one_rep_maxes || {})
+              };
+              const recentHist = Array.isArray(row?.settings?.recentHistory)
+                ? row.settings.recentHistory
+                : [];
+              recentHist.forEach(w => {
+                (w?.slots || []).forEach(slot => {
+                  const exId = slot?.exerciseId;
+                  if (!exId) return;
+                  (slot?.sets || []).forEach(st => {
+                    const sw = Number(st?.weight) || 0;
+                    if (sw <= 0) return;
+                    const sr = Math.max(1, Number(st?.reps) || 1);
+                    const est = sr === 1 ? sw : Math.round(sw * (1 + sr / 30));
+                    if (est > (Number(mergedPrs[exId]) || 0)) {
+                      mergedPrs[exId] = est;
+                    }
+                  });
+                });
+              });
               resultsByKey.set(key, {
                 id: row.id || `friend_${uname.toLowerCase()}`,
                 username: uname || email.split('@')[0],
                 email,
                 bodyweightLbs: row?.settings?.bodyMetrics?.bodyweightLbs || 200,
-                prs: row.one_rep_maxes || {},
-                sharedRoutines: []
+                prs: mergedPrs,
+                history: recentHist,
+                sharedRoutines: Array.isArray(row?.settings?.sharedRoutines)
+                  ? row.settings.sharedRoutines
+                  : []
               });
             }
           });
