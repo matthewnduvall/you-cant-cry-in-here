@@ -13,7 +13,10 @@ import {
 import {
   fetchCloudStateForUser,
   pushCloudStateForUser,
-  syncFriendshipsForUser
+  syncFriendshipsForUser,
+  signOutUser,
+  purgeLegacyStoredPasswords,
+  SESSION_EXPIRED_EVENT
 } from '../utils/supabaseAuth';
 import { getInitial1RMs, getBestHistory1RM } from '../utils/workoutEngine';
 import { EXERCISE_LIBRARY, normalizeSlotCategory } from '../data/exerciseLibrary';
@@ -88,6 +91,9 @@ export function useCloudAndStorageSync({
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
+    // Older builds kept plain-text passwords on the device; delete them before anything else
+    purgeLegacyStoredPasswords();
+
     const hydrated = loadHydratedAppState();
     if (hydrated) {
       setUser(hydrated.user !== undefined ? hydrated.user : null);
@@ -137,7 +143,7 @@ export function useCloudAndStorageSync({
       const params = new URLSearchParams(hash.replace(/^#/, ''));
       const token = params.get('access_token');
       if (token) {
-        setRecoveryAccessToken(token);
+        setRecoveryAccessToken({ accessToken: token, refreshToken: params.get('refresh_token') || null });
         setCurrentView('auth');
         window.history.replaceState(null, '', window.location.pathname + window.location.search);
       }
@@ -187,6 +193,18 @@ export function useCloudAndStorageSync({
       }
     }
   }, []);
+
+  // 1b. Session expiry: when Supabase rejects the refresh token (revoked/expired session), sign out on
+  // this device. Local workout data stays; the athlete signs in again to resume cloud sync.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const onExpired = () => {
+      setUser(null);
+      setAuthMode('login');
+    };
+    window.addEventListener(SESSION_EXPIRED_EVENT, onExpired);
+    return () => window.removeEventListener(SESSION_EXPIRED_EVENT, onExpired);
+  }, [setUser, setAuthMode]);
 
   // 2. Cross-Device Cloud Pull & Merge on Sign-In / Startup
   useEffect(() => {
@@ -531,6 +549,7 @@ export function useCloudAndStorageSync({
   };
 
   const handleResetToDemoDefaults = () => {
+    signOutUser();
     const freshMaxes = getInitial1RMs();
     setUser(null);
     setOneRepMaxes(freshMaxes);

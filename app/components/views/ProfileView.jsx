@@ -4,7 +4,7 @@ import React, { useEffect, useState } from 'react';
 import { IOSListSection, IOSListRow } from '../Primitives';
 import { CORE_PR_EXERCISE_IDS, EXERCISE_LIBRARY, EXERCISE_MAP } from '../../data/exerciseLibrary';
 import { getBestHistory1RM } from '../../utils/workoutEngine';
-import { fetchAthleteProfileSnapshot, syncFriendshipsForUser } from '../../utils/supabaseAuth';
+import { fetchAthleteProfileSnapshot, syncFriendshipsForUser, signOutUser } from '../../utils/supabaseAuth';
 import { isSameFriend, applyFriendshipSync } from '../../utils/storageMigration';
 
 const PROFILE_PR_LIMIT = 10;
@@ -170,6 +170,7 @@ export function ProfileView({
             <button
               type="button"
               onClick={() => {
+                signOutUser();
                 setUser(null);
                 setCurrentView('home');
               }}
