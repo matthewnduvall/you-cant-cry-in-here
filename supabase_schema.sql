@@ -467,3 +467,36 @@ DROP TRIGGER IF EXISTS on_user_profile_created_friendships ON public.user_profil
 CREATE TRIGGER on_user_profile_created_friendships
   AFTER INSERT ON public.user_profiles
   FOR EACH ROW EXECUTE FUNCTION public.handle_new_profile_friendships();
+
+-- 12. Account deletion: the signed-in athlete permanently deletes their account and every row that
+-- belongs to them or mentions their email. Runs as the database owner because removing the sign-in
+-- account (auth.users) isn't allowed for normal users. Each table is cleared explicitly so this works
+-- even where an older table version lacks ON DELETE CASCADE.
+CREATE OR REPLACE FUNCTION public.delete_my_account()
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+SECURITY DEFINER SET search_path = public
+AS $$
+DECLARE
+  uid UUID := auth.uid();
+  my_email TEXT;
+BEGIN
+  IF uid IS NULL THEN
+    RAISE EXCEPTION 'Not signed in';
+  END IF;
+  SELECT lower(email) INTO my_email FROM auth.users WHERE id = uid;
+
+  DELETE FROM public.friend_invites
+  WHERE inviter_user_id = uid OR (my_email IS NOT NULL AND lower(invited_email) = my_email);
+  DELETE FROM public.friendships WHERE requester_id = uid OR addressee_id = uid;
+  DELETE FROM public.workout_history WHERE user_id = uid;
+  DELETE FROM public.routines WHERE user_id = uid;
+  DELETE FROM public.user_profiles WHERE id = uid;
+  -- Removes the sign-in account; Supabase cascades its sessions, refresh tokens and identities
+  DELETE FROM auth.users WHERE id = uid;
+  RETURN TRUE;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.delete_my_account() FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.delete_my_account() TO authenticated;

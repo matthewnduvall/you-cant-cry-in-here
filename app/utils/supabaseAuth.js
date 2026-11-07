@@ -1411,3 +1411,39 @@ export async function searchAthletesByQuery(query, currentUser = null) {
     .filter(row => isUuid(row?.id) && row.id !== currentUser.id)
     .map(row => ({ id: row.id, username: row.username || 'athlete', prs: {}, sharedRoutines: [] }));
 }
+
+/**
+ * Permanently deletes the signed-in athlete's account: the delete_my_account database function
+ * removes their profile, workout history, routines, friendships, invites and sign-in account.
+ * On success this device also forgets the session and the account. Returns { ok, error }.
+ */
+export async function deleteMyAccount(user) {
+  if (!user?.email) return { ok: false, error: 'NOT SIGNED IN.' };
+  const { isConfigured } = getSupabaseConfig();
+
+  if (isConfigured) {
+    if (!isUuid(user.id)) return { ok: false, error: 'SIGN IN AGAIN, THEN RETRY.' };
+    const res = await authedRequest(user, '/rest/v1/rpc/delete_my_account', { method: 'POST', body: {} });
+    if (!res.ok) {
+      return {
+        ok: false,
+        error:
+          res.status === 401
+            ? 'YOUR SESSION EXPIRED. SIGN IN AGAIN, THEN RETRY.'
+            : 'COULD NOT DELETE YOUR ACCOUNT. CHECK YOUR CONNECTION AND TRY AGAIN.'
+      };
+    }
+  }
+
+  clearSupabaseSessionTokens();
+  if (typeof window !== 'undefined') {
+    try {
+      const accounts = getLocalRegisteredAccounts();
+      delete accounts[user.email.trim().toLowerCase()];
+      window.localStorage.setItem(LOCAL_ACCOUNTS_KEY, JSON.stringify(accounts));
+    } catch {
+      // ignore storage errors
+    }
+  }
+  return { ok: true };
+}

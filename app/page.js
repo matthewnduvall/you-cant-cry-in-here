@@ -199,7 +199,8 @@ export default function App() {
   const {
     handleExportBackupJSON,
     handleImportBackupJSON,
-    handleResetToDemoDefaults
+    handleResetToDemoDefaults,
+    handleDeleteAccount
   } = useCloudAndStorageSync({
     isStorageHydrated,
     setIsStorageHydrated,
@@ -718,6 +719,9 @@ export default function App() {
               sharedRoutines={sharedRoutines}
               openPlateCalculatorForPR={openPlateCalculatorForPR}
               handleOpenPreviewRoutine={handleOpenPreviewRoutine}
+              setDeleteConfirmTarget={setDeleteConfirmTarget}
+              onDeleteAccount={handleDeleteAccount}
+              appendSessionLog={appendSessionLog}
             />
           )}
 
