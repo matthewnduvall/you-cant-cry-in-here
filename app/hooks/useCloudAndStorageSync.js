@@ -6,6 +6,7 @@ import {
   CURRENT_SCHEMA_VERSION,
   DEFAULT_MATT_FRIEND,
   ensureDefaultMattFriend,
+  mergeFriendsIntoList,
   normalizeWorkoutFromStorage,
   normalizeSlotFromStorage,
   loadHydratedAppState
@@ -78,21 +79,13 @@ export function useCloudAndStorageSync({
   shareStatsWithFriends,
   setShareStatsWithFriends,
   shareRoutinesWithFriends,
-  setShareRoutinesWithFriends
+  setShareRoutinesWithFriends,
+  removedFriends = [],
+  setRemovedFriends
 }) {
   const cloudSyncReadyForUserKeyRef = useRef(null);
   const [cloudPullReadyTick, setCloudPullReadyTick] = useState(0);
 
-  const mergeFriendPrs = (prsA = {}, prsB = {}) => {
-    const out = { ...(prsA || {}) };
-    Object.entries(prsB || {}).forEach(([k, v]) => {
-      const num = Number(v) || 0;
-      if (num > (Number(out[k]) || 0)) {
-        out[k] = num;
-      }
-    });
-    return out;
-  };
 
   // 1. Client-Side LocalStorage Hydration, Recovery Hash & Invite Link Detection
   useEffect(() => {
@@ -109,7 +102,9 @@ export function useCloudAndStorageSync({
       if (hydrated.savedRoutines) setSavedRoutines(hydrated.savedRoutines);
       if (hydrated.sharedRoutines) setSharedRoutines(hydrated.sharedRoutines);
       if (hydrated.gyms) setGyms(hydrated.gyms);
-      setFriendsList(ensureDefaultMattFriend(hydrated.friendsList));
+      const hydratedRemoved = hydrated.settings?.social?.removedFriends || [];
+      setRemovedFriends?.(hydratedRemoved);
+      setFriendsList(ensureDefaultMattFriend(hydrated.friendsList, hydratedRemoved));
       if (hydrated.pendingIncomingRequests) setPendingIncomingRequests(hydrated.pendingIncomingRequests);
       if (hydrated.outgoingInvites) setOutgoingInvites(hydrated.outgoingInvites);
       if (hydrated.settings) {
@@ -177,7 +172,7 @@ export function useCloudAndStorageSync({
 
       if (hydrated?.user) {
         setFriendsList(prev => {
-          const list = ensureDefaultMattFriend(prev);
+          const list = ensureDefaultMattFriend(prev, hydrated.settings?.social?.removedFriends);
           const exists = list.some(
             f => (f.username || '').toLowerCase() === inviteFrom.toLowerCase()
           );
@@ -312,47 +307,17 @@ export function useCloudAndStorageSync({
             });
           }
 
+          const cloudRemovedFriends = Array.isArray(cloud.settings?.social?.removedFriends)
+            ? cloud.settings.social.removedFriends
+            : null;
+          if (cloudRemovedFriends) setRemovedFriends?.(cloudRemovedFriends);
+          const effectiveRemoved = cloudRemovedFriends || removedFriends;
           if (Array.isArray(cloud.friendsList) && cloud.friendsList.length > 0) {
-            setFriendsList(prev => {
-              const list = [...ensureDefaultMattFriend(prev)];
-              cloud.friendsList.forEach(f => {
-                if (!f) return;
-                const fU = (f.username || '').trim().toLowerCase();
-                const fE = (f.email || '').trim().toLowerCase();
-                const fEPrefix = fE ? fE.split('@')[0] : '';
-                const existingIdx = list.findIndex(item => {
-                  if (!item) return false;
-                  const iU = (item.username || '').trim().toLowerCase();
-                  const iE = (item.email || '').trim().toLowerCase();
-                  const iEPrefix = iE ? iE.split('@')[0] : '';
-                  return (
-                    (f.id && item.id && String(f.id) === String(item.id)) ||
-                    (fU && (iU === fU || iEPrefix === fU)) ||
-                    (fE && iE === fE) ||
-                    (fEPrefix && iU === fEPrefix)
-                  );
-                });
-                if (existingIdx >= 0) {
-                  const existing = list[existingIdx];
-                  list[existingIdx] = {
-                    ...existing,
-                    ...f,
-                    prs: mergeFriendPrs(existing.prs, f.prs),
-                    history:
-                      Array.isArray(existing.history) && existing.history.length > 0
-                        ? existing.history
-                        : f.history || [],
-                    sharedRoutines:
-                      Array.isArray(existing.sharedRoutines) && existing.sharedRoutines.length > 0
-                        ? existing.sharedRoutines
-                        : f.sharedRoutines || []
-                  };
-                } else {
-                  list.push(f);
-                }
-              });
-              return ensureDefaultMattFriend(list);
-            });
+            setFriendsList(prev =>
+              mergeFriendsIntoList(prev, cloud.friendsList, effectiveRemoved, { preferIncoming: false })
+            );
+          } else if (cloudRemovedFriends) {
+            setFriendsList(prev => ensureDefaultMattFriend(prev, cloudRemovedFriends));
           }
 
           if (Array.isArray(cloud.outgoingInvites) && cloud.outgoingInvites.length > 0) {
@@ -457,46 +422,9 @@ export function useCloudAndStorageSync({
         }
 
         if (Array.isArray(matchedFriends) && matchedFriends.length > 0) {
-          setFriendsList(prev => {
-            const list = [...ensureDefaultMattFriend(prev)];
-            matchedFriends.forEach(f => {
-              if (!f) return;
-              const fU = (f.username || '').trim().toLowerCase();
-              const fE = (f.email || '').trim().toLowerCase();
-              const fEPrefix = fE ? fE.split('@')[0] : '';
-              const existingIdx = list.findIndex(item => {
-                if (!item) return false;
-                const iU = (item.username || '').trim().toLowerCase();
-                const iE = (item.email || '').trim().toLowerCase();
-                const iEPrefix = iE ? iE.split('@')[0] : '';
-                return (
-                  (f.id && item.id && String(f.id) === String(item.id)) ||
-                  (fU && (iU === fU || iEPrefix === fU)) ||
-                  (fE && iE === fE) ||
-                  (fEPrefix && iU === fEPrefix)
-                );
-              });
-              if (existingIdx >= 0) {
-                const existing = list[existingIdx];
-                list[existingIdx] = {
-                  ...existing,
-                  ...f,
-                  prs: mergeFriendPrs(existing.prs, f.prs),
-                  history:
-                    Array.isArray(f.history) && f.history.length > 0
-                      ? f.history
-                      : existing.history || [],
-                  sharedRoutines:
-                    Array.isArray(f.sharedRoutines) && f.sharedRoutines.length > 0
-                      ? f.sharedRoutines
-                      : existing.sharedRoutines || []
-                };
-              } else {
-                list.push(f);
-              }
-            });
-            return ensureDefaultMattFriend(list);
-          });
+          setFriendsList(prev =>
+            mergeFriendsIntoList(prev, matchedFriends, removedFriends, { preferIncoming: true })
+          );
         }
 
         if (Array.isArray(resolvedInviteEmails) && resolvedInviteEmails.length > 0) {
@@ -569,7 +497,7 @@ export function useCloudAndStorageSync({
             },
             stimulus: { greenDays: stimulusGreenDays, yellowDays: stimulusYellowDays },
             routinePreferences,
-            social: { shareStatsWithFriends, shareRoutinesWithFriends },
+            social: { shareStatsWithFriends, shareRoutinesWithFriends, removedFriends },
             selectedGymId
           }
         };
@@ -611,6 +539,7 @@ export function useCloudAndStorageSync({
     routinePreferences,
     shareStatsWithFriends,
     shareRoutinesWithFriends,
+    removedFriends,
     selectedGymId,
     cloudPullReadyTick
   ]);
@@ -652,6 +581,7 @@ export function useCloudAndStorageSync({
           if (rehydrated.sharedRoutines) setSharedRoutines(rehydrated.sharedRoutines);
           if (rehydrated.gyms) setGyms(rehydrated.gyms);
           if (rehydrated.friendsList) setFriendsList(rehydrated.friendsList);
+          setRemovedFriends?.(rehydrated.settings.social.removedFriends || []);
           setUserBodyweightLbs(rehydrated.settings.bodyMetrics.bodyweightLbs);
           setUserHeightFeet(rehydrated.settings.bodyMetrics.heightFeet);
           setUserHeightInches(rehydrated.settings.bodyMetrics.heightInches);
@@ -685,6 +615,7 @@ export function useCloudAndStorageSync({
     setSharedRoutines([]);
     setGyms([]);
     setFriendsList([DEFAULT_MATT_FRIEND]);
+    setRemovedFriends?.([]);
     setPendingIncomingRequests([]);
     setOutgoingInvites([]);
     setUserBodyweightLbs(220);

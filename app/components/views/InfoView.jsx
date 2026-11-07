@@ -3,6 +3,7 @@
 import React from 'react';
 import { UI } from '../../styles/kineticTokens';
 import { IOSListSection, IOSListRow } from '../Primitives';
+import { Button } from '../Controls';
 
 export function InfoView({
   colors,
@@ -114,31 +115,28 @@ export function InfoView({
               </p>
               <div style={{ ...stepBoxStyle, marginBottom: 0 }}>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-                  <button
-                    type="button"
+                  <Button
+                    variant="secondary"
                     onClick={handleExportBackupJSON}
-                    className="kinetic-btn"
-                    style={{ ...UI.secondaryBtnCenter, padding: '10px 8px', fontSize: '11px', color: 'var(--dp-color-accent)' }}
+                    style={{ padding: '10px 8px', fontSize: '11px', color: 'var(--dp-color-accent)' }}
                   >
                     EXPORT .JSON ↓
-                  </button>
-                  <button
-                    type="button"
+                  </Button>
+                  <Button
+                    variant="secondary"
                     onClick={() => importBackupInputRef?.current?.click()}
-                    className="kinetic-btn"
-                    style={{ ...UI.secondaryBtnCenter, padding: '10px 8px', fontSize: '11px' }}
+                    style={{ padding: '10px 8px', fontSize: '11px' }}
                   >
                     IMPORT .JSON ↑
-                  </button>
+                  </Button>
                 </div>
-                <button
-                  type="button"
+                <Button
+                  variant="secondary"
                   onClick={handleResetToDemoDefaults}
-                  className="kinetic-btn"
-                  style={{ ...UI.secondaryBtnCenter, padding: '8px', fontSize: '11px', color: '#FF3B30' }}
+                  style={{ padding: '8px', fontSize: '11px', color: '#FF3B30' }}
                 >
                   CLEAR &amp; RESET ALL LOCAL DATA ↺
-                </button>
+                </Button>
               </div>
             </div>
           </div>
@@ -146,14 +144,9 @@ export function InfoView({
       </IOSListSection>
 
       <div style={UI.gutterWrap}>
-        <button
-          type="button"
-          onClick={() => setCurrentView('home')}
-          className="kinetic-btn"
-          style={UI.primaryBtnCenter}
-        >
+        <Button variant="primary" onClick={() => setCurrentView('home')}>
           RETURN TO HOME →
-        </button>
+        </Button>
       </div>
     </div>
   );

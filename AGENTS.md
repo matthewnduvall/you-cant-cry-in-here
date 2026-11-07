@@ -48,13 +48,17 @@ To keep agent edits fast and focused, views and state hooks are split into dedic
   * `app/components/views/LeaderboardView.jsx` — `BIG 3 TOTAL`, `BIG 3 NORMALIZED` (`Total / BW` literal ratio + averaged Big 3 standing), `OVERHEAD PRESS NORMALIZED` (`OHP / BW`), and `MOST IMPROVED` (`Delta(High - Low) / BW` literal ratio) leaderboards.
   * `app/components/views/SocialView.jsx` — `INVITE FRIEND VIA EMAIL` (prompts email with beta code `imnotcrying` and join link), `PENDING EMAIL INVITES`, athlete search, incoming requests, and friends list.
   * `app/components/views/ProfileView.jsx` — User & Friend profile view (friend profiles hide email addresses and only show `@username`, PRs, and shared routines).
-  * `app/components/views/OnboardingView.jsx` — `04 / ONBOARDING` 6-step paged wizard (sent to first-time users after account creation/login, with `SKIP →`, `BACK`, `NEXT`, `START →`, and a 1RM Scheme/Sets/Reps Converter popup on Page 3).
+  * `app/components/views/OnboardingView.jsx` — `04 / ONBOARDING` 6-step paged wizard (sent to first-time users after account creation/login, with `SKIP →`, `BACK`, `NEXT`, `START →`, and the shared `OneRepMaxCalculatorModal` on Page 3).
   * `app/components/views/InfoView.jsx` — `05 / INFO` documentation of the app's 1RM logic, automatic scheme conversions, gym/equipment & muscle group filters, and Data Policies.
   * `app/components/views/SettingsView.jsx` — `06 / SETTINGS` body metrics, stimulus thresholds, routine preferences, social sharing toggles, and data backup controls.
   * `app/components/views/AuthView.jsx` — Sign In, Sign Up (with beta code `imnotcrying` and invite banner), and Forgot Password recovery; routes new/first-time logins to `onboarding`.
 * **Modals & Primitives (`app/components/`):**
-  * `app/components/Modals.jsx` — `DeleteConfirmModal`, `AddSlotModal`, `PlateCalculatorModal`, `SetValueEditorModal`, `SaveConfirmModal`, `HistoricalEditConfirmModal`, and `FeedbackModal`.
+  * `app/components/Modals.jsx` — `DeleteConfirmModal` (generic targets may pass `title`/`verb`/`confirmLabel`/`onConfirm`), `AddSlotModal`, `PlateCalculatorModal` (set targets may pass `onApplyCustom`), `SetValueEditorModal` (targets may pass `onApply`), `SaveConfirmModal`, `HistoricalEditConfirmModal`, and `FeedbackModal`.
+  * `app/components/SlotEditor.jsx` — **The one exercise slot editor** (header with category/muscle/scheme/exercise pickers, set rows with Type/LAST/INC/CURRENT/REPS/✓/✕, add-set and action buttons). Set values are edited through the shared pop-ups via callbacks (`onEditSetValue`, `onEditWeight`, ...), so each host decides where edits are written. Used by `RoutineEditorView` and `OneRepMaxCalculatorModal`; don't build another set-row UI.
+  * `app/components/OneRepMaxCalculatorModal.jsx` — 1RM calculator pop-up (SlotEditor + PR date + live `ESTIMATED 1 REP MAX` + green `CALCULATE 1RM`). Used by History Personal Records and Onboarding Page 3; hosts log the PR with `buildPersonalRecordHistoryEntry` (`workoutEngine.js`).
   * `app/components/Primitives.jsx` — `SFSymbol`, `IOSListSection`, `IOSListRow`, and `SessionRestTimerBar`.
+  * `app/components/Controls.jsx` — **Shared controls; use these instead of hand-styled `<button>`/`<select>`:** `Button` (`variant`: `primary`, `primary-row`, `secondary`, `dashed`, `success`, `danger`, `toggle`, `drawer`), `SegmentButton` (segmented choices in a shared-border grid; `activeColor` `accent`/`ink`), `DeleteButton` (red ✕; `solid` for list rows, `outline` + `fill` for editor rows), `CloseButton` (orange modal ✕), `DragNumberBadge` (grippy drag handle), and `GymSelect` (`variant`: `field`, `cell`, `tile`). Pass `style` only for one-off sizing.
+  * `app/styles/kineticTokens.js` — `IOS_DARK`, `KINETIC_CSS`, `UI` style tokens, and the shared-border tokens `SHARED_CELL_BORDER` / `SHARED_GROUP_OUTER` (import these; don't redefine them per file).
 * **Utilities, Data & API (`app/utils/`, `app/data/`, `app/api/`):**
   * `app/data/exerciseLibrary.js` — Exercise catalog, schemes (`5x5`, `5x8`, `5x8w`, `Pyramid`, `Pyramid 1RM`, `Drop Sets`), equipment filters, and ExRx tables.
   * `app/utils/workoutEngine.js` — 1RM math (`getBestHistory1RM`, `getPersonalRecord1RM`, `getHistoricalCalculated1RM`, `calculateLastEquivalentWeightForSet`, `createWorkoutSlot`).
@@ -139,6 +143,10 @@ To keep agent edits fast and focused, views and state hooks are split into dedic
 * **Email Invites with Auto-Friendship (`SocialView.jsx` & `supabaseAuth.js`):**
   * Under Social, users can enter an email address and click **`INVITE VIA EMAIL ↗`**, which prompts an email containing the beta code **`imnotcrying`** and a join link (`/?invite_from=<username>&invite_from_email=<email>&invited_email=<target>&beta_code=imnotcrying`).
   * When the invited user joins, both users automatically become friends.
+* **Default Friend & Removing Friends:**
+  * Every user starts friends with `@matt` (`DEFAULT_MATT_FRIEND`, an empty stub filled from his real cloud profile; no demo PRs). `ensureDefaultMattFriend(list, removedFriends)` adds him unless removed.
+  * The Social friends list has a red `✕` per friend (confirmed via `DeleteConfirmModal`). Removals are stored in `settings.social.removedFriends` (local + cloud) and filtered out of every merge (`mergeFriendsIntoList` in `storageMigration.js`); sending/accepting a request un-removes. The Supabase `friendships` row is deleted via `removeFriendshipWithAthlete` (needs the delete policy in `supabase_schema.sql`).
+  * Match friend records with `isSameFriend` (id / email / username / email-prefix), not ad-hoc comparisons.
 * **Friend Profiles (`ProfileView.jsx`):**
   * Never display a friend's email address—only display `@<username>`.
   * PRs load directly from the friend's `user_profiles` row + `workout_history` (`fetchAthleteProfileSnapshot`), independent of how the friendship was recorded.

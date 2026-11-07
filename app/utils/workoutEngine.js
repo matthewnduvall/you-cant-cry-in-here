@@ -9,11 +9,98 @@ import {
   isSupersetCategory,
   isBodyweightExercise,
   formatDateYMD,
+  formatTodayYMD,
+  parseYMDToISO,
   roundTo5,
   roundToIncrement
 } from '../data/exerciseLibrary';
 
 export const SET_TYPES_LIST = ['Warmup', 'Working', 'Top Out', 'Burn Out', '1 Rep Max'];
+
+// Effort multiplier per set type used when converting a logged set to a 1RM estimate.
+export const SET_TYPE_MULTIPLIER_MAP = {
+  Warmup: 0.74,
+  Working: 0.98,
+  'Top Out': 1.04,
+  'Burn Out': 0.84,
+  '1 Rep Max': 1.0
+};
+
+/**
+ * Estimates a 1RM from one set (used by the 1RM calculator): rep percentage × set-type effort ×
+ * a small fatigue factor for the number of sets in the scheme. Never returns less than the weight.
+ */
+export const estimate1RMFromSet = (setItem, totalSetsCount = 1) => {
+  const w = Math.max(0, Number(setItem?.weight) || 0);
+  if (w <= 0) return 0;
+  const r = Math.max(1, Number(setItem?.reps) || 1);
+  const sType = normalizeSetType(setItem?.type);
+  if (sType === '1 Rep Max' || (r === 1 && totalSetsCount <= 1)) return roundTo5(w);
+  const repPct = 1 / (1 + Math.max(0, r - 1) / 30);
+  const typeMultiplier = SET_TYPE_MULTIPLIER_MAP[sType] || 0.98;
+  const setStressFactor = 1 / (1 + Math.max(0, totalSetsCount - 1) * 0.035);
+  const factor = Math.min(1, repPct * typeMultiplier * setStressFactor);
+  if (factor <= 0) return roundTo5(w);
+  return Math.max(w, roundTo5(w / factor));
+};
+
+/**
+ * Builds the single-set "PERSONAL RECORD" History entry logged whenever a PR is entered
+ * (plate calculator, 1RM calculator). `dateYMD` defaults to today.
+ */
+export const buildPersonalRecordHistoryEntry = ({ exerciseId, oneRepMax, dateYMD, scheme = 'Pyramid 1RM' }) => {
+  const exObj = EXERCISE_MAP[exerciseId] || {
+    id: exerciseId,
+    name: exerciseId,
+    category: 'Compound',
+    muscleGroup: 'All Muscles'
+  };
+  const cleanDate = dateYMD && String(dateYMD).trim() ? formatDateYMD(dateYMD) : formatTodayYMD();
+  const ts = Date.now();
+  const prSet = {
+    id: `set_pr_${ts}`,
+    setNumber: 1,
+    type: '1 Rep Max',
+    reps: 1,
+    lastWeight: oneRepMax,
+    increment: 0,
+    weight: oneRepMax,
+    completed: true
+  };
+  const category = normalizeSlotCategory(exObj.category || 'Compound');
+  const prSlot = {
+    id: `slot_pr_${ts}`,
+    category,
+    slotLabel: category,
+    scheme,
+    restSeconds: 90,
+    muscleGroupFilter: exObj.muscleGroup || 'All Muscles',
+    familyMuscleGroup: exObj.muscleGroup || 'Chest',
+    exerciseId: exObj.id,
+    secondaryExerciseId: null,
+    supersetExerciseIds: [exObj.id],
+    supersetSetsByExercise: [[prSet]],
+    sets: [prSet],
+    secondarySets: []
+  };
+  return {
+    id: `hist_pr_${exObj.id}_${ts}`,
+    title: `${cleanDate} - ${exObj.name} PR (${oneRepMax} LB)`,
+    loadedRoutineTitle: 'PERSONAL RECORD',
+    startedAt: parseYMDToISO(cleanDate),
+    updatedAt: new Date().toISOString(),
+    isComplete: true,
+    verifiedByUser: true,
+    defaultRestSeconds: 90,
+    slots: normalizeSlotLabels([prSlot])
+  };
+};
+
+/** Inserts a History entry and keeps History sorted newest first. */
+export const insertHistoryEntrySorted = (history, entry) =>
+  [entry, ...(history || [])].sort(
+    (a, b) => new Date(b.startedAt || 0).getTime() - new Date(a.startedAt || 0).getTime()
+  );
 
 export const SCHEME_OPTIONS = [
   '5x5',

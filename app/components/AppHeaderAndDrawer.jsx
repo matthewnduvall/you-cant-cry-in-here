@@ -1,9 +1,9 @@
 'use client';
 
 import React from 'react';
-import { UI } from '../styles/kineticTokens';
 import { SFSymbol, SessionRestTimerBar } from './Primitives';
 import { getNextIncompleteSetInfo } from '../utils/workoutEngine';
+import { Button } from './Controls';
 
 export function AppHeaderAndDrawer({
   currentView,
@@ -198,18 +198,17 @@ export function AppHeaderAndDrawer({
               </div>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                <button
-                  type="button"
+                <Button
+                  variant="drawer"
+                  active
                   onClick={() => {
                     setShowHamburgerDrawer(false);
                     setCurrentView(user ? 'profile' : 'auth');
                   }}
-                  className="kinetic-btn"
-                  style={UI.drawerBtn(true)}
                 >
                   <span>{user ? `00 / PROFILE (@${user.username})` : '00 / SIGN IN'}</span>
                   <span>→</span>
-                </button>
+                </Button>
 
                 {[
                   { id: 'routines', label: '01 / ROUTINES', clearReturn: true },
@@ -219,20 +218,18 @@ export function AppHeaderAndDrawer({
                   { id: 'info', label: '05 / INFO' },
                   { id: 'settings', label: '06 / SETTINGS' }
                 ].map(nav => (
-                  <button
+                  <Button
+                    variant="drawer"
                     key={nav.id}
-                    type="button"
                     onClick={() => {
                       setShowHamburgerDrawer(false);
                       if (nav.clearReturn) setRoutineSelectReturnView(null);
                       setCurrentView(nav.id);
                     }}
-                    className="kinetic-btn"
-                    style={UI.drawerBtn(false)}
                   >
                     <span>{nav.label}</span>
                     <span>→</span>
-                  </button>
+                  </Button>
                 ))}
               </div>
             </div>

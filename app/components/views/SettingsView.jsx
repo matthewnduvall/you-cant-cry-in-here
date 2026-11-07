@@ -3,6 +3,7 @@
 import React from 'react';
 import { UI } from '../../styles/kineticTokens';
 import { IOSListSection, IOSListRow } from '../Primitives';
+import { Button } from '../Controls';
 
 export function SettingsView({
   colors,
@@ -118,8 +119,8 @@ export function SettingsView({
           <IOSListRow key={`${comp}_${idx}`} colors={colors}>
             <span style={UI.rowTitle}>0{idx + 1} / {comp}</span>
             <div style={{ display: 'flex', gap: '6px' }}>
-              <button
-                type="button"
+              <Button
+                variant="toggle"
                 disabled={idx === 0}
                 onClick={() =>
                   setRoutinePreferences(prev => {
@@ -130,12 +131,11 @@ export function SettingsView({
                     return copy;
                   })
                 }
-                style={UI.pillBtn(false)}
               >
                 ↑
-              </button>
-              <button
-                type="button"
+              </Button>
+              <Button
+                variant="toggle"
                 disabled={idx === routinePreferences.length - 1}
                 onClick={() =>
                   setRoutinePreferences(prev => {
@@ -146,17 +146,16 @@ export function SettingsView({
                     return copy;
                   })
                 }
-                style={UI.pillBtn(false)}
               >
                 ↓
-              </button>
-              <button
-                type="button"
+              </Button>
+              <Button
+                variant="toggle"
                 onClick={() => setRoutinePreferences(prev => prev.filter((_, i) => i !== idx))}
-                style={{ ...UI.pillBtn(false), color: '#FF3B30' }}
+                style={{ color: '#FF3B30' }}
               >
                 ✕
-              </button>
+              </Button>
             </div>
           </IOSListRow>
         ))}
@@ -164,14 +163,14 @@ export function SettingsView({
         <IOSListRow isLast={true} colors={colors}>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', width: '100%' }}>
             {['Compound', 'Accessory', 'Superset'].map(type => (
-              <button
+              <Button
+                variant="toggle"
                 key={type}
-                type="button"
                 onClick={() => setRoutinePreferences(prev => [...prev, type])}
-                style={{ ...UI.pillBtn(false), color: 'var(--dp-color-accent)' }}
+                style={{ color: 'var(--dp-color-accent)' }}
               >
                 + {type}
-              </button>
+              </Button>
             ))}
           </div>
         </IOSListRow>

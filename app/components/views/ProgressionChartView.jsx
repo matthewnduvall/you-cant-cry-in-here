@@ -7,18 +7,8 @@ import {
   getExRxTargetForLift,
   parseYMDToISO
 } from '../../data/exerciseLibrary';
-
-const SHARED_CELL_BORDER = {
-  borderTop: 'none',
-  borderLeft: 'none',
-  borderRight: '1px solid var(--dp-color-rule)',
-  borderBottom: '1px solid var(--dp-color-rule)'
-};
-
-const SHARED_GROUP_OUTER = {
-  borderTop: '1px solid var(--dp-color-rule)',
-  borderLeft: '1px solid var(--dp-color-rule)'
-};
+import { SHARED_CELL_BORDER, SHARED_GROUP_OUTER } from '../../styles/kineticTokens';
+import { SegmentButton } from '../Controls';
 
 const BIG_THREE_IDS = ['barbell_bench_press', 'barbell_back_squat', 'barbell_deadlift'];
 
@@ -223,40 +213,20 @@ export function ProgressionChartView({
               gap: 0
             }}
           >
-            <button
-              type="button"
+            <SegmentButton
+              active={chartMetric === 'weight'}
               onClick={() => setChartMetric('weight')}
-              style={{
-                height: '44px',
-                padding: '0 8px',
-                backgroundColor: chartMetric === 'weight' ? 'var(--dp-color-accent)' : '#141416',
-                color: chartMetric === 'weight' ? '#000000' : '#FFFFFF',
-                ...SHARED_CELL_BORDER,
-                fontSize: '12px',
-                fontWeight: 800,
-                textTransform: 'uppercase',
-                cursor: 'pointer'
-              }}
+              style={{ height: '44px', padding: '0 8px' }}
             >
               1 REP MAX
-            </button>
-            <button
-              type="button"
+            </SegmentButton>
+            <SegmentButton
+              active={chartMetric === 'volume'}
               onClick={() => setChartMetric('volume')}
-              style={{
-                height: '44px',
-                padding: '0 8px',
-                backgroundColor: chartMetric === 'volume' ? 'var(--dp-color-accent)' : '#141416',
-                color: chartMetric === 'volume' ? '#000000' : '#FFFFFF',
-                ...SHARED_CELL_BORDER,
-                fontSize: '12px',
-                fontWeight: 800,
-                textTransform: 'uppercase',
-                cursor: 'pointer'
-              }}
+              style={{ height: '44px', padding: '0 8px' }}
             >
               VOLUME
-            </button>
+            </SegmentButton>
           </div>
 
           {/* TIME FRAME FILTER ROW: 30 DAYS | 90 DAYS | 1 YEAR | ALL (ZERO GAP, SHARED BORDERS) */}
@@ -270,24 +240,16 @@ export function ProgressionChartView({
             {TIME_FRAME_OPTIONS.map(tf => {
               const isActive = timeFrame === tf.id;
               return (
-                <button
+                <SegmentButton
+                  active={isActive}
+                  activeColor="ink"
+                  inactiveColor="#A0A0A0"
                   key={tf.id}
-                  type="button"
                   onClick={() => setTimeFrame(tf.id)}
-                  style={{
-                    height: '38px',
-                    padding: '0 4px',
-                    backgroundColor: isActive ? '#FFFFFF' : '#141416',
-                    color: isActive ? '#000000' : '#A0A0A0',
-                    ...SHARED_CELL_BORDER,
-                    fontSize: '11px',
-                    fontWeight: 800,
-                    textTransform: 'uppercase',
-                    cursor: 'pointer'
-                  }}
+                  style={{ height: '38px', padding: '0 4px', fontSize: '11px' }}
                 >
                   {tf.label}
-                </button>
+                </SegmentButton>
               );
             })}
           </div>
@@ -307,9 +269,11 @@ export function ProgressionChartView({
               { id: 'barbell_deadlift', label: 'DEAD', active: selectedChartLift === 'barbell_deadlift' },
               { id: 'CUSTOM', label: 'CUSTOM', active: isCustomActive }
             ].map(f => (
-              <button
+              <SegmentButton
+                active={f.active}
+                activeColor="ink"
+                inactiveColor="#A0A0A0"
                 key={f.id}
-                type="button"
                 onClick={() => {
                   if (f.id === 'CUSTOM') {
                     setSelectedChartLift(activeCustomId);
@@ -317,20 +281,10 @@ export function ProgressionChartView({
                     setSelectedChartLift(f.id);
                   }
                 }}
-                style={{
-                  height: '42px',
-                  padding: '0 4px',
-                  backgroundColor: f.active ? '#FFFFFF' : '#141416',
-                  color: f.active ? '#000000' : '#A0A0A0',
-                  ...SHARED_CELL_BORDER,
-                  fontSize: '11px',
-                  fontWeight: 800,
-                  textTransform: 'uppercase',
-                  cursor: 'pointer'
-                }}
+                style={{ height: '42px', padding: '0 4px', fontSize: '11px' }}
               >
                 {f.label}
-              </button>
+              </SegmentButton>
             ))}
           </div>
 

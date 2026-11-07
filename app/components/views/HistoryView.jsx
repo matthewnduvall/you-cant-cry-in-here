@@ -1,114 +1,30 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { UI } from '../../styles/kineticTokens';
+import { SHARED_CELL_BORDER, SHARED_GROUP_OUTER } from '../../styles/kineticTokens';
 import { RoutineEditorView } from './RoutineEditorView';
 import {
   BIG_FOUR_IDS,
   CORE_PR_EXERCISE_IDS,
   EXERCISE_LIBRARY,
   EXERCISE_MAP,
-  DEFAULT_GYM_EQUIPMENT_PRESETS,
-  SLOT_CATEGORIES,
   normalizeSlotCategory,
   filterAddSlotExercises,
   getAvailableMuscleGroupsForCategory,
-  getFilteredExercisesForSlotInline,
   getDefaultSessionName,
   getExRxTargetForLift,
-  formatTodayYMD,
   formatDateYMD,
-  parseYMDToISO,
-  roundTo5
+  parseYMDToISO
 } from '../../data/exerciseLibrary';
 import {
-  SCHEME_OPTIONS,
-  SET_TYPES_LIST,
-  normalizeSetType,
-  createWorkoutSlot,
-  generateSetsForScheme,
-  calculateLastEquivalentWeightForSet,
-  getEffectiveIncrementForExercise,
   getBestHistory1RMInfo,
   normalizeSlotLabels,
-  parseTimerDurationSeconds,
-  formatSecondsToMMSS,
-  getSetTimerMMSS,
-  getLastLoggedTimerDisplay
+  buildPersonalRecordHistoryEntry,
+  insertHistoryEntrySorted
 } from '../../utils/workoutEngine';
+import { CloseButton, DeleteButton, GymSelect } from '../Controls';
+import { OneRepMaxCalculatorModal } from '../OneRepMaxCalculatorModal';
 
-const SHARED_CELL_BORDER = {
-  borderTop: 'none',
-  borderLeft: 'none',
-  borderRight: '1px solid var(--dp-color-rule)',
-  borderBottom: '1px solid var(--dp-color-rule)'
-};
-
-const SHARED_GROUP_OUTER = {
-  borderTop: '1px solid var(--dp-color-rule)',
-  borderLeft: '1px solid var(--dp-color-rule)'
-};
-
-const SET_TYPE_MULTIPLIER_MAP = {
-  Warmup: 0.74,
-  Working: 0.98,
-  'Top Out': 1.04,
-  'Burn Out': 0.84,
-  '1 Rep Max': 1.0
-};
-
-function CalcModalDragBadge({ label, color = '#FFFFFF', height = '100%', bg = '#121214', title = 'Drag to reorder' }) {
-  return (
-    <div
-      title={title}
-      style={{
-        position: 'relative',
-        width: '34px',
-        height,
-        minHeight: '40px',
-        boxSizing: 'border-box',
-        backgroundColor: bg,
-        ...SHARED_CELL_BORDER,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        cursor: 'grab',
-        userSelect: 'none',
-        overflow: 'hidden',
-        flexShrink: 0
-      }}
-    >
-      <div
-        aria-hidden="true"
-        style={{
-          position: 'absolute',
-          inset: '2px',
-          backgroundImage: 'radial-gradient(#9A9A9A 1.35px, transparent 1.35px)',
-          backgroundSize: '5px 5px',
-          backgroundPosition: 'center',
-          opacity: 0.62,
-          pointerEvents: 'none',
-          zIndex: 0
-        }}
-      />
-      <span
-        style={{
-          position: 'relative',
-          zIndex: 1,
-          backgroundColor: 'rgba(16, 16, 16, 0.88)',
-          padding: '2px 4px',
-          fontSize: '14px',
-          fontWeight: 800,
-          color,
-          lineHeight: 1,
-          whiteSpace: 'nowrap'
-        }}
-      >
-        {label}
-      </span>
-    </div>
-  );
-}
 
 export function HistoryView({
   colors,
@@ -131,6 +47,7 @@ export function HistoryView({
   setCurrentView,
   openPlateCalculatorForPR,
   openPlateCalculatorForSet,
+  setSetValueTarget,
   setDeleteConfirmTarget,
   buildHistoryWorkoutEditorProps
 }) {
@@ -148,10 +65,8 @@ export function HistoryView({
   const [addPrSelectedExId, setAddPrSelectedExId] = useState('barbell_row');
 
   // --- 1RM Converter Popup Slot State (Matches New/Current Session Exercise Editor) ---
-  const [calcSlot, setCalcSlot] = useState(null);
-  const [calcPrDate, setCalcPrDate] = useState('');
-  const [lastEditedCalcSetId, setLastEditedCalcSetId] = useState(null);
-  const [draggedCalcSetIdx, setDraggedCalcSetIdx] = useState(null);
+  // Exercise the 1RM calculator pop-up is open for (null = closed)
+  const [calcExerciseId, setCalcExerciseId] = useState(null);
 
   // --- CSV Import Modal State ---
   const [showImportCsvModal, setShowImportCsvModal] = useState(false);
@@ -518,257 +433,20 @@ export function HistoryView({
     ? addPrSelectedExId
     : filteredAddPrExercises[0]?.id || 'incline_bench_press';
 
-  const allGymOptions = [
-    ...DEFAULT_GYM_EQUIPMENT_PRESETS,
-    ...(gyms || []).map(g => ({ id: g.id, name: g.name }))
-  ];
-
-  const compute1RMFromSet = (st, totalSetsCount) => {
-    const w = Math.max(0, Number(st?.weight) || 0);
-    if (w <= 0) return 0;
-    const r = Math.max(1, Number(st?.reps) || 1);
-    const sType = normalizeSetType(st?.type);
-    if (sType === '1 Rep Max' || (r === 1 && totalSetsCount <= 1)) {
-      return roundTo5(w);
-    }
-    const repPct = 1 / (1 + Math.max(0, r - 1) / 30);
-    const typeMultiplier = SET_TYPE_MULTIPLIER_MAP[sType] || 0.98;
-    const setStressFactor = 1 / (1 + Math.max(0, totalSetsCount - 1) * 0.035);
-    const factor = Math.min(1, repPct * typeMultiplier * setStressFactor);
-    if (factor <= 0) return roundTo5(w);
-    return Math.max(w, roundTo5(w / factor));
-  };
-
   const open1RMConverterModal = exerciseId => {
-    const exId = exerciseId || BIG_FOUR_IDS[0] || 'barbell_bench_press';
-    const exObj = EXERCISE_MAP[exId] || EXERCISE_LIBRARY[0];
-    const initialSlot = createWorkoutSlot({
-      category: normalizeSlotCategory(exObj.category || 'Compound'),
-      slotLabel: normalizeSlotCategory(exObj.category || 'Compound'),
-      exerciseId: exObj.id,
-      scheme: '5x5',
-      oneRepMaxes,
-      history,
-      incrementLbs: currentIncrementLbs,
-      userBodyweightLbs
-    });
-    setLastEditedCalcSetId(null);
-    setCalcPrDate(formatTodayYMD());
-    setCalcSlot(initialSlot);
+    setCalcExerciseId(exerciseId || BIG_FOUR_IDS[0] || 'barbell_bench_press');
   };
 
-  const handleUpdateCalcSlotHeader = changes => {
-    setCalcSlot(prev => {
-      if (!prev) return prev;
-      const next = { ...prev, ...changes };
-      const normCat = normalizeSlotCategory(next.category);
-      next.category = normCat;
-
-      if (changes.category && !changes.exerciseId && !changes.muscleGroupFilter) {
-        const pool = getFilteredExercisesForSlotInline(
-          { ...next, muscleGroupFilter: 'All Muscles' },
-          selectedGymId,
-          gyms
-        );
-        if (pool.length > 0 && !pool.some(e => e.id === next.exerciseId)) {
-          next.exerciseId = pool[0].id;
-        }
-        next.muscleGroupFilter = EXERCISE_MAP[next.exerciseId]?.muscleGroup || 'All Muscles';
-      } else if (changes.muscleGroupFilter !== undefined && !changes.exerciseId) {
-        const pool = getFilteredExercisesForSlotInline(next, selectedGymId, gyms);
-        if (pool.length > 0 && !pool.some(e => e.id === next.exerciseId)) {
-          next.exerciseId = pool[0].id;
-        }
-        if (EXERCISE_MAP[next.exerciseId]?.category) {
-          next.category = normalizeSlotCategory(EXERCISE_MAP[next.exerciseId].category);
-        }
-      } else if (changes.exerciseId) {
-        const chosenEx = EXERCISE_MAP[changes.exerciseId];
-        if (chosenEx?.muscleGroup) {
-          next.muscleGroupFilter = chosenEx.muscleGroup;
-        }
-      }
-
-      if (changes.category || changes.exerciseId || changes.scheme || changes.muscleGroupFilter !== undefined) {
-        const exObj = EXERCISE_MAP[next.exerciseId] || EXERCISE_LIBRARY[0];
-        const base1RM = Number(oneRepMaxes?.[exObj.id]) || exObj.default1RM || 135;
-        const newSets = generateSetsForScheme(
-          next.scheme || '5x5',
-          base1RM,
-          normCat,
-          exObj.id,
-          currentIncrementLbs,
-          userBodyweightLbs
-        );
-        next.sets = newSets;
-        next.supersetSetsByExercise = [newSets];
-        setLastEditedCalcSetId(null);
-      }
-      return next;
-    });
-  };
-
-  const handleUpdateCalcSet = (setId, field, value) => {
-    setLastEditedCalcSetId(setId);
-    setCalcSlot(prev => {
-      if (!prev) return prev;
-      const nextSets = (prev.sets || []).map(st => {
-        if (st.id !== setId) return st;
-        if (field === 'type') {
-          const nextType = normalizeSetType(value);
-          return {
-            ...st,
-            type: nextType,
-            reps: nextType === '1 Rep Max' ? 1 : st.reps
-          };
-        }
-        if (field === 'increment') {
-          const numInc = Number(value) || 0;
-          return {
-            ...st,
-            increment: value,
-            weight: Math.max(0, Math.round(((Number(st.lastWeight) || 0) + numInc) * 4) / 4)
-          };
-        }
-        if (field === 'timer') {
-          const rawStr = String(value ?? '');
-          const sec = parseTimerDurationSeconds(rawStr);
-          return {
-            ...st,
-            timerStr: rawStr,
-            durationSeconds: sec,
-            reps: sec
-          };
-        }
-        return { ...st, [field]: value };
-      });
-      return { ...prev, sets: nextSets, supersetSetsByExercise: [nextSets] };
-    });
-  };
-
-  const handleInsertCalcSet = position => {
-    setCalcSlot(prev => {
-      if (!prev) return prev;
-      const curSets = prev.sets || [];
-      const refSet =
-        position === 'top'
-          ? curSets[0] || { type: 'Warmup', reps: 8, lastWeight: 95, increment: 0, weight: 95 }
-          : curSets[curSets.length - 1] || { type: 'Working', reps: 5, lastWeight: 135, increment: 0, weight: 135 };
-      const newSet = {
-        ...refSet,
-        id: `calc_set_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
-        type: position === 'top' ? 'Warmup' : refSet.type,
-        completed: false
-      };
-      const merged = position === 'top' ? [newSet, ...curSets] : [...curSets, newSet];
-      const renumbered = merged.map((s, i) => ({ ...s, setNumber: i + 1 }));
-      return { ...prev, sets: renumbered, supersetSetsByExercise: [renumbered] };
-    });
-  };
-
-  const handleDeleteCalcSet = setId => {
-    setCalcSlot(prev => {
-      if (!prev) return prev;
-      const filtered = (prev.sets || []).filter(s => s.id !== setId);
-      if (filtered.length === 0) return prev;
-      const renumbered = filtered.map((s, i) => ({ ...s, setNumber: i + 1 }));
-      return { ...prev, sets: renumbered, supersetSetsByExercise: [renumbered] };
-    });
-  };
-
-  const handleReorderCalcSets = (fromIdx, toIdx) => {
-    setCalcSlot(prev => {
-      if (!prev) return prev;
-      const arr = [...(prev.sets || [])];
-      const [moved] = arr.splice(fromIdx, 1);
-      arr.splice(toIdx, 0, moved);
-      const renumbered = arr.map((s, i) => ({ ...s, setNumber: i + 1 }));
-      return { ...prev, sets: renumbered, supersetSetsByExercise: [renumbered] };
-    });
-  };
-
-  const convertedOneRepMax = (() => {
-    if (!calcSlot || !Array.isArray(calcSlot.sets) || calcSlot.sets.length === 0) return 0;
-    const totalCount = calcSlot.sets.length;
-    if (lastEditedCalcSetId) {
-      const editedSet = calcSlot.sets.find(s => s.id === lastEditedCalcSetId);
-      if (editedSet && Number(editedSet.weight) > 0) {
-        return compute1RMFromSet(editedSet, totalCount);
-      }
+  const handleSaveCalculatedPR = ({ exerciseId, oneRepMax, dateYMD, scheme }) => {
+    if (!exerciseId || oneRepMax <= 0) return;
+    if (setCustomPrExerciseIds && !displayedPrExerciseIds.includes(exerciseId)) {
+      setCustomPrExerciseIds(prev => (prev.includes(exerciseId) ? prev : [...prev, exerciseId]));
     }
-    const completedSets = calcSlot.sets.filter(s => s.completed && Number(s.weight) > 0);
-    const pool = completedSets.length > 0 ? completedSets : calcSlot.sets;
-    let best = 0;
-    pool.forEach(s => {
-      const est = compute1RMFromSet(s, totalCount);
-      if (est > best) best = est;
-    });
-    return best;
-  })();
-
-  const handleSaveConvertedPR = () => {
-    if (!calcSlot || convertedOneRepMax <= 0) return;
-    const exId = calcSlot.exerciseId;
-    const exObj = EXERCISE_MAP[exId] || EXERCISE_LIBRARY[0];
-    if (setCustomPrExerciseIds && !displayedPrExerciseIds.includes(exId)) {
-      setCustomPrExerciseIds(prev => (prev.includes(exId) ? prev : [...prev, exId]));
-    }
-    setOneRepMaxes?.(prev => ({
-      ...prev,
-      [exId]: convertedOneRepMax
-    }));
-
-    // Log Personal Record entry to History so Personal Records reflect logged history
-    if (setHistory) {
-      const cleanDate =
-        calcPrDate && String(calcPrDate).trim()
-          ? formatDateYMD(calcPrDate)
-          : formatTodayYMD();
-      const ts = Date.now();
-      const prSet = {
-        id: `set_pr_${ts}`,
-        setNumber: 1,
-        type: '1 Rep Max',
-        reps: 1,
-        lastWeight: convertedOneRepMax,
-        increment: 0,
-        weight: convertedOneRepMax,
-        completed: true
-      };
-      const prSlot = {
-        id: `slot_pr_${ts}`,
-        category: normalizeSlotCategory(exObj.category || 'Compound'),
-        slotLabel: normalizeSlotCategory(exObj.category || 'Compound'),
-        scheme: calcSlot.scheme || '5x5',
-        restSeconds: 90,
-        muscleGroupFilter: exObj.muscleGroup || 'All Muscles',
-        familyMuscleGroup: exObj.muscleGroup || 'Chest',
-        exerciseId: exObj.id,
-        secondaryExerciseId: null,
-        supersetExerciseIds: [exObj.id],
-        supersetSetsByExercise: [[prSet]],
-        sets: [prSet],
-        secondarySets: []
-      };
-      const newHistEntry = {
-        id: `hist_pr_${exObj.id}_${ts}`,
-        title: `${cleanDate} - ${exObj.name} PR (${convertedOneRepMax} LB)`,
-        loadedRoutineTitle: 'PERSONAL RECORD',
-        startedAt: parseYMDToISO(cleanDate),
-        updatedAt: new Date().toISOString(),
-        isComplete: true,
-        verifiedByUser: true,
-        defaultRestSeconds: 90,
-        slots: normalizeSlotLabels([prSlot])
-      };
-      setHistory(prev =>
-        [newHistEntry, ...(prev || [])].sort(
-          (a, b) => new Date(b.startedAt || 0).getTime() - new Date(a.startedAt || 0).getTime()
-        )
-      );
-    }
-
-    setCalcSlot(null);
+    setOneRepMaxes?.(prev => ({ ...prev, [exerciseId]: oneRepMax }));
+    // Log a PERSONAL RECORD entry so Personal Records reflect logged history
+    setHistory?.(prev =>
+      insertHistoryEntrySorted(prev, buildPersonalRecordHistoryEntry({ exerciseId, oneRepMax, dateYMD, scheme }))
+    );
   };
 
   // Track which History workout IDs store the all-time highest 1RM / calculated 1RM for any exercise
@@ -890,20 +568,13 @@ export function HistoryView({
                 >
                   ADD EXERCISE TO PERSONAL RECORDS
                 </div>
-                <button
-                  type="button"
+                <DeleteButton
+                  label="Close panel"
+                  fill
+                  minHeight="0"
+                  style={{ width: '100%' }}
                   onClick={() => setShowAddPrExercisePanel(false)}
-                  style={{
-                    backgroundColor: '#FF3B30',
-                    color: '#101010',
-                    ...SHARED_CELL_BORDER,
-                    fontSize: '13px',
-                    fontWeight: 800,
-                    cursor: 'pointer'
-                  }}
-                >
-                  ✕
-                </button>
+                />
               </div>
 
               {/* Row 1 Filters: Gym/Equipment, Workout Type, Muscle Group */}
@@ -915,11 +586,11 @@ export function HistoryView({
                   height: '40px'
                 }}
               >
-                <select
-                  aria-label="Filter by Gyms/Equipment"
+                <GymSelect
+                  variant="cell"
+                  ariaLabel="Filter by Gyms/Equipment"
                   value={addPrGymFilter}
-                  onChange={e => {
-                    const nextGym = e.target.value;
+                  onChange={nextGym => {
                     setAddPrGymFilter(nextGym);
                     const nextAvailMgs = getAvailableMuscleGroupsForCategory(addPrCategory, nextGym, gyms);
                     const nextMg = nextAvailMgs.includes(activeAddPrMuscle) ? activeAddPrMuscle : 'All Muscles';
@@ -927,24 +598,8 @@ export function HistoryView({
                     const nextAvail = filterAddSlotExercises(nextGym, addPrCategory, gyms, nextMg);
                     if (nextAvail.length > 0) setAddPrSelectedExId(nextAvail[0].id);
                   }}
-                  style={{
-                    width: '100%',
-                    height: '40px',
-                    backgroundColor: '#141416',
-                    color: '#FFFFFF',
-                    ...SHARED_CELL_BORDER,
-                    fontSize: '12px',
-                    fontWeight: 800,
-                    textTransform: 'uppercase',
-                    padding: '0 8px'
-                  }}
-                >
-                  {allGymOptions.map(g => (
-                    <option key={g.id || 'full_gym'} value={g.id}>
-                      {g.name.toUpperCase()}
-                    </option>
-                  ))}
-                </select>
+                  gyms={gyms}
+                />
 
                 <select
                   aria-label="Filter by Workout Type"
@@ -1411,34 +1066,19 @@ export function HistoryView({
                         {isExp ? '−' : '+'}
                       </button>
 
-                      <button
-                        type="button"
-                        aria-label={`Delete ${w.title}`}
-                        onClick={e => {
-                          e.stopPropagation();
+                      <DeleteButton
+                        label={`Delete ${w.title}`}
+                        fill
+                        minHeight="48px"
+                        style={{ width: '48px', height: 'auto' }}
+                        onClick={() =>
                           setDeleteConfirmTarget?.({
                             type: 'history_workout',
                             workoutId: w.id,
                             label: w.title
-                          });
-                        }}
-                        style={{
-                          width: '48px',
-                          minHeight: '48px',
-                          boxSizing: 'border-box',
-                          backgroundColor: '#FF3B30',
-                          color: '#101010',
-                          ...SHARED_CELL_BORDER,
-                          fontSize: '13px',
-                          fontWeight: 800,
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          cursor: 'pointer'
-                        }}
-                      >
-                        ✕
-                      </button>
+                          })
+                        }
+                      />
                     </div>
 
                     {isExp && editorProps && (
@@ -1547,637 +1187,22 @@ export function HistoryView({
       {/* =================================================================== */}
       {/* 1RM CONVERTER POPUP MODAL (NEW/CURRENT SESSION EXERCISE INTERFACE) */}
       {/* =================================================================== */}
-      {calcSlot && (() => {
-        const normCat = normalizeSlotCategory(calcSlot.category);
-        const ex1 = EXERCISE_MAP[calcSlot.exerciseId] || EXERCISE_LIBRARY[0];
-        const availMuscleGroups = getAvailableMuscleGroupsForCategory(normCat, selectedGymId, gyms);
-        const rawSlotMuscle = calcSlot.muscleGroupFilter || ex1?.muscleGroup || 'All Muscles';
-        const activeMuscleFilter = availMuscleGroups.includes(rawSlotMuscle)
-          ? rawSlotMuscle
-          : 'All Muscles';
-        const inlineExercisePool = getFilteredExercisesForSlotInline(
-          { ...calcSlot, muscleGroupFilter: activeMuscleFilter },
-          selectedGymId,
-          gyms
-        );
-        const singleSelectPool =
-          inlineExercisePool.some(e => e.id === calcSlot.exerciseId) || !ex1
-            ? inlineExercisePool
-            : [ex1, ...inlineExercisePool];
-        const slot1RMText =
-          convertedOneRepMax > 0
-            ? `1RM: ${convertedOneRepMax} LB`
-            : '1RM: TBD';
-
-        return (
-          <div
-            style={{
-              position: 'fixed',
-              inset: 0,
-              zIndex: 1200,
-              backgroundColor: 'rgba(0, 0, 0, 0.85)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              padding: '12px'
-            }}
-            onClick={() => setCalcSlot(null)}
-          >
-            <div
-              style={{
-                width: '100%',
-                maxWidth: '460px',
-                maxHeight: '90vh',
-                overflowY: 'auto',
-                backgroundColor: '#121214',
-                ...SHARED_GROUP_OUTER
-              }}
-              onClick={e => e.stopPropagation()}
-            >
-              {/* Exercise Header: 34px Left Drag/Number + 2-Row Controls + 34px Full-Height Red X */}
-              <div
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: '34px minmax(0, 1fr) 34px',
-                  gap: 0,
-                  alignItems: 'stretch'
-                }}
-              >
-                <CalcModalDragBadge
-                  label={1}
-                  color="var(--dp-color-accent)"
-                  height="100%"
-                  bg="#18181B"
-                  title="Exercise 1RM Calculator"
-                />
-
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 0, minWidth: 0 }}>
-                  {/* Row 1: Category Slot + Muscle Group Filter + Scheme Selection */}
-                  <div
-                    style={{
-                      display: 'grid',
-                      gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
-                      gap: 0,
-                      height: '40px'
-                    }}
-                  >
-                    <select
-                      aria-label="Exercise Category"
-                      value={normCat}
-                      onChange={e => handleUpdateCalcSlotHeader({ category: e.target.value })}
-                      style={{
-                        width: '100%',
-                        minWidth: 0,
-                        height: '40px',
-                        boxSizing: 'border-box',
-                        fontSize: '13px',
-                        fontWeight: 800,
-                        padding: '0 8px',
-                        backgroundColor: 'var(--dp-color-accent)',
-                        color: '#101010',
-                        ...SHARED_CELL_BORDER,
-                        textTransform: 'uppercase',
-                        cursor: 'pointer'
-                      }}
-                    >
-                      {SLOT_CATEGORIES.filter(c => c !== 'Superset').map(cat => (
-                        <option key={cat} value={cat}>
-                          {cat.toUpperCase()}
-                        </option>
-                      ))}
-                    </select>
-
-                    <select
-                      aria-label="Muscle Group Filter"
-                      value={activeMuscleFilter}
-                      onChange={e => handleUpdateCalcSlotHeader({ muscleGroupFilter: e.target.value })}
-                      style={{
-                        width: '100%',
-                        minWidth: 0,
-                        height: '40px',
-                        boxSizing: 'border-box',
-                        fontSize: '13px',
-                        fontWeight: 800,
-                        padding: '0 8px',
-                        backgroundColor: '#161618',
-                        color: '#FFFFFF',
-                        ...SHARED_CELL_BORDER,
-                        textTransform: 'uppercase',
-                        cursor: 'pointer'
-                      }}
-                    >
-                      {availMuscleGroups.map(mg => (
-                        <option key={mg} value={mg}>
-                          {mg.toUpperCase()}
-                        </option>
-                      ))}
-                    </select>
-
-                    <select
-                      aria-label="Set and Rep Scheme"
-                      value={calcSlot.scheme || '5x5'}
-                      onChange={e => handleUpdateCalcSlotHeader({ scheme: e.target.value })}
-                      style={{
-                        width: '100%',
-                        minWidth: 0,
-                        height: '40px',
-                        boxSizing: 'border-box',
-                        fontSize: '13px',
-                        fontWeight: 800,
-                        padding: '0 8px',
-                        backgroundColor: '#161618',
-                        color: '#FFFFFF',
-                        ...SHARED_CELL_BORDER,
-                        textTransform: 'uppercase',
-                        cursor: 'pointer'
-                      }}
-                    >
-                      {SCHEME_OPTIONS.map(scm => (
-                        <option key={scm} value={scm}>
-                          {scm.toUpperCase()}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {/* Row 2: Exercise Selection + Date Entry Box */}
-                  <div
-                    style={{
-                      display: 'grid',
-                      gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
-                      gap: 0,
-                      height: '40px'
-                    }}
-                  >
-                    <select
-                      aria-label="Select Exercise"
-                      value={calcSlot.exerciseId}
-                      onChange={e => handleUpdateCalcSlotHeader({ exerciseId: e.target.value })}
-                      style={{
-                        gridColumn: 'span 2',
-                        width: '100%',
-                        minWidth: 0,
-                        height: '40px',
-                        boxSizing: 'border-box',
-                        backgroundColor: '#141416',
-                        color: '#FFFFFF',
-                        ...SHARED_CELL_BORDER,
-                        padding: '0 8px',
-                        fontSize: '13px',
-                        fontWeight: 800,
-                        textTransform: 'uppercase',
-                        cursor: 'pointer'
-                      }}
-                    >
-                      {singleSelectPool.map(ex => (
-                        <option key={ex.id} value={ex.id}>
-                          {ex.name.toUpperCase()} ({ex.equipment.toUpperCase()})
-                        </option>
-                      ))}
-                    </select>
-
-                    {/* Column 3: Date Entry Box */}
-                    <input
-                      type="text"
-                      aria-label="Personal Record Date (YYYY/MM/DD)"
-                      placeholder="YYYY/MM/DD"
-                      value={calcPrDate}
-                      onChange={e => setCalcPrDate(e.target.value.replace(/-/g, '/'))}
-                      style={{
-                        width: '100%',
-                        minWidth: 0,
-                        height: '40px',
-                        boxSizing: 'border-box',
-                        backgroundColor: '#18181B',
-                        ...SHARED_CELL_BORDER,
-                        textAlign: 'center',
-                        fontSize: '12px',
-                        fontWeight: 800,
-                        color: 'var(--dp-color-accent)',
-                        textTransform: 'uppercase',
-                        outline: 'none',
-                        padding: '0 4px'
-                      }}
-                    />
-                  </div>
-                </div>
-
-                <button
-                  type="button"
-                  aria-label="Close calculator"
-                  onClick={() => setCalcSlot(null)}
-                  className="kinetic-btn"
-                  style={{
-                    ...UI.deleteXBtn,
-                    width: '34px',
-                    height: '100%',
-                    minHeight: '80px',
-                    fontSize: '14px',
-                    ...SHARED_CELL_BORDER,
-                    boxSizing: 'border-box'
-                  }}
-                >
-                  ✕
-                </button>
-              </div>
-
-              {/* Always-Expanded Sets Content (Same as Session Page) */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
-                {(calcSlot.sets || []).map((st, sIdxInEx) => {
-                  const totalExSets = (calcSlot.sets || []).length;
-                  const curType = normalizeSetType(st.type);
-                  const isTimerScheme = calcSlot.scheme === 'Timer';
-                  const effInc = getEffectiveIncrementForExercise(calcSlot.exerciseId, currentIncrementLbs);
-                  const base1RM = Number(oneRepMaxes?.[calcSlot.exerciseId]) || ex1?.default1RM || 135;
-                  const lastW =
-                    st.lastWeight !== undefined
-                      ? st.lastWeight
-                      : calculateLastEquivalentWeightForSet(base1RM, st, totalExSets, normCat, sIdxInEx, calcSlot.scheme);
-                  const timerMMSS = isTimerScheme ? (st.timerStr ?? getSetTimerMMSS(st, true)) : '';
-                  const lastTimerDisplay = isTimerScheme
-                    ? getLastLoggedTimerDisplay(calcSlot.exerciseId, st, sIdxInEx, lastW, history)
-                    : '';
-                  const setIncValue =
-                    st.increment !== undefined
-                      ? st.increment
-                      : curType === '1 Rep Max' && calcSlot.scheme !== 'Pyramid 1RM'
-                        ? 0
-                        : Math.round(((Number(st.weight) || 0) - (Number(lastW) || 0)) * 100) / 100 || effInc;
-                  const cellBg = st.completed ? '#16291B' : '#141416';
-
-                  return (
-                    <div
-                      key={st.id}
-                      draggable={true}
-                      onDragStart={() => setDraggedCalcSetIdx(sIdxInEx)}
-                      onDragOver={e => {
-                        if (draggedCalcSetIdx !== null) e.preventDefault();
-                      }}
-                      onDrop={e => {
-                        e.preventDefault();
-                        if (draggedCalcSetIdx !== null && draggedCalcSetIdx !== sIdxInEx) {
-                          handleReorderCalcSets(draggedCalcSetIdx, sIdxInEx);
-                        }
-                        setDraggedCalcSetIdx(null);
-                      }}
-                      onDragEnd={() => setDraggedCalcSetIdx(null)}
-                      style={{
-                        display: 'grid',
-                        gridTemplateColumns: '34px minmax(0, 1fr) 34px',
-                        gap: 0,
-                        alignItems: 'stretch',
-                        opacity: draggedCalcSetIdx === sIdxInEx ? 0.55 : 1
-                      }}
-                    >
-                      <CalcModalDragBadge
-                        label={st.setNumber}
-                        color="#FFFFFF"
-                        height="100%"
-                        bg={cellBg}
-                        title="Click and drag to rearrange set"
-                      />
-
-                      <div
-                        style={{
-                          display: 'grid',
-                          gridTemplateColumns: isTimerScheme
-                            ? '78px minmax(0, 1fr) 74px minmax(0, 1fr) 44px'
-                            : '78px minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.15fr) 50px 44px',
-                          gap: 0,
-                          alignItems: 'stretch'
-                        }}
-                      >
-                        {/* 1. Set Type Selector */}
-                        <select
-                          aria-label="Set Type"
-                          value={curType}
-                          onChange={e => handleUpdateCalcSet(st.id, 'type', e.target.value)}
-                          style={{
-                            width: '100%',
-                            minWidth: 0,
-                            height: '44px',
-                            boxSizing: 'border-box',
-                            backgroundColor: cellBg,
-                            color: '#FFFFFF',
-                            ...SHARED_CELL_BORDER,
-                            padding: '0 4px',
-                            fontSize: '11px',
-                            fontWeight: 800,
-                            textTransform: 'uppercase',
-                            cursor: 'pointer'
-                          }}
-                        >
-                          {SET_TYPES_LIST.map(t => (
-                            <option key={t} value={t}>
-                              {t.toUpperCase()}
-                            </option>
-                          ))}
-                        </select>
-
-                        {/* 2. LAST Weight / Timer Box */}
-                        <div
-                          style={{
-                            width: '100%',
-                            minWidth: 0,
-                            height: '44px',
-                            boxSizing: 'border-box',
-                            backgroundColor: cellBg,
-                            ...SHARED_CELL_BORDER,
-                            display: 'flex',
-                            flexDirection: 'column',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            userSelect: 'none'
-                          }}
-                        >
-                          <span style={{ fontSize: '9px', fontWeight: 800, color: '#9A9A9A', lineHeight: 1 }}>
-                            LAST
-                          </span>
-                          <span style={{ fontSize: isTimerScheme ? '13px' : '15px', fontWeight: 800, color: '#C8C8C8', lineHeight: 1.2, marginTop: '1px' }}>
-                            {isTimerScheme ? lastTimerDisplay : lastW}
-                          </span>
-                        </div>
-
-                        {/* 3. INC Box (Hidden when Timer scheme is selected) */}
-                        {!isTimerScheme && (
-                          <div
-                            style={{
-                              width: '100%',
-                              minWidth: 0,
-                              height: '44px',
-                              boxSizing: 'border-box',
-                              backgroundColor: cellBg,
-                              ...SHARED_CELL_BORDER,
-                              display: 'flex',
-                              flexDirection: 'column',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              padding: '0 2px'
-                            }}
-                          >
-                            <span style={{ fontSize: '9px', fontWeight: 800, color: '#9A9A9A', lineHeight: 1 }}>
-                              INC
-                            </span>
-                            <input
-                              type="number"
-                              step="2.5"
-                              value={setIncValue}
-                              onChange={e => handleUpdateCalcSet(st.id, 'increment', e.target.value)}
-                              style={{
-                                width: '100%',
-                                textAlign: 'center',
-                                fontSize: '14px',
-                                fontWeight: 800,
-                                color: '#FFFFFF',
-                                backgroundColor: 'transparent',
-                                border: 'none',
-                                outline: 'none',
-                                padding: 0,
-                                marginTop: '1px'
-                              }}
-                            />
-                          </div>
-                        )}
-
-                        {/* 4. CURRENT Weight Button (Opens Weight Selection Pop-Up) */}
-                        <button
-                          type="button"
-                          onClick={() => {
-                            if (openPlateCalculatorForSet) {
-                              openPlateCalculatorForSet(
-                                calcSlot.id,
-                                0,
-                                st,
-                                ex1.name,
-                                newWeight =>
-                                  handleUpdateCalcSet(
-                                    st.id,
-                                    'weight',
-                                    Math.max(0, Number(newWeight) || 0)
-                                  )
-                              );
-                            }
-                          }}
-                          style={{
-                            width: '100%',
-                            minWidth: 0,
-                            height: '44px',
-                            boxSizing: 'border-box',
-                            padding: '0 2px',
-                            backgroundColor: cellBg,
-                            ...SHARED_CELL_BORDER,
-                            display: 'flex',
-                            flexDirection: 'column',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            cursor: 'pointer',
-                            whiteSpace: 'nowrap',
-                            overflow: 'hidden'
-                          }}
-                        >
-                          <span style={{ fontSize: '9px', fontWeight: 800, color: '#9A9A9A', lineHeight: 1 }}>
-                            CURRENT
-                          </span>
-                          <span
-                            style={{
-                              fontSize: '15px',
-                              fontWeight: 800,
-                              color: 'var(--dp-color-accent)',
-                              lineHeight: 1.2,
-                              marginTop: '1px'
-                            }}
-                          >
-                            {st.weight}
-                          </span>
-                        </button>
-
-                        {/* 5. REPS / TIMER Input */}
-                        <div
-                          style={{
-                            width: '100%',
-                            minWidth: 0,
-                            height: '44px',
-                            boxSizing: 'border-box',
-                            backgroundColor: cellBg,
-                            color: '#FFFFFF',
-                            ...SHARED_CELL_BORDER,
-                            padding: '0 2px',
-                            display: 'flex',
-                            flexDirection: 'column',
-                            alignItems: 'center',
-                            justifyContent: 'center'
-                          }}
-                        >
-                          <span style={{ fontSize: '9px', fontWeight: 800, color: '#9A9A9A', lineHeight: 1 }}>
-                            {isTimerScheme ? 'TIMER' : 'REPS'}
-                          </span>
-                          {isTimerScheme ? (
-                            <input
-                              type="text"
-                              value={timerMMSS}
-                              placeholder="02:00"
-                              onChange={e => handleUpdateCalcSet(st.id, 'timer', e.target.value)}
-                              onBlur={e =>
-                                handleUpdateCalcSet(
-                                  st.id,
-                                  'timer',
-                                  formatSecondsToMMSS(e.target.value, true)
-                                )
-                              }
-                              style={{
-                                width: '100%',
-                                textAlign: 'center',
-                                fontSize: '15px',
-                                fontWeight: 800,
-                                color: '#FFFFFF',
-                                backgroundColor: 'transparent',
-                                border: 'none',
-                                outline: 'none',
-                                padding: 0,
-                                marginTop: '1px'
-                              }}
-                            />
-                          ) : (
-                            <input
-                              type="number"
-                              min={1}
-                              max={100}
-                              value={st.reps}
-                              onChange={e => handleUpdateCalcSet(st.id, 'reps', Math.max(1, Number(e.target.value) || 1))}
-                              style={{
-                                width: '100%',
-                                textAlign: 'center',
-                                fontSize: '15px',
-                                fontWeight: 800,
-                                color: '#FFFFFF',
-                                backgroundColor: 'transparent',
-                                border: 'none',
-                                outline: 'none',
-                                padding: 0,
-                                marginTop: '1px'
-                              }}
-                            />
-                          )}
-                        </div>
-
-                        {/* 6. Grey/Green Checkmark Button */}
-                        <button
-                          type="button"
-                          aria-label="Mark set complete"
-                          onClick={() => handleUpdateCalcSet(st.id, 'completed', !st.completed)}
-                          style={{
-                            width: '44px',
-                            height: '44px',
-                            boxSizing: 'border-box',
-                            padding: 0,
-                            backgroundColor: st.completed ? '#30D158' : '#242428',
-                            color: st.completed ? '#101010' : '#9A9A9A',
-                            ...SHARED_CELL_BORDER,
-                            fontSize: '17px',
-                            fontWeight: 800,
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center'
-                          }}
-                        >
-                          ✓
-                        </button>
-                      </div>
-
-                      {/* Outside Red Set Delete "✕" Button */}
-                      <button
-                        type="button"
-                        aria-label="Delete set"
-                        onClick={() => handleDeleteCalcSet(st.id)}
-                        className="kinetic-btn"
-                        style={{
-                          ...UI.deleteXBtn,
-                          width: '34px',
-                          height: '100%',
-                          minHeight: '44px',
-                          fontSize: '14px',
-                          ...SHARED_CELL_BORDER,
-                          boxSizing: 'border-box'
-                        }}
-                      >
-                        ✕
-                      </button>
-                    </div>
-                  );
-                })}
-
-                {/* Bottom Row: + Add Set Top, + Add Set Bottom, and Bright Green CALCULATE 1RM */}
-                <div
-                  style={{
-                    display: 'grid',
-                    gridTemplateColumns: '1fr 1fr 1fr',
-                    gap: 0
-                  }}
-                >
-                  <button
-                    type="button"
-                    onClick={() => handleInsertCalcSet('top')}
-                    className="kinetic-btn"
-                    style={{
-                      height: '40px',
-                      boxSizing: 'border-box',
-                      padding: '0 8px',
-                      backgroundColor: '#161618',
-                      color: '#FFFFFF',
-                      ...SHARED_CELL_BORDER,
-                      fontSize: '12px',
-                      fontWeight: 800,
-                      textTransform: 'uppercase',
-                      cursor: 'pointer'
-                    }}
-                  >
-                    + ADD SET TOP
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleInsertCalcSet('bottom')}
-                    className="kinetic-btn"
-                    style={{
-                      height: '40px',
-                      boxSizing: 'border-box',
-                      padding: '0 8px',
-                      backgroundColor: '#161618',
-                      color: 'var(--dp-color-accent)',
-                      ...SHARED_CELL_BORDER,
-                      fontSize: '12px',
-                      fontWeight: 800,
-                      textTransform: 'uppercase',
-                      cursor: 'pointer'
-                    }}
-                  >
-                    + ADD SET BOTTOM
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleSaveConvertedPR}
-                    className="kinetic-btn"
-                    style={{
-                      height: '40px',
-                      boxSizing: 'border-box',
-                      padding: '0 8px',
-                      backgroundColor: '#30D158',
-                      color: '#000000',
-                      ...SHARED_CELL_BORDER,
-                      fontSize: '12px',
-                      fontWeight: 800,
-                      textTransform: 'uppercase',
-                      cursor: 'pointer'
-                    }}
-                  >
-                    CALCULATE 1RM
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        );
-      })()}
+      {calcExerciseId && (
+        <OneRepMaxCalculatorModal
+          key={calcExerciseId}
+          exerciseId={calcExerciseId}
+          onClose={() => setCalcExerciseId(null)}
+          onSave={handleSaveCalculatedPR}
+          oneRepMaxes={oneRepMaxes}
+          history={history}
+          currentIncrementLbs={currentIncrementLbs}
+          userBodyweightLbs={userBodyweightLbs}
+          selectedGymId={selectedGymId}
+          gyms={gyms}
+          setSetValueTarget={setSetValueTarget}
+          openPlateCalculatorForSet={openPlateCalculatorForSet}
+        />
+      )}
 
       {/* =================================================================== */}
       {/* 4. IMPORT WORKOUT HISTORY (.CSV) MODAL */}
@@ -2237,19 +1262,7 @@ export function HistoryView({
                   IMPORT .CSV DATA
                 </div>
               </div>
-              <button
-                type="button"
-                onClick={() => setShowImportCsvModal(false)}
-                className="kinetic-btn"
-                style={{
-                  ...UI.deleteXBtn,
-                  width: '34px',
-                  height: '34px',
-                  fontSize: '14px'
-                }}
-              >
-                ✕
-              </button>
+              <CloseButton label="Close import" onClick={() => setShowImportCsvModal(false)} />
             </div>
 
             <div

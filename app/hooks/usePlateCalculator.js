@@ -5,11 +5,9 @@ import {
   EXERCISE_MAP,
   formatTodayYMD,
   formatDateYMD,
-  parseYMDToISO,
-  normalizeSlotCategory,
   roundTo5
 } from '../data/exerciseLibrary';
-import { normalizeSlotLabels } from '../utils/workoutEngine';
+import { buildPersonalRecordHistoryEntry, insertHistoryEntrySorted } from '../utils/workoutEngine';
 
 export function usePlateCalculator({
   handleUpdateSetField,
@@ -101,68 +99,19 @@ export function usePlateCalculator({
     } else if (plateCalcTarget.mode === 'pr') {
       const roundedPR = roundTo5(finalWeightLbs);
       const exId = plateCalcTarget.exerciseId;
-      const exObj = EXERCISE_MAP[exId] || {
-        id: exId,
-        name: plateCalcTarget.exerciseName || exId,
-        category: 'Compound',
-        muscleGroup: 'All Muscles'
-      };
       setOneRepMaxes(prev => ({
         ...prev,
         [exId]: roundedPR
       }));
 
-      // Always log an individual History entry when a Personal Record is entered (using chosen date or today in YYYY/MM/DD)
+      // Always log an individual History entry when a Personal Record is entered (chosen date or today)
       const cleanDate =
-        prRecordDate && String(prRecordDate).trim()
-          ? formatDateYMD(prRecordDate)
-          : formatTodayYMD();
-      const ts = Date.now();
-      const prSet = {
-        id: `set_pr_${ts}`,
-        setNumber: 1,
-        type: '1 Rep Max',
-        reps: 1,
-        lastWeight: roundedPR,
-        increment: 0,
-        weight: roundedPR,
-        completed: true
-      };
-      const prSlot = {
-        id: `slot_pr_${ts}`,
-        category: normalizeSlotCategory(exObj.category || 'Compound'),
-        slotLabel: normalizeSlotCategory(exObj.category || 'Compound'),
-        scheme: 'Pyramid 1RM',
-        restSeconds: 90,
-        muscleGroupFilter: exObj.muscleGroup || 'All Muscles',
-        familyMuscleGroup: exObj.muscleGroup || 'Chest',
-        exerciseId: exObj.id,
-        secondaryExerciseId: null,
-        supersetExerciseIds: [exObj.id],
-        supersetSetsByExercise: [[prSet]],
-        sets: [prSet],
-        secondarySets: []
-      };
-      const isoDate = parseYMDToISO(cleanDate);
-      const newHistEntry = {
-        id: `hist_pr_${exObj.id}_${ts}`,
-        title: `${cleanDate} - ${exObj.name} PR (${roundedPR} LB)`,
-        loadedRoutineTitle: 'PERSONAL RECORD',
-        startedAt: isoDate,
-        updatedAt: new Date().toISOString(),
-        isComplete: true,
-        verifiedByUser: true,
-        defaultRestSeconds: 90,
-        slots: normalizeSlotLabels([prSlot])
-      };
-      setHistory(prev =>
-        [newHistEntry, ...(prev || [])].sort(
-          (a, b) => new Date(b.startedAt || 0).getTime() - new Date(a.startedAt || 0).getTime()
-        )
-      );
+        prRecordDate && String(prRecordDate).trim() ? formatDateYMD(prRecordDate) : formatTodayYMD();
+      const entry = buildPersonalRecordHistoryEntry({ exerciseId: exId, oneRepMax: roundedPR, dateYMD: cleanDate });
+      setHistory(prev => insertHistoryEntrySorted(prev, entry));
       appendSessionLog?.(
         'PR_HISTORY_CREATE',
-        `Created PR History entry for ${exObj.name} (${roundedPR} LB on ${cleanDate})`
+        `Created PR History entry for ${EXERCISE_MAP[exId]?.name || plateCalcTarget.exerciseName || exId} (${roundedPR} LB on ${cleanDate})`
       );
       setPrRecordDate('');
     } else if (plateCalcTarget.mode === 'goal') {

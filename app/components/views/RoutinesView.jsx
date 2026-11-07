@@ -5,11 +5,10 @@ import { UI } from '../../styles/kineticTokens';
 import { IOSListSection, IOSListRow } from '../Primitives';
 import {
   DEFAULT_ROUTINES,
-  DEFAULT_GYM_EQUIPMENT_PRESETS,
-  getGymSelectionLabel,
   getRoutineGymCategory,
   doesRoutineMatchGymFilter
 } from '../../data/exerciseLibrary';
+import { Button, DeleteButton, GymSelect } from '../Controls';
 
 export function RoutinesView({
   colors,
@@ -56,107 +55,21 @@ export function RoutinesView({
         }}
       >
         {/* GYMS/EQUIPMENT DROPDOWN AT TOP OF ROUTINES SELECTION */}
-        <div
-          style={{
-            width: '100%',
-            height: '48px',
-            boxSizing: 'border-box',
-            position: 'relative',
-            backgroundColor: '#161618',
-            borderTop: 'none',
-            borderLeft: 'none',
-            borderRight: '1px solid var(--dp-color-rule)',
-            borderBottom: '1px solid var(--dp-color-rule)',
-            padding: '0 8px',
-            display: 'flex',
-            flexDirection: 'column',
-            justifyContent: 'center',
-            alignItems: 'center',
-            textAlign: 'center',
-            minWidth: 0
-          }}
-        >
-          <div
-            style={{
-              fontSize: '10px',
-              fontWeight: 800,
-              color: 'var(--dp-color-accent)',
-              textTransform: 'uppercase',
-              lineHeight: 1.15
-            }}
-          >
-            GYMS/EQUIPMENT ▾
-          </div>
-          <div
-            style={{
-              fontSize: '13px',
-              fontWeight: 800,
-              color: '#FFFFFF',
-              textTransform: 'uppercase',
-              whiteSpace: 'nowrap',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              width: '100%',
-              lineHeight: 1.25,
-              marginTop: '1px',
-              textAlign: 'center'
-            }}
-          >
-            {getGymSelectionLabel(selectedGymId, gyms)}
-          </div>
-          <select
-            aria-label="Filter Routines by Gyms/Equipment"
-            value={selectedGymId || ''}
-            onChange={e => setSelectedGymId?.(e.target.value)}
-            style={{
-              position: 'absolute',
-              inset: 0,
-              width: '100%',
-              height: '100%',
-              opacity: 0,
-              backgroundColor: '#101010',
-              color: '#FFFFFF',
-              cursor: 'pointer'
-            }}
-          >
-            {DEFAULT_GYM_EQUIPMENT_PRESETS.map(preset => (
-              <option key={preset.id || 'full_gym'} value={preset.id}>
-                {preset.name.toUpperCase()}
-              </option>
-            ))}
-            {(gyms || []).map(g => (
-              <option key={g.id} value={g.id}>
-                {g.name.toUpperCase()}
-              </option>
-            ))}
-          </select>
-        </div>
+<GymSelect
+          variant="tile"
+          ariaLabel="Filter Routines by Gyms/Equipment"
+          value={selectedGymId}
+          onChange={id => setSelectedGymId?.(id)}
+          gyms={gyms}
+        />
 
-        <button
-          type="button"
+        <Button
+          variant="secondary"
           onClick={() => handleCancelRoutineSelection?.()}
-          className="kinetic-btn"
-          style={{
-            ...UI.secondaryBtnCenter,
-            width: '100%',
-            height: '48px',
-            boxSizing: 'border-box',
-            padding: '0 14px',
-            fontSize: '12px',
-            backgroundColor: '#3B1818',
-            color: '#FF8585',
-            borderTop: 'none',
-            borderLeft: 'none',
-            borderRight: '1px solid var(--dp-color-rule)',
-            borderBottom: '1px solid var(--dp-color-rule)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: '6px'
-          }}
+          style={{ width: '100%', height: '48px', boxSizing: 'border-box', padding: '0 14px', fontSize: '12px', backgroundColor: '#3B1818', color: '#FF8585', borderTop: 'none', borderLeft: 'none', borderRight: '1px solid var(--dp-color-rule)', borderBottom: '1px solid var(--dp-color-rule)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
         >
           <span>CANCEL</span>
-        </button>
+        </Button>
       </div>
 
       <IOSListSection header={`DEFAULT ROUTINES (${filteredDefaultRoutines.length})`} colors={colors}>
@@ -179,17 +92,16 @@ export function RoutinesView({
                   <div className="kinetic-sub" style={UI.rowSub}>GYM: {gymCat}</div>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
-                  <button
-                    type="button"
+                  <Button
+                    variant="toggle"
+                    active
                     onClick={e => {
                       e.stopPropagation();
                       handleDirectLoadRoutine(r, routineSelectReturnView || 'session');
                     }}
-                    className="kinetic-btn"
-                    style={UI.pillBtn(true)}
                   >
                     LOAD →
-                  </button>
+                  </Button>
                 </div>
               </IOSListRow>
             );
@@ -218,39 +130,27 @@ export function RoutinesView({
                   <div className="kinetic-sub" style={UI.rowSub}>BY @{authorHandle} • GYM: {gymCat}</div>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
-                  <button
-                    type="button"
+                  <Button
+                    variant="toggle"
+                    active
                     onClick={e => {
                       e.stopPropagation();
                       handleDirectLoadRoutine(r, routineSelectReturnView || 'session');
                     }}
-                    className="kinetic-btn"
-                    style={UI.pillBtn(true)}
                   >
                     LOAD →
-                  </button>
-                  <button
-                    type="button"
-                    aria-label={`Delete ${r.label}`}
-                    onClick={e => {
-                      e.stopPropagation();
+                  </Button>
+                  <DeleteButton
+                    label={`Delete ${r.label}`}
+                    onClick={() =>
                       setDeleteConfirmTarget?.({
                         type: 'saved_routine',
                         routineKey: r.key,
                         routineLabel: r.label,
                         label: r.label
-                      });
-                    }}
-                    className="kinetic-btn"
-                    style={{
-                      ...UI.deleteXBtn,
-                      width: '32px',
-                      height: '30px',
-                      fontSize: '12px'
-                    }}
-                  >
-                    ✕
-                  </button>
+                      })
+                    }
+                  />
                 </div>
               </IOSListRow>
             );
@@ -279,39 +179,27 @@ export function RoutinesView({
                   <div className="kinetic-sub" style={UI.rowSub}>BY @{authorHandle} • GYM: {gymCat}</div>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
-                  <button
-                    type="button"
+                  <Button
+                    variant="toggle"
+                    active
                     onClick={e => {
                       e.stopPropagation();
                       handleDirectLoadRoutine(r, routineSelectReturnView || 'session');
                     }}
-                    className="kinetic-btn"
-                    style={UI.pillBtn(true)}
                   >
                     LOAD →
-                  </button>
-                  <button
-                    type="button"
-                    aria-label={`Delete ${r.label}`}
-                    onClick={e => {
-                      e.stopPropagation();
+                  </Button>
+                  <DeleteButton
+                    label={`Delete ${r.label}`}
+                    onClick={() =>
                       setDeleteConfirmTarget?.({
                         type: 'shared_routine',
                         routineKey: r.key,
                         routineLabel: r.label,
                         label: r.label
-                      });
-                    }}
-                    className="kinetic-btn"
-                    style={{
-                      ...UI.deleteXBtn,
-                      width: '32px',
-                      height: '30px',
-                      fontSize: '12px'
-                    }}
-                  >
-                    ✕
-                  </button>
+                      })
+                    }
+                  />
                 </div>
               </IOSListRow>
             );
@@ -339,17 +227,16 @@ export function RoutinesView({
                   <div className="kinetic-sub" style={UI.rowSub}>BY @{r.friendName} • GYM: {gymCat}</div>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
-                  <button
-                    type="button"
+                  <Button
+                    variant="toggle"
+                    active
                     onClick={e => {
                       e.stopPropagation();
                       handleDirectLoadRoutine(r, routineSelectReturnView || 'session');
                     }}
-                    className="kinetic-btn"
-                    style={UI.pillBtn(true)}
                   >
                     LOAD →
-                  </button>
+                  </Button>
                 </div>
               </IOSListRow>
             );

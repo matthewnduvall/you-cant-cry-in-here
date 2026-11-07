@@ -6,8 +6,11 @@ import {
   searchAthletesByQuery,
   sendFriendRequestToAthlete,
   acceptFriendRequestFromAthlete,
+  removeFriendshipWithAthlete,
   resolveInviteFriendshipsForUser
 } from '../../utils/supabaseAuth';
+import { isSameFriend, mergeFriendsIntoList } from '../../utils/storageMigration';
+import { DeleteButton } from '../Controls';
 
 export function SocialView({
   colors,
@@ -21,6 +24,10 @@ export function SocialView({
   onSendEmailInvite,
   friendsList,
   setFriendsList,
+  removedFriends = [],
+  setRemovedFriends,
+  setDeleteConfirmTarget,
+  appendSessionLog,
   setViewingFriendProfile,
   setCurrentView
 }) {
@@ -115,54 +122,9 @@ export function SocialView({
         }
 
         if (Array.isArray(matchedFriends) && matchedFriends.length > 0) {
-          setFriendsList(prev => {
-            const mergePrs = (prsA = {}, prsB = {}) => {
-              const out = { ...(prsA || {}) };
-              Object.entries(prsB || {}).forEach(([k, v]) => {
-                const num = Number(v) || 0;
-                if (num > (Number(out[k]) || 0)) out[k] = num;
-              });
-              return out;
-            };
-            const list = [...(Array.isArray(prev) ? prev : [])];
-            matchedFriends.forEach(f => {
-              if (!f) return;
-              const fU = (f.username || '').trim().toLowerCase();
-              const fE = (f.email || '').trim().toLowerCase();
-              const fEPrefix = fE ? fE.split('@')[0] : '';
-              const existingIdx = list.findIndex(item => {
-                if (!item) return false;
-                const iU = (item.username || '').trim().toLowerCase();
-                const iE = (item.email || '').trim().toLowerCase();
-                const iEPrefix = iE ? iE.split('@')[0] : '';
-                return (
-                  (f.id && item.id && String(f.id) === String(item.id)) ||
-                  (fU && (iU === fU || iEPrefix === fU)) ||
-                  (fE && iE === fE) ||
-                  (fEPrefix && iU === fEPrefix)
-                );
-              });
-              if (existingIdx >= 0) {
-                const existing = list[existingIdx];
-                list[existingIdx] = {
-                  ...existing,
-                  ...f,
-                  prs: mergePrs(existing.prs, f.prs),
-                  history:
-                    Array.isArray(f.history) && f.history.length > 0
-                      ? f.history
-                      : existing.history || [],
-                  sharedRoutines:
-                    Array.isArray(f.sharedRoutines) && f.sharedRoutines.length > 0
-                      ? f.sharedRoutines
-                      : existing.sharedRoutines || []
-                };
-              } else {
-                list.push(f);
-              }
-            });
-            return list;
-          });
+          setFriendsList(prev =>
+            mergeFriendsIntoList(prev, matchedFriends, removedFriends, { preferIncoming: true })
+          );
         }
 
         if (Array.isArray(resolvedInviteEmails) && resolvedInviteEmails.length > 0 && setOutgoingInvites) {
@@ -183,8 +145,29 @@ export function SocialView({
     };
   }, [user?.id, user?.email, user?.username]);
 
+  // Re-friending someone takes them back off the removed list.
+  const unremoveFriend = athlete => setRemovedFriends?.(prev => (prev || []).filter(r => !isSameFriend(r, athlete)));
+
+  const handleRemoveFriend = friend => {
+    setDeleteConfirmTarget?.({
+      type: 'friend',
+      title: 'REMOVE FRIEND?',
+      verb: 'remove',
+      label: `@${friend.username}`,
+      confirmLabel: 'REMOVE ✕',
+      onConfirm: () => {
+        const record = { id: friend.id, username: friend.username, email: friend.email };
+        setRemovedFriends?.(prev => [...(prev || []).filter(r => !isSameFriend(r, record)), record]);
+        setFriendsList(prev => (Array.isArray(prev) ? prev : []).filter(f => !isSameFriend(f, record)));
+        removeFriendshipWithAthlete(user, friend);
+        appendSessionLog?.('FRIEND_REMOVED', `Removed friend @${friend.username}`);
+      }
+    });
+  };
+
   const handleSendFriendInvite = async athlete => {
     if (!athlete) return;
+    unremoveFriend(athlete);
     const cleanEmail = (athlete.email || '').trim().toLowerCase();
     const cleanUsername = (athlete.username || '').trim();
     if (setOutgoingInvites) {
@@ -213,6 +196,7 @@ export function SocialView({
 
   const handleAcceptFriendInvite = async req => {
     if (!req) return;
+    unremoveFriend(req);
     setFriendsList(prev => {
       const list = Array.isArray(prev) ? prev : [];
       const exists = list.some(
@@ -560,10 +544,16 @@ export function SocialView({
                 setCurrentView('friend_profile');
               }}
             >
-              <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
+                <DeleteButton
+                  label={`Remove @${friend.username} from friends`}
+                  onClick={() => handleRemoveFriend(friend)}
+                />
                 <div style={{ fontSize: '16px', fontWeight: 800, textTransform: 'uppercase' }}>@{friend.username}</div>
               </div>
-              <span style={{ fontSize: '14px', fontWeight: 800, color: 'var(--dp-color-accent)' }}>VIEW PROFILE →</span>
+              <span style={{ fontSize: '14px', fontWeight: 800, color: 'var(--dp-color-accent)', flexShrink: 0 }}>
+                VIEW PROFILE →
+              </span>
             </IOSListRow>
           ))}
       </IOSListSection>

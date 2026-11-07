@@ -10,6 +10,7 @@ import {
   completePasswordRecoveryWithToken,
   resetPasswordWithBetaCode
 } from '../../utils/supabaseAuth';
+import { Button } from '../Controls';
 
 export function AuthView({
   colors,
@@ -278,15 +279,13 @@ export function AuthView({
                 ⚠ {recoveryError}
               </div>
             )}
-            <button
-              type="button"
+            <Button
+              variant="primary"
               disabled={authSubmitting === 'recover_token'}
               onClick={handleCompleteTokenReset}
-              className="kinetic-btn"
-              style={UI.primaryBtnCenter}
             >
               {authSubmitting === 'recover_token' ? 'SAVING NEW PASSWORD...' : 'SAVE NEW PASSWORD & SIGN IN →'}
-            </button>
+            </Button>
           </div>
         </div>
       )}
@@ -355,18 +354,14 @@ export function AuthView({
             ⚠ {loginError}
           </div>
         )}
-        <button
-          type="button"
+        <Button
+          variant="secondary"
           disabled={authSubmitting === 'login'}
           onClick={handleSignInSubmit}
-          className="kinetic-btn"
-          style={{
-            ...UI.secondaryBtnCenter,
-            opacity: authSubmitting === 'login' ? 0.6 : 1
-          }}
+          style={{ opacity: authSubmitting === 'login' ? 0.6 : 1 }}
         >
           {authSubmitting === 'login' ? 'VERIFYING CREDENTIALS...' : 'SIGN IN →'}
-        </button>
+        </Button>
 
         <div style={{ marginTop: '10px', display: 'flex', justifyContent: 'flex-end' }}>
           <button
@@ -422,20 +417,14 @@ export function AuthView({
             <IOSListRow colors={colors}>
               <div style={{ width: '100%' }}>
                 <div style={UI.fieldLabel}>OPTION 1: EMAIL RECOVERY LINK</div>
-                <button
-                  type="button"
+                <Button
+                  variant="secondary"
                   disabled={authSubmitting === 'recover_email'}
                   onClick={handleSendRecoveryEmail}
-                  className="kinetic-btn"
-                  style={{
-                    ...UI.secondaryBtnCenter,
-                    padding: '10px',
-                    fontSize: '12px',
-                    opacity: authSubmitting === 'recover_email' ? 0.6 : 1
-                  }}
+                  style={{ padding: '10px', fontSize: '12px', opacity: authSubmitting === 'recover_email' ? 0.6 : 1 }}
                 >
                   {authSubmitting === 'recover_email' ? 'SENDING RECOVERY LINK...' : 'SEND RECOVERY EMAIL LINK ↗'}
-                </button>
+                </Button>
               </div>
             </IOSListRow>
 
@@ -535,18 +524,14 @@ export function AuthView({
                 ✓ {recoverySuccess}
               </div>
             )}
-            <button
-              type="button"
+            <Button
+              variant="primary"
               disabled={authSubmitting === 'recover_beta'}
               onClick={handleResetWithBetaCode}
-              className="kinetic-btn"
-              style={{
-                ...UI.primaryBtnCenter,
-                opacity: authSubmitting === 'recover_beta' ? 0.6 : 1
-              }}
+              style={{ opacity: authSubmitting === 'recover_beta' ? 0.6 : 1 }}
             >
               {authSubmitting === 'recover_beta' ? 'RESETTING PASSWORD...' : 'RESET PASSWORD NOW →'}
-            </button>
+            </Button>
           </div>
         </div>
       )}
@@ -651,18 +636,14 @@ export function AuthView({
             ⚠ {signupError}
           </div>
         )}
-        <button
-          type="button"
+        <Button
+          variant="primary"
           disabled={authSubmitting === 'signup'}
           onClick={handleSignUpSubmit}
-          className="kinetic-btn"
-          style={{
-            ...UI.primaryBtnCenter,
-            opacity: authSubmitting === 'signup' ? 0.6 : 1
-          }}
+          style={{ opacity: authSubmitting === 'signup' ? 0.6 : 1 }}
         >
           {authSubmitting === 'signup' ? 'CREATING ACCOUNT...' : 'CREATE ACCOUNT →'}
-        </button>
+        </Button>
       </div>
     </div>
   );
