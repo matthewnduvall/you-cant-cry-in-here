@@ -1089,6 +1089,167 @@ export async function pushCloudStateForUser(user, payload) {
   return true;
 }
 
+const scanSetArrayIntoPrs = (exId, setsArr, targetPrs) => {
+  if (!exId || !Array.isArray(setsArr)) return;
+  setsArr.forEach(st => {
+    const sw = Number(st?.weight) || 0;
+    if (sw <= 0) return;
+    const sr = Math.max(1, Number(st?.reps) || 1);
+    const est = sr === 1 ? sw : Math.round(sw * (1 + sr / 30));
+    if (est > (Number(targetPrs[exId]) || 0)) {
+      targetPrs[exId] = est;
+    }
+  });
+};
+
+const scanSlotsIntoPrs = (slotsList, targetPrs) => {
+  (Array.isArray(slotsList) ? slotsList : []).forEach(slot => {
+    if (slot?.exerciseId) {
+      scanSetArrayIntoPrs(slot.exerciseId, slot?.sets, targetPrs);
+    }
+    if (slot?.secondaryExerciseId) {
+      scanSetArrayIntoPrs(slot.secondaryExerciseId, slot?.secondarySets, targetPrs);
+    }
+    if (Array.isArray(slot?.supersetExerciseIds) && Array.isArray(slot?.supersetSetsByExercise)) {
+      slot.supersetExerciseIds.forEach((supExId, idx) => {
+        scanSetArrayIntoPrs(supExId, slot.supersetSetsByExercise[idx], targetPrs);
+      });
+    }
+  });
+};
+
+const mapHistoryTableRow = h => ({
+  id: h.id,
+  title: h.title,
+  loadedRoutineTitle: h.preset_used || 'MANUAL',
+  startedAt: h.started_at,
+  slots: Array.isArray(h.slots) ? h.slots : []
+});
+
+const mapRoutineTableRow = r => ({
+  key: r.key,
+  label: r.label,
+  author: r.author_username,
+  isShared: Boolean(r.is_shared),
+  slots: Array.isArray(r.slots) ? r.slots : []
+});
+
+/**
+ * Builds a friend/athlete object (PRs, history, shared routines) from a user_profiles row plus
+ * optional workout_history / routines table rows. PRs merge stored 1RMs with estimates from every
+ * logged set, so a profile shows records even when only part of the cloud data is available.
+ */
+function buildAthleteFromProfileRow(
+  row,
+  { tableHistory = [], sharedRoutines = null, allUserRoutines = [] } = {},
+  friendshipId = null
+) {
+  const uname = (row?.username || '').trim() || (row?.email || '').split('@')[0];
+  const email = (row?.email || '').trim().toLowerCase();
+  const sharedFromSettings = Array.isArray(row?.settings?.sharedRoutines)
+    ? row.settings.sharedRoutines
+    : [];
+  const shared = sharedRoutines && sharedRoutines.length ? sharedRoutines : sharedFromSettings;
+  const settingsHistory = Array.isArray(row?.settings?.recentHistory) ? row.settings.recentHistory : [];
+  const embeddedMetaHistory = Array.isArray(row?.settings?.yccih_cloud_state_v3?.history)
+    ? row.settings.yccih_cloud_state_v3.history
+    : [];
+  const historyMap = new Map();
+  [...tableHistory, ...settingsHistory, ...embeddedMetaHistory].forEach(w => {
+    if (w && w.id && !historyMap.has(w.id)) {
+      historyMap.set(w.id, w);
+    }
+  });
+  const rowHistory = Array.from(historyMap.values()).sort(
+    (a, b) => new Date(b?.startedAt || 0).getTime() - new Date(a?.startedAt || 0).getTime()
+  );
+
+  const mergedPrs = {};
+  const mergePrSource = src => {
+    if (!src || typeof src !== 'object') return;
+    Object.entries(src).forEach(([k, v]) => {
+      const num = Number(v) || 0;
+      if (num > (Number(mergedPrs[k]) || 0)) {
+        mergedPrs[k] = num;
+      }
+    });
+  };
+
+  mergePrSource(row?.one_rep_maxes);
+  mergePrSource(row?.settings?.oneRepMaxes);
+  mergePrSource(row?.settings?.prs);
+  mergePrSource(row?.settings?.yccih_cloud_state_v3?.oneRepMaxes);
+
+  rowHistory.forEach(w => scanSlotsIntoPrs(w?.slots, mergedPrs));
+
+  return {
+    id: row?.id || `friend_${uname.toLowerCase()}`,
+    friendshipId: friendshipId || undefined,
+    username: uname,
+    email,
+    bodyweightLbs: row?.settings?.bodyMetrics?.bodyweightLbs || 200,
+    prs: mergedPrs,
+    history: rowHistory,
+    sharedRoutines: shared
+  };
+}
+
+/**
+ * Fetches one athlete's public profile directly (by id, username, or email) along with their
+ * workout_history and shared routines. Works regardless of how the friendship was recorded, so
+ * friend profiles always show cloud PRs. Missing tables are tolerated.
+ */
+export async function fetchAthleteProfileSnapshot(athlete, currentUser = null) {
+  const { baseUrl, anonKey, isConfigured } = getSupabaseConfig();
+  if (!isConfigured || !athlete) return null;
+
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  const id = uuidRegex.test(String(athlete.id || '')) ? String(athlete.id) : '';
+  const uname = (athlete.username || '').trim().replace(/^@/, '');
+  const email = (athlete.email || '').trim().toLowerCase();
+  const filter = id
+    ? `id=eq.${encodeURIComponent(id)}`
+    : email
+      ? `email=ilike.${encodeURIComponent(email)}`
+      : uname
+        ? `username=ilike.${encodeURIComponent(uname)}`
+        : '';
+  if (!filter) return null;
+
+  const accessToken = currentUser ? await getValidSupabaseAccessToken(currentUser) : null;
+  const fetchJson = async url => {
+    try {
+      let res = await fetch(url, { headers: buildSupabaseHeaders(anonKey, accessToken) });
+      if (!res.ok && accessToken) {
+        res = await fetch(url, { headers: buildSupabaseHeaders(anonKey, null) });
+      }
+      return res.ok ? await res.json() : null;
+    } catch {
+      return null;
+    }
+  };
+
+  const profileRows = await fetchJson(
+    `${baseUrl}/rest/v1/user_profiles?${filter}&select=id,username,email,one_rep_maxes,settings&limit=1`
+  );
+  const row = Array.isArray(profileRows) ? profileRows[0] : null;
+  if (!row?.id) return null;
+
+  const [historyRows, routineRows] = await Promise.all([
+    fetchJson(
+      `${baseUrl}/rest/v1/workout_history?user_id=eq.${encodeURIComponent(row.id)}&select=id,title,preset_used,started_at,slots&order=started_at.desc`
+    ),
+    fetchJson(
+      `${baseUrl}/rest/v1/routines?user_id=eq.${encodeURIComponent(row.id)}&is_shared=eq.true&select=key,author_username,label,is_shared,slots`
+    )
+  ]);
+
+  return buildAthleteFromProfileRow(row, {
+    tableHistory: Array.isArray(historyRows) ? historyRows.map(mapHistoryTableRow) : [],
+    sharedRoutines: Array.isArray(routineRows) ? routineRows.map(mapRoutineTableRow) : null
+  });
+}
+
 const LOCAL_FRIEND_REQUESTS_KEY = 'yccih_local_friend_requests_v1';
 
 function getLocalFriendRequests() {
@@ -1483,103 +1644,17 @@ export async function resolveInviteFriendshipsForUser(
         });
       }
 
-      const scanSetArrayIntoPrs = (exId, setsArr, targetPrs) => {
-        if (!exId || !Array.isArray(setsArr)) return;
-        setsArr.forEach(st => {
-          const sw = Number(st?.weight) || 0;
-          if (sw <= 0) return;
-          const sr = Math.max(1, Number(st?.reps) || 1);
-          const est = sr === 1 ? sw : Math.round(sw * (1 + sr / 30));
-          if (est > (Number(targetPrs[exId]) || 0)) {
-            targetPrs[exId] = est;
-          }
-        });
-      };
-
-      const scanSlotsIntoPrs = (slotsList, targetPrs) => {
-        (Array.isArray(slotsList) ? slotsList : []).forEach(slot => {
-          if (slot?.exerciseId) {
-            scanSetArrayIntoPrs(slot.exerciseId, slot?.sets, targetPrs);
-          }
-          if (slot?.secondaryExerciseId) {
-            scanSetArrayIntoPrs(slot.secondaryExerciseId, slot?.secondarySets, targetPrs);
-          }
-          if (Array.isArray(slot?.supersetExerciseIds) && Array.isArray(slot?.supersetSetsByExercise)) {
-            slot.supersetExerciseIds.forEach((supExId, idx) => {
-              scanSetArrayIntoPrs(supExId, slot.supersetSetsByExercise[idx], targetPrs);
-            });
-          }
-        });
-      };
-
       const buildFriendObjFromProfile = (row, friendshipId = null) => {
-        const uname = (row?.username || '').trim() || (row?.email || '').split('@')[0];
-        const email = (row?.email || '').trim().toLowerCase();
-        const sharedFromSettings = Array.isArray(row?.settings?.sharedRoutines)
-          ? row.settings.sharedRoutines
-          : [];
-        const shared =
-          routinesByUserId.get(row?.id) ||
-          routinesByUsername.get(uname.toLowerCase()) ||
-          sharedFromSettings;
-        const settingsHistory = Array.isArray(row?.settings?.recentHistory)
-          ? row.settings.recentHistory
-          : [];
-        const embeddedMetaHistory = Array.isArray(row?.settings?.yccih_cloud_state_v3?.history)
-          ? row.settings.yccih_cloud_state_v3.history
-          : [];
-        const tableHistory = historyByUserId.get(row?.id) || [];
-        const historyMap = new Map();
-        [...tableHistory, ...settingsHistory, ...embeddedMetaHistory].forEach(w => {
-          if (w && w.id && !historyMap.has(w.id)) {
-            historyMap.set(w.id, w);
-          }
-        });
-        const rowHistory = Array.from(historyMap.values()).sort(
-          (a, b) => new Date(b?.startedAt || 0).getTime() - new Date(a?.startedAt || 0).getTime()
+        const uname = ((row?.username || '').trim() || (row?.email || '').split('@')[0]).toLowerCase();
+        return buildAthleteFromProfileRow(
+          row,
+          {
+            tableHistory: historyByUserId.get(row?.id) || [],
+            sharedRoutines: routinesByUserId.get(row?.id) || routinesByUsername.get(uname) || null,
+            allUserRoutines: allRoutinesByUserId.get(row?.id) || []
+          },
+          friendshipId
         );
-
-        const mergedPrs = {};
-        const mergePrSource = src => {
-          if (!src || typeof src !== 'object') return;
-          Object.entries(src).forEach(([k, v]) => {
-            const num = Number(v) || 0;
-            if (num > (Number(mergedPrs[k]) || 0)) {
-              mergedPrs[k] = num;
-            }
-          });
-        };
-
-        mergePrSource(row?.one_rep_maxes);
-        mergePrSource(row?.settings?.oneRepMaxes);
-        mergePrSource(row?.settings?.prs);
-        mergePrSource(row?.settings?.yccih_cloud_state_v3?.oneRepMaxes);
-        mergePrSource(row?.settings?.goals?.customGoalWeights);
-
-        rowHistory.forEach(w => scanSlotsIntoPrs(w?.slots, mergedPrs));
-        if (row?.settings?.activeSession?.slots) {
-          scanSlotsIntoPrs(row.settings.activeSession.slots, mergedPrs);
-        }
-        const settingsSavedRoutines = Array.isArray(row?.settings?.savedRoutines)
-          ? row.settings.savedRoutines
-          : [];
-        const userRoutines = [
-          ...(allRoutinesByUserId.get(row?.id) || []),
-          ...shared,
-          ...settingsSavedRoutines
-        ];
-        userRoutines.forEach(r => scanSlotsIntoPrs(r?.slots, mergedPrs));
-
-        return {
-          id: row?.id || `friend_${uname.toLowerCase()}`,
-          friendshipId: friendshipId || undefined,
-          username: uname,
-          email,
-          bodyweightLbs: row?.settings?.bodyMetrics?.bodyweightLbs || 200,
-          prs: mergedPrs,
-          history: rowHistory,
-          sharedRoutines: shared
-        };
       };
 
       // A) Process explicit rows from public.friendships table

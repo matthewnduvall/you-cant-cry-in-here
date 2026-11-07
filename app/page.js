@@ -317,7 +317,8 @@ export default function App() {
     handleInsertSetAtPosition,
     handleRecalculateSlotWeights,
     handleToggleSetDone,
-    handleAddManualSlot
+    handleAddManualSlot,
+    handleChangeGymSelection
   } = useWorkoutMutations({
     currentView,
     setCurrentView,
@@ -349,6 +350,7 @@ export default function App() {
     setSaveConfirmTarget,
     setOpenedFromRoutines,
     selectedGymId,
+    setSelectedGymId,
     gyms,
     routinePreferences,
     currentIncrementLbs,
@@ -519,7 +521,7 @@ export default function App() {
               setRoutineSelectReturnView={setRoutineSelectReturnView}
               setCurrentView={setCurrentView}
               selectedGymId={selectedGymId}
-              setSelectedGymId={setSelectedGymId}
+              setSelectedGymId={handleChangeGymSelection}
               gyms={gyms}
               history={history}
               oneRepMaxes={effectiveOneRepMaxes}
@@ -821,6 +823,21 @@ export default function App() {
             />
           )}
         </div>
+
+        {/* COPYRIGHT FOOTER (every view) */}
+        <footer
+          style={{
+            borderTop: '2px solid var(--dp-color-rule)',
+            padding: '14px var(--dp-spacing-gutter)',
+            textAlign: 'center',
+            fontSize: '11px',
+            fontWeight: 700,
+            letterSpacing: '0.02em',
+            color: '#A0A0A0'
+          }}
+        >
+          Copyright © 2026 MaNoDuV LLC
+        </footer>
 
         {/* MODALS */}
         <DeleteConfirmModal

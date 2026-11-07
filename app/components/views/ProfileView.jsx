@@ -1,10 +1,12 @@
 'use client';
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { IOSListSection, IOSListRow } from '../Primitives';
 import { CORE_PR_EXERCISE_IDS, EXERCISE_LIBRARY, EXERCISE_MAP } from '../../data/exerciseLibrary';
 import { getBestHistory1RM } from '../../utils/workoutEngine';
-import { resolveInviteFriendshipsForUser } from '../../utils/supabaseAuth';
+import { fetchAthleteProfileSnapshot, resolveInviteFriendshipsForUser } from '../../utils/supabaseAuth';
+
+const PROFILE_PR_LIMIT = 10;
 
 export function ProfileView({
   colors,
@@ -24,6 +26,7 @@ export function ProfileView({
   handleOpenPreviewRoutine
 }) {
   const isFriend = currentView === 'friend_profile' && viewingFriendProfile;
+  const [showAllPrs, setShowAllPrs] = useState(false);
 
   // Refresh the friend's profile live from Supabase when viewing a friend's profile
   useEffect(() => {
@@ -31,12 +34,21 @@ export function ProfileView({
     let cancelled = false;
     (async () => {
       try {
-        const { matchedFriends } = await resolveInviteFriendshipsForUser(
-          user || { username: 'guest', email: '' },
-          [],
-          [...(friendsList || []), viewingFriendProfile]
-        );
-        if (cancelled || !Array.isArray(matchedFriends) || matchedFriends.length === 0) return;
+        // Load the friend's own profile row directly (works even when the friendship only exists locally),
+        // then merge in anything the friendship resolver finds.
+        const [directSnapshot, { matchedFriends: resolvedFriends }] = await Promise.all([
+          fetchAthleteProfileSnapshot(viewingFriendProfile, user),
+          resolveInviteFriendshipsForUser(
+            user || { username: 'guest', email: '' },
+            [],
+            [...(friendsList || []), viewingFriendProfile]
+          )
+        ]);
+        const matchedFriends = [
+          ...(directSnapshot ? [directSnapshot] : []),
+          ...(Array.isArray(resolvedFriends) ? resolvedFriends : [])
+        ];
+        if (cancelled || matchedFriends.length === 0) return;
 
         const targetUname = (viewingFriendProfile.username || '').trim().toLowerCase();
         const targetEmail = (viewingFriendProfile.email || '').trim().toLowerCase();
@@ -159,6 +171,20 @@ export function ProfileView({
     });
   }
 
+  // Logged PRs sorted heaviest first, then any core lifts still TBD; show the top 10 until expanded.
+  const allPrRows = Array.from(
+    new Set([...CORE_PR_EXERCISE_IDS, ...Object.keys(profPRs || {}).filter(id => Number(profPRs[id]) > 0)])
+  )
+    .map(id => EXERCISE_MAP[id])
+    .filter(Boolean)
+    .map(ex => {
+      const rawVal = Math.max(Number(profPRs?.[ex.id]) || 0, getBestHistory1RM(ex.id, profHistory));
+      return { ex, rawVal, isTBD: rawVal <= 0 };
+    })
+    .sort((a, b) => b.rawVal - a.rawVal);
+  const hasMorePrs = allPrRows.length > PROFILE_PR_LIMIT;
+  const visiblePrRows = showAllPrs ? allPrRows : allPrRows.slice(0, PROFILE_PR_LIMIT);
+
   const profRoutines = isFriend
     ? liveFriendMatch?.sharedRoutines || viewingFriendProfile?.sharedRoutines || []
     : sharedRoutines;
@@ -239,22 +265,11 @@ export function ProfileView({
       </IOSListSection>
 
       <IOSListSection header="PERSONAL RECORDS" colors={colors}>
-        {Array.from(
-          new Set([
-            ...CORE_PR_EXERCISE_IDS,
-            ...Object.keys(profPRs || {}).filter(id => Number(profPRs[id]) > 0)
-          ])
-        )
-          .map(id => EXERCISE_MAP[id])
-          .filter(Boolean)
-          .map((ex, i, arr) => {
-            const histBest = getBestHistory1RM(ex.id, profHistory);
-            const rawVal = Math.max(Number(profPRs?.[ex.id]) || 0, histBest);
-            const isTBD = rawVal <= 0;
+        {visiblePrRows.map(({ ex, rawVal, isTBD }, i) => {
             return (
               <IOSListRow
                 key={ex.id}
-                isLast={i === arr.length - 1}
+                isLast={i === visiblePrRows.length - 1 && !hasMorePrs}
                 colors={colors}
                 onClick={!isFriend ? () => openPlateCalculatorForPR(ex.id, ex.name, isTBD ? ex.default1RM : rawVal) : undefined}
               >
@@ -267,6 +282,13 @@ export function ProfileView({
               </IOSListRow>
             );
           })}
+        {hasMorePrs && (
+          <IOSListRow isLast={true} colors={colors} onClick={() => setShowAllPrs(prev => !prev)}>
+            <span style={{ fontSize: '13px', fontWeight: 800, color: 'var(--dp-color-accent)', textTransform: 'uppercase' }}>
+              {showAllPrs ? 'SHOW TOP 10 ↑' : `SEE ALL (${allPrRows.length}) ↓`}
+            </span>
+          </IOSListRow>
+        )}
       </IOSListSection>
 
       <IOSListSection header="SHARED ROUTINES" colors={colors}>

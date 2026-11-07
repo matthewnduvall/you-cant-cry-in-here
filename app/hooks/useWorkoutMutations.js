@@ -12,6 +12,8 @@ import {
   formatTitleWithDate,
   parseYMDToISO,
   isExerciseCompatibleWithGymSelection,
+  findEquivalentExerciseForGym,
+  convertEquivalent1RM,
   filterAddSlotExercises,
   getFilteredExercisesForSlotInline,
   getAvailableMuscleGroupsForCategory,
@@ -65,6 +67,7 @@ export function useWorkoutMutations({
   setSaveConfirmTarget,
   setOpenedFromRoutines,
   selectedGymId,
+  setSelectedGymId,
   gyms,
   routinePreferences,
   currentIncrementLbs,
@@ -766,6 +769,85 @@ export function useWorkoutMutations({
       });
       return { ...prev, slots: nextSlots };
     });
+  };
+
+  /**
+   * Changes the gym/equipment selection and swaps every untouched exercise in the open editor for
+   * its closest equivalent with that equipment (e.g. Barbell Bench Press → Dumbbell Bench Press).
+   * Slots with any set marked done are left alone. New weights come from the swapped exercise's own
+   * history (+ increment), or else a conversion of the old exercise's 1RM (dumbbells ≈ 35% lower).
+   */
+  const handleChangeGymSelection = nextGymId => {
+    setSelectedGymId(nextGymId);
+    // Logged/historical workouts keep the exercises that were actually performed.
+    if (currentView === 'historical_entry' || (currentView === 'history' && expandedHistoryWorkoutId)) return;
+    const editorWorkout = getCurrentEditorWorkout();
+    if (!editorWorkout?.slots?.length) return;
+
+    const slotHasDoneSet = slot =>
+      [slot.sets, slot.secondarySets, ...(slot.supersetSetsByExercise || [])].some(
+        list => Array.isArray(list) && list.some(st => st?.completed)
+      );
+
+    let swappedCount = 0;
+    const swapSlot = slot => {
+      if (!slot || slotHasDoneSet(slot)) return slot;
+      const isSuperset = isSupersetCategory(slot.category);
+      const oldIds = isSuperset
+        ? (slot.supersetExerciseIds || [slot.exerciseId, slot.secondaryExerciseId]).filter(Boolean).slice(0, 2)
+        : [slot.exerciseId].filter(Boolean);
+      // Superset partners must stay distinct, so the second pick excludes the first.
+      const newIds = [];
+      oldIds.forEach(id => {
+        newIds.push(findEquivalentExerciseForGym(id, nextGymId, gyms, newIds) || id);
+      });
+      if (newIds.every((id, i) => id === oldIds[i])) return slot;
+
+      // Old exercise's 1RM: logged history first, then the estimate saved by a previous swap
+      // (so swapping back and forth doesn't drift), then the library default.
+      const getOld1RM = id =>
+        getBestHistory1RM(id, history) > 0
+          ? getHistoricalCalculated1RM(id, history, oneRepMaxes)
+          : Number(slot.estimated1RMs?.[id]) || getHistoricalCalculated1RM(id, history, oneRepMaxes);
+      const base1RMOverrides = {};
+      newIds.forEach((id, i) => {
+        if (id !== oldIds[i]) {
+          base1RMOverrides[id] = convertEquivalent1RM(oldIds[i], id, getOld1RM(oldIds[i]));
+        }
+      });
+      swappedCount += newIds.filter((id, i) => id !== oldIds[i]).length;
+
+      const rebuilt = createWorkoutSlot({
+        category: slot.category,
+        slotLabel: slot.slotLabel,
+        exerciseId: newIds[0],
+        supersetExerciseIds: isSuperset ? newIds : [newIds[0]],
+        scheme: slot.scheme,
+        oneRepMaxes,
+        history,
+        incrementLbs: currentIncrementLbs,
+        restSeconds: slot.restSeconds || 90,
+        userBodyweightLbs,
+        base1RMOverrides
+      });
+      return {
+        ...rebuilt,
+        id: slot.id,
+        estimated1RMs: { ...(slot.estimated1RMs || {}), ...base1RMOverrides },
+        familyMuscleGroup: EXERCISE_MAP[newIds[0]]?.muscleGroup || slot.familyMuscleGroup,
+        muscleGroupFilter: EXERCISE_MAP[newIds[0]]?.muscleGroup || slot.muscleGroupFilter
+      };
+    };
+
+    const nextSlots = editorWorkout.slots.map(swapSlot);
+    if (swappedCount === 0) return;
+    updateCurrentWorkoutState(prev => (prev ? { ...prev, slots: prev.slots.map(swapSlot) } : prev));
+    appendSessionLog?.(
+      'GYM_SWAP',
+      `Swapped ${swappedCount} exercise(s) for gym selection "${nextGymId || 'full_gym'}": ${nextSlots
+        .map(s => s.exerciseId)
+        .join(', ')}`
+    );
   };
 
   const handleUpdateSlotCategoryOrExercise = (slotId, changes) => {
@@ -1637,7 +1719,8 @@ export function useWorkoutMutations({
     handleInsertSetAtPosition,
     handleRecalculateSlotWeights,
     handleToggleSetDone,
-    handleAddManualSlot
+    handleAddManualSlot,
+    handleChangeGymSelection
   };
 }
 
