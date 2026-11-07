@@ -35,6 +35,14 @@ export function AuthView({
   setCurrentView
 }) {
   const [loginError, setLoginError] = useState('');
+  // Set by useCloudAndStorageSync when a session ends (revoked/expired or never saved on this device)
+  const [sessionEnded] = useState(() => {
+    try {
+      return typeof window !== 'undefined' && window.sessionStorage.getItem('yccih_session_expired') === '1';
+    } catch {
+      return false;
+    }
+  });
   const [signupError, setSignupError] = useState('');
   const [signupNotice, setSignupNotice] = useState('');
   const [authSubmitting, setAuthSubmitting] = useState(null);
@@ -75,6 +83,11 @@ export function AuthView({
         email: authEmail,
         password: authPassword
       });
+      try {
+        window.sessionStorage.removeItem('yccih_session_expired');
+      } catch {
+        // ignore storage error
+      }
       setUser(result.user);
       if (onInviteAccepted) onInviteAccepted(result.user);
       setAuthUsername(result.user.username);
@@ -274,6 +287,23 @@ export function AuthView({
         </div>
       )}
 
+      {sessionEnded && (
+        <div
+          style={{
+            margin: '0 var(--dp-spacing-gutter) 16px',
+            padding: '10px 12px',
+            backgroundColor: '#1A160A',
+            border: '2px solid #FFD60A',
+            color: '#FFD60A',
+            fontSize: '11px',
+            fontWeight: 800,
+            textTransform: 'uppercase',
+            lineHeight: 1.4
+          }}
+        >
+          YOUR SESSION ENDED. SIGN IN AGAIN TO RESUME SYNCING — YOUR WORKOUTS ON THIS DEVICE ARE SAFE.
+        </div>
+      )}
       <IOSListSection header="SIGN IN // EXISTING ACCOUNT" colors={colors}>
         <IOSListRow colors={colors}>
           <div style={{ width: '100%' }}>
