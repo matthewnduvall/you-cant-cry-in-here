@@ -15,6 +15,7 @@ import {
   pushCloudStateForUser,
   syncFriendshipsForUser,
   signOutUser,
+  deleteMyAccount,
   purgeLegacyStoredPasswords,
   SESSION_EXPIRED_EVENT
 } from '../utils/supabaseAuth';
@@ -577,10 +578,35 @@ export function useCloudAndStorageSync({
     setSelectedGymId('');
   };
 
+  /**
+   * Permanently deletes the signed-in account (server data + sign-in account), then erases this
+   * account's data from this device and resets the app. Returns { ok, error }.
+   */
+  const handleDeleteAccount = async () => {
+    const deletingUser = user;
+    const result = await deleteMyAccount(deletingUser);
+    if (!result.ok) return result;
+    try {
+      [PERSISTENCE_KEY, 'yccih_pending_inviter_v1', 'yccih_local_friend_requests_v1'].forEach(key =>
+        window.localStorage.removeItem(key)
+      );
+      const onboarded = JSON.parse(window.localStorage.getItem('yccih_onboarded_users_v1') || '{}');
+      [deletingUser?.email, deletingUser?.username, deletingUser?.id].forEach(k => {
+        if (k) delete onboarded[String(k).toLowerCase()];
+      });
+      window.localStorage.setItem('yccih_onboarded_users_v1', JSON.stringify(onboarded));
+    } catch {
+      // ignore storage errors
+    }
+    handleResetToDemoDefaults();
+    return { ok: true };
+  };
+
   return {
     handleExportBackupJSON,
     handleImportBackupJSON,
-    handleResetToDemoDefaults
+    handleResetToDemoDefaults,
+    handleDeleteAccount
   };
 }
 

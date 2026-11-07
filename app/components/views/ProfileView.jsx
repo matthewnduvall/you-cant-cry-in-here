@@ -6,6 +6,7 @@ import { CORE_PR_EXERCISE_IDS, EXERCISE_LIBRARY, EXERCISE_MAP } from '../../data
 import { getBestHistory1RM } from '../../utils/workoutEngine';
 import { fetchAthleteProfileSnapshot, syncFriendshipsForUser, signOutUser } from '../../utils/supabaseAuth';
 import { isSameFriend, applyFriendshipSync } from '../../utils/storageMigration';
+import { Button } from '../Controls';
 
 const PROFILE_PR_LIMIT = 10;
 
@@ -24,11 +25,38 @@ export function ProfileView({
   history = [],
   sharedRoutines,
   openPlateCalculatorForPR,
-  handleOpenPreviewRoutine
+  handleOpenPreviewRoutine,
+  setDeleteConfirmTarget,
+  onDeleteAccount,
+  appendSessionLog
 }) {
   const isFriend = currentView === 'friend_profile' && viewingFriendProfile;
   const [showAllPrs, setShowAllPrs] = useState(false);
   const [friendUnavailable, setFriendUnavailable] = useState(false);
+  // null | 'deleting' | error message
+  const [accountDeleteStatus, setAccountDeleteStatus] = useState(null);
+
+  const handleDeleteAccountClick = () => {
+    setAccountDeleteStatus(null);
+    setDeleteConfirmTarget?.({
+      type: 'account',
+      title: 'DELETE ACCOUNT?',
+      verb: 'permanently delete',
+      label: `@${user?.username} and all of your data (workouts, PRs, routines, friends). This cannot be undone`,
+      confirmLabel: 'DELETE ACCOUNT ✕',
+      onConfirm: async () => {
+        setAccountDeleteStatus('deleting');
+        const result = await onDeleteAccount?.();
+        if (result?.ok) {
+          appendSessionLog?.('ACCOUNT_DELETED', 'Account and all data deleted');
+          setAccountDeleteStatus(null);
+          setCurrentView('home');
+        } else {
+          setAccountDeleteStatus(result?.error || 'COULD NOT DELETE YOUR ACCOUNT.');
+        }
+      }
+    });
+  };
 
   // Refresh the friend's profile from the server by account id. RLS only returns it while you are
   // still friends; if the friendship was removed (by either athlete), drop the cached copy.
@@ -165,8 +193,9 @@ export function ProfileView({
         </IOSListRow>
 
         {!isFriend && user && (
-          <IOSListRow isLast={true} colors={colors}>
+          <IOSListRow isLast={!accountDeleteStatus} colors={colors}>
             <span style={{ fontSize: '12px', fontWeight: 700, color: '#A0A0A0' }}>ACTIVE ACCOUNT SESSION</span>
+            <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
             <button
               type="button"
               onClick={() => {
@@ -183,6 +212,29 @@ export function ProfileView({
             >
               SIGN OUT
             </button>
+            <Button
+              variant="danger"
+              disabled={accountDeleteStatus === 'deleting'}
+              onClick={handleDeleteAccountClick}
+              style={{ width: 'auto', padding: '6px 12px', fontSize: '11px', border: '2px solid var(--dp-color-rule)' }}
+            >
+              DELETE ACCOUNT
+            </Button>
+            </div>
+          </IOSListRow>
+        )}
+        {!isFriend && user && accountDeleteStatus && (
+          <IOSListRow isLast={true} colors={colors}>
+            <span
+              style={{
+                fontSize: '11px',
+                fontWeight: 800,
+                textTransform: 'uppercase',
+                color: accountDeleteStatus === 'deleting' ? '#A0A0A0' : '#FF3B30'
+              }}
+            >
+              {accountDeleteStatus === 'deleting' ? 'DELETING ACCOUNT…' : `⚠ ${accountDeleteStatus}`}
+            </span>
           </IOSListRow>
         )}
       </IOSListSection>
