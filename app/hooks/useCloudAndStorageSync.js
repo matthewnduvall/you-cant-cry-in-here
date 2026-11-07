@@ -200,6 +200,11 @@ export function useCloudAndStorageSync({
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const onExpired = () => {
+      try {
+        window.sessionStorage.setItem('yccih_session_expired', '1');
+      } catch {
+        // ignore storage error
+      }
       setUser(null);
       setAuthMode('login');
     };

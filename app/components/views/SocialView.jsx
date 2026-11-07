@@ -33,6 +33,8 @@ export function SocialView({
   const [searchedAthletes, setSearchedAthletes] = useState([]);
   const [hasSearched, setHasSearched] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
+  // null | 'signed_out' | 'session' | 'network'
+  const [searchError, setSearchError] = useState(null);
 
   const [inviteEmailInput, setInviteEmailInput] = useState('');
   const [isSendingInviteEmail, setIsSendingInviteEmail] = useState(false);
@@ -163,8 +165,11 @@ export function SocialView({
     }
     setIsSearching(true);
     setHasSearched(true);
+    setSearchError(null);
     try {
-      const remoteMatches = await searchAthletesByQuery(q, user);
+      const search = await searchAthletesByQuery(q, user);
+      if (!search.ok) setSearchError(search.error);
+      const remoteMatches = search.results;
       const lowerQ = q.toLowerCase().replace(/^@/, '');
       const friendMatches = (friendsList || []).filter(f => (f.username || '').toLowerCase().includes(lowerQ));
       const byId = new Map();
@@ -314,9 +319,13 @@ export function SocialView({
           searchedAthletes.length === 0 ? (
             <IOSListRow isLast={true} colors={colors}>
               <span style={{ fontSize: '12px', fontWeight: 700, color: '#888888', textTransform: 'uppercase' }}>
-                {user
-                  ? <>NO ATHLETES FOUND FOR &quot;{friendSearchQuery.trim().toUpperCase()}&quot;. SEARCH A USERNAME OR AN EXACT EMAIL.</>
-                  : 'SIGN IN TO SEARCH FOR ATHLETES.'}
+                {!user || searchError === 'signed_out'
+                  ? 'SIGN IN TO SEARCH FOR ATHLETES.'
+                  : searchError === 'session'
+                    ? 'YOUR SESSION ENDED. SIGN OUT AND SIGN IN AGAIN, THEN RETRY.'
+                    : searchError === 'network'
+                      ? 'SEARCH FAILED. CHECK YOUR CONNECTION AND TRY AGAIN.'
+                      : <>NO ATHLETES FOUND FOR &quot;{friendSearchQuery.trim().toUpperCase()}&quot;. SEARCH A USERNAME OR AN EXACT EMAIL.</>}
               </span>
             </IOSListRow>
           ) : (

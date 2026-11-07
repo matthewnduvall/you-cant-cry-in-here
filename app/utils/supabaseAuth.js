@@ -185,6 +185,17 @@ const getJwtExpiryMs = token => {
 
 export const SESSION_EXPIRED_EVENT = 'yccih:session-expired';
 
+// Ends the session on this device and tells the app (useCloudAndStorageSync) to show the athlete as
+// signed out, so a cloud account is never "signed in" without a working session.
+const endSessionOnDevice = () => {
+  clearSupabaseSessionTokens();
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent(SESSION_EXPIRED_EVENT));
+  }
+};
+
+const isCloudAccountId = id => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(id || ''));
+
 /**
  * Registers a new user account via Supabase Auth (or the offline local registry when Supabase isn't
  * configured). Enforces beta code, email, username, and password validation.
@@ -643,14 +654,21 @@ export async function getValidSupabaseAccessToken(user) {
 
   const cleanEmail = (user.email || '').trim().toLowerCase();
   const saved = getSavedSupabaseSessionTokens(cleanEmail);
-  if (!saved?.accessToken) return null;
+  if (!saved?.accessToken) {
+    // A cloud account with no saved session (e.g. signed in with an older build) can't sync
+    if (isCloudAccountId(user.id)) endSessionOnDevice();
+    return null;
+  }
 
   // Use the current token until a minute before it expires
   const expiresAt = getJwtExpiryMs(saved.accessToken) || (saved.savedAt || 0) + 45 * 60 * 1000;
   if (Date.now() < expiresAt - 60 * 1000) {
     return saved.accessToken;
   }
-  if (!saved.refreshToken) return null;
+  if (!saved.refreshToken) {
+    endSessionOnDevice();
+    return null;
+  }
 
   if (inFlightTokenRefreshPromise) {
     return inFlightTokenRefreshPromise;
@@ -675,13 +693,9 @@ export async function getValidSupabaseAccessToken(user) {
           return data.access_token;
         }
       }
-      // 400/401: the refresh token was rejected → the session is over on this device
-      if (res.status === 400 || res.status === 401) {
-        clearSupabaseSessionTokens();
-        if (typeof window !== 'undefined') {
-          window.dispatchEvent(new CustomEvent(SESSION_EXPIRED_EVENT));
-        }
-      }
+      // 4xx: the refresh token was rejected → the session is over on this device.
+      // 5xx: Supabase hiccup → keep the session and retry later.
+      if (res.status >= 400 && res.status < 500) endSessionOnDevice();
       return null;
     } catch {
       // Network error: keep the session and try again later
@@ -1401,15 +1415,22 @@ export async function removeFriendshipWithAthlete(user, athlete) {
 /**
  * Searches athletes by partial username or exact email. Results contain only id + username;
  * emails and stats of non-friends are never returned.
+ * Returns { ok, results, error } so a failed search isn't shown as "no athletes found".
  */
 export async function searchAthletesByQuery(query, currentUser = null) {
   const q = (query || '').trim();
-  if (q.length < 2 || !currentUser) return [];
+  if (!currentUser) return { ok: false, results: [], error: 'signed_out' };
+  if (q.length < 2) return { ok: true, results: [] };
   const res = await authedRequest(currentUser, '/rest/v1/rpc/search_athletes', { method: 'POST', body: { q } });
-  if (!res.ok || !Array.isArray(res.data)) return [];
-  return res.data
-    .filter(row => isUuid(row?.id) && row.id !== currentUser.id)
-    .map(row => ({ id: row.id, username: row.username || 'athlete', prs: {}, sharedRoutines: [] }));
+  if (!res.ok || !Array.isArray(res.data)) {
+    return { ok: false, results: [], error: res.status === 401 ? 'session' : 'network' };
+  }
+  return {
+    ok: true,
+    results: res.data
+      .filter(row => isUuid(row?.id) && row.id !== currentUser.id)
+      .map(row => ({ id: row.id, username: row.username || 'athlete', prs: {}, sharedRoutines: [] }))
+  };
 }
 
 /**
