@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { IOS_DARK, KINETIC_CSS } from './styles/kineticTokens';
 import { getIncrementInLbs, getInitial1RMs } from './utils/workoutEngine';
-import { DEFAULT_MATT_FRIEND, ensureDefaultMattFriend } from './utils/storageMigration';
+import { DEFAULT_MATT_FRIEND, ensureDefaultMattFriend, isSameFriend } from './utils/storageMigration';
 import { AppHeaderAndDrawer } from './components/AppHeaderAndDrawer';
 import {
   DeleteConfirmModal,
@@ -142,6 +142,8 @@ export default function App() {
   // --- Social & Friends State ---
   const [friendSearchQuery, setFriendSearchQuery] = useState('');
   const [friendsList, setFriendsList] = useState(() => [DEFAULT_MATT_FRIEND]);
+  // Friends the user removed; kept so cloud sync and the default @matt friend don't re-add them.
+  const [removedFriends, setRemovedFriends] = useState([]);
   const [pendingIncomingRequests, setPendingIncomingRequests] = useState([]);
   const [outgoingInvites, setOutgoingInvites] = useState([]);
   const [viewingFriendProfile, setViewingFriendProfile] = useState(null);
@@ -190,8 +192,10 @@ export default function App() {
       prs: {},
       sharedRoutines: []
     };
+    const remainingRemoved = removedFriends.filter(r => !isSameFriend(r, inviterFriend));
+    setRemovedFriends(remainingRemoved);
     setFriendsList(prev => {
-      const list = ensureDefaultMattFriend(prev);
+      const list = ensureDefaultMattFriend(prev, remainingRemoved);
       const exists = list.some(
         f => (f.username || '').toLowerCase() === inviterFriend.username.toLowerCase()
       );
@@ -273,7 +277,9 @@ export default function App() {
     shareStatsWithFriends,
     setShareStatsWithFriends,
     shareRoutinesWithFriends,
-    setShareRoutinesWithFriends
+    setShareRoutinesWithFriends,
+    removedFriends,
+    setRemovedFriends
   });
 
   // --- 2. Telemetry, PRs, Stimulus Map & Progression Series Hook ---
@@ -603,6 +609,7 @@ export default function App() {
               setCurrentView={setCurrentView}
               openPlateCalculatorForPR={openPlateCalculatorForPR}
               openPlateCalculatorForSet={openPlateCalculatorForSet}
+              setSetValueTarget={setSetValueTarget}
               setDeleteConfirmTarget={setDeleteConfirmTarget}
               buildHistoryWorkoutEditorProps={buildHistoryWorkoutEditorProps}
             />
@@ -706,6 +713,10 @@ export default function App() {
               onSendEmailInvite={handleSendEmailInvite}
               friendsList={friendsList}
               setFriendsList={setFriendsList}
+              removedFriends={removedFriends}
+              setRemovedFriends={setRemovedFriends}
+              setDeleteConfirmTarget={setDeleteConfirmTarget}
+              appendSessionLog={appendSessionLog}
               setViewingFriendProfile={setViewingFriendProfile}
               setCurrentView={setCurrentView}
             />
@@ -785,6 +796,8 @@ export default function App() {
               setCustomPrExerciseIds={setCustomPrExerciseIds}
               customGoalWeights={customGoalWeights}
               openPlateCalculatorForPR={openPlateCalculatorForPR}
+              openPlateCalculatorForSet={openPlateCalculatorForSet}
+              setSetValueTarget={setSetValueTarget}
               selectedGymId={selectedGymId}
               setSelectedGymId={setSelectedGymId}
               gyms={gyms}

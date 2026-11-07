@@ -3,7 +3,6 @@
 import React, { useState } from 'react';
 import { UI } from '../styles/kineticTokens';
 import {
-  DEFAULT_GYM_EQUIPMENT_PRESETS,
   SLOT_CATEGORIES,
   normalizeSlotCategory,
   getAvailableMuscleGroupsForCategory,
@@ -11,6 +10,7 @@ import {
   formatTodayYMD
 } from '../data/exerciseLibrary';
 import { SET_TYPES_LIST } from '../utils/workoutEngine';
+import { Button, CloseButton, GymSelect } from './Controls';
 
 // ============================================================================
 // MODAL COMPONENTS: DELETE CONFIRMATION, ADD SLOT & PLATE CALCULATOR
@@ -28,47 +28,34 @@ export function DeleteConfirmModal({
       <div onClick={e => e.stopPropagation()} style={UI.modalCard('360px')}>
         <div style={UI.modalHeader}>
           <span>
-            {deleteConfirmTarget.type === 'history_workout'
+            {deleteConfirmTarget.title ||
+              (deleteConfirmTarget.type === 'history_workout'
               ? 'DELETE HISTORY ENTRY?'
               : deleteConfirmTarget.type === 'saved_routine' || deleteConfirmTarget.type === 'shared_routine'
                 ? 'DELETE ROUTINE?'
                 : deleteConfirmTarget.type === 'slot'
                   ? 'DELETE EXERCISE?'
-                  : 'DELETE SET?'}
+                  : 'DELETE SET?')}
           </span>
-          <button type="button" onClick={() => setDeleteConfirmTarget(null)} style={UI.closeXBtn}>
-            ✕
-          </button>
+          <CloseButton onClick={() => setDeleteConfirmTarget(null)} />
         </div>
 
         <div style={{ fontSize: '13px', fontWeight: 700, color: '#E0E0E0', marginBottom: '16px', lineHeight: 1.4 }}>
-          Are you sure you want to delete{' '}
+          Are you sure you want to {deleteConfirmTarget.verb || 'delete'}{' '}
           <strong style={{ color: 'var(--dp-color-accent)' }}>{deleteConfirmTarget.label}</strong>?
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-          <button
-            type="button"
+          <Button
+            variant="secondary"
             onClick={() => setDeleteConfirmTarget(null)}
-            className="kinetic-btn"
-            style={{ ...UI.secondaryBtnCenter, padding: '12px', fontSize: '12px' }}
+            style={{ padding: '12px', fontSize: '12px' }}
           >
             CANCEL
-          </button>
-          <button
-            type="button"
-            onClick={handleConfirmDeleteAction}
-            className="kinetic-btn"
-            style={{
-              ...UI.primaryBtnCenter,
-              padding: '12px',
-              fontSize: '12px',
-              backgroundColor: '#FF3B30',
-              color: '#FFFFFF'
-            }}
-          >
-            DELETE ✕
-          </button>
+          </Button>
+          <Button variant="danger" onClick={handleConfirmDeleteAction} style={{ padding: '12px', fontSize: '12px' }}>
+            {deleteConfirmTarget.confirmLabel || 'DELETE ✕'}
+          </Button>
         </div>
       </div>
     </div>
@@ -106,17 +93,14 @@ export function AddSlotModal({
       <div onClick={e => e.stopPropagation()} style={UI.modalCard('400px')}>
         <div style={UI.modalHeader}>
           <span>ADD EXERCISE</span>
-          <button type="button" onClick={() => setShowAddSlotModal(false)} style={UI.closeXBtn}>
-            ✕
-          </button>
+          <CloseButton onClick={() => setShowAddSlotModal(false)} />
         </div>
 
         <div style={{ marginBottom: '12px' }}>
           <div style={UI.stepLabel}>1. GYMS/EQUIPMENT</div>
-          <select
+          <GymSelect
             value={addSlotGymFilter}
-            onChange={e => {
-              const nextFilter = e.target.value;
+            onChange={nextFilter => {
               setAddSlotGymFilter(nextFilter);
               const nextGroups = getAvailableMuscleGroupsForCategory(normCat, nextFilter, gyms);
               const nextMg = nextGroups.includes(activeMuscle) ? activeMuscle : 'All Muscles';
@@ -130,17 +114,8 @@ export function AddSlotModal({
                 ]);
               }
             }}
-            style={{ ...UI.select, textTransform: 'uppercase' }}
-          >
-            {DEFAULT_GYM_EQUIPMENT_PRESETS.map(preset => (
-              <option key={preset.id || 'full_gym'} value={preset.id}>
-                {preset.name.toUpperCase()}
-              </option>
-            ))}
-            {gyms.map(g => (
-              <option key={g.id} value={g.id}>{g.name.toUpperCase()}</option>
-            ))}
-          </select>
+            gyms={gyms}
+          />
         </div>
 
         <div style={{ marginBottom: '12px' }}>
@@ -155,9 +130,10 @@ export function AddSlotModal({
             }}
           >
             {SLOT_CATEGORIES.map(cat => (
-              <button
+              <Button
+                variant="toggle"
+                active={normCat === cat}
                 key={cat}
-                type="button"
                 onClick={() => {
                   setNewSlotCategory(cat);
                   const nextGroups = getAvailableMuscleGroupsForCategory(cat, addSlotGymFilter, gyms);
@@ -172,16 +148,10 @@ export function AddSlotModal({
                     ]);
                   }
                 }}
-                style={{
-                  ...UI.pillBtn(normCat === cat),
-                  borderTop: 'none',
-                  borderLeft: 'none',
-                  borderRight: '1px solid var(--dp-color-rule)',
-                  borderBottom: '1px solid var(--dp-color-rule)'
-                }}
+                style={{ borderTop: 'none', borderLeft: 'none', borderRight: '1px solid var(--dp-color-rule)', borderBottom: '1px solid var(--dp-color-rule)' }}
               >
                 {cat}
-              </button>
+              </Button>
             ))}
           </div>
         </div>
@@ -283,14 +253,13 @@ export function AddSlotModal({
           </select>
         </div>
 
-        <button
-          type="button"
+        <Button
+          variant="primary"
           onClick={handleAddManualSlot}
-          className="kinetic-btn"
-          style={{ ...UI.primaryBtnCenter, padding: '12px', fontSize: '13px' }}
+          style={{ padding: '12px', fontSize: '13px' }}
         >
           ADD EXERCISE TO WORKOUT →
-        </button>
+        </Button>
       </div>
     </div>
   );
@@ -330,9 +299,7 @@ export function PlateCalculatorModal({
               {plateCalcTarget.exerciseName}
             </div>
           </div>
-          <button type="button" onClick={() => setPlateCalcTarget(null)} style={UI.closeXBtn}>
-            ✕
-          </button>
+          <CloseButton onClick={() => setPlateCalcTarget(null)} />
         </div>
 
         <div
@@ -348,50 +315,50 @@ export function PlateCalculatorModal({
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px', marginBottom: '12px' }}>
-          <button
-            type="button"
+          <Button
+            variant="toggle"
+            active={calcMode === 'per_side'}
             onClick={() => setCalcMode('per_side')}
-            style={UI.pillBtn(calcMode === 'per_side')}
           >
             PLATES PER SIDE
-          </button>
-          <button
-            type="button"
+          </Button>
+          <Button
+            variant="toggle"
+            active={calcMode === 'total'}
             onClick={() => {
               setCalcDirectTotal(computedPlateCalculatorTotal);
               setCalcMode('total');
             }}
-            style={UI.pillBtn(calcMode === 'total')}
           >
             DIRECT TOTAL
-          </button>
+          </Button>
         </div>
 
         {calcMode === 'per_side' ? (
           <div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '6px', marginBottom: '6px' }}>
               {[45, 35, 25].map(p => (
-                <button
+                <Button
+                  variant="toggle"
                   key={p}
-                  type="button"
                   onClick={() => setCalcPlatesPerSide(prev => [...prev, p].sort((a, b) => b - a))}
-                  style={{ ...UI.pillBtn(false), padding: '10px 4px', fontSize: '12px' }}
+                  style={{ padding: '10px 4px', fontSize: '12px' }}
                 >
                   +{p} LB
-                </button>
+                </Button>
               ))}
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '6px', marginBottom: '10px' }}>
               {[10, 5, 2.5, 1.25].map(p => (
-                <button
+                <Button
+                  variant="toggle"
                   key={p}
-                  type="button"
                   onClick={() => setCalcPlatesPerSide(prev => [...prev, p].sort((a, b) => b - a))}
-                  style={{ ...UI.pillBtn(false), padding: '10px 2px', fontSize: '11px' }}
+                  style={{ padding: '10px 2px', fontSize: '11px' }}
                 >
                   +{p} LB
-                </button>
+                </Button>
               ))}
             </div>
 
@@ -519,14 +486,13 @@ export function PlateCalculatorModal({
           </div>
         )}
 
-        <button
-          type="button"
+        <Button
+          variant="primary"
           onClick={handleApplyCalculatedWeight}
-          className="kinetic-btn"
-          style={{ ...UI.primaryBtnCenter, padding: '12px', fontSize: '13px' }}
+          style={{ padding: '12px', fontSize: '13px' }}
         >
           APPLY WEIGHT →
-        </button>
+        </Button>
       </div>
     </div>
   );
@@ -543,7 +509,10 @@ export function SetValueEditorModal({
   const { mode, slotId, exIdx, setId, setNumber, exerciseName, currentValue, isAbs } = setValueTarget;
 
   const applyAndClose = nextVal => {
-    if (mode === 'type') {
+    // Editors outside the current workout (e.g. the History 1RM calculator) pass their own onApply.
+    if (typeof setValueTarget.onApply === 'function') {
+      setValueTarget.onApply(nextVal);
+    } else if (mode === 'type') {
       handleUpdateSetType(slotId, exIdx, setId, nextVal);
     } else if (mode === 'increment') {
       handleUpdateSetField(slotId, exIdx, setId, 'increment', nextVal);
@@ -556,7 +525,7 @@ export function SetValueEditorModal({
   };
 
   return (
-    <div style={{ ...UI.modalBackdrop, zIndex: 85 }} onClick={() => setSetValueTarget(null)}>
+    <div style={{ ...UI.modalBackdrop, zIndex: 1250 }} onClick={() => setSetValueTarget(null)}>
       <div onClick={e => e.stopPropagation()} style={UI.modalCard('380px')}>
         <div style={UI.modalHeader}>
           <div>
@@ -573,28 +542,21 @@ export function SetValueEditorModal({
               {exerciseName}
             </div>
           </div>
-          <button type="button" onClick={() => setSetValueTarget(null)} style={UI.closeXBtn}>
-            ✕
-          </button>
+          <CloseButton onClick={() => setSetValueTarget(null)} />
         </div>
 
         {mode === 'type' ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
             {SET_TYPES_LIST.map(t => (
-              <button
+              <Button
+                variant="toggle"
+                active={currentValue === t}
                 key={t}
-                type="button"
                 onClick={() => applyAndClose(t)}
-                className="kinetic-btn"
-                style={{
-                  ...UI.pillBtn(currentValue === t),
-                  padding: '12px',
-                  fontSize: '13px',
-                  textAlign: 'center'
-                }}
+                style={{ padding: '12px', fontSize: '13px', textAlign: 'center' }}
               >
                 {t.toUpperCase()}
-              </button>
+              </Button>
             ))}
           </div>
         ) : (
@@ -698,14 +660,13 @@ export function SetValueEditorModal({
               </div>
             )}
 
-            <button
-              type="button"
+            <Button
+              variant="primary"
               onClick={() => applyAndClose(currentValue)}
-              className="kinetic-btn"
-              style={{ ...UI.primaryBtnCenter, padding: '12px', fontSize: '13px' }}
+              style={{ padding: '12px', fontSize: '13px' }}
             >
               APPLY {mode === 'increment' ? 'INCREMENT' : mode === 'timer' ? 'TIME' : isAbs ? 'SECONDS' : 'REPS'} →
-            </button>
+            </Button>
           </div>
         )}
       </div>
@@ -727,9 +688,7 @@ export function SaveConfirmModal({
       <div onClick={e => e.stopPropagation()} style={UI.modalCard('390px')}>
         <div style={UI.modalHeader}>
           <span>CONFIRM SAVE</span>
-          <button type="button" onClick={() => setSaveConfirmTarget(null)} style={UI.closeXBtn}>
-            ✕
-          </button>
+          <CloseButton onClick={() => setSaveConfirmTarget(null)} />
         </div>
 
         <div style={{ marginBottom: '14px' }}>
@@ -799,25 +758,16 @@ export function SaveConfirmModal({
             >
               YES — SHARE ✓
             </button>
-            <button
-              type="button"
+            <Button
+              variant="toggle"
+              active={!shareWithFriends}
               onClick={() =>
                 setSaveConfirmTarget(prev => (prev ? { ...prev, shareWithFriends: false } : null))
               }
-              className="kinetic-btn"
-              style={{
-                ...UI.pillBtn(!shareWithFriends),
-                padding: '10px 8px',
-                fontSize: '12px',
-                textAlign: 'center',
-                borderTop: 'none',
-                borderLeft: 'none',
-                borderRight: '1px solid var(--dp-color-rule)',
-                borderBottom: '1px solid var(--dp-color-rule)'
-              }}
+              style={{ padding: '10px 8px', fontSize: '12px', textAlign: 'center', borderTop: 'none', borderLeft: 'none', borderRight: '1px solid var(--dp-color-rule)', borderBottom: '1px solid var(--dp-color-rule)' }}
             >
               NO — PRIVATE
-            </button>
+            </Button>
           </div>
         </div>
 
@@ -830,38 +780,20 @@ export function SaveConfirmModal({
             borderLeft: '1px solid var(--dp-color-rule)'
           }}
         >
-          <button
-            type="button"
+          <Button
+            variant="secondary"
             onClick={() => setSaveConfirmTarget(null)}
-            className="kinetic-btn"
-            style={{
-              ...UI.secondaryBtnCenter,
-              padding: '12px',
-              fontSize: '12px',
-              borderTop: 'none',
-              borderLeft: 'none',
-              borderRight: '1px solid var(--dp-color-rule)',
-              borderBottom: '1px solid var(--dp-color-rule)'
-            }}
+            style={{ padding: '12px', fontSize: '12px', borderTop: 'none', borderLeft: 'none', borderRight: '1px solid var(--dp-color-rule)', borderBottom: '1px solid var(--dp-color-rule)' }}
           >
             CANCEL
-          </button>
-          <button
-            type="button"
+          </Button>
+          <Button
+            variant="primary"
             onClick={() => handleConfirmSaveWorkout(saveConfirmTarget)}
-            className="kinetic-btn"
-            style={{
-              ...UI.primaryBtnCenter,
-              padding: '12px',
-              fontSize: '12px',
-              borderTop: 'none',
-              borderLeft: 'none',
-              borderRight: '1px solid var(--dp-color-rule)',
-              borderBottom: '1px solid var(--dp-color-rule)'
-            }}
+            style={{ padding: '12px', fontSize: '12px', borderTop: 'none', borderLeft: 'none', borderRight: '1px solid var(--dp-color-rule)', borderBottom: '1px solid var(--dp-color-rule)' }}
           >
             SAVE WORKOUT →
-          </button>
+          </Button>
         </div>
       </div>
     </div>
@@ -883,13 +815,7 @@ export function HistoricalEditConfirmModal({
       <div onClick={e => e.stopPropagation()} style={UI.modalCard('380px')}>
         <div style={UI.modalHeader}>
           <span>EDIT HISTORICAL DATA?</span>
-          <button
-            type="button"
-            onClick={() => setHistoricalEditConfirmTarget(null)}
-            style={UI.closeXBtn}
-          >
-            ✕
-          </button>
+          <CloseButton onClick={() => setHistoricalEditConfirmTarget(null)} />
         </div>
 
         <div
@@ -912,22 +838,20 @@ export function HistoricalEditConfirmModal({
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-          <button
-            type="button"
+          <Button
+            variant="secondary"
             onClick={() => setHistoricalEditConfirmTarget(null)}
-            className="kinetic-btn"
-            style={{ ...UI.secondaryBtnCenter, padding: '12px', fontSize: '12px' }}
+            style={{ padding: '12px', fontSize: '12px' }}
           >
             CANCEL
-          </button>
-          <button
-            type="button"
+          </Button>
+          <Button
+            variant="primary"
             onClick={handleConfirmHistoricalEdit}
-            className="kinetic-btn"
-            style={{ ...UI.primaryBtnCenter, padding: '12px', fontSize: '12px' }}
+            style={{ padding: '12px', fontSize: '12px' }}
           >
             CONFIRM EDIT →
-          </button>
+          </Button>
         </div>
       </div>
     </div>
@@ -1048,17 +972,11 @@ export function FeedbackModal({
       <div onClick={e => e.stopPropagation()} style={UI.modalCard('400px')}>
         <div style={UI.modalHeader}>
           <span>SEND FEEDBACK</span>
-          <button
-            type="button"
-            onClick={() => {
+          <CloseButton onClick={() => {
               setStatus('idle');
               setErrorText('');
               setShowFeedbackModal(false);
-            }}
-            style={UI.closeXBtn}
-          >
-            ✕
-          </button>
+            }} />
         </div>
 
         <div
@@ -1137,32 +1055,25 @@ export function FeedbackModal({
           </div>
         ) : (
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-            <button
-              type="button"
+            <Button
+              variant="secondary"
               onClick={() => {
                 setStatus('idle');
                 setErrorText('');
                 setShowFeedbackModal(false);
               }}
-              className="kinetic-btn"
-              style={{ ...UI.secondaryBtnCenter, padding: '12px', fontSize: '12px' }}
+              style={{ padding: '12px', fontSize: '12px' }}
             >
               CANCEL
-            </button>
-            <button
-              type="button"
+            </Button>
+            <Button
+              variant="primary"
               disabled={status === 'sending'}
               onClick={handleSend}
-              className="kinetic-btn"
-              style={{
-                ...UI.primaryBtnCenter,
-                padding: '12px',
-                fontSize: '12px',
-                opacity: status === 'sending' ? 0.7 : 1
-              }}
+              style={{ padding: '12px', fontSize: '12px', opacity: status === 'sending' ? 0.7 : 1 }}
             >
               {status === 'sending' ? 'SENDING...' : 'SEND FEEDBACK →'}
-            </button>
+            </Button>
           </div>
         )}
       </div>

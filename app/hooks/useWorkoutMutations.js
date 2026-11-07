@@ -629,6 +629,12 @@ export function useWorkoutMutations({
 
   const handleConfirmDeleteAction = () => {
     if (!deleteConfirmTarget) return;
+    // Generic targets (e.g. removing a friend) carry their own confirm action.
+    if (typeof deleteConfirmTarget.onConfirm === 'function') {
+      deleteConfirmTarget.onConfirm();
+      setDeleteConfirmTarget(null);
+      return;
+    }
     if (deleteConfirmTarget.type === 'history_workout') {
       const targetWorkoutId = deleteConfirmTarget.workoutId;
       const deletedWorkout = (history || []).find(w => w.id === targetWorkoutId);

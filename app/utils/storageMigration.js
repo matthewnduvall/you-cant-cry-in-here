@@ -9,43 +9,122 @@ import { isLocallyVerifiedUser } from './supabaseAuth';
 export const PERSISTENCE_KEY = 'yccih_app_state_v3';
 export const CURRENT_SCHEMA_VERSION = 3;
 
+const DEFAULT_MATT_EMAIL = 'matthew.n.duvall@gmail.com';
+
+// Every athlete starts out friends with @matt. This is only a stub: his real PRs, history and
+// shared routines are filled in from his cloud profile by the friend sync.
 export const DEFAULT_MATT_FRIEND = {
   id: 'friend_matt_default',
   username: 'matt',
-  email: 'matthew.n.duvall@gmail.com',
-  bodyweightLbs: 205,
-  startingPrs: {
-    barbell_bench_press: 175,
-    barbell_back_squat: 215,
-    barbell_deadlift: 255,
-    overhead_press: 115,
-    incline_bench_press: 155,
-    chin_ups: 175,
-    barbell_row: 155,
-    barbell_bicep_curl: 70
-  },
-  prs: {
-    barbell_bench_press: 225,
-    barbell_back_squat: 285,
-    barbell_deadlift: 335,
-    overhead_press: 145,
-    incline_bench_press: 195,
-    chin_ups: 210,
-    barbell_row: 195,
-    barbell_bicep_curl: 95
-  },
+  email: DEFAULT_MATT_EMAIL,
+  prs: {},
+  history: [],
   sharedRoutines: []
 };
 
-export const ensureDefaultMattFriend = list => {
-  const arr = Array.isArray(list) ? list : [];
-  const hasMatt = arr.some(
-    f =>
-      f &&
-      ((f.email || '').trim().toLowerCase() === 'matthew.n.duvall@gmail.com' ||
-        (f.username || '').trim().toLowerCase() === 'matt')
+// Demo numbers older builds seeded into the @matt stub. Stripped from saved state so only real
+// records show (PR merges keep the max value, so they would otherwise never go away).
+const LEGACY_MATT_DEMO = {
+  bodyweightLbs: 205,
+  prs: {
+    barbell_bench_press: 225, barbell_back_squat: 285, barbell_deadlift: 335, overhead_press: 145,
+    incline_bench_press: 195, chin_ups: 210, barbell_row: 195, barbell_bicep_curl: 95
+  },
+  startingPrs: {
+    barbell_bench_press: 175, barbell_back_squat: 215, barbell_deadlift: 255, overhead_press: 115,
+    incline_bench_press: 155, chin_ups: 175, barbell_row: 155, barbell_bicep_curl: 70
+  }
+};
+
+const normalizedFriendKeys = f => {
+  const email = (f?.email || '').trim().toLowerCase();
+  return {
+    id: String(f?.id || '').toLowerCase(),
+    username: (f?.username || '').trim().toLowerCase().replace(/^@/, ''),
+    email,
+    emailPrefix: email ? email.split('@')[0] : ''
+  };
+};
+
+/** True when two friend/athlete records refer to the same person (by id, username, or email). */
+export const isSameFriend = (a, b) => {
+  if (!a || !b) return false;
+  const x = normalizedFriendKeys(a);
+  const y = normalizedFriendKeys(b);
+  return Boolean(
+    (x.id && x.id === y.id) ||
+      (x.email && x.email === y.email) ||
+      (x.username && (x.username === y.username || x.username === y.emailPrefix)) ||
+      (y.username && y.username === x.emailPrefix)
   );
-  return hasMatt ? arr : [DEFAULT_MATT_FRIEND, ...arr];
+};
+
+export const isFriendRemoved = (friend, removedFriends = []) =>
+  (Array.isArray(removedFriends) ? removedFriends : []).some(r => isSameFriend(friend, r));
+
+const isDefaultMatt = f => isSameFriend(f, DEFAULT_MATT_FRIEND);
+
+const withoutValues = (obj, demo) =>
+  Object.fromEntries(Object.entries(obj || {}).filter(([k, v]) => Number(v) !== demo[k]));
+
+const stripLegacyMattDemo = f => {
+  if (!isDefaultMatt(f)) return f;
+  const next = { ...f, prs: withoutValues(f.prs, LEGACY_MATT_DEMO.prs) };
+  if (f.startingPrs) next.startingPrs = withoutValues(f.startingPrs, LEGACY_MATT_DEMO.startingPrs);
+  if (Number(f.bodyweightLbs) === LEGACY_MATT_DEMO.bodyweightLbs) delete next.bodyweightLbs;
+  return next;
+};
+
+/**
+ * Normalizes a friends list: drops friends the user removed, strips legacy @matt demo numbers,
+ * and adds the default @matt friend unless the user has removed him.
+ */
+export const ensureDefaultMattFriend = (list, removedFriends = []) => {
+  const arr = (Array.isArray(list) ? list : [])
+    .filter(f => f && !isFriendRemoved(f, removedFriends))
+    .map(stripLegacyMattDemo);
+  if (arr.some(isDefaultMatt) || isFriendRemoved(DEFAULT_MATT_FRIEND, removedFriends)) return arr;
+  return [DEFAULT_MATT_FRIEND, ...arr];
+};
+
+const mergeFriendPrs = (prsA = {}, prsB = {}) => {
+  const out = { ...(prsA || {}) };
+  Object.entries(prsB || {}).forEach(([k, v]) => {
+    const num = Number(v) || 0;
+    if (num > (Number(out[k]) || 0)) out[k] = num;
+  });
+  return out;
+};
+
+/**
+ * Merges incoming friend records into a friends list (matching by id/username/email), keeping the
+ * best PR per exercise, then applies the removed-friends list and the default @matt friend.
+ * `preferIncoming` decides whose history and shared routines win when both sides have them.
+ */
+export const mergeFriendsIntoList = (prevList, incoming, removedFriends = [], { preferIncoming = true } = {}) => {
+  const list = [...ensureDefaultMattFriend(prevList, removedFriends)];
+  (incoming || []).forEach(f => {
+    if (!f) return;
+    const existingIdx = list.findIndex(item => isSameFriend(item, f));
+    if (existingIdx < 0) {
+      list.push(f);
+      return;
+    }
+    const existing = list[existingIdx];
+    const pick = key => {
+      const first = preferIncoming ? f[key] : existing[key];
+      const second = preferIncoming ? existing[key] : f[key];
+      return Array.isArray(first) && first.length > 0 ? first : second || [];
+    };
+    list[existingIdx] = {
+      ...existing,
+      ...f,
+      prs: mergeFriendPrs(existing.prs, f.prs),
+      history: pick('history'),
+      sharedRoutines: pick('sharedRoutines')
+    };
+  });
+  return ensureDefaultMattFriend(list, removedFriends);
 };
 
 export const DEFAULT_SETTINGS_V2 = {
@@ -58,7 +137,7 @@ export const DEFAULT_SETTINGS_V2 = {
   },
   stimulus: { greenDays: 2, yellowDays: 4 },
   routinePreferences: ['Compound', 'Compound', 'Superset', 'Superset', 'Accessory'],
-  social: { shareStatsWithFriends: true, shareRoutinesWithFriends: true },
+  social: { shareStatsWithFriends: true, shareRoutinesWithFriends: true, removedFriends: [] },
   selectedGymId: ''
 };
 
@@ -199,7 +278,7 @@ export const loadHydratedAppState = () => {
       savedRoutines: hydratedSavedRoutines,
       sharedRoutines: hydratedSharedRoutines,
       gyms: Array.isArray(parsed.gyms) ? parsed.gyms : [],
-      friendsList: ensureDefaultMattFriend(parsed.friendsList),
+      friendsList: ensureDefaultMattFriend(parsed.friendsList, mergedSettings.social.removedFriends),
       pendingIncomingRequests: Array.isArray(parsed.pendingIncomingRequests) ? parsed.pendingIncomingRequests : [],
       outgoingInvites: Array.isArray(parsed.outgoingInvites) ? parsed.outgoingInvites : [],
       settings: mergedSettings

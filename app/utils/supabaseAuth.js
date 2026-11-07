@@ -1393,6 +1393,49 @@ export async function sendFriendRequestToAthlete(user, targetAthlete) {
 /**
  * Marks an incoming friend request from `requesterAthlete` to `user` as accepted in Supabase `public.friendships` and local storage.
  */
+/**
+ * Removes a friendship: deletes local friend-request records between the two athletes and the
+ * Supabase `friendships` row in either direction (needs the delete policy in supabase_schema.sql).
+ */
+export async function removeFriendshipWithAthlete(user, athlete) {
+  if (!user || !athlete) return false;
+  const norm = v => (v || '').trim().toLowerCase();
+  const me = [norm(user.email), norm(user.username)].filter(Boolean);
+  const them = [norm(athlete.email), norm(athlete.username)].filter(Boolean);
+  const involves = (email, uname, keys) => keys.includes(norm(email)) || keys.includes(norm(uname));
+
+  saveLocalFriendRequests(
+    getLocalFriendRequests().filter(
+      req =>
+        !(
+          (involves(req.requesterEmail, req.requesterUsername, me) &&
+            involves(req.addresseeEmail, req.addresseeUsername, them)) ||
+          (involves(req.requesterEmail, req.requesterUsername, them) &&
+            involves(req.addresseeEmail, req.addresseeUsername, me))
+        )
+    )
+  );
+
+  const { baseUrl, anonKey, isConfigured } = getSupabaseConfig();
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (!isConfigured || !uuidRegex.test(String(user.id || '')) || !uuidRegex.test(String(athlete.id || ''))) {
+    return true;
+  }
+  const accessToken = await getValidSupabaseAccessToken(user);
+  if (!accessToken) return true;
+  const a = encodeURIComponent(user.id);
+  const b = encodeURIComponent(athlete.id);
+  try {
+    await fetch(
+      `${baseUrl}/rest/v1/friendships?or=(and(requester_id.eq.${a},addressee_id.eq.${b}),and(requester_id.eq.${b},addressee_id.eq.${a}))`,
+      { method: 'DELETE', headers: buildSupabaseHeaders(anonKey, accessToken) }
+    );
+  } catch {
+    // non-blocking; the removed-friends list still hides them locally and across devices
+  }
+  return true;
+}
+
 export async function acceptFriendRequestFromAthlete(user, requesterAthlete) {
   if (!user || !requesterAthlete) return false;
   const addresseeUsername = (user.username || '').trim().toLowerCase();

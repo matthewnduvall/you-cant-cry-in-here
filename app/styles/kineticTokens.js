@@ -86,6 +86,19 @@ export const KINETIC_CSS = `
   }
 `;
 
+// Zero-gap shared borders: the outer group draws top/left, each cell draws right/bottom.
+export const SHARED_CELL_BORDER = {
+  borderTop: 'none',
+  borderLeft: 'none',
+  borderRight: '1px solid var(--dp-color-rule)',
+  borderBottom: '1px solid var(--dp-color-rule)'
+};
+
+export const SHARED_GROUP_OUTER = {
+  borderTop: '1px solid var(--dp-color-rule)',
+  borderLeft: '1px solid var(--dp-color-rule)'
+};
+
 export const UI = {
   pagePad: { paddingTop: '14px' },
   gutterWrap: { padding: '0 var(--dp-spacing-gutter)' },

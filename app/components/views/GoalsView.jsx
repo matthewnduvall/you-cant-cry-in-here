@@ -1,31 +1,19 @@
 'use client';
 
 import React, { useState } from 'react';
-import { UI } from '../../styles/kineticTokens';
+import { UI, SHARED_CELL_BORDER, SHARED_GROUP_OUTER } from '../../styles/kineticTokens';
 import {
   CORE_PR_EXERCISE_IDS,
   EXERCISE_LIBRARY,
   EXERCISE_MAP,
   EXRX_CLASSES,
-  DEFAULT_GYM_EQUIPMENT_PRESETS,
   SLOT_CATEGORIES,
   normalizeSlotCategory,
   getAvailableMuscleGroupsForCategory,
   filterAddSlotExercises,
   getExRxTargetForLift
 } from '../../data/exerciseLibrary';
-
-const SHARED_CELL_BORDER = {
-  borderTop: 'none',
-  borderLeft: 'none',
-  borderRight: '1px solid var(--dp-color-rule)',
-  borderBottom: '1px solid var(--dp-color-rule)'
-};
-
-const SHARED_GROUP_OUTER = {
-  borderTop: '1px solid var(--dp-color-rule)',
-  borderLeft: '1px solid var(--dp-color-rule)'
-};
+import { Button, CloseButton, GymSelect, SegmentButton } from '../Controls';
 
 const GOAL_EXERCISE_CATEGORIES = SLOT_CATEGORIES.filter(c => c !== 'Superset');
 
@@ -122,24 +110,14 @@ export function GoalsView({
           }}
         >
           {['Strength', 'Hypertrophy', 'Maintain'].map(opt => (
-            <button
+            <SegmentButton
+              active={goalType === opt}
               key={opt}
-              type="button"
               onClick={() => setGoalType(opt)}
-              style={{
-                height: '44px',
-                padding: '0 8px',
-                backgroundColor: goalType === opt ? 'var(--dp-color-accent)' : '#141416',
-                color: goalType === opt ? '#000000' : '#FFFFFF',
-                ...SHARED_CELL_BORDER,
-                fontSize: '12px',
-                fontWeight: 800,
-                textTransform: 'uppercase',
-                cursor: 'pointer'
-              }}
+              style={{ height: '44px', padding: '0 8px' }}
             >
               {opt}
-            </button>
+            </SegmentButton>
           ))}
         </div>
 
@@ -165,23 +143,15 @@ export function GoalsView({
               }}
             >
               {[1.25, 2.5, 5, 10].map(inc => (
-                <button
+                <SegmentButton
+                  active={goalIncrement === inc}
+                  activeColor="ink"
                   key={inc}
-                  type="button"
                   onClick={() => setGoalIncrement(inc)}
-                  style={{
-                    height: '44px',
-                    padding: '0 4px',
-                    fontSize: '12px',
-                    fontWeight: 800,
-                    backgroundColor: goalIncrement === inc ? '#FFFFFF' : '#141416',
-                    color: goalIncrement === inc ? '#000000' : '#FFFFFF',
-                    ...SHARED_CELL_BORDER,
-                    cursor: 'pointer'
-                  }}
+                  style={{ height: '44px', padding: '0 4px' }}
                 >
                   +{inc} {goalUnit.toUpperCase()}
-                </button>
+                </SegmentButton>
               ))}
               {['lb', 'kg'].map(u => (
                 <button
@@ -382,8 +352,8 @@ export function GoalsView({
 
       {/* ADD EXERCISE BUTTON AT BOTTOM (SAME AS SESSION PAGE) */}
       <div style={{ padding: '0 var(--dp-spacing-gutter)', display: 'flex', flexDirection: 'column', gap: 0 }}>
-        <button
-          type="button"
+        <Button
+          variant="dashed"
           onClick={() => {
             setAddGoalGymFilter(selectedGymId || '');
             const avail = filterAddSlotExercises(selectedGymId || '', addGoalCategory, gyms, addGoalMuscleGroup);
@@ -392,17 +362,10 @@ export function GoalsView({
             }
             setShowAddGoalExerciseModal(true);
           }}
-          className="kinetic-btn"
-          style={{
-            ...UI.dashedBtn,
-            height: '48px',
-            fontSize: '14px',
-            border: '1px solid var(--dp-color-rule)',
-            backgroundColor: '#161618'
-          }}
+          style={{ height: '48px', fontSize: '14px', border: '1px solid var(--dp-color-rule)', backgroundColor: '#161618' }}
         >
           + ADD EXERCISE
-        </button>
+        </Button>
       </div>
 
       {/* ADD EXERCISE MODAL FOR CUSTOM GOALS */}
@@ -411,17 +374,14 @@ export function GoalsView({
           <div onClick={e => e.stopPropagation()} style={UI.modalCard('400px')}>
             <div style={UI.modalHeader}>
               <span>ADD EXERCISE</span>
-              <button type="button" onClick={() => setShowAddGoalExerciseModal(false)} style={UI.closeXBtn}>
-                ✕
-              </button>
+              <CloseButton onClick={() => setShowAddGoalExerciseModal(false)} />
             </div>
 
             <div style={{ marginBottom: '12px' }}>
               <div style={UI.stepLabel}>1. GYMS/EQUIPMENT</div>
-              <select
+              <GymSelect
                 value={addGoalGymFilter}
-                onChange={e => {
-                  const nextFilter = e.target.value;
+                onChange={nextFilter => {
                   setAddGoalGymFilter(nextFilter);
                   const nextGroups = getAvailableMuscleGroupsForCategory(normCat, nextFilter, gyms);
                   const nextMg = nextGroups.includes(activeMuscle) ? activeMuscle : 'All Muscles';
@@ -431,19 +391,8 @@ export function GoalsView({
                     setAddGoalExerciseId(nextAvail[0].id);
                   }
                 }}
-                style={{ ...UI.select, textTransform: 'uppercase' }}
-              >
-                {DEFAULT_GYM_EQUIPMENT_PRESETS.map(preset => (
-                  <option key={preset.id || 'full_gym'} value={preset.id}>
-                    {preset.name.toUpperCase()}
-                  </option>
-                ))}
-                {gyms.map(g => (
-                  <option key={g.id} value={g.id}>
-                    {g.name.toUpperCase()}
-                  </option>
-                ))}
-              </select>
+                gyms={gyms}
+              />
             </div>
 
             <div style={{ marginBottom: '12px' }}>
@@ -458,9 +407,10 @@ export function GoalsView({
                 }}
               >
                 {GOAL_EXERCISE_CATEGORIES.map(cat => (
-                  <button
+                  <Button
+                    variant="toggle"
+                    active={normCat === cat}
                     key={cat}
-                    type="button"
                     onClick={() => {
                       setAddGoalCategory(cat);
                       const nextGroups = getAvailableMuscleGroupsForCategory(cat, addGoalGymFilter, gyms);
@@ -471,16 +421,10 @@ export function GoalsView({
                         setAddGoalExerciseId(nextAvail[0].id);
                       }
                     }}
-                    style={{
-                      ...UI.pillBtn(normCat === cat),
-                      borderTop: 'none',
-                      borderLeft: 'none',
-                      borderRight: '1px solid var(--dp-color-rule)',
-                      borderBottom: '1px solid var(--dp-color-rule)'
-                    }}
+                    style={{ borderTop: 'none', borderLeft: 'none', borderRight: '1px solid var(--dp-color-rule)', borderBottom: '1px solid var(--dp-color-rule)' }}
                   >
                     {cat}
-                  </button>
+                  </Button>
                 ))}
               </div>
             </div>
@@ -523,14 +467,13 @@ export function GoalsView({
               </select>
             </div>
 
-            <button
-              type="button"
+            <Button
+              variant="primary"
               onClick={handleConfirmAddGoalExercise}
-              className="kinetic-btn"
-              style={{ ...UI.primaryBtnCenter, width: '100%' }}
+              style={{ width: '100%' }}
             >
               + ADD EXERCISE
-            </button>
+            </Button>
           </div>
         </div>
       )}

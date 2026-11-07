@@ -7,6 +7,7 @@ import {
   DEFAULT_GYM_EQUIPMENT_PRESETS,
   GYM_EQUIPMENT_OPTIONS
 } from '../../data/exerciseLibrary';
+import { Button, DeleteButton } from '../Controls';
 
 const GYM_STATUS_BTN_STYLE = isSelected => ({
   ...UI.badge(isSelected),
@@ -35,8 +36,8 @@ export function GymsView({
   return (
     <div style={UI.pagePad}>
       <div style={UI.gutterBottom}>
-        <button
-          type="button"
+        <Button
+          variant="primary-row"
           onClick={() => {
             setGymDraft({
               id: `gym_${Date.now()}`,
@@ -46,12 +47,10 @@ export function GymsView({
             });
             setCurrentView('gym_editor');
           }}
-          className="kinetic-btn"
-          style={UI.primaryBtn}
         >
           <span>+ CREATE GYMS/EQUIPMENT</span>
           <span>→</span>
-        </button>
+        </Button>
       </div>
 
       <IOSListSection
@@ -141,27 +140,15 @@ export function GymsView({
                     {isSelected ? 'ACTIVE ✓' : 'SELECT'}
                   </span>
 
-                  <button
-                    type="button"
-                    aria-label={`Delete ${g.name}`}
-                    onClick={e => {
-                      e.stopPropagation();
+                  <DeleteButton
+                    label={`Delete ${g.name}`}
+                    onClick={() => {
                       setGyms?.(prev => prev.filter(item => item.id !== g.id));
                       if (selectedGymId === g.id) {
                         setSelectedGymId('');
                       }
                     }}
-                    className="kinetic-btn"
-                    style={{
-                      ...UI.deleteXBtn,
-                      width: '30px',
-                      height: '30px',
-                      fontSize: '12px',
-                      boxSizing: 'border-box'
-                    }}
-                  >
-                    ✕
-                  </button>
+                  />
                 </div>
               </IOSListRow>
             );
@@ -185,14 +172,9 @@ export function GymEditorView({
   return (
     <div style={UI.pagePad}>
       <div style={UI.gutterBottom}>
-        <button
-          type="button"
-          onClick={() => setCurrentView('gyms')}
-          className="kinetic-btn"
-          style={UI.secondaryBtnCenter}
-        >
+        <Button variant="secondary" onClick={() => setCurrentView('gyms')}>
           ← BACK
-        </button>
+        </Button>
       </div>
 
       <IOSListSection header="GYMS/EQUIPMENT PROFILE" colors={colors}>
@@ -232,8 +214,8 @@ export function GymEditorView({
       </IOSListSection>
 
       <div style={UI.gutterWrap}>
-        <button
-          type="button"
+        <Button
+          variant="primary"
           onClick={() => {
             setGyms(prev => {
               const exists = prev.some(g => g.id === gymDraft.id);
@@ -242,11 +224,9 @@ export function GymEditorView({
             setSelectedGymId(gymDraft.id);
             setCurrentView('gyms');
           }}
-          className="kinetic-btn"
-          style={UI.primaryBtnCenter}
         >
           SAVE GYMS/EQUIPMENT SETUP
-        </button>
+        </Button>
       </div>
     </div>
   );

@@ -231,6 +231,11 @@ CREATE POLICY "Users can send friend requests"
   ON public.friendships FOR INSERT
   WITH CHECK (auth.uid() = requester_id);
 
+DROP POLICY IF EXISTS "Users can delete own friendships" ON public.friendships;
+CREATE POLICY "Users can delete own friendships"
+  ON public.friendships FOR DELETE
+  USING (auth.uid() = requester_id OR auth.uid() = addressee_id);
+
 DROP POLICY IF EXISTS "Users can update friendship status" ON public.friendships;
 CREATE POLICY "Users can update friendship status"
   ON public.friendships FOR UPDATE
