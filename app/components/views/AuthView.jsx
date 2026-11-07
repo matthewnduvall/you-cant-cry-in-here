@@ -7,8 +7,7 @@ import {
   registerUserAccount,
   signInUserAccount,
   requestPasswordRecoveryEmail,
-  completePasswordRecoveryWithToken,
-  resetPasswordWithBetaCode
+  completePasswordRecoveryWithToken
 } from '../../utils/supabaseAuth';
 import { Button } from '../Controls';
 
@@ -37,6 +36,7 @@ export function AuthView({
 }) {
   const [loginError, setLoginError] = useState('');
   const [signupError, setSignupError] = useState('');
+  const [signupNotice, setSignupNotice] = useState('');
   const [authSubmitting, setAuthSubmitting] = useState(null);
 
   // Password visibility toggles
@@ -47,8 +47,6 @@ export function AuthView({
   // Account recovery state
   const [showRecoveryPanel, setShowRecoveryPanel] = useState(false);
   const [recoveryEmail, setRecoveryEmail] = useState('');
-  const [recoveryUsername, setRecoveryUsername] = useState('');
-  const [recoveryBetaCode, setRecoveryBetaCode] = useState('');
   const [recoveryNewPassword, setRecoveryNewPassword] = useState('');
   const [recoveryError, setRecoveryError] = useState('');
   const [recoverySuccess, setRecoverySuccess] = useState('');
@@ -107,6 +105,7 @@ export function AuthView({
   const handleSignUpSubmit = async () => {
     if (authSubmitting) return;
     setSignupError('');
+    setSignupNotice('');
     setLoginError('');
     setAuthSubmitting('signup');
     try {
@@ -116,6 +115,16 @@ export function AuthView({
         password: signupPassword,
         betaCode: signupBetaCode
       });
+      if (result.requiresEmailConfirmation) {
+        // No session until the email is confirmed; the invite/default friendships are created
+        // server-side when the account is created, so nothing is lost by signing in afterwards.
+        setSignupPassword('');
+        setAuthEmail(result.user.email);
+        setSignupNotice(
+          `ACCOUNT CREATED. OPEN THE CONFIRMATION LINK SENT TO ${result.user.email.toUpperCase()}, THEN SIGN IN ABOVE.`
+        );
+        return;
+      }
       setUser(result.user);
       if (onInviteAccepted) onInviteAccepted(result.user);
       setAuthUsername(result.user.username);
@@ -156,32 +165,6 @@ export function AuthView({
     }
   };
 
-  const handleResetWithBetaCode = async () => {
-    if (authSubmitting) return;
-    setRecoveryError('');
-    setRecoverySuccess('');
-    setAuthSubmitting('recover_beta');
-    try {
-      const result = await resetPasswordWithBetaCode({
-        email: recoveryEmail || authEmail,
-        username: recoveryUsername || authUsername,
-        betaCode: recoveryBetaCode,
-        newPassword: recoveryNewPassword
-      });
-      setUser(result.user);
-      setAuthUsername(result.user.username);
-      setAuthEmail(result.user.email);
-      setRecoveryNewPassword('');
-      setRecoveryBetaCode('');
-      setShowRecoveryPanel(false);
-      setCurrentView('home');
-    } catch (err) {
-      setRecoveryError(err?.message || 'PASSWORD RESET FAILED.');
-    } finally {
-      setAuthSubmitting(null);
-    }
-  };
-
   const handleCompleteTokenReset = async () => {
     if (authSubmitting) return;
     setRecoveryError('');
@@ -189,7 +172,8 @@ export function AuthView({
     setAuthSubmitting('recover_token');
     try {
       const result = await completePasswordRecoveryWithToken({
-        accessToken: recoveryAccessToken,
+        accessToken: recoveryAccessToken?.accessToken,
+        refreshToken: recoveryAccessToken?.refreshToken || null,
         newPassword: recoveryNewPassword
       });
       if (setRecoveryAccessToken) setRecoveryAccessToken(null);
@@ -371,7 +355,6 @@ export function AuthView({
               setRecoveryError('');
               setRecoverySuccess('');
               if (!recoveryEmail && authEmail) setRecoveryEmail(authEmail);
-              if (!recoveryUsername && authUsername) setRecoveryUsername(authUsername);
             }}
             style={{
               background: 'none',
@@ -395,7 +378,7 @@ export function AuthView({
         <div style={{ marginBottom: '24px' }}>
           <IOSListSection
             header="ACCOUNT RECOVERY // FORGOT PASSWORD"
-            footer="Recover via an email reset link (cross-device) OR reset immediately on this device using your Username and Beta Tester Code."
+            footer="We'll email you a secure link to set a new password."
             colors={colors}
           >
             <IOSListRow colors={colors}>
@@ -414,9 +397,8 @@ export function AuthView({
               </div>
             </IOSListRow>
 
-            <IOSListRow colors={colors}>
+            <IOSListRow isLast={true} colors={colors}>
               <div style={{ width: '100%' }}>
-                <div style={UI.fieldLabel}>OPTION 1: EMAIL RECOVERY LINK</div>
                 <Button
                   variant="secondary"
                   disabled={authSubmitting === 'recover_email'}
@@ -428,65 +410,6 @@ export function AuthView({
               </div>
             </IOSListRow>
 
-            <IOSListRow colors={colors}>
-              <div style={{ width: '100%' }}>
-                <div style={UI.fieldLabel}>OPTION 2: INSTANT RESET — ACCOUNT USERNAME</div>
-                <input
-                  type="text"
-                  placeholder="YOUR REGISTERED USERNAME"
-                  value={recoveryUsername}
-                  onChange={e => {
-                    setRecoveryUsername(e.target.value);
-                    if (recoveryError) setRecoveryError('');
-                  }}
-                  style={UI.textInputBare}
-                />
-              </div>
-            </IOSListRow>
-
-            <IOSListRow colors={colors}>
-              <div style={{ width: '100%' }}>
-                <div style={UI.fieldLabel}>BETA TESTER CODE (REQUIRED FOR INSTANT RESET)</div>
-                <input
-                  type="text"
-                  placeholder="ENTER BETA CODE"
-                  value={recoveryBetaCode}
-                  onChange={e => {
-                    setRecoveryBetaCode(e.target.value);
-                    if (recoveryError) setRecoveryError('');
-                  }}
-                  style={UI.textInputBare}
-                />
-              </div>
-            </IOSListRow>
-
-            <IOSListRow isLast={true} colors={colors}>
-              <div style={{ width: '100%' }}>
-                <div style={UI.fieldLabel}>NEW PASSWORD</div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <input
-                    type={showRecoveryPassword ? 'text' : 'password'}
-                    placeholder="MIN 6 CHARACTERS"
-                    value={recoveryNewPassword}
-                    onChange={e => {
-                      setRecoveryNewPassword(e.target.value);
-                      if (recoveryError) setRecoveryError('');
-                    }}
-                    onKeyDown={e => {
-                      if (e.key === 'Enter') handleResetWithBetaCode();
-                    }}
-                    style={{ ...UI.textInputBare, flex: 1 }}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowRecoveryPassword(prev => !prev)}
-                    style={showHideBtnStyle(showRecoveryPassword)}
-                  >
-                    {showRecoveryPassword ? 'HIDE' : 'SHOW'}
-                  </button>
-                </div>
-              </div>
-            </IOSListRow>
           </IOSListSection>
 
           <div style={{ padding: '0 var(--dp-spacing-gutter)' }}>
@@ -524,14 +447,6 @@ export function AuthView({
                 ✓ {recoverySuccess}
               </div>
             )}
-            <Button
-              variant="primary"
-              disabled={authSubmitting === 'recover_beta'}
-              onClick={handleResetWithBetaCode}
-              style={{ opacity: authSubmitting === 'recover_beta' ? 0.6 : 1 }}
-            >
-              {authSubmitting === 'recover_beta' ? 'RESETTING PASSWORD...' : 'RESET PASSWORD NOW →'}
-            </Button>
           </div>
         </div>
       )}
@@ -619,6 +534,23 @@ export function AuthView({
       </IOSListSection>
 
       <div style={UI.gutterWrap}>
+        {signupNotice && (
+          <div
+            style={{
+              marginBottom: '10px',
+              padding: '10px 12px',
+              backgroundColor: '#0A1A0E',
+              border: '2px solid #30D158',
+              color: '#30D158',
+              fontSize: '11px',
+              fontWeight: 800,
+              textTransform: 'uppercase',
+              lineHeight: 1.4
+            }}
+          >
+            ✓ {signupNotice}
+          </div>
+        )}
         {signupError && (
           <div
             style={{

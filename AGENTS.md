@@ -160,4 +160,8 @@ To keep agent edits fast and focused, views and state hooks are split into dedic
   * Sends via `/api/feedback` + client-side `formsubmit.co/ajax/matthew.n.duvall@gmail.com`, and automatically triggers a pre-filled `mailto:matthew.n.duvall@gmail.com` fallback if active delivery is not confirmed.
 
 ### E. Authentication & Beta Access
-* Beta sign-up requires the beta tester code: **`imnotcrying`** (case-insensitive).
+* Beta sign-up requires the beta tester code: **`imnotcrying`** (case-insensitive). This is only checked in the browser today.
+* **Never store passwords.** Sessions are Supabase access + refresh tokens (`yccih_supabase_tokens_v1`); `getValidSupabaseAccessToken` refreshes using the JWT `exp` and never re-sends a password. A rejected refresh token clears the tokens and dispatches `SESSION_EXPIRED_EVENT`, which signs the athlete out on that device (local workout data stays).
+* The local account registry (`yccih_registered_accounts_v1`) holds only id/username/email; `purgeLegacyStoredPasswords` deletes passwords saved by older builds at startup. Only offline/dev mode (no Supabase env) keeps a salted SHA-256 hash.
+* Sign-out goes through `signOutUser` (revokes the session with Supabase and clears tokens).
+* Sign-up with email confirmation enabled does not sign in; the athlete confirms, then signs in. Password resets use the Supabase email recovery link only (its access + refresh tokens sign the athlete in after setting the new password).

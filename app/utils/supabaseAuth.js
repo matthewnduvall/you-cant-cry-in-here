@@ -43,16 +43,39 @@ export const buildSupabaseHeaders = (anonKey, accessToken = null, extraHeaders =
   return headers;
 };
 
+// ---------------------------------------------------------------------------
+// LOCAL ACCOUNT REGISTRY
+// Remembers which accounts have signed in on this device (id, username, email). Passwords are never
+// stored. Only in offline/dev mode (no Supabase configured) is a salted password hash kept, since
+// there is no server to check passwords against.
+// ---------------------------------------------------------------------------
+
 export const getLocalRegisteredAccounts = () => {
   if (typeof window === 'undefined') return {};
   try {
     const raw = window.localStorage.getItem(LOCAL_ACCOUNTS_KEY);
     if (!raw) return {};
     const parsed = JSON.parse(raw);
-    return parsed && typeof parsed === 'object' ? parsed : {};
+    if (!parsed || typeof parsed !== 'object') return {};
+    // Migration: older builds stored plain-text passwords here. Remove them on first read.
+    let purged = false;
+    Object.values(parsed).forEach(acc => {
+      if (acc && typeof acc === 'object' && ('password' in acc || 'passwordResetLocally' in acc)) {
+        delete acc.password;
+        delete acc.passwordResetLocally;
+        purged = true;
+      }
+    });
+    if (purged) window.localStorage.setItem(LOCAL_ACCOUNTS_KEY, JSON.stringify(parsed));
+    return parsed;
   } catch {
     return {};
   }
+};
+
+/** Removes plain-text passwords saved by older builds. Called once when the app starts. */
+export const purgeLegacyStoredPasswords = () => {
+  getLocalRegisteredAccounts();
 };
 
 const saveLocalRegisteredAccount = account => {
@@ -64,7 +87,11 @@ const saveLocalRegisteredAccount = account => {
       id: account.id || existing[key]?.id || `usr_${Date.now()}`,
       username: account.username || existing[key]?.username || key.split('@')[0],
       email: key,
-      password: account.password,
+      ...(account.passwordHash
+        ? { passwordHash: account.passwordHash, passwordSalt: account.passwordSalt }
+        : existing[key]?.passwordHash
+          ? { passwordHash: existing[key].passwordHash, passwordSalt: existing[key].passwordSalt }
+          : {}),
       createdAt: existing[key]?.createdAt || account.createdAt || new Date().toISOString(),
       updatedAt: new Date().toISOString()
     };
@@ -73,6 +100,20 @@ const saveLocalRegisteredAccount = account => {
     // ignore storage errors
   }
 };
+
+// Salted SHA-256 for offline/dev-mode accounts only (Supabase handles passwords otherwise).
+const hashLocalPassword = async (password, salt) => {
+  const bytes = new TextEncoder().encode(`${salt}:${password}`);
+  const digest = await crypto.subtle.digest('SHA-256', bytes);
+  return Array.from(new Uint8Array(digest))
+    .map(b => b.toString(16).padStart(2, '0'))
+    .join('');
+};
+
+const newLocalSalt = () =>
+  Array.from(crypto.getRandomValues(new Uint8Array(16)))
+    .map(b => b.toString(16).padStart(2, '0'))
+    .join('');
 
 export const isLocallyVerifiedUser = user => {
   if (!user || !user.email) return false;
@@ -84,6 +125,10 @@ export const isLocallyVerifiedUser = user => {
   const accounts = getLocalRegisteredAccounts();
   return Boolean(accounts[user.email.trim().toLowerCase()]);
 };
+
+// ---------------------------------------------------------------------------
+// SUPABASE SESSION TOKENS (access + refresh). The refresh token keeps the athlete signed in.
+// ---------------------------------------------------------------------------
 
 const saveSupabaseSessionTokens = ({ userId, email, accessToken, refreshToken }) => {
   if (typeof window === 'undefined' || !accessToken) return;
@@ -117,9 +162,34 @@ const getSavedSupabaseSessionTokens = email => {
   }
 };
 
+const clearSupabaseSessionTokens = () => {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.removeItem(SUPABASE_TOKENS_KEY);
+  } catch {
+    // ignore storage errors
+  }
+};
+
+// Expiry time (ms) from a JWT's `exp` claim, or 0 if it can't be read.
+const getJwtExpiryMs = token => {
+  try {
+    const payload = String(token || '').split('.')[1];
+    if (!payload) return 0;
+    const json = JSON.parse(atob(payload.replace(/-/g, '+').replace(/_/g, '/')));
+    return Number(json?.exp) > 0 ? Number(json.exp) * 1000 : 0;
+  } catch {
+    return 0;
+  }
+};
+
+export const SESSION_EXPIRED_EVENT = 'yccih:session-expired';
+
 /**
- * Registers a new user account via Supabase Auth (and local registry fallback).
- * Strictly enforces beta code, email, username, and password validation.
+ * Registers a new user account via Supabase Auth (or the offline local registry when Supabase isn't
+ * configured). Enforces beta code, email, username, and password validation.
+ * Returns { user, requiresEmailConfirmation }; when confirmation is required there is no session yet,
+ * so the athlete should confirm their email and then sign in.
  */
 export async function registerUserAccount({ username, email, password, betaCode }) {
   const cleanUser = (username || '').trim();
@@ -212,12 +282,8 @@ export async function registerUserAccount({ username, email, password, betaCode 
         accessToken,
         refreshToken: data?.refresh_token || data?.session?.refresh_token || null
       });
+      saveLocalRegisteredAccount(createdUser);
     }
-
-    saveLocalRegisteredAccount({
-      ...createdUser,
-      password: cleanPass
-    });
 
     return {
       user: createdUser,
@@ -225,7 +291,7 @@ export async function registerUserAccount({ username, email, password, betaCode 
     };
   }
 
-  // Fallback local registry when Supabase env vars are not present
+  // Offline/dev fallback when Supabase env vars are not present
   const existing = getLocalRegisteredAccounts();
   if (existing[cleanEmail]) {
     throw new Error('AN ACCOUNT WITH THIS EMAIL ALREADY EXISTS. PLEASE SIGN IN ABOVE.');
@@ -236,10 +302,11 @@ export async function registerUserAccount({ username, email, password, betaCode 
     username: cleanUser,
     email: cleanEmail
   };
-
+  const passwordSalt = newLocalSalt();
   saveLocalRegisteredAccount({
     ...createdUser,
-    password: cleanPass
+    passwordSalt,
+    passwordHash: await hashLocalPassword(cleanPass, passwordSalt)
   });
 
   return {
@@ -249,9 +316,8 @@ export async function registerUserAccount({ username, email, password, betaCode 
 }
 
 /**
- * Authenticates an existing user account via Supabase Auth (or local registry).
+ * Authenticates an existing user account via Supabase Auth (or the offline local registry).
  * Supports signing in with EITHER Username OR Email Address in a single field.
- * Strictly rejects sign-in if the account does not exist or password is wrong.
  */
 export async function signInUserAccount({ identifier, username, email, password }) {
   const rawIdentifier = (identifier || email || username || '').trim();
@@ -278,7 +344,7 @@ export async function signInUserAccount({ identifier, username, email, password 
 
   // Resolve email if user entered a username instead of an email
   let resolvedEmail = rawIdentifier.includes('@') ? lowerInput : localMatch?.email || '';
-  let resolvedUsernameFromLookup = localMatch?.username || (!rawIdentifier.includes('@') ? rawIdentifier : '');
+  const resolvedUsernameFromLookup = localMatch?.username || (!rawIdentifier.includes('@') ? rawIdentifier : '');
 
   if (!resolvedEmail && isConfigured) {
     try {
@@ -299,18 +365,12 @@ export async function signInUserAccount({ identifier, username, email, password 
     }
   }
 
-  // If password was reset locally on this device, allow immediate sign-in with the updated local password
-  if (localMatch && localMatch.passwordResetLocally && localMatch.password === cleanPass) {
-    return {
-      user: {
-        id: localMatch.id,
-        username: localMatch.username || resolvedUsernameFromLookup || localMatch.email.split('@')[0],
-        email: localMatch.email
-      }
-    };
-  }
-
-  if (isConfigured && resolvedEmail) {
+  if (isConfigured) {
+    if (!resolvedEmail) {
+      throw new Error(
+        'ACCOUNT NOT FOUND OR INVALID PASSWORD. IF YOU FORGOT YOUR PASSWORD, USE "FORGOT PASSWORD?" BELOW.'
+      );
+    }
     const res = await fetch(`${baseUrl}/auth/v1/token?grant_type=password`, {
       method: 'POST',
       headers: buildSupabaseHeaders(anonKey, null, { 'Content-Type': 'application/json' }),
@@ -398,36 +458,15 @@ export async function signInUserAccount({ identifier, username, email, password 
         });
       }
 
-      saveLocalRegisteredAccount({
-        ...signedInUser,
-        password: cleanPass
-      });
+      saveLocalRegisteredAccount(signedInUser);
 
       return { user: signedInUser };
     }
 
-    // Handle case where Supabase has 'Confirm email' enabled and user registered on this device
     const errCode = data?.error_code || '';
     const errMsg = String(data?.msg || data?.error_description || data?.message || '');
-
-    if (
-      (errCode === 'email_not_confirmed' || errMsg.toLowerCase().includes('email not confirmed')) &&
-      localMatch &&
-      localMatch.password === cleanPass
-    ) {
-      return {
-        user: {
-          id: localMatch.id,
-          username: localMatch.username || resolvedUsernameFromLookup || localMatch.email.split('@')[0],
-          email: localMatch.email
-        }
-      };
-    }
-
     if (errCode === 'email_not_confirmed' || errMsg.toLowerCase().includes('email not confirmed')) {
-      throw new Error(
-        'EMAIL NOT CONFIRMED YET. CHECK YOUR INBOX OR DISABLE "CONFIRM EMAIL" IN SUPABASE AUTH SETTINGS.'
-      );
+      throw new Error('EMAIL NOT CONFIRMED YET. OPEN THE CONFIRMATION LINK IN YOUR INBOX, THEN SIGN IN.');
     }
 
     throw new Error(
@@ -435,8 +474,12 @@ export async function signInUserAccount({ identifier, username, email, password 
     );
   }
 
-  // Fallback local account verification
-  if (!localMatch || localMatch.password !== cleanPass) {
+  // Offline/dev fallback: verify against the salted hash stored at sign-up
+  const validLocal =
+    localMatch?.passwordHash &&
+    localMatch?.passwordSalt &&
+    (await hashLocalPassword(cleanPass, localMatch.passwordSalt)) === localMatch.passwordHash;
+  if (!validLocal) {
     throw new Error(
       'ACCOUNT NOT FOUND OR INVALID PASSWORD. IF YOU FORGOT YOUR PASSWORD, USE "FORGOT PASSWORD?" BELOW.'
     );
@@ -449,6 +492,24 @@ export async function signInUserAccount({ identifier, username, email, password 
       email: localMatch.email
     }
   };
+}
+
+/**
+ * Signs out: revokes the session with Supabase (best effort) and forgets the tokens on this device.
+ */
+export async function signOutUser() {
+  const { baseUrl, anonKey, isConfigured } = getSupabaseConfig();
+  const saved = getSavedSupabaseSessionTokens();
+  clearSupabaseSessionTokens();
+  if (!isConfigured || !saved?.accessToken) return;
+  try {
+    await fetch(`${baseUrl}/auth/v1/logout`, {
+      method: 'POST',
+      headers: buildSupabaseHeaders(anonKey, saved.accessToken)
+    });
+  } catch {
+    // the local tokens are already gone
+  }
 }
 
 /**
@@ -498,9 +559,10 @@ export async function requestPasswordRecoveryEmail({ email }) {
 }
 
 /**
- * Completes a password update using a Supabase recovery access_token from the URL redirect hash.
+ * Completes a password update using the Supabase recovery session from the email link
+ * (access_token + refresh_token in the URL hash). Signs the athlete in with that session.
  */
-export async function completePasswordRecoveryWithToken({ accessToken, newPassword }) {
+export async function completePasswordRecoveryWithToken({ accessToken, refreshToken = null, newPassword }) {
   const cleanPass = newPassword || '';
   if (!accessToken) {
     throw new Error('MISSING OR EXPIRED RECOVERY TOKEN. REQUEST A NEW RESET LINK.');
@@ -554,72 +616,12 @@ export async function completePasswordRecoveryWithToken({ accessToken, newPasswo
       userId: updatedUser.id,
       email: cleanEmail,
       accessToken,
-      refreshToken: null
+      refreshToken
     });
-    saveLocalRegisteredAccount({
-      ...updatedUser,
-      password: cleanPass
-    });
+    saveLocalRegisteredAccount(updatedUser);
   }
 
   return { user: updatedUser };
-}
-
-/**
- * Resets an existing account's password directly using Email + Username + Beta Tester Code.
- * Updates the local registered account registry immediately (and logs the user in).
- */
-export async function resetPasswordWithBetaCode({ email, username, betaCode, newPassword }) {
-  const cleanEmail = (email || '').trim().toLowerCase();
-  const cleanUser = (username || '').trim();
-  const cleanCode = (betaCode || '').trim().toLowerCase();
-  const cleanPass = newPassword || '';
-
-  if (!cleanEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
-    throw new Error('PLEASE ENTER YOUR REGISTERED EMAIL ADDRESS.');
-  }
-  if (!cleanUser) {
-    throw new Error('PLEASE ENTER YOUR ACCOUNT USERNAME TO VERIFY OWNERSHIP.');
-  }
-  if (cleanCode !== BETA_ACCESS_CODE) {
-    throw new Error('INVALID BETA TESTER CODE. ACCESS DENIED.');
-  }
-  if (!cleanPass || cleanPass.length < 6) {
-    throw new Error('NEW PASSWORD MUST BE AT LEAST 6 CHARACTERS.');
-  }
-
-  const existing = getLocalRegisteredAccounts();
-  const matched = existing[cleanEmail];
-
-  if (!matched) {
-    throw new Error(
-      'ACCOUNT NOT FOUND IN LOCAL REGISTRY ON THIS DEVICE. USE "SEND RECOVERY EMAIL LINK" ABOVE TO RESET VIA EMAIL.'
-    );
-  }
-
-  if ((matched.username || '').trim().toLowerCase() !== cleanUser.toLowerCase()) {
-    throw new Error('USERNAME DOES NOT MATCH THE REGISTERED ACCOUNT FOR THIS EMAIL.');
-  }
-
-  const updatedAccount = {
-    ...matched,
-    password: cleanPass,
-    passwordResetLocally: true,
-    updatedAt: new Date().toISOString()
-  };
-
-  existing[cleanEmail] = updatedAccount;
-  if (typeof window !== 'undefined') {
-    window.localStorage.setItem(LOCAL_ACCOUNTS_KEY, JSON.stringify(existing));
-  }
-
-  return {
-    user: {
-      id: updatedAccount.id,
-      username: updatedAccount.username,
-      email: updatedAccount.email
-    }
-  };
 }
 
 // ============================================================================
@@ -628,19 +630,27 @@ export async function resetPasswordWithBetaCode({ email, username, betaCode, new
 
 let inFlightTokenRefreshPromise = null;
 
+/**
+ * Returns a valid access token for the signed-in athlete, refreshing it with the saved refresh
+ * token when it is about to expire. Never uses a password. If Supabase rejects the refresh token
+ * (revoked or expired session), the tokens are cleared and SESSION_EXPIRED_EVENT is dispatched so
+ * the app can ask the athlete to sign in again.
+ */
 export async function getValidSupabaseAccessToken(user) {
   if (!user || (!user.email && !user.username)) return null;
   const { baseUrl, anonKey, isConfigured } = getSupabaseConfig();
   if (!isConfigured) return null;
 
   const cleanEmail = (user.email || '').trim().toLowerCase();
-  const cleanUsername = (user.username || '').trim().toLowerCase();
   const saved = getSavedSupabaseSessionTokens(cleanEmail);
+  if (!saved?.accessToken) return null;
 
-  // Use existing token if saved within the last 45 minutes
-  if (saved?.accessToken && Date.now() - (saved.savedAt || 0) < 45 * 60 * 1000) {
+  // Use the current token until a minute before it expires
+  const expiresAt = getJwtExpiryMs(saved.accessToken) || (saved.savedAt || 0) + 45 * 60 * 1000;
+  if (Date.now() < expiresAt - 60 * 1000) {
     return saved.accessToken;
   }
+  if (!saved.refreshToken) return null;
 
   if (inFlightTokenRefreshPromise) {
     return inFlightTokenRefreshPromise;
@@ -648,71 +658,33 @@ export async function getValidSupabaseAccessToken(user) {
 
   inFlightTokenRefreshPromise = (async () => {
     try {
-      // Try refreshing via refresh_token if available
-      if (saved?.refreshToken) {
-        try {
-          const res = await fetch(`${baseUrl}/auth/v1/token?grant_type=refresh_token`, {
-            method: 'POST',
-            headers: buildSupabaseHeaders(anonKey, null, { 'Content-Type': 'application/json' }),
-            body: JSON.stringify({ refresh_token: saved.refreshToken })
+      const res = await fetch(`${baseUrl}/auth/v1/token?grant_type=refresh_token`, {
+        method: 'POST',
+        headers: buildSupabaseHeaders(anonKey, null, { 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ refresh_token: saved.refreshToken })
+      });
+      if (res.ok) {
+        const data = await res.json().catch(() => null);
+        if (data?.access_token) {
+          saveSupabaseSessionTokens({
+            userId: data.user?.id || user.id,
+            email: cleanEmail || data.user?.email || '',
+            accessToken: data.access_token,
+            refreshToken: data.refresh_token || saved.refreshToken
           });
-          if (res.ok) {
-            const data = await res.json();
-            if (data?.access_token) {
-              saveSupabaseSessionTokens({
-                userId: data.user?.id || user.id,
-                email: cleanEmail || data.user?.email || '',
-                accessToken: data.access_token,
-                refreshToken: data.refresh_token || saved.refreshToken
-              });
-              return data.access_token;
-            }
-          }
-        } catch {
-          // fall through to silent password re-auth
+          return data.access_token;
         }
       }
-
-      // Fallback: silent token refresh using locally cached credentials on this device
-      const localAccounts = getLocalRegisteredAccounts();
-      const localMatch =
-        (cleanEmail && localAccounts[cleanEmail]) ||
-        Object.values(localAccounts).find(
-          acc =>
-            (cleanEmail && (acc?.email || '').trim().toLowerCase() === cleanEmail) ||
-            (cleanUsername && (acc?.username || '').trim().toLowerCase() === cleanUsername)
-        ) ||
-        null;
-      const loginEmail = cleanEmail || localMatch?.email || '';
-      if (localMatch?.password && loginEmail) {
-        try {
-          const res = await fetch(`${baseUrl}/auth/v1/token?grant_type=password`, {
-            method: 'POST',
-            headers: buildSupabaseHeaders(anonKey, null, { 'Content-Type': 'application/json' }),
-            body: JSON.stringify({ email: loginEmail, password: localMatch.password })
-          });
-          if (res.ok) {
-            const data = await res.json();
-            if (data?.access_token) {
-              saveSupabaseSessionTokens({
-                userId: data.user?.id || user.id,
-                email: loginEmail,
-                accessToken: data.access_token,
-                refreshToken: data.refresh_token || null
-              });
-              return data.access_token;
-            }
-          }
-        } catch {
-          // ignore
+      // 400/401: the refresh token was rejected → the session is over on this device
+      if (res.status === 400 || res.status === 401) {
+        clearSupabaseSessionTokens();
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent(SESSION_EXPIRED_EVENT));
         }
       }
-
-      // Only return the cached accessToken if it is still within the 55-minute JWT validity window;
-      // otherwise return null so public queries can fall back cleanly to anonKey instead of failing with 401 JWT expired.
-      if (saved?.accessToken && Date.now() - (saved.savedAt || 0) < 55 * 60 * 1000) {
-        return saved.accessToken;
-      }
+      return null;
+    } catch {
+      // Network error: keep the session and try again later
       return null;
     } finally {
       inFlightTokenRefreshPromise = null;
