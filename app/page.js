@@ -3,7 +3,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { IOS_DARK, KINETIC_CSS } from './styles/kineticTokens';
 import { getIncrementInLbs, getInitial1RMs } from './utils/workoutEngine';
-import { DEFAULT_MATT_FRIEND, ensureDefaultMattFriend, isSameFriend } from './utils/storageMigration';
 import { AppHeaderAndDrawer } from './components/AppHeaderAndDrawer';
 import {
   DeleteConfirmModal,
@@ -141,9 +140,8 @@ export default function App() {
 
   // --- Social & Friends State ---
   const [friendSearchQuery, setFriendSearchQuery] = useState('');
-  const [friendsList, setFriendsList] = useState(() => [DEFAULT_MATT_FRIEND]);
-  // Friends the user removed; kept so cloud sync and the default @matt friend don't re-add them.
-  const [removedFriends, setRemovedFriends] = useState([]);
+  // Cache of accepted friends from public.friendships (synced in useCloudAndStorageSync)
+  const [friendsList, setFriendsList] = useState([]);
   const [pendingIncomingRequests, setPendingIncomingRequests] = useState([]);
   const [outgoingInvites, setOutgoingInvites] = useState([]);
   const [viewingFriendProfile, setViewingFriendProfile] = useState(null);
@@ -185,23 +183,8 @@ export default function App() {
 
   const handleInviteAccepted = joinedUser => {
     if (!pendingInviter || !pendingInviter.username) return;
-    const inviterFriend = {
-      id: `friend_${pendingInviter.username.toLowerCase()}`,
-      username: pendingInviter.username,
-      email: pendingInviter.email || '',
-      prs: {},
-      sharedRoutines: []
-    };
-    const remainingRemoved = removedFriends.filter(r => !isSameFriend(r, inviterFriend));
-    setRemovedFriends(remainingRemoved);
-    setFriendsList(prev => {
-      const list = ensureDefaultMattFriend(prev, remainingRemoved);
-      const exists = list.some(
-        f => (f.username || '').toLowerCase() === inviterFriend.username.toLowerCase()
-      );
-      if (exists) return list;
-      return [...list, inviterFriend];
-    });
+    // The friendship itself is created in the database when the invited email signs up
+    // (friend_invites → handle_new_profile_friendships), and shows up on the next friendship sync.
     setPendingInviter(null);
     if (typeof window !== 'undefined') {
       window.localStorage.removeItem('yccih_pending_inviter_v1');
@@ -277,9 +260,7 @@ export default function App() {
     shareStatsWithFriends,
     setShareStatsWithFriends,
     shareRoutinesWithFriends,
-    setShareRoutinesWithFriends,
-    removedFriends,
-    setRemovedFriends
+    setShareRoutinesWithFriends
   });
 
   // --- 2. Telemetry, PRs, Stimulus Map & Progression Series Hook ---
@@ -713,8 +694,6 @@ export default function App() {
               onSendEmailInvite={handleSendEmailInvite}
               friendsList={friendsList}
               setFriendsList={setFriendsList}
-              removedFriends={removedFriends}
-              setRemovedFriends={setRemovedFriends}
               setDeleteConfirmTarget={setDeleteConfirmTarget}
               appendSessionLog={appendSessionLog}
               setViewingFriendProfile={setViewingFriendProfile}

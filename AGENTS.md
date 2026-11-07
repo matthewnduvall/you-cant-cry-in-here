@@ -20,7 +20,7 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 * **Framework:** Next.js 16.4+ (App Router, Turbopack, `cacheComponents: true` & `partialPrefetching: true` enabled in `next.config.mjs`).
 * **Hosting & Backend:**
   * **Frontend Hosting:** Vercel (linked to GitHub repo `matthewnduvall/you-cant-cry-in-here`).
-  * **Database & Auth:** Supabase (`supabase_schema.sql` in repo root defines `user_profiles`, `workout_history`, `routines`, and `friendships` with Row-Level Security).
+  * **Database & Auth:** Supabase (`supabase_schema.sql` in repo root defines `user_profiles`, `workout_history`, `routines`, `friendships`, and `friend_invites` with Row-Level Security, plus the friendship functions/triggers; safe to re-run). One-time data migrations live in `supabase/migrations/`.
   * **Local Persistence:** Update-resilient `localStorage` engine (`yccih_app_state_v3`, Schema Version 3) with debounced 300ms auto-save and `.json` backup export/import.
 
 ---
@@ -62,7 +62,7 @@ To keep agent edits fast and focused, views and state hooks are split into dedic
 * **Utilities, Data & API (`app/utils/`, `app/data/`, `app/api/`):**
   * `app/data/exerciseLibrary.js` — Exercise catalog, schemes (`5x5`, `5x8`, `5x8w`, `Pyramid`, `Pyramid 1RM`, `Drop Sets`), equipment filters, and ExRx tables.
   * `app/utils/workoutEngine.js` — 1RM math (`getBestHistory1RM`, `getPersonalRecord1RM`, `getHistoricalCalculated1RM`, `calculateLastEquivalentWeightForSet`, `createWorkoutSlot`).
-  * `app/utils/supabaseAuth.js` — Supabase Auth, cloud state sync, and `resolveInviteFriendshipsForUser`.
+  * `app/utils/supabaseAuth.js` — Supabase Auth, cloud state sync, and the social API (`syncFriendshipsForUser`, `sendFriendRequestToAthlete`, `acceptFriendRequestFromAthlete`, `removeFriendshipWithAthlete`, `searchAthletesByQuery`, `fetchAthleteProfileSnapshot`), all as the signed-in user so RLS applies.
   * `app/utils/storageMigration.js` — Schema V3 local storage hydration and migration.
   * `app/api/feedback/route.js` — Serverless endpoint for sending user feedback + session logs to `matthew.n.duvall@gmail.com`.
   * `app/api/invite/route.js` — Server-sent email invites via Resend (`RESEND_API_KEY`, `NEXT_PUBLIC_APP_URL`); setup steps in `EMAIL_INVITE_SETUP.md`.
@@ -140,16 +140,19 @@ To keep agent edits fast and focused, views and state hooks are split into dedic
   * Expanding a History entry renders the full `RoutineEditorView` inline; editing any field triggers `HistoricalEditConfirmModal` once per session before mutating historical data.
 
 ### D. Social Invites, Friend Profiles & Feedback
-* **Email Invites with Auto-Friendship (`SocialView.jsx` & `supabaseAuth.js`):**
-  * Under Social, users can enter an email address and click **`INVITE VIA EMAIL ↗`**, which prompts an email containing the beta code **`imnotcrying`** and a join link (`/?invite_from=<username>&invite_from_email=<email>&invited_email=<target>&beta_code=imnotcrying`).
-  * When the invited user joins, both users automatically become friends.
-* **Default Friend & Removing Friends:**
-  * Every user starts friends with `@matt` (`DEFAULT_MATT_FRIEND`, an empty stub filled from his real cloud profile; no demo PRs). `ensureDefaultMattFriend(list, removedFriends)` adds him unless removed.
-  * The Social friends list has a red `✕` per friend (confirmed via `DeleteConfirmModal`). Removals are stored in `settings.social.removedFriends` (local + cloud) and filtered out of every merge (`mergeFriendsIntoList` in `storageMigration.js`); sending/accepting a request un-removes. The Supabase `friendships` row is deleted via `removeFriendshipWithAthlete` (needs the delete policy in `supabase_schema.sql`).
-  * Match friend records with `isSameFriend` (id / email / username / email-prefix), not ad-hoc comparisons.
+* **Friendships (single source of truth: `public.friendships`):**
+  * A friend is an `accepted` friendships row (either direction) keyed by Supabase account ids. RLS lets an athlete read a profile, workout history, or shared routines only if they own it or are accepted friends with the owner (`are_friends`). Never add another friendship source (local stores, settings lists, name matching).
+  * Removing a friend (red `✕` on Social, confirmed via `DeleteConfirmModal`) deletes the row, which revokes access **both ways**; the other athlete's app drops the cached friend on its next sync (`applyFriendshipSync`), and an open friend profile shows `PROFILE UNAVAILABLE`.
+  * Requests: search → `+ ADD FRIEND` inserts a `pending` row; only the recipient can accept (UPDATE policy) or decline (`✕`, deletes the row). Requesting someone who already requested you accepts theirs.
+  * Search (`search_athletes` RPC, signed-in only): partial username or exact email; returns id + username only (never emails or stats).
+  * Default friend: a database trigger (`handle_new_profile_friendships`) makes every new account friends with `@matt` (matthew.n.duvall@gmail.com) and with anyone who emailed them an invite. Nothing re-adds a removed friend.
+  * Match friend records with `isSameFriend` (account id only). The local `friendsList` is just a cache of the server list and is cleared on sign-out.
+* **Email Invites (`SocialView.jsx` → `/api/invite`):**
+  * The inviter must be signed in; the route verifies their Supabase session and records `friend_invites` as them (RLS: `inviter_user_id = auth.uid()`), then emails the beta code **`imnotcrying`** and a join link (`/?invite_from=<username>&invited_email=<target>&beta_code=imnotcrying`).
+  * New accounts are friended by the trigger above; existing accounts claim invites to their verified email on their next sync (`claim_my_invites`).
 * **Friend Profiles (`ProfileView.jsx`):**
   * Never display a friend's email address—only display `@<username>`.
-  * PRs load directly from the friend's `user_profiles` row + `workout_history` (`fetchAthleteProfileSnapshot`), independent of how the friendship was recorded.
+  * PRs load from the friend's `user_profiles` row + `workout_history` by account id (`fetchAthleteProfileSnapshot`); RLS returns nothing once the friendship is removed.
   * Profile PR lists show the top 10 (heaviest first) with a `SEE ALL (<N>)` toggle.
 * **Footer:** Every view renders `Copyright © 2026 MaNoDuV LLC` at the bottom of the app column (`app/page.js`).
 * **Feedback Delivery (`FeedbackModal` & `app/api/feedback/route.js`):**
