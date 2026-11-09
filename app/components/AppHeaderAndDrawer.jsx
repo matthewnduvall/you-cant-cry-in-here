@@ -14,6 +14,7 @@ export function AppHeaderAndDrawer({
   setShowFeedbackModal,
   isRoutineEditorView,
   currentEditorWorkout,
+  onFinishSession,
   timerTrigger,
   setTimerTrigger,
   updateCurrentWorkoutState,
@@ -134,6 +135,9 @@ export function AppHeaderAndDrawer({
               setTimerTrigger(prev => ({ ...prev, targetSeconds: sec }));
             }}
             onStopTimer={() => setTimerTrigger(prev => ({ ...prev, isRunning: false, startedAtMs: null }))}
+            onMarkDone={
+              onFinishSession && (currentEditorWorkout.slots || []).length > 0 ? onFinishSession : undefined
+            }
           />
         )}
       </header>

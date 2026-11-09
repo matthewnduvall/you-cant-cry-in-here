@@ -4,7 +4,13 @@ import React, { useEffect, useState } from 'react';
 import { IOSListSection, IOSListRow } from '../Primitives';
 import { CORE_PR_EXERCISE_IDS, EXERCISE_LIBRARY, EXERCISE_MAP } from '../../data/exerciseLibrary';
 import { getBestHistory1RM } from '../../utils/workoutEngine';
-import { fetchAthleteProfileSnapshot, syncFriendshipsForUser, signOutUser } from '../../utils/supabaseAuth';
+import {
+  fetchAthleteProfileSnapshot,
+  fetchFriendsOfAthlete,
+  sendFriendRequestToAthlete,
+  syncFriendshipsForUser,
+  signOutUser
+} from '../../utils/supabaseAuth';
 import { isSameFriend, applyFriendshipSync } from '../../utils/storageMigration';
 import { Button } from '../Controls';
 
@@ -33,6 +39,10 @@ export function ProfileView({
   const isFriend = currentView === 'friend_profile' && viewingFriendProfile;
   const [showAllPrs, setShowAllPrs] = useState(false);
   const [friendUnavailable, setFriendUnavailable] = useState(false);
+  // A friend's friends (public profiles only): null while loading, else { ok, friends }
+  const [friendsOfFriend, setFriendsOfFriend] = useState(null);
+  // athleteId -> 'sending' | 'requested' | 'friends' | 'error'
+  const [requestStatusById, setRequestStatusById] = useState({});
   // null | 'deleting' | error message
   const [accountDeleteStatus, setAccountDeleteStatus] = useState(null);
 
@@ -82,6 +92,29 @@ export function ProfileView({
       cancelled = true;
     };
   }, [isFriend, viewingFriendProfile?.id, user?.id]);
+
+  // Their friends list (empty when their profile is private)
+  useEffect(() => {
+    if (!isFriend || !viewingFriendProfile?.id || !user) return;
+    let cancelled = false;
+    (async () => {
+      const result = await fetchFriendsOfAthlete(user, viewingFriendProfile.id);
+      if (!cancelled) setFriendsOfFriend(result);
+    })();
+    return () => {
+      cancelled = true;
+      setFriendsOfFriend(null);
+      setRequestStatusById({});
+    };
+  }, [isFriend, viewingFriendProfile?.id, user]);
+
+  const handleRequestFriend = async athlete => {
+    setRequestStatusById(prev => ({ ...prev, [athlete.id]: 'sending' }));
+    const result = await sendFriendRequestToAthlete(user, athlete);
+    const next = !result.ok ? 'error' : result.status === 'accepted' ? 'friends' : 'requested';
+    setRequestStatusById(prev => ({ ...prev, [athlete.id]: next }));
+    appendSessionLog?.('FRIEND_REQUEST', `Request to @${athlete.username} from a friend's profile: ${next}`);
+  };
 
   // Prefer the cached friends-list copy (kept fresh by the friendship sync)
   const liveFriendMatch = isFriend
@@ -193,9 +226,8 @@ export function ProfileView({
         </IOSListRow>
 
         {!isFriend && user && (
-          <IOSListRow isLast={!accountDeleteStatus} colors={colors}>
+          <IOSListRow isLast={true} colors={colors}>
             <span style={{ fontSize: '12px', fontWeight: 700, color: '#A0A0A0' }}>ACTIVE ACCOUNT SESSION</span>
-            <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
             <button
               type="button"
               onClick={() => {
@@ -212,29 +244,6 @@ export function ProfileView({
             >
               SIGN OUT
             </button>
-            <Button
-              variant="danger"
-              disabled={accountDeleteStatus === 'deleting'}
-              onClick={handleDeleteAccountClick}
-              style={{ width: 'auto', padding: '6px 12px', fontSize: '11px', border: '2px solid var(--dp-color-rule)' }}
-            >
-              DELETE ACCOUNT
-            </Button>
-            </div>
-          </IOSListRow>
-        )}
-        {!isFriend && user && accountDeleteStatus && (
-          <IOSListRow isLast={true} colors={colors}>
-            <span
-              style={{
-                fontSize: '11px',
-                fontWeight: 800,
-                textTransform: 'uppercase',
-                color: accountDeleteStatus === 'deleting' ? '#A0A0A0' : '#FF3B30'
-              }}
-            >
-              {accountDeleteStatus === 'deleting' ? 'DELETING ACCOUNT…' : `⚠ ${accountDeleteStatus}`}
-            </span>
           </IOSListRow>
         )}
       </IOSListSection>
@@ -285,6 +294,88 @@ export function ProfileView({
           ))
         )}
       </IOSListSection>
+
+      {isFriend && (
+        <IOSListSection
+          header={`@${profUser.username}'S FRIENDS`}
+          footer={
+            friendsOfFriend?.ok && friendsOfFriend.friends.length === 0
+              ? 'NO PUBLIC FRIENDS TO SHOW, OR THIS PROFILE IS PRIVATE.'
+              : null
+          }
+          colors={colors}
+        >
+          {!friendsOfFriend ? (
+            <IOSListRow isLast={true} colors={colors}>
+              <span style={{ fontSize: '12px', color: '#888888' }}>Loading friends…</span>
+            </IOSListRow>
+          ) : !friendsOfFriend.ok ? (
+            <IOSListRow isLast={true} colors={colors}>
+              <span style={{ fontSize: '12px', color: '#FF3B30', fontWeight: 700 }}>COULD NOT LOAD THEIR FRIENDS.</span>
+            </IOSListRow>
+          ) : (
+            friendsOfFriend.friends.map((athlete, i) => {
+              const status = requestStatusById[athlete.id] || athlete.relation;
+              return (
+                <IOSListRow key={athlete.id} isLast={i === friendsOfFriend.friends.length - 1} colors={colors}>
+                  <span style={{ fontSize: '14px', fontWeight: 800, textTransform: 'uppercase' }}>@{athlete.username}</span>
+                  {status === 'friends' ? (
+                    <span style={{ fontSize: '11px', fontWeight: 800, color: '#30D158' }}>FRIENDS ✓</span>
+                  ) : status === 'requested' ? (
+                    <span style={{ fontSize: '11px', fontWeight: 800, color: '#A0A0A0' }}>REQUESTED</span>
+                  ) : (
+                    <Button
+                      variant="primary"
+                      disabled={status === 'sending'}
+                      onClick={() => handleRequestFriend(athlete)}
+                      style={{ width: 'auto', flexShrink: 0, padding: '6px 12px', fontSize: '11px', border: '2px solid var(--dp-color-rule)' }}
+                    >
+                      {status === 'sending'
+                        ? 'SENDING…'
+                        : status === 'error'
+                          ? 'RETRY'
+                          : status === 'incoming'
+                            ? 'ACCEPT'
+                            : 'REQUEST'}
+                    </Button>
+                  )}
+                </IOSListRow>
+              );
+            })
+          )}
+        </IOSListSection>
+      )}
+
+      {/* ACCOUNT: kept at the very bottom so the permanent delete is out of the way */}
+      {!isFriend && user && (
+        <IOSListSection header="ACCOUNT" colors={colors}>
+          <IOSListRow isLast={!accountDeleteStatus} colors={colors}>
+            <span style={{ fontSize: '12px', fontWeight: 700, color: '#A0A0A0' }}>PERMANENTLY DELETE YOUR ACCOUNT AND DATA</span>
+            <Button
+              variant="danger"
+              disabled={accountDeleteStatus === 'deleting'}
+              onClick={handleDeleteAccountClick}
+              style={{ width: 'auto', flexShrink: 0, padding: '6px 12px', fontSize: '11px', border: '2px solid var(--dp-color-rule)' }}
+            >
+              DELETE ACCOUNT
+            </Button>
+          </IOSListRow>
+          {accountDeleteStatus && (
+            <IOSListRow isLast={true} colors={colors}>
+              <span
+                style={{
+                  fontSize: '11px',
+                  fontWeight: 800,
+                  textTransform: 'uppercase',
+                  color: accountDeleteStatus === 'deleting' ? '#A0A0A0' : '#FF3B30'
+                }}
+              >
+                {accountDeleteStatus === 'deleting' ? 'DELETING ACCOUNT…' : `⚠ ${accountDeleteStatus}`}
+              </span>
+            </IOSListRow>
+          )}
+        </IOSListSection>
+      )}
       </>
       )}
     </div>

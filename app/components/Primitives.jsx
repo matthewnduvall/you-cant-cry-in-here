@@ -155,7 +155,9 @@ export const SessionRestTimerBar = React.memo(function SessionRestTimerBar({
   timerTrigger,
   nextLiftInfo = { topLine: '', bottomLine: '' },
   onChangeDefaultRest,
-  onStopTimer
+  onStopTimer,
+  // Optional: shows a green ✓ cell on the right that finishes the session (opens the save confirmation)
+  onMarkDone
 }) {
   const [remaining, setRemaining] = useState(defaultRestSeconds);
 
@@ -178,7 +180,7 @@ export const SessionRestTimerBar = React.memo(function SessionRestTimerBar({
       style={{
         marginTop: '10px',
         display: 'grid',
-        gridTemplateColumns: '120px minmax(0, 1fr)',
+        gridTemplateColumns: onMarkDone ? '120px minmax(0, 1fr) 52px' : '120px minmax(0, 1fr)',
         alignItems: 'stretch',
         gap: 0,
         height: '46px',
@@ -317,6 +319,35 @@ export const SessionRestTimerBar = React.memo(function SessionRestTimerBar({
           </div>
         ) : null}
       </div>
+
+      {onMarkDone ? (
+        <button
+          type="button"
+          onClick={onMarkDone}
+          aria-label="Finish session"
+          title="Finish session"
+          className="kinetic-btn"
+          style={{
+            width: '100%',
+            height: '45px',
+            boxSizing: 'border-box',
+            backgroundColor: '#30D158',
+            color: '#101010',
+            border: 'none',
+            borderRight: '1px solid var(--dp-color-rule)',
+            borderBottom: '1px solid var(--dp-color-rule)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: '22px',
+            fontWeight: 800,
+            cursor: 'pointer',
+            padding: 0
+          }}
+        >
+          ✓
+        </button>
+      ) : null}
     </div>
   );
 });

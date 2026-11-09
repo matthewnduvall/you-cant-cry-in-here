@@ -67,18 +67,19 @@ export function RoutineEditorView({
 
   const hasExercises = (currentEditorWorkout.slots || []).length > 0;
 
-  const renderSaveShareResetRow = () => (
+  const renderSaveShareResetRow = (extraStyle = {}) => (
     <div
       style={{
         display: 'grid',
         gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
         gap: 0,
         width: '100%',
-        alignItems: 'stretch'
+        alignItems: 'stretch',
+        ...extraStyle
       }}
     >
       <Button
-        variant="primary"
+        variant="success"
         onClick={handleSaveCurrentEditor}
         style={{ height: '44px', padding: '0 10px', fontSize: '14px', ...SHARED_CELL_BORDER, boxSizing: 'border-box' }}
       >
@@ -483,6 +484,9 @@ export function RoutineEditorView({
             {hasExercises ? '+ AUTO COMPLETE' : '+ AUTO ROUTINE'}
           </Button>
         </div>
+
+        {/* Duplicate SAVE / RESET row so a long session can be saved without scrolling back up */}
+        {!isEmbeddedHistorySession && hasExercises && renderSaveShareResetRow({ ...SHARED_GROUP_OUTER, marginTop: '12px' })}
       </div>
     </div>
   );

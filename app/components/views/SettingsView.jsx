@@ -23,6 +23,8 @@ export function SettingsView({
   setShareStatsWithFriends,
   shareRoutinesWithFriends,
   setShareRoutinesWithFriends,
+  profileIsPublic = true,
+  setProfileIsPublic,
   importBackupInputRef,
   handleExportBackupJSON,
   handleImportBackupJSON,
@@ -176,7 +178,20 @@ export function SettingsView({
         </IOSListRow>
       </IOSListSection>
 
-      <IOSListSection header="SOCIAL" colors={colors}>
+      <IOSListSection
+        header="SOCIAL"
+        footer={
+          profileIsPublic
+            ? 'PUBLIC: friends can see your friends list on your profile, and you appear in your friends\x27 lists so their friends can send you requests.'
+            : 'PRIVATE: your friends list is hidden and you don\x27t appear in other athletes\x27 friend lists.'
+        }
+        colors={colors}
+      >
+        <IOSListRow colors={colors} onClick={() => setProfileIsPublic?.(p => !p)}>
+          <span style={UI.rowTitle}>PROFILE VISIBILITY</span>
+          <span style={UI.badge(profileIsPublic)}>{profileIsPublic ? 'PUBLIC' : 'PRIVATE'}</span>
+        </IOSListRow>
+
         <IOSListRow colors={colors} onClick={() => setShareStatsWithFriends(p => !p)}>
           <span style={UI.rowTitle}>SHARE STATS WITH FRIENDS</span>
           <span style={UI.badge(shareStatsWithFriends)}>{shareStatsWithFriends ? 'ON' : 'OFF'}</span>

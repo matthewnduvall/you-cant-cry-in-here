@@ -76,7 +76,7 @@ export const DEFAULT_SETTINGS_V2 = {
   },
   stimulus: { greenDays: 2, yellowDays: 4 },
   routinePreferences: ['Compound', 'Compound', 'Superset', 'Superset', 'Accessory'],
-  social: { shareStatsWithFriends: true, shareRoutinesWithFriends: true },
+  social: { shareStatsWithFriends: true, shareRoutinesWithFriends: true, profileIsPublic: true },
   selectedGymId: ''
 };
 

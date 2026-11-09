@@ -92,7 +92,9 @@ export function useCloudAndStorageSync({
   shareStatsWithFriends,
   setShareStatsWithFriends,
   shareRoutinesWithFriends,
-  setShareRoutinesWithFriends
+  setShareRoutinesWithFriends,
+  profileIsPublic,
+  setProfileIsPublic
 }) {
   const cloudSyncReadyForUserKeyRef = useRef(null);
   const [cloudPullReadyTick, setCloudPullReadyTick] = useState(0);
@@ -149,6 +151,7 @@ export function useCloudAndStorageSync({
         if (hydrated.settings.social) {
           setShareStatsWithFriends(hydrated.settings.social.shareStatsWithFriends ?? true);
           setShareRoutinesWithFriends(hydrated.settings.social.shareRoutinesWithFriends ?? true);
+          setProfileIsPublic(hydrated.settings.social.profileIsPublic ?? true);
         }
       }
     }
@@ -310,7 +313,8 @@ export function useCloudAndStorageSync({
             }
           }
 
-          if (cloud.activeSession && typeof cloud.activeSession === 'object') {
+          // Only an in-progress session (with exercises) carries over from another device
+          if (cloud.activeSession && typeof cloud.activeSession === 'object' && (cloud.activeSession.slots || []).length > 0) {
             setActiveSession(prev => prev || normalizeWorkoutFromStorage(cloud.activeSession));
           }
 
@@ -412,6 +416,9 @@ export function useCloudAndStorageSync({
               }
               if (cloud.settings.social.shareRoutinesWithFriends !== undefined) {
                 setShareRoutinesWithFriends(cloud.settings.social.shareRoutinesWithFriends);
+              }
+              if (cloud.settings.social.profileIsPublic !== undefined) {
+                setProfileIsPublic(cloud.settings.social.profileIsPublic);
               }
             }
           }
@@ -522,7 +529,7 @@ export function useCloudAndStorageSync({
             },
             stimulus: { greenDays: stimulusGreenDays, yellowDays: stimulusYellowDays },
             routinePreferences,
-            social: { shareStatsWithFriends, shareRoutinesWithFriends },
+            social: { shareStatsWithFriends, shareRoutinesWithFriends, profileIsPublic },
             selectedGymId
           }
         };
@@ -590,6 +597,7 @@ export function useCloudAndStorageSync({
     routinePreferences,
     shareStatsWithFriends,
     shareRoutinesWithFriends,
+    profileIsPublic,
     selectedGymId,
     cloudPullReadyTick
   ]);
@@ -644,6 +652,7 @@ export function useCloudAndStorageSync({
           setRoutinePreferences(rehydrated.settings.routinePreferences);
           setShareStatsWithFriends(rehydrated.settings.social.shareStatsWithFriends);
           setShareRoutinesWithFriends(rehydrated.settings.social.shareRoutinesWithFriends);
+          setProfileIsPublic(rehydrated.settings.social.profileIsPublic ?? true);
           setSelectedGymId(rehydrated.settings.selectedGymId);
         }
       } catch {

@@ -46,11 +46,11 @@ To keep agent edits fast and focused, views and state hooks are split into dedic
   * `app/components/views/ProgressionChartView.jsx` — `PROGRESS` SVG chart (`1 REP MAX` vs. `VOLUME`) with `ALL`, `BENCH`, `SQUAT`, `DEAD`, and `CUSTOM` (any exercise) filters, plus `<X LB FROM GOAL>` summary rows.
   * `app/components/views/StimulusMapView.jsx` — `STIMULUS` Anterior/Posterior SVG muscle stimulus diagram and telemetry list.
   * `app/components/views/LeaderboardView.jsx` — `BIG 3 TOTAL`, `BIG 3 NORMALIZED` (`Total / BW` literal ratio + averaged Big 3 standing), `OVERHEAD PRESS NORMALIZED` (`OHP / BW`), and `MOST IMPROVED` (`Delta(High - Low) / BW` literal ratio) leaderboards.
-  * `app/components/views/SocialView.jsx` — `INVITE FRIEND VIA EMAIL` (prompts email with beta code `imnotcrying` and join link), `PENDING EMAIL INVITES`, athlete search, incoming requests, and friends list.
-  * `app/components/views/ProfileView.jsx` — User & Friend profile view (friend profiles hide email addresses and only show `@username`, PRs, and shared routines).
+  * `app/components/views/SocialView.jsx` — `FIND ATHLETES` search (username or exact email; when an email matches no athlete the button turns into a green `SEND INVITE` that emails the beta code `imnotcrying` and join link), incoming requests, and friends list.
+  * `app/components/views/ProfileView.jsx` — User & Friend profile view (friend profiles hide email addresses and only show `@username`, PRs, shared routines, and `@<friend>'S FRIENDS` with `REQUEST`/`ACCEPT` buttons). Your own profile keeps `SIGN OUT` at the top and `DELETE ACCOUNT` in an `ACCOUNT` section at the very bottom.
   * `app/components/views/OnboardingView.jsx` — `04 / ONBOARDING` 6-step paged wizard (sent to first-time users after account creation/login, with `SKIP →`, `BACK`, `NEXT`, `START →`, and the shared `OneRepMaxCalculatorModal` on Page 3).
   * `app/components/views/InfoView.jsx` — `05 / INFO` documentation of the app's 1RM logic, automatic scheme conversions, gym/equipment & muscle group filters, and Data Policies.
-  * `app/components/views/SettingsView.jsx` — `06 / SETTINGS` body metrics, stimulus thresholds, routine preferences, social sharing toggles, and data backup controls.
+  * `app/components/views/SettingsView.jsx` — `06 / SETTINGS` body metrics, stimulus thresholds, routine preferences, social settings (`PROFILE VISIBILITY` public/private, sharing toggles), and data backup controls.
   * `app/components/views/AuthView.jsx` — Sign In, Sign Up (with beta code `imnotcrying` and invite banner), and Forgot Password recovery; routes new/first-time logins to `onboarding`.
 * **Modals & Primitives (`app/components/`):**
   * `app/components/Modals.jsx` — `DeleteConfirmModal` (generic targets may pass `title`/`verb`/`confirmLabel`/`onConfirm`), `AddSlotModal`, `PlateCalculatorModal` (set targets may pass `onApplyCustom`), `SetValueEditorModal` (targets may pass `onApply`), `SaveConfirmModal`, `HistoricalEditConfirmModal`, and `FeedbackModal`.
@@ -105,7 +105,8 @@ To keep agent edits fast and focused, views and state hooks are split into dedic
   2. **`AUTO SESSION`**: White text (`#FFFFFF`) on orange background; immediately generates a full workout using `routinePreferences` and `selectedGymId`, and opens straight into `session` view.
   3. **`HISTORY ↗`**: Opens the `HistoryView` (Personal Records on top, logged History below).
 * **Social Scroller on Home Screen:**
-  * Limits scrolling entries to a **single most-recent entry per friend user** across Squat, Bench, and Deadlift.
+  * Friends only (never your own lifts), limited to a **single most-recent entry per friend user** across Squat, Bench, and Deadlift. With no friends it reads `INVITE FRIENDS TO KEEP TRACK OF PROGRESS!`.
+* **Locked interface:** no pinch/double-tap zoom or text reflow (`viewport` export in `app/layout.js`, `touch-action`/`text-size-adjust` in `globals.css`, and an iOS `gesturestart` blocker in `page.js`).
 * **Top Header (`AppHeaderAndDrawer`):**
   * Left: Hamburger Menu button (`☰`). Center: `You Can't Cry in Here` home link (when not on Home). Right: **`FEEDBACK`** button (`FeedbackModal`).
 * **Sticky Rest Timer Bar (`SessionRestTimerBar`):**
@@ -127,6 +128,7 @@ To keep agent edits fast and focused, views and state hooks are split into dedic
   * **Smart `RECALCULATE` Priority:** Ignores completed sets (`st.completed`). Prioritizes the last-edited field (`weight` adjusts reps; `reps` adjusts weight). If the final set is edited (e.g., changed to `1 Rep Max`), adjusts both weights and reps across incomplete sets so the final set is achievable (matching `Pyramid 1RM` when the last set is `1 Rep Max`).
   * **Gym/Equipment Swap (`handleChangeGymSelection`):** Changing the `GYMS/EQUIPMENT` dropdown in the session/routine editor swaps every slot with no completed sets to its closest equivalent for that equipment (`findEquivalentExerciseForGym`, e.g. Barbell Bench Press → Dumbbell Bench Press). Weights come from the new exercise's history + increment, else the old 1RM converted by `convertEquivalent1RM` (dumbbell ≈ 0.65× barbell), stored on the slot as `estimated1RMs` so repeated swaps don't drift.
   * **Muscle Group Filters:** Includes an umbrella **`Legs`** filter matching all lower-body exercises (Thighs, Hips, Calves, Quadriceps, Hamstrings, Glutes, Adductors, Abductors).
+* **Finishing a session:** the green `✓` at the right of the sticky rest-timer bar (`SessionRestTimerBar` `onMarkDone`) and both green `SAVE` buttons (top, and the duplicate SAVE/RESET row under `+ ADD EXERCISE`) open the save confirmation. `NEW SESSION` replaces an empty leftover session so the name/date are today's; `formatDateYMD` shows timestamps in local time (never the UTC date).
 * **Save Confirmation Modal (`SaveConfirmModal`):**
   * Clicking `SAVE` opens a confirmation popup to confirm the workout/routine name and whether to share it with friends.
 
@@ -152,6 +154,7 @@ To keep agent edits fast and focused, views and state hooks are split into dedic
 * **Email Invites (`SocialView.jsx` → `/api/invite`):**
   * The inviter must be signed in; the route verifies their Supabase session and records `friend_invites` as them (RLS: `inviter_user_id = auth.uid()`), then emails the beta code **`imnotcrying`** and a join link (`/?invite_from=<username>&invited_email=<target>&beta_code=imnotcrying`).
   * New accounts are friended by the trigger above; existing accounts claim invites to their verified email on their next sync (`claim_my_invites`).
+* **Public/private profiles:** `settings.social.profileIsPublic` (default true, synced in `user_profiles.settings`). The `friends_of_athlete(target)` RPC lists a friend's friends only while you are friends with them and they are public, includes only public athletes (never you), and returns your relation to each (`friends`/`requested`/`incoming`/`none`).
 * **Friend Profiles (`ProfileView.jsx`):**
   * Never display a friend's email address—only display `@<username>`.
   * PRs load from the friend's `user_profiles` row + `workout_history` by account id (`fetchAthleteProfileSnapshot`); RLS returns nothing once the friendship is removed.
