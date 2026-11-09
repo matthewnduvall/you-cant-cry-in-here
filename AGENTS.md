@@ -94,6 +94,7 @@ To keep agent edits fast and focused, views and state hooks are split into dedic
   * **Zero Border Radius:** Every element enforces `border-radius: 0px !important` (sharp brutalist edges).
   * **Zero-Gap Shared Borders (`SHARED_GROUP_OUTER` & `SHARED_CELL_BORDER`):** Adjacent buttons, inputs, and rows sit flush against one another (`gap: 0`) sharing single `1px solid var(--dp-color-rule)` edges (`borderTop`/`borderLeft` on the outer group, `borderRight`/`borderBottom` on each cell) without extra bounding boxes or gaps.
   * **Mobile-First Viewport:** Centered `480px` max-width container with `2px solid #5C5C5C` left/right borders.
+  * **iPhone safe areas:** the app draws edge to edge (`viewportFit: 'cover'`, black-translucent status bar), so the sticky header adds `env(safe-area-inset-top)` to its top padding (clears the notch / Dynamic Island), the footer adds `env(safe-area-inset-bottom)` (home indicator), and every full-screen overlay (drawer, `UI.modalBackdrop`, 1RM calculator, CSV import) pads both. New fixed/full-screen elements must do the same.
 
 ---
 

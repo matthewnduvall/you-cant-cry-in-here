@@ -33,6 +33,7 @@ export const KINETIC_CSS = `
   html {
     scrollbar-gutter: stable;
     overflow-y: scroll;
+    background-color: #101010;
   }
 
   .kinetic-app, .kinetic-app * {
@@ -150,7 +151,8 @@ export const UI = {
   }),
   modalBackdrop: {
     position: 'fixed', inset: 0, zIndex: 70, backgroundColor: 'rgba(0,0,0,0.85)',
-    display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px'
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    padding: `calc(16px + env(safe-area-inset-top, 0px)) 16px calc(16px + env(safe-area-inset-bottom, 0px))`
   },
   modalCard: (maxWidth = '420px') => ({
     width: '100%', maxWidth, maxHeight: '90vh', overflowY: 'auto',

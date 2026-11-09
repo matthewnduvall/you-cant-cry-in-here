@@ -242,7 +242,7 @@ export function OneRepMaxCalculatorModal({
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        padding: '12px'
+        padding: `calc(12px + env(safe-area-inset-top, 0px)) 12px calc(12px + env(safe-area-inset-bottom, 0px))`
       }}
       onClick={() => onClose?.()}
     >
