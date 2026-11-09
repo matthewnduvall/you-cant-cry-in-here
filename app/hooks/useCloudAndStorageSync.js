@@ -13,12 +13,22 @@ import {
 import {
   fetchCloudStateForUser,
   pushCloudStateForUser,
+  deleteCloudWorkoutsByIds,
   syncFriendshipsForUser,
   signOutUser,
   deleteMyAccount,
   purgeLegacyStoredPasswords,
+  isUuid,
   SESSION_EXPIRED_EVENT
 } from '../utils/supabaseAuth';
+import {
+  getCloudSyncLedger,
+  setSyncedWorkouts,
+  markWorkoutsSynced,
+  clearDeletedWorkoutIds,
+  forgetCloudSyncLedger,
+  workoutSyncSignature
+} from '../utils/cloudSyncLedger';
 import { getInitial1RMs, getBestHistory1RM } from '../utils/workoutEngine';
 import { EXERCISE_LIBRARY, normalizeSlotCategory } from '../data/exerciseLibrary';
 
@@ -86,6 +96,11 @@ export function useCloudAndStorageSync({
 }) {
   const cloudSyncReadyForUserKeyRef = useRef(null);
   const [cloudPullReadyTick, setCloudPullReadyTick] = useState(0);
+  // Cloud sync health shown in the app: state 'idle' | 'syncing' | 'ok' | 'error'
+  const [cloudSyncStatus, setCloudSyncStatus] = useState({ state: 'idle', error: null });
+  // Bumped to pull again (RETRY button, app returning to the foreground, network back online)
+  const [cloudSyncRetryTick, setCloudSyncRetryTick] = useState(0);
+  const lastCloudPullAtRef = useRef(0);
 
 
   // 1. Client-Side LocalStorage Hydration, Recovery Hash & Invite Link Detection
@@ -220,14 +235,35 @@ export function useCloudAndStorageSync({
       cloudSyncReadyForUserKeyRef.current = null;
       return;
     }
+    const isCloudAccount = isUuid(user?.id);
+
+    // Hold uploads until this pull finishes, so a device can't re-upload a workout that another
+    // device deleted before it learns about the deletion.
+    cloudSyncReadyForUserKeyRef.current = null;
+    lastCloudPullAtRef.current = Date.now();
 
     let cancelled = false;
     (async () => {
+      await Promise.resolve();
+      if (cancelled) return;
+      if (isCloudAccount) setCloudSyncStatus(prev => ({ state: 'syncing', error: prev.error }));
       try {
+        // Retry deletions that haven't reached the server yet
+        const pendingDeletes = Array.from(getCloudSyncLedger(user).deleted);
+        if (isCloudAccount && pendingDeletes.length > 0) {
+          const del = await deleteCloudWorkoutsByIds(user, pendingDeletes);
+          if (del.ok) clearDeletedWorkoutIds(user, pendingDeletes);
+        }
+
         const cloud = await fetchCloudStateForUser(user);
         if (cancelled) return;
 
-        if (cloud && typeof cloud === 'object') {
+        if (cloud?.error) {
+          if (isCloudAccount) {
+            setCloudSyncStatus({ state: 'error', error: `COULD NOT DOWNLOAD YOUR DATA (${cloud.error})` });
+          }
+        } else if (cloud && typeof cloud === 'object') {
+          if (isCloudAccount) setCloudSyncStatus({ state: 'ok', error: null });
           if (cloud.oneRepMaxes && typeof cloud.oneRepMaxes === 'object') {
             setOneRepMaxes(prev => {
               const merged = { ...getInitial1RMs(), ...(prev || {}) };
@@ -240,21 +276,38 @@ export function useCloudAndStorageSync({
             });
           }
 
-          if (Array.isArray(cloud.history) && cloud.history.length > 0) {
+          // History: workout_history is the source of truth. Workouts this device already confirmed
+          // on the server but that are gone now were deleted on another device, so drop them here;
+          // workouts never confirmed are kept and uploaded by the next push.
+          {
+            const ledger = getCloudSyncLedger(user);
+            const serverIds = new Set(cloud.tableHistoryIds || []);
+            const cloudWorkouts = (Array.isArray(cloud.history) ? cloud.history : [])
+              .filter(w => w && w.id && !ledger.deleted.has(String(w.id)))
+              .map(w => normalizeWorkoutFromStorage(w));
             setHistory(prev => {
               const byId = new Map();
               (Array.isArray(prev) ? prev : []).forEach(w => {
-                if (w && w.id) byId.set(w.id, normalizeWorkoutFromStorage(w));
+                if (!w || !w.id) return;
+                const id = String(w.id);
+                if (ledger.deleted.has(id)) return;
+                if (ledger.synced[id] && !serverIds.has(id)) return;
+                byId.set(w.id, normalizeWorkoutFromStorage(w));
               });
-              cloud.history.forEach(w => {
-                if (w && w.id && !byId.has(w.id)) {
-                  byId.set(w.id, normalizeWorkoutFromStorage(w));
-                }
+              cloudWorkouts.forEach(w => {
+                if (!byId.has(w.id)) byId.set(w.id, w);
               });
               return Array.from(byId.values()).sort(
                 (a, b) => new Date(b.startedAt || 0).getTime() - new Date(a.startedAt || 0).getTime()
               );
             });
+            if (isCloudAccount) {
+              const confirmed = {};
+              cloudWorkouts.forEach(w => {
+                if (serverIds.has(String(w.id))) confirmed[String(w.id)] = workoutSyncSignature(w);
+              });
+              setSyncedWorkouts(user, confirmed);
+            }
           }
 
           if (cloud.activeSession && typeof cloud.activeSession === 'object') {
@@ -364,7 +417,9 @@ export function useCloudAndStorageSync({
           }
         }
       } catch {
-        // ignore cloud pull error
+        if (!cancelled && isCloudAccount) {
+          setCloudSyncStatus({ state: 'error', error: 'COULD NOT DOWNLOAD YOUR DATA' });
+        }
       } finally {
         if (!cancelled) {
           cloudSyncReadyForUserKeyRef.current = userKey;
@@ -376,7 +431,26 @@ export function useCloudAndStorageSync({
     return () => {
       cancelled = true;
     };
-  }, [isStorageHydrated, user?.id, user?.email, user?.username]);
+  }, [isStorageHydrated, user?.id, user?.email, user?.username, cloudSyncRetryTick]);
+
+  // 2b. Pull again when the app comes back to the foreground (home-screen apps on iOS stay suspended
+  // in the background rather than reloading) or the network returns. At most once every 30 seconds.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const retry = () => {
+      if (document.visibilityState === 'hidden') return;
+      if (Date.now() - lastCloudPullAtRef.current < 30 * 1000) return;
+      setCloudSyncRetryTick(t => t + 1);
+    };
+    document.addEventListener('visibilitychange', retry);
+    window.addEventListener('online', retry);
+    return () => {
+      document.removeEventListener('visibilitychange', retry);
+      window.removeEventListener('online', retry);
+    };
+  }, []);
+
+  const retryCloudSync = () => setCloudSyncRetryTick(t => t + 1);
 
   // 3. Friendship sync: public.friendships is the source of truth (accepted friends + pending
   // requests). Friends removed by either athlete disappear here.
@@ -456,7 +530,33 @@ export function useCloudAndStorageSync({
 
         const userKey = user?.id || user?.email || user?.username || null;
         if (user && userKey && cloudSyncReadyForUserKeyRef.current === userKey) {
-          pushCloudStateForUser(user, payload);
+          // Upload only workouts that are new or changed since the server last confirmed them
+          const ledger = getCloudSyncLedger(user);
+          const signatures = {};
+          const historyToUpload = (Array.isArray(history) ? history : []).filter(w => {
+            if (!w || !w.id || ledger.deleted.has(String(w.id))) return false;
+            const sig = workoutSyncSignature(w);
+            signatures[String(w.id)] = sig;
+            return ledger.synced[String(w.id)] !== sig;
+          });
+          pushCloudStateForUser(user, payload, { historyToUpload }).then(result => {
+            if (!result || !isUuid(user.id)) return;
+            const confirmed = {};
+            (result.syncedWorkoutIds || []).forEach(id => {
+              if (signatures[id]) confirmed[id] = signatures[id];
+            });
+            if (Object.keys(confirmed).length > 0) markWorkoutsSynced(user, confirmed);
+            const notUploaded = result.failedWorkoutCount
+              ? `${result.failedWorkoutCount} WORKOUT${result.failedWorkoutCount === 1 ? '' : 'S'} NOT UPLOADED — `
+              : '';
+            const next = result.ok
+              ? { state: 'ok', error: null }
+              : { state: 'error', error: `COULD NOT UPLOAD YOUR DATA (${notUploaded}${result.error})` };
+            // A failed download is the more basic problem: keep showing it until the next pull
+            setCloudSyncStatus(prev =>
+              prev.state === 'error' && String(prev.error || '').startsWith('COULD NOT DOWNLOAD') ? prev : next
+            );
+          });
         }
       } catch (err) {
         console.warn('Failed to save state to localStorage:', err);
@@ -603,6 +703,7 @@ export function useCloudAndStorageSync({
     } catch {
       // ignore storage errors
     }
+    forgetCloudSyncLedger(deletingUser);
     handleResetToDemoDefaults();
     return { ok: true };
   };
@@ -611,7 +712,9 @@ export function useCloudAndStorageSync({
     handleExportBackupJSON,
     handleImportBackupJSON,
     handleResetToDemoDefaults,
-    handleDeleteAccount
+    handleDeleteAccount,
+    cloudSyncStatus,
+    retryCloudSync
   };
 }
 

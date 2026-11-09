@@ -647,7 +647,7 @@ let inFlightTokenRefreshPromise = null;
  * (revoked or expired session), the tokens are cleared and SESSION_EXPIRED_EVENT is dispatched so
  * the app can ask the athlete to sign in again.
  */
-export async function getValidSupabaseAccessToken(user) {
+export async function getValidSupabaseAccessToken(user, { forceRefresh = false } = {}) {
   if (!user || (!user.email && !user.username)) return null;
   const { baseUrl, anonKey, isConfigured } = getSupabaseConfig();
   if (!isConfigured) return null;
@@ -662,7 +662,7 @@ export async function getValidSupabaseAccessToken(user) {
 
   // Use the current token until a minute before it expires
   const expiresAt = getJwtExpiryMs(saved.accessToken) || (saved.savedAt || 0) + 45 * 60 * 1000;
-  if (Date.now() < expiresAt - 60 * 1000) {
+  if (!forceRefresh && Date.now() < expiresAt - 60 * 1000) {
     return saved.accessToken;
   }
   if (!saved.refreshToken) {
@@ -716,8 +716,8 @@ export async function fetchCloudStateForUser(user) {
   const { baseUrl, anonKey, isConfigured } = getSupabaseConfig();
   if (!isConfigured) return null;
 
-  const accessToken = await getValidSupabaseAccessToken(user);
-  if (!accessToken) return null;
+  const accessToken = await getAccessTokenForSync(user);
+  if (!accessToken) return { error: 'NO ACTIVE SESSION ON THIS DEVICE' };
 
   const headers = buildSupabaseHeaders(anonKey, accessToken);
 
@@ -725,49 +725,67 @@ export async function fetchCloudStateForUser(user) {
   let profileRow = null;
   let historyRows = null;
   let routineRows = null;
+  let firstError = null;
+
+  // Resolves to parsed JSON, or null after recording why the request failed
+  const getJson = async url => {
+    try {
+      const res = await fetch(url, { headers });
+      if (!res.ok) {
+        if (!firstError) firstError = await describeFailedResponse(res);
+        return null;
+      }
+      return await res.json();
+    } catch {
+      if (!firstError) firstError = 'NETWORK ERROR';
+      return null;
+    }
+  };
 
   await Promise.allSettled([
+    // Legacy: older builds stored a snapshot in the sign-in account's metadata. Read-only now, and a
+    // failure here doesn't count as a sync error.
     fetch(`${baseUrl}/auth/v1/user`, { headers })
       .then(r => (r.ok ? r.json() : null))
       .then(u => {
         if (u?.user_metadata?.yccih_cloud_state_v3) {
           metadataSnapshot = u.user_metadata.yccih_cloud_state_v3;
         }
-      }),
+      })
+      .catch(() => {}),
     user.id
-      ? fetch(
-          `${baseUrl}/rest/v1/user_profiles?id=eq.${encodeURIComponent(user.id)}&select=id,username,email,one_rep_maxes,settings`,
-          { headers }
-        )
-          .then(r => (r.ok ? r.json() : null))
-          .then(rows => {
-            if (Array.isArray(rows) && rows[0]) profileRow = rows[0];
-          })
+      ? getJson(
+          `${baseUrl}/rest/v1/user_profiles?id=eq.${encodeURIComponent(user.id)}&select=id,username,email,one_rep_maxes,settings`
+        ).then(rows => {
+          if (Array.isArray(rows) && rows[0]) profileRow = rows[0];
+        })
       : Promise.resolve(),
     user.id
-      ? fetch(
-          `${baseUrl}/rest/v1/workout_history?user_id=eq.${encodeURIComponent(user.id)}&select=id,user_id,title,preset_used,started_at,slots&order=started_at.desc`,
-          { headers }
-        )
-          .then(r => (r.ok ? r.json() : null))
-          .then(rows => {
-            if (Array.isArray(rows)) historyRows = rows;
-          })
+      ? getJson(
+          `${baseUrl}/rest/v1/workout_history?user_id=eq.${encodeURIComponent(user.id)}&select=id,user_id,title,preset_used,started_at,slots&order=started_at.desc`
+        ).then(rows => {
+          if (Array.isArray(rows)) historyRows = rows;
+        })
       : Promise.resolve(),
     user.id
-      ? fetch(
-          `${baseUrl}/rest/v1/routines?user_id=eq.${encodeURIComponent(user.id)}&select=key,user_id,author_username,label,is_shared,slots`,
-          { headers }
-        )
-          .then(r => (r.ok ? r.json() : null))
-          .then(rows => {
-            if (Array.isArray(rows)) routineRows = rows;
-          })
+      ? getJson(
+          `${baseUrl}/rest/v1/routines?user_id=eq.${encodeURIComponent(user.id)}&select=key,user_id,author_username,label,is_shared,slots`
+        ).then(rows => {
+          if (Array.isArray(rows)) routineRows = rows;
+        })
       : Promise.resolve()
   ]);
 
-  if (!metadataSnapshot && !profileRow && !historyRows && !routineRows) {
-    return null;
+  // Without the History table we can't tell what the server has, so report the failure instead of
+  // merging a partial picture.
+  if (!historyRows) {
+    return { error: firstError || 'COULD NOT LOAD WORKOUT HISTORY' };
+  }
+  // When the database doesn't accept the sign-in token it answers as a signed-out visitor: 200 with
+  // no rows, which looks exactly like an empty account. Every account has its own profile row, so
+  // a missing one means the session wasn't recognised.
+  if (!profileRow) {
+    return { error: 'THE DATABASE DID NOT RECOGNISE YOUR SIGN-IN. SIGN OUT AND SIGN IN AGAIN' };
   }
 
   // If metadataSnapshot has PRs or history not yet reflected in public.user_profiles, immediately backfill user_profiles
@@ -850,6 +868,10 @@ export async function fetchCloudStateForUser(user) {
     : [];
 
   return {
+    // 'table' = the authoritative workout_history rows; 'fallback' = older snapshots used only when
+    // the table is still empty for this account
+    historySource: mappedHistoryFromTable.length > 0 ? 'table' : 'fallback',
+    tableHistoryIds: mappedHistoryFromTable.map(w => String(w.id)),
     updatedAt: profileRow?.updated_at || profileRow?.settings?.updatedAt || metadataSnapshot?.updatedAt || null,
     oneRepMaxes: {
       ...(metadataSnapshot?.oneRepMaxes || {}),
@@ -904,174 +926,211 @@ export async function fetchCloudStateForUser(user) {
   };
 }
 
-/**
- * Pushes the signed-in user's state to Supabase Cloud (both relational tables and Auth user_metadata snapshot).
- */
-export async function pushCloudStateForUser(user, payload) {
-  if (!user || (!user.email && !user.username) || !payload) return false;
-  const { baseUrl, anonKey, isConfigured } = getSupabaseConfig();
-  if (!isConfigured) return false;
+// Supabase copies a sign-in account's metadata into every access token. Older builds stored the whole
+// app state (including all History) there, which made tokens too large to send, so requests failed.
+// A token this long means that old snapshot is still attached.
+const OVERSIZED_ACCESS_TOKEN_CHARS = 6000;
+const HISTORY_UPSERT_BATCH_SIZE = 25;
 
-  const accessToken = await getValidSupabaseAccessToken(user);
-
-  const jsonHeaders = buildSupabaseHeaders(anonKey, accessToken, {
-    'Content-Type': 'application/json',
-    Prefer: 'resolution=merge-duplicates'
-  });
-
-  const patchHeaders = buildSupabaseHeaders(anonKey, accessToken, {
-    'Content-Type': 'application/json'
-  });
-
-  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-  let resolvedUserId = uuidRegex.test(String(user.id || '')) ? String(user.id) : null;
-
-  const tasks = [];
-
-  if (accessToken) {
-    // 1. Sync compact cloud state snapshot into Supabase Auth user_metadata
-    tasks.push(
-      fetch(`${baseUrl}/auth/v1/user`, {
-        method: 'PUT',
-        headers: buildSupabaseHeaders(anonKey, accessToken, {
-          'Content-Type': 'application/json'
-        }),
-        body: JSON.stringify({
-          data: {
-            username: user.username,
-            // Friends' data is never stored in your account; friendships come from public.friendships
-            yccih_cloud_state_v3: { ...payload, friendsList: [], pendingIncomingRequests: [] }
-          }
-        })
-      })
-    );
-  }
-
-  // If user.id in local state is not a UUID yet, look up the UUID from user_profiles by email or username
-  if (!resolvedUserId) {
+// Short, user-facing reason for a failed Supabase response, e.g. "SERVER 400: INVALID INPUT ..."
+async function describeFailedResponse(res) {
+  let detail = '';
+  try {
+    const text = await res.text();
     try {
-      const cleanEmail = (user.email || '').trim().toLowerCase();
-      const cleanUname = (user.username || '').trim();
-      const filter = cleanEmail
-        ? `email=ilike.${encodeURIComponent(cleanEmail)}`
-        : `username=ilike.${encodeURIComponent(cleanUname)}`;
-      const lookupRes = await fetch(`${baseUrl}/rest/v1/user_profiles?${filter}&select=id`, {
-        headers: buildSupabaseHeaders(anonKey, accessToken)
-      });
-      if (lookupRes.ok) {
-        const rows = await lookupRes.json();
-        if (Array.isArray(rows) && rows[0]?.id && uuidRegex.test(String(rows[0].id))) {
-          resolvedUserId = String(rows[0].id);
-        }
-      }
+      const parsed = JSON.parse(text);
+      detail = parsed?.message || parsed?.msg || parsed?.error_description || parsed?.error || '';
     } catch {
-      // ignore lookup error
+      detail = text;
     }
+  } catch {
+    // ignore unreadable body
+  }
+  detail = String(detail || '').trim().slice(0, 120);
+  return `SERVER ${res.status}${detail ? `: ${detail}` : ''}`.toUpperCase();
+}
+
+// The snapshot itself is moved into workout_history and removed server-side by
+// supabase/migrations/2026-11-08_move_metadata_snapshots.sql. After that, an oversized token on a
+// device is stale: refresh it once so the device gets a small one without signing in again.
+let attemptedOversizedTokenRefresh = false;
+async function getAccessTokenForSync(user) {
+  const token = await getValidSupabaseAccessToken(user);
+  if (token && token.length > OVERSIZED_ACCESS_TOKEN_CHARS && !attemptedOversizedTokenRefresh) {
+    attemptedOversizedTokenRefresh = true;
+    return (await getValidSupabaseAccessToken(user, { forceRefresh: true })) || token;
+  }
+  return token;
+}
+
+const toWorkoutHistoryRow = (w, userId) => ({
+  id: String(w.id),
+  user_id: userId,
+  title: w.title || 'Workout Session',
+  preset_used: w.loadedRoutineTitle || 'MANUAL',
+  started_at: w.startedAt && !Number.isNaN(new Date(w.startedAt).getTime())
+    ? new Date(w.startedAt).toISOString()
+    : w.workoutDate && !Number.isNaN(new Date(w.workoutDate).getTime())
+      ? new Date(w.workoutDate).toISOString()
+      : new Date().toISOString(),
+  slots: Array.isArray(w.slots) ? w.slots : []
+});
+
+/**
+ * Pushes the signed-in athlete's state to Supabase: the profile row (PRs + settings), History
+ * workouts as workout_history rows (only `historyToUpload` when given, else all), and routines. Returns
+ * { ok, error, syncedWorkoutIds, failedWorkoutCount } so the app can show failures and retry.
+ * History is uploaded in batches; a batch the server rejects is retried row by row so one bad
+ * workout can't block the rest.
+ */
+export async function pushCloudStateForUser(user, payload, { historyToUpload } = {}) {
+  if (!user || !payload) return { ok: false, error: 'NOT SIGNED IN', syncedWorkoutIds: [], failedWorkoutCount: 0 };
+  const { baseUrl, anonKey, isConfigured } = getSupabaseConfig();
+  if (!isConfigured) return { ok: true, error: null, syncedWorkoutIds: [], failedWorkoutCount: 0 };
+  if (!isUuid(user.id)) {
+    return { ok: false, error: 'THIS ACCOUNT IS NOT A CLOUD ACCOUNT', syncedWorkoutIds: [], failedWorkoutCount: 0 };
   }
 
-  const profileSettingsObj = {
-    ...(payload.settings || {}),
-    schemaVersion: payload.schemaVersion || 3,
-    updatedAt: payload.updatedAt || new Date().toISOString(),
-    oneRepMaxes: payload.oneRepMaxes || {},
-    gyms: payload.gyms || [],
-    activeSession: payload.activeSession || null,
-    outgoingInvites: payload.outgoingInvites || [],
-    savedRoutines: payload.savedRoutines || [],
-    sharedRoutines: payload.sharedRoutines || [],
-    recentHistory: Array.isArray(payload.history) ? payload.history.slice(0, 50) : []
+  const accessToken = await getAccessTokenForSync(user);
+  if (!accessToken) {
+    return { ok: false, error: 'NO ACTIVE SESSION ON THIS DEVICE', syncedWorkoutIds: [], failedWorkoutCount: 0 };
+  }
+
+  const userId = String(user.id);
+  const errors = [];
+  const send = async (path, method, body, prefer) => {
+    try {
+      const res = await fetch(`${baseUrl}${path}`, {
+        method,
+        headers: buildSupabaseHeaders(anonKey, accessToken, {
+          'Content-Type': 'application/json',
+          ...(prefer ? { Prefer: prefer } : {})
+        }),
+        body: JSON.stringify(body)
+      });
+      if (!res.ok) return { ok: false, error: await describeFailedResponse(res) };
+      return { ok: true, error: null };
+    } catch {
+      return { ok: false, error: 'NETWORK ERROR' };
+    }
   };
 
-  // Send only guaranteed core columns (one_rep_maxes, settings) so PostgREST never rejects with PGRST204
+  // 1. Profile row: PRs + settings (and a short recent-History copy that friend profiles read)
   const profileUpdateBody = {
     one_rep_maxes: payload.oneRepMaxes || {},
-    settings: profileSettingsObj
-  };
-
-  if (resolvedUserId) {
-    // 2a. Upsert user_profiles row by primary key (id)
-    tasks.push(
-      fetch(`${baseUrl}/rest/v1/user_profiles?on_conflict=id`, {
-        method: 'POST',
-        headers: jsonHeaders,
-        body: JSON.stringify({
-          id: resolvedUserId,
-          email: (user.email || '').trim().toLowerCase() || undefined,
-          username: user.username || undefined,
-          ...profileUpdateBody
-        })
-      })
-    );
-    // 2b. Also PATCH by id so existing rows always update even if unique email/username constraints exist
-    tasks.push(
-      fetch(`${baseUrl}/rest/v1/user_profiles?id=eq.${encodeURIComponent(resolvedUserId)}`, {
-        method: 'PATCH',
-        headers: patchHeaders,
-        body: JSON.stringify(profileUpdateBody)
-      })
-    );
-
-    // 3. Sync workout_history rows (using guaranteed core columns)
-    if (Array.isArray(payload.history) && payload.history.length > 0) {
-      const historyRows = payload.history.map(w => ({
-        id: String(w.id),
-        user_id: resolvedUserId,
-        title: w.title || 'Workout Session',
-        preset_used: w.loadedRoutineTitle || 'MANUAL',
-        started_at: w.startedAt || new Date().toISOString(),
-        slots: Array.isArray(w.slots) ? w.slots : []
-      }));
-      tasks.push(
-        fetch(`${baseUrl}/rest/v1/workout_history?on_conflict=id`, {
-          method: 'POST',
-          headers: jsonHeaders,
-          body: JSON.stringify(historyRows)
-        })
-      );
+    settings: {
+      ...(payload.settings || {}),
+      schemaVersion: payload.schemaVersion || 3,
+      updatedAt: payload.updatedAt || new Date().toISOString(),
+      oneRepMaxes: payload.oneRepMaxes || {},
+      gyms: payload.gyms || [],
+      activeSession: payload.activeSession || null,
+      outgoingInvites: payload.outgoingInvites || [],
+      savedRoutines: payload.savedRoutines || [],
+      sharedRoutines: payload.sharedRoutines || [],
+      recentHistory: Array.isArray(payload.history) ? payload.history.slice(0, 50) : []
     }
+  };
+  const profileTask = (async () => {
+    const upsert = await send(
+      '/rest/v1/user_profiles?on_conflict=id',
+      'POST',
+      {
+        id: userId,
+        email: (user.email || '').trim().toLowerCase() || undefined,
+        username: user.username || undefined,
+        ...profileUpdateBody
+      },
+      'resolution=merge-duplicates'
+    );
+    if (upsert.ok) return;
+    // An existing row can still be updated if the upsert trips a unique email/username constraint
+    const patch = await send(`/rest/v1/user_profiles?id=eq.${encodeURIComponent(userId)}`, 'PATCH', profileUpdateBody);
+    if (!patch.ok) errors.push(upsert.error);
+  })();
 
-    // 4. Sync routines rows (saved & shared, using guaranteed core columns)
+  // 2. Every History workout as a workout_history row
+  const syncedWorkoutIds = [];
+  let failedWorkoutCount = 0;
+  const historyTask = (async () => {
+    const source = Array.isArray(historyToUpload) ? historyToUpload : payload.history;
+    const rows = (Array.isArray(source) ? source : [])
+      .filter(w => w && w.id)
+      .map(w => toWorkoutHistoryRow(w, userId));
+    for (let i = 0; i < rows.length; i += HISTORY_UPSERT_BATCH_SIZE) {
+      const batch = rows.slice(i, i + HISTORY_UPSERT_BATCH_SIZE);
+      const result = await send('/rest/v1/workout_history?on_conflict=id', 'POST', batch, 'resolution=merge-duplicates');
+      if (result.ok) {
+        batch.forEach(r => syncedWorkoutIds.push(r.id));
+        continue;
+      }
+      if (result.error === 'NETWORK ERROR') {
+        errors.push(result.error);
+        failedWorkoutCount += rows.length - i;
+        return;
+      }
+      // Find the row(s) the server rejects and upload the rest
+      for (const row of batch) {
+        const single = await send('/rest/v1/workout_history?on_conflict=id', 'POST', [row], 'resolution=merge-duplicates');
+        if (single.ok) {
+          syncedWorkoutIds.push(row.id);
+        } else {
+          failedWorkoutCount += 1;
+          if (!errors.includes(single.error)) errors.push(single.error);
+        }
+      }
+    }
+  })();
+
+  // 3. Saved & shared routines
+  const routinesTask = (async () => {
     const allRoutines = [
-      ...(Array.isArray(payload.savedRoutines)
-        ? payload.savedRoutines.map(r => ({ ...r, isShared: false }))
-        : []),
-      ...(Array.isArray(payload.sharedRoutines)
-        ? payload.sharedRoutines.map(r => ({ ...r, isShared: true }))
-        : [])
-    ];
-    if (allRoutines.length > 0) {
-      const routinePayload = allRoutines.map(r => ({
+      ...(Array.isArray(payload.savedRoutines) ? payload.savedRoutines.map(r => ({ ...r, isShared: false })) : []),
+      ...(Array.isArray(payload.sharedRoutines) ? payload.sharedRoutines.map(r => ({ ...r, isShared: true })) : [])
+    ].filter(r => r && r.key);
+    if (allRoutines.length === 0) return;
+    const result = await send(
+      '/rest/v1/routines?on_conflict=key',
+      'POST',
+      allRoutines.map(r => ({
         key: String(r.key),
-        user_id: resolvedUserId,
+        user_id: userId,
         author_username: r.author || user.username || 'athlete',
         label: r.label || 'Custom Routine',
         is_shared: Boolean(r.isShared),
         slots: Array.isArray(r.slots) ? r.slots : []
-      }));
-      tasks.push(
-        fetch(`${baseUrl}/rest/v1/routines?on_conflict=key`, {
-          method: 'POST',
-          headers: jsonHeaders,
-          body: JSON.stringify(routinePayload)
-        })
-      );
-    }
-  } else if (user.email || user.username) {
-    const cleanEmail = (user.email || '').trim().toLowerCase();
-    const filter = cleanEmail
-      ? `email=ilike.${encodeURIComponent(cleanEmail)}`
-      : `username=ilike.${encodeURIComponent((user.username || '').trim())}`;
-    tasks.push(
-      fetch(`${baseUrl}/rest/v1/user_profiles?${filter}`, {
-        method: 'PATCH',
-        headers: patchHeaders,
-        body: JSON.stringify(profileUpdateBody)
-      })
+      })),
+      'resolution=merge-duplicates'
     );
-  }
+    if (!result.ok) errors.push(result.error);
+  })();
 
-  await Promise.allSettled(tasks);
-  return true;
+  await Promise.allSettled([profileTask, historyTask, routinesTask]);
+  return { ok: errors.length === 0, error: errors[0] || null, syncedWorkoutIds, failedWorkoutCount };
+}
+
+/**
+ * Deletes History workouts from public.workout_history by id (RLS limits it to the athlete's own
+ * rows). Returns { ok, error }.
+ */
+export async function deleteCloudWorkoutsByIds(user, workoutIds) {
+  const ids = (workoutIds || []).map(String).filter(Boolean);
+  if (!user || ids.length === 0) return { ok: true, error: null };
+  const { baseUrl, anonKey, isConfigured } = getSupabaseConfig();
+  if (!isConfigured) return { ok: true, error: null };
+  const accessToken = await getValidSupabaseAccessToken(user);
+  if (!accessToken) return { ok: false, error: 'NO ACTIVE SESSION ON THIS DEVICE' };
+  const list = ids.map(id => `"${id.replace(/"/g, '')}"`).join(',');
+  try {
+    const res = await fetch(`${baseUrl}/rest/v1/workout_history?id=in.(${encodeURIComponent(list)})`, {
+      method: 'DELETE',
+      headers: buildSupabaseHeaders(anonKey, accessToken)
+    });
+    if (!res.ok) return { ok: false, error: await describeFailedResponse(res) };
+    return { ok: true, error: null };
+  } catch {
+    return { ok: false, error: 'NETWORK ERROR' };
+  }
 }
 
 const scanSetArrayIntoPrs = (exId, setsArr, targetPrs) => {

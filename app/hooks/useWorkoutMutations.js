@@ -34,7 +34,8 @@ import {
   parseTimerDurationSeconds,
   formatSecondsToMMSS
 } from '../utils/workoutEngine';
-import { deleteCloudRoutineByKey } from '../utils/supabaseAuth';
+import { deleteCloudRoutineByKey, deleteCloudWorkoutsByIds } from '../utils/supabaseAuth';
+import { markWorkoutIdDeleted, clearDeletedWorkoutIds } from '../utils/cloudSyncLedger';
 
 export function useWorkoutMutations({
   currentView,
@@ -640,6 +641,15 @@ export function useWorkoutMutations({
       const deletedWorkout = (history || []).find(w => w.id === targetWorkoutId);
       const nextHistory = (history || []).filter(w => w.id !== targetWorkoutId);
       setHistory(nextHistory);
+
+      // Delete it on the server too; until that succeeds the id stays queued (retried on each sync)
+      // so pulls don't bring the workout back.
+      if (user && targetWorkoutId) {
+        markWorkoutIdDeleted(user, targetWorkoutId);
+        deleteCloudWorkoutsByIds(user, [targetWorkoutId]).then(result => {
+          if (result.ok) clearDeletedWorkoutIds(user, [targetWorkoutId]);
+        });
+      }
 
       if (deletedWorkout) {
         const affectedIds = new Set();
