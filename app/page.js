@@ -132,6 +132,8 @@ export default function App() {
   ]);
   const [shareStatsWithFriends, setShareStatsWithFriends] = useState(true);
   const [shareRoutinesWithFriends, setShareRoutinesWithFriends] = useState(true);
+  // Public profiles let friends-of-friends see you in their friend lists (Profile → FRIENDS)
+  const [profileIsPublic, setProfileIsPublic] = useState(true);
 
   // --- History & Personal Records Page State ---
   const [historySessionsExpanded, setHistorySessionsExpanded] = useState(true);
@@ -264,7 +266,9 @@ export default function App() {
     shareStatsWithFriends,
     setShareStatsWithFriends,
     shareRoutinesWithFriends,
-    setShareRoutinesWithFriends
+    setShareRoutinesWithFriends,
+    profileIsPublic,
+    setProfileIsPublic
   });
 
   // --- 2. Telemetry, PRs, Stimulus Map & Progression Series Hook ---
@@ -395,6 +399,24 @@ export default function App() {
     }
   }, [currentView]);
 
+  // Locked interface: iOS Safari ignores `user-scalable=no`, so cancel its pinch-zoom gestures and
+  // multi-touch zoom directly (the viewport export in layout.js covers other browsers).
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const preventGesture = e => e.preventDefault();
+    const preventMultiTouchZoom = e => {
+      if (e.touches && e.touches.length > 1) e.preventDefault();
+    };
+    document.addEventListener('gesturestart', preventGesture, { passive: false });
+    document.addEventListener('gesturechange', preventGesture, { passive: false });
+    document.addEventListener('touchmove', preventMultiTouchZoom, { passive: false });
+    return () => {
+      document.removeEventListener('gesturestart', preventGesture);
+      document.removeEventListener('gesturechange', preventGesture);
+      document.removeEventListener('touchmove', preventMultiTouchZoom);
+    };
+  }, []);
+
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const onPopState = () => {
@@ -475,6 +497,7 @@ export default function App() {
           setShowFeedbackModal={setShowFeedbackModal}
           isRoutineEditorView={isRoutineEditorView}
           currentEditorWorkout={currentEditorWorkout}
+          onFinishSession={handleSaveCurrentEditor}
           timerTrigger={timerTrigger}
           setTimerTrigger={setTimerTrigger}
           updateCurrentWorkoutState={updateCurrentWorkoutState}
@@ -749,6 +772,8 @@ export default function App() {
               setShareStatsWithFriends={setShareStatsWithFriends}
               shareRoutinesWithFriends={shareRoutinesWithFriends}
               setShareRoutinesWithFriends={setShareRoutinesWithFriends}
+              profileIsPublic={profileIsPublic}
+              setProfileIsPublic={setProfileIsPublic}
               importBackupInputRef={importBackupInputRef}
               handleExportBackupJSON={handleExportBackupJSON}
               handleImportBackupJSON={handleImportBackupJSON}

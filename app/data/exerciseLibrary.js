@@ -80,11 +80,13 @@ export const formatDateYMD = dateInput => {
   if (!dateInput) return formatTodayYMD();
   if (typeof dateInput === 'string') {
     const trimmed = dateInput.trim();
-    const ymdMatch = trimmed.match(/^(\d{4})[/-](\d{1,2})[/-](\d{1,2})/);
+    // Date-only strings are taken as written. Full timestamps (e.g. "2026-11-08T03:00:00.000Z") fall
+    // through to Date parsing so they show the local date, not the UTC one.
+    const ymdMatch = trimmed.match(/^(\d{4})[/-](\d{1,2})[/-](\d{1,2})$/);
     if (ymdMatch) {
       return `${ymdMatch[1]}/${String(ymdMatch[2]).padStart(2, '0')}/${String(ymdMatch[3]).padStart(2, '0')}`;
     }
-    const mdyMatch = trimmed.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})/);
+    const mdyMatch = trimmed.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/);
     if (mdyMatch) {
       return `${mdyMatch[3]}/${String(mdyMatch[1]).padStart(2, '0')}/${String(mdyMatch[2]).padStart(2, '0')}`;
     }

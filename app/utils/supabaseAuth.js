@@ -1494,6 +1494,26 @@ export async function sendFriendRequestToAthlete(user, targetAthlete) {
   return { ok: res.ok, status: res.ok ? 'requested' : 'error' };
 }
 
+/**
+ * A friend's friends for their profile page (friends_of_athlete RPC). Empty when that friend's
+ * profile is private. Returns { ok, friends: [{ id, username, relation }] } where relation is
+ * 'friends' | 'requested' | 'incoming' | 'none' (your own relationship with each).
+ */
+export async function fetchFriendsOfAthlete(user, targetAthleteId) {
+  if (!user || !isUuid(targetAthleteId)) return { ok: false, friends: [] };
+  const res = await authedRequest(user, '/rest/v1/rpc/friends_of_athlete', {
+    method: 'POST',
+    body: { target: targetAthleteId }
+  });
+  if (!res.ok || !Array.isArray(res.data)) return { ok: false, friends: [] };
+  return {
+    ok: true,
+    friends: res.data
+      .filter(r => isUuid(r?.athlete_id))
+      .map(r => ({ id: r.athlete_id, username: r.username || 'athlete', relation: r.relation || 'none' }))
+  };
+}
+
 /** Accepts an incoming friend request (by its friendship row id). */
 export async function acceptFriendRequestFromAthlete(user, requesterAthlete) {
   if (!user || !isUuid(requesterAthlete?.friendshipId)) return false;

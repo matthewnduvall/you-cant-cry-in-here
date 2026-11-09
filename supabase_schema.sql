@@ -197,6 +197,51 @@ AS $$
   LIMIT 1;
 $$;
 
+-- A friend's friends, for their profile page. Returned only while the caller and `target` are
+-- accepted friends and `target`'s profile is public (settings.social.profileIsPublic, default true).
+-- Lists only friends whose profiles are public too, never the caller, as id + username (no email),
+-- plus the caller's own relationship with each: 'friends' | 'requested' | 'incoming' | 'none'.
+CREATE OR REPLACE FUNCTION public.friends_of_athlete(target UUID)
+RETURNS TABLE (athlete_id UUID, username TEXT, relation TEXT)
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public
+AS $$
+  WITH visible_target AS (
+    SELECT p.id
+    FROM public.user_profiles p
+    WHERE p.id = target
+      AND auth.uid() IS NOT NULL
+      AND public.are_friends(auth.uid(), target)
+      AND COALESCE((p.settings -> 'social' ->> 'profileIsPublic')::boolean, TRUE)
+  ),
+  their_friends AS (
+    SELECT CASE WHEN f.requester_id = target THEN f.addressee_id ELSE f.requester_id END AS friend_id
+    FROM public.friendships f
+    JOIN visible_target vt ON TRUE
+    WHERE f.status = 'accepted'
+      AND (f.requester_id = target OR f.addressee_id = target)
+  )
+  SELECT p.id,
+         p.username,
+         CASE
+           WHEN public.are_friends(auth.uid(), p.id) THEN 'friends'
+           WHEN EXISTS (SELECT 1 FROM public.friendships x
+                        WHERE x.status = 'pending' AND x.requester_id = auth.uid() AND x.addressee_id = p.id)
+             THEN 'requested'
+           WHEN EXISTS (SELECT 1 FROM public.friendships x
+                        WHERE x.status = 'pending' AND x.requester_id = p.id AND x.addressee_id = auth.uid())
+             THEN 'incoming'
+           ELSE 'none'
+         END
+  FROM their_friends t
+  JOIN public.user_profiles p ON p.id = t.friend_id
+  WHERE p.id <> auth.uid()
+    AND COALESCE((p.settings -> 'social' ->> 'profileIsPublic')::boolean, TRUE)
+  ORDER BY lower(p.username);
+$$;
+
+REVOKE ALL ON FUNCTION public.friends_of_athlete(UUID) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.friends_of_athlete(UUID) TO authenticated;
+
 REVOKE ALL ON FUNCTION public.my_friendships() FROM PUBLIC, anon;
 REVOKE ALL ON FUNCTION public.search_athletes(TEXT) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.my_friendships() TO authenticated;

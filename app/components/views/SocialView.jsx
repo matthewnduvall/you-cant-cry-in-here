@@ -13,6 +13,8 @@ import {
 import { isSameFriend, applyFriendshipSync, applyOutgoingInvitesSync } from '../../utils/storageMigration';
 import { DeleteButton } from '../Controls';
 
+const isEmailAddress = value => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || '').trim());
+
 export function SocialView({
   colors,
   user,
@@ -36,7 +38,9 @@ export function SocialView({
   // null | 'signed_out' | 'session' | 'network'
   const [searchError, setSearchError] = useState(null);
 
-  const [inviteEmailInput, setInviteEmailInput] = useState('');
+  // The query the last search ran for (the SEARCH button becomes SEND INVITE when it was an email
+  // with no matching athlete)
+  const [lastSearchedQuery, setLastSearchedQuery] = useState('');
   const [isSendingInviteEmail, setIsSendingInviteEmail] = useState(false);
   const [inviteEmailFeedback, setInviteEmailFeedback] = useState(null);
 
@@ -51,8 +55,8 @@ export function SocialView({
   };
 
   const handleSendServerEmailInvite = async () => {
-    const cleanEmail = (inviteEmailInput || '').trim().toLowerCase();
-    if (!cleanEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
+    const cleanEmail = (friendSearchQuery || '').trim().toLowerCase();
+    if (!isEmailAddress(cleanEmail)) {
       setInviteEmailFeedback({
         ok: false,
         message: 'PLEASE ENTER A VALID EMAIL ADDRESS.'
@@ -84,7 +88,10 @@ export function SocialView({
       }
 
       onSendEmailInvite?.(cleanEmail);
-      setInviteEmailInput('');
+      setFriendSearchQuery('');
+      setHasSearched(false);
+      setSearchedAthletes([]);
+      setLastSearchedQuery('');
       setInviteEmailFeedback({
         ok: true,
         message: `INVITE SENT TO ${cleanEmail.toUpperCase()}!`
@@ -166,6 +173,8 @@ export function SocialView({
     setIsSearching(true);
     setHasSearched(true);
     setSearchError(null);
+    setInviteEmailFeedback(null);
+    setLastSearchedQuery(q);
     try {
       const search = await searchAthletesByQuery(q, user);
       if (!search.ok) setSearchError(search.error);
@@ -182,26 +191,45 @@ export function SocialView({
     }
   };
 
+  // An email with no matching athlete (from a search that actually ran) can be invited instead
+  const currentQuery = (friendSearchQuery || '').trim();
+  const canSendInvite =
+    Boolean(user) &&
+    hasSearched &&
+    !isSearching &&
+    !searchError &&
+    searchedAthletes.length === 0 &&
+    currentQuery === lastSearchedQuery &&
+    isEmailAddress(currentQuery);
+
   return (
     <div style={{ paddingTop: '14px' }}>
       <IOSListSection
-        header="INVITE FRIEND VIA EMAIL"
-        footer="Sends an official invitation from invites@youcantcryinhere.com with the beta access code (imnotcrying) and a direct sign-up link."
+        header="FIND ATHLETES"
+        footer="Search a username or an exact email. If an email has no account yet, SEND INVITE emails them the beta code (imnotcrying) and a sign-up link from invites@youcantcryinhere.com."
         colors={colors}
       >
-        <IOSListRow isLast={!inviteEmailFeedback} colors={colors}>
+        <IOSListRow
+          isLast={!hasSearched && !inviteEmailFeedback}
+          colors={colors}
+        >
           <div style={{ display: 'flex', width: '100%', gap: 0 }}>
             <input
-              type="email"
-              placeholder="ENTER FRIEND'S EMAIL ADDRESS..."
-              value={inviteEmailInput}
+              type="text"
+              placeholder="SEARCH USERNAME OR EMAIL..."
+              value={friendSearchQuery}
               onChange={e => {
-                setInviteEmailInput(e.target.value);
+                setFriendSearchQuery(e.target.value);
                 if (inviteEmailFeedback) setInviteEmailFeedback(null);
+                if (!e.target.value.trim()) {
+                  setHasSearched(false);
+                  setSearchedAthletes([]);
+                }
               }}
               onKeyDown={e => {
-                if (e.key === 'Enter' && !isSendingInviteEmail) {
-                  handleSendServerEmailInvite();
+                if (e.key === 'Enter') {
+                  if (canSendInvite) handleSendServerEmailInvite();
+                  else handleRunAthleteSearch();
                 }
               }}
               style={{
@@ -220,29 +248,35 @@ export function SocialView({
             />
             <button
               type="button"
-              disabled={isSendingInviteEmail}
-              onClick={handleSendServerEmailInvite}
+              disabled={isSearching || isSendingInviteEmail}
+              onClick={canSendInvite ? handleSendServerEmailInvite : handleRunAthleteSearch}
               className="kinetic-btn"
               style={{
                 padding: '10px 16px',
-                backgroundColor: 'var(--dp-color-accent)',
+                backgroundColor: canSendInvite ? '#30D158' : 'var(--dp-color-accent)',
                 color: '#101010',
                 border: '2px solid var(--dp-color-rule)',
                 fontSize: '12px',
                 fontWeight: 800,
                 textTransform: 'uppercase',
-                cursor: isSendingInviteEmail ? 'default' : 'pointer',
-                opacity: isSendingInviteEmail ? 0.6 : 1,
+                cursor: 'pointer',
                 flexShrink: 0,
                 whiteSpace: 'nowrap'
               }}
             >
-              {isSendingInviteEmail ? 'SENDING...' : 'SEND INVITE'}
+              {isSearching
+                ? 'SEARCHING...'
+                : isSendingInviteEmail
+                  ? 'SENDING...'
+                  : canSendInvite
+                    ? 'SEND INVITE'
+                    : 'SEARCH'}
             </button>
           </div>
         </IOSListRow>
+
         {inviteEmailFeedback && (
-          <IOSListRow isLast={true} colors={colors}>
+          <IOSListRow isLast={!hasSearched} colors={colors}>
             <span
               style={{
                 fontSize: '12px',
@@ -255,65 +289,6 @@ export function SocialView({
             </span>
           </IOSListRow>
         )}
-      </IOSListSection>
-
-      <IOSListSection header="FIND ATHLETES" colors={colors}>
-        <IOSListRow
-          isLast={!hasSearched}
-          colors={colors}
-        >
-          <div style={{ display: 'flex', width: '100%', gap: 0 }}>
-            <input
-              type="text"
-              placeholder="SEARCH USERNAME OR EMAIL..."
-              value={friendSearchQuery}
-              onChange={e => {
-                setFriendSearchQuery(e.target.value);
-                if (!e.target.value.trim()) {
-                  setHasSearched(false);
-                  setSearchedAthletes([]);
-                }
-              }}
-              onKeyDown={e => {
-                if (e.key === 'Enter') {
-                  handleRunAthleteSearch();
-                }
-              }}
-              style={{
-                flex: 1,
-                minWidth: 0,
-                backgroundColor: '#101010',
-                color: '#FFFFFF',
-                border: '2px solid var(--dp-color-rule)',
-                borderRight: 'none',
-                padding: '10px 12px',
-                fontSize: '13px',
-                fontWeight: 800,
-                textTransform: 'uppercase',
-                outline: 'none'
-              }}
-            />
-            <button
-              type="button"
-              onClick={handleRunAthleteSearch}
-              className="kinetic-btn"
-              style={{
-                padding: '10px 16px',
-                backgroundColor: 'var(--dp-color-accent)',
-                color: '#101010',
-                border: '2px solid var(--dp-color-rule)',
-                fontSize: '12px',
-                fontWeight: 800,
-                textTransform: 'uppercase',
-                cursor: 'pointer',
-                flexShrink: 0,
-                whiteSpace: 'nowrap'
-              }}
-            >
-              {isSearching ? 'SEARCHING...' : 'SEARCH'}
-            </button>
-          </div>
-        </IOSListRow>
 
         {hasSearched && (
           searchedAthletes.length === 0 ? (
@@ -325,7 +300,9 @@ export function SocialView({
                     ? 'YOUR SESSION ENDED. SIGN OUT AND SIGN IN AGAIN, THEN RETRY.'
                     : searchError === 'network'
                       ? 'SEARCH FAILED. CHECK YOUR CONNECTION AND TRY AGAIN.'
-                      : <>NO ATHLETES FOUND FOR &quot;{friendSearchQuery.trim().toUpperCase()}&quot;. SEARCH A USERNAME OR AN EXACT EMAIL.</>}
+                      : canSendInvite
+                        ? <>NO ATHLETE USES {currentQuery.toUpperCase()} YET. TAP SEND INVITE TO EMAIL THEM AN INVITE.</>
+                        : <>NO ATHLETES FOUND FOR &quot;{friendSearchQuery.trim().toUpperCase()}&quot;. SEARCH A USERNAME OR AN EXACT EMAIL.</>}
               </span>
             </IOSListRow>
           ) : (

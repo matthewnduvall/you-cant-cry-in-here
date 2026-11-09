@@ -11,6 +11,7 @@ import {
   getDefaultAutoSessionName,
   formatTitleWithDate,
   parseYMDToISO,
+  formatTodayYMD,
   isExerciseCompatibleWithGymSelection,
   findEquivalentExerciseForGym,
   convertEquivalent1RM,
@@ -286,7 +287,8 @@ export function useWorkoutMutations({
   };
 
   const handleOpenNewSession = () => {
-    if (!activeSession) {
+    // An empty leftover session (e.g. from an earlier day) is replaced so the name and start date are today's
+    if (!activeSession || !(activeSession.slots || []).length) {
       setActiveSession({
         id: `session_${Date.now()}`,
         title: getDefaultSessionName(),
@@ -364,7 +366,7 @@ export function useWorkoutMutations({
 
     if (returnToView === 'historical_entry') {
       setHistoricalDraft(prev => ({
-        ...(prev || { id: `hist_${Date.now()}`, workoutDate: new Date().toISOString().split('T')[0] }),
+        ...(prev || { id: `hist_${Date.now()}`, workoutDate: formatTodayYMD() }),
         title: datedTitle,
         loadedRoutineTitle: routineLabel,
         slots: builtSlots
@@ -448,7 +450,7 @@ export function useWorkoutMutations({
 
     if (returnTarget === 'historical_entry') {
       setHistoricalDraft(prev => ({
-        ...(prev || { id: `hist_${Date.now()}`, workoutDate: new Date().toISOString().split('T')[0] }),
+        ...(prev || { id: `hist_${Date.now()}`, workoutDate: formatTodayYMD() }),
         title: autoTitle,
         loadedRoutineTitle: isCompletingExisting ? prev?.loadedRoutineTitle || 'AUTO' : 'AUTO',
         slots: generatedSlots
@@ -566,7 +568,7 @@ export function useWorkoutMutations({
     }
 
     if (sourceView === 'historical_entry') {
-      const iso = parseYMDToISO(currentWorkout.workoutDate || '2026/10/28');
+      const iso = parseYMDToISO(currentWorkout.workoutDate || formatTodayYMD());
       const entry = {
         ...currentWorkout,
         id: currentWorkout.id || `hist_${Date.now()}`,

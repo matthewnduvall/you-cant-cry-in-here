@@ -150,33 +150,11 @@ export function HomeView({
     setTodayFallbackStr(formatDateYMD(new Date()));
   }, []);
 
-  const curUsername = (user?.username || '').trim().toLowerCase();
-  const curEmail = (user?.email || '').trim().toLowerCase();
 
-  // Build deduplicated athlete list for the scroller:
-  // - Signed-in user uses their own live `oneRepMaxes` and `history`
-  // - Friends strictly use their own `f.prs` and `f.history` (never overwritten by the local user's state)
+  // The scroller shows friends only (never your own lifts): one list entry per friend account.
   const uniqueAthletes = [];
   const seenKeys = new Set();
-
-  if (user && (curUsername || curEmail)) {
-    if (user.id) seenKeys.add(String(user.id));
-    uniqueAthletes.push({
-      id: user.id || 'self',
-      username: user.username || curEmail.split('@')[0],
-      email: curEmail,
-      prs: oneRepMaxes,
-      history
-    });
-  } else if (!user && (Object.keys(oneRepMaxes || {}).length > 0 || (Array.isArray(history) && history.length > 0))) {
-    uniqueAthletes.push({
-      id: 'local_self',
-      username: 'YOU',
-      email: '',
-      prs: oneRepMaxes,
-      history
-    });
-  }
+  if (user?.id) seenKeys.add(String(user.id));
 
   // Friends are accepted friendships keyed by account id (one entry per account, never yourself)
   (friendsList || []).forEach(f => {
@@ -207,7 +185,9 @@ export function HomeView({
   const baseTickerText =
     sortedTickerEntries.length > 0
       ? sortedTickerEntries.join('   ///   ') + '   ///   '
-      : 'ADD FRIENDS IN SOCIAL TO STREAM LIVE 1RM UPDATES   ///   ';
+      : uniqueAthletes.length === 0
+        ? 'INVITE FRIENDS TO KEEP TRACK OF PROGRESS!   ///   '
+        : 'NO RECENT LIFTS FROM YOUR FRIENDS YET   ///   ';
 
   const repeatCount = Math.max(1, Math.ceil(90 / Math.max(1, baseTickerText.length)));
   const friendsTickerText = baseTickerText.repeat(repeatCount);
