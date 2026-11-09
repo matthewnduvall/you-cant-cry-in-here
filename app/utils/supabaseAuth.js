@@ -171,6 +171,52 @@ const clearSupabaseSessionTokens = () => {
   }
 };
 
+// Claims from a JWT payload (no verification; for diagnostics), or null
+const readJwtClaims = token => {
+  try {
+    const payload = String(token || '').split('.')[1];
+    if (!payload) return null;
+    return JSON.parse(atob(payload.replace(/-/g, '+').replace(/_/g, '/')));
+  } catch {
+    return null;
+  }
+};
+
+/**
+ * Works out why the database answered as a signed-out visitor. Returns { recognised, summary },
+ * where summary is a short code shown in the sync banner, e.g.
+ * "AUTH 200 · DB 401 · ROLE AUTHENTICATED · SUB OK · EXP 58M · LEN 900".
+ */
+async function diagnoseSession(user, accessToken) {
+  const { baseUrl, anonKey } = getSupabaseConfig();
+  const headers = buildSupabaseHeaders(anonKey, accessToken, { 'Content-Type': 'application/json' });
+  const claims = readJwtClaims(accessToken);
+  const statusOf = async (url, init) => {
+    try {
+      return (await fetch(url, { headers, cache: 'no-store', ...init })).status;
+    } catch {
+      return 'NET';
+    }
+  };
+  const [authStatus, dbStatus] = await Promise.all([
+    statusOf(`${baseUrl}/auth/v1/user`),
+    // Callable only by signed-in users, so a 2xx proves the database accepted the token
+    statusOf(`${baseUrl}/rest/v1/rpc/my_friendships`, { method: 'POST', body: '{}' })
+  ]);
+  const minutesLeft = claims?.exp ? Math.round((claims.exp * 1000 - Date.now()) / 60000) : null;
+  const summary = [
+    `AUTH ${authStatus}`,
+    `DB ${dbStatus}`,
+    `ROLE ${claims?.role || '?'}`,
+    `SUB ${!claims?.sub ? '?' : claims.sub === String(user?.id) ? 'OK' : 'MISMATCH'}`,
+    `EXP ${minutesLeft === null ? '?' : `${minutesLeft}M`}`,
+    `LEN ${String(accessToken || '').length}`
+  ]
+    .join(' · ')
+    .toUpperCase();
+  return { recognised: typeof dbStatus === 'number' && dbStatus >= 200 && dbStatus < 300, summary };
+}
+
 // Expiry time (ms) from a JWT's `exp` claim, or 0 if it can't be read.
 const getJwtExpiryMs = token => {
   try {
@@ -785,7 +831,11 @@ export async function fetchCloudStateForUser(user) {
   // no rows, which looks exactly like an empty account. Every account has its own profile row, so
   // a missing one means the session wasn't recognised.
   if (!profileRow) {
-    return { error: 'THE DATABASE DID NOT RECOGNISE YOUR SIGN-IN. SIGN OUT AND SIGN IN AGAIN' };
+    const diag = await diagnoseSession(user, accessToken);
+    // Session recognised but no profile row yet: carry on; the next push creates the row
+    if (!diag.recognised) {
+      return { error: `THE DATABASE DID NOT RECOGNISE YOUR SIGN-IN. SIGN OUT AND SIGN IN AGAIN [${diag.summary}]` };
+    }
   }
 
   // If metadataSnapshot has PRs or history not yet reflected in public.user_profiles, immediately backfill user_profiles
