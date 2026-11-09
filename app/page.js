@@ -27,6 +27,7 @@ import { ProfileView } from './components/views/ProfileView';
 import { SettingsView } from './components/views/SettingsView';
 import { InfoView } from './components/views/InfoView';
 import { OnboardingView } from './components/views/OnboardingView';
+import { CloudSyncBanner } from './components/CloudSyncBanner';
 import { AuthView } from './components/views/AuthView';
 import { useCloudAndStorageSync } from './hooks/useCloudAndStorageSync';
 import { useTelemetryAndAnalytics } from './hooks/useTelemetryAndAnalytics';
@@ -200,7 +201,9 @@ export default function App() {
     handleExportBackupJSON,
     handleImportBackupJSON,
     handleResetToDemoDefaults,
-    handleDeleteAccount
+    handleDeleteAccount,
+    cloudSyncStatus,
+    retryCloudSync
   } = useCloudAndStorageSync({
     isStorageHydrated,
     setIsStorageHydrated,
@@ -479,6 +482,8 @@ export default function App() {
           isStorageHydrated={isStorageHydrated}
           setAuthMode={setAuthMode}
         />
+
+        {user && <CloudSyncBanner status={cloudSyncStatus} onRetry={retryCloudSync} />}
 
         {/* MAIN VIEWPORT CONTENT */}
         <div style={{ flex: 1, paddingBottom: '48px' }}>

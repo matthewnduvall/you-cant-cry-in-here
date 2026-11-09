@@ -57,6 +57,7 @@ To keep agent edits fast and focused, views and state hooks are split into dedic
   * `app/components/SlotEditor.jsx` — **The one exercise slot editor** (header with category/muscle/scheme/exercise pickers, set rows with Type/LAST/INC/CURRENT/REPS/✓/✕, add-set and action buttons). Set values are edited through the shared pop-ups via callbacks (`onEditSetValue`, `onEditWeight`, ...), so each host decides where edits are written. Used by `RoutineEditorView` and `OneRepMaxCalculatorModal`; don't build another set-row UI.
   * `app/components/OneRepMaxCalculatorModal.jsx` — 1RM calculator pop-up (SlotEditor + PR date + live `ESTIMATED 1 REP MAX` + green `CALCULATE 1RM`). Used by History Personal Records and Onboarding Page 3; hosts log the PR with `buildPersonalRecordHistoryEntry` (`workoutEngine.js`).
   * `app/components/Primitives.jsx` — `SFSymbol`, `IOSListSection`, `IOSListRow`, and `SessionRestTimerBar`.
+  * `app/components/CloudSyncBanner.jsx` — Red `CLOUD SYNC FAILED: <reason>` strip + `RETRY` under the header (driven by `cloudSyncStatus` from `useCloudAndStorageSync`).
   * `app/components/Controls.jsx` — **Shared controls; use these instead of hand-styled `<button>`/`<select>`:** `Button` (`variant`: `primary`, `primary-row`, `secondary`, `dashed`, `success`, `danger`, `toggle`, `drawer`), `SegmentButton` (segmented choices in a shared-border grid; `activeColor` `accent`/`ink`), `DeleteButton` (red ✕; `solid` for list rows, `outline` + `fill` for editor rows), `CloseButton` (orange modal ✕), `DragNumberBadge` (grippy drag handle), and `GymSelect` (`variant`: `field`, `cell`, `tile`). Pass `style` only for one-off sizing.
   * `app/styles/kineticTokens.js` — `IOS_DARK`, `KINETIC_CSS`, `UI` style tokens, and the shared-border tokens `SHARED_CELL_BORDER` / `SHARED_GROUP_OUTER` (import these; don't redefine them per file).
 * **Utilities, Data & API (`app/utils/`, `app/data/`, `app/api/`):**
@@ -64,6 +65,7 @@ To keep agent edits fast and focused, views and state hooks are split into dedic
   * `app/utils/workoutEngine.js` — 1RM math (`getBestHistory1RM`, `getPersonalRecord1RM`, `getHistoricalCalculated1RM`, `calculateLastEquivalentWeightForSet`, `createWorkoutSlot`).
   * `app/utils/supabaseAuth.js` — Supabase Auth, cloud state sync, and the social API (`syncFriendshipsForUser`, `sendFriendRequestToAthlete`, `acceptFriendRequestFromAthlete`, `removeFriendshipWithAthlete`, `searchAthletesByQuery`, `fetchAthleteProfileSnapshot`), all as the signed-in user so RLS applies.
   * `app/utils/storageMigration.js` — Schema V3 local storage hydration and migration.
+  * `app/utils/cloudSyncLedger.js` — Per-account record (`yccih_cloud_sync_ledger_v1`) of History workouts confirmed on the server (`synced`: id → `workoutSyncSignature`) and deletes not yet sent (`deleted`).
   * `app/api/feedback/route.js` — Serverless endpoint for sending user feedback + session logs to `matthew.n.duvall@gmail.com`.
   * `app/api/invite/route.js` — Server-sent email invites via Resend (`RESEND_API_KEY`, `NEXT_PUBLIC_APP_URL`); setup steps in `EMAIL_INVITE_SETUP.md`.
   * `app/data/exercises.csv` + `app/data/csvRawLoader.cjs` — Raw exercise data, imported as a string via the custom Turbopack `*.csv` rule in `next.config.mjs`.
@@ -158,6 +160,15 @@ To keep agent edits fast and focused, views and state hooks are split into dedic
 * **Feedback Delivery (`FeedbackModal` & `app/api/feedback/route.js`):**
   * Prompts `ENTER YOUR FEEDBACK BELOW. IT WILL BE AUTOMATICALLY SENT WITH DIAGNOSTIC LOGS FROM THIS SESSION (<N> LOG EVENTS).`
   * Sends via `/api/feedback` + client-side `formsubmit.co/ajax/matthew.n.duvall@gmail.com`, and automatically triggers a pre-filled `mailto:matthew.n.duvall@gmail.com` fallback if active delivery is not confirmed.
+
+### F. Cloud Sync (`useCloudAndStorageSync.js` + `supabaseAuth.js`)
+* **`workout_history` is the source of truth for History.** A new device or iOS home-screen app (which gets its own empty storage) shows only what is in that table.
+* **Pull** (sign-in, startup, `RETRY`, app returning to the foreground, network back online; at most every 30s): retries queued deletes, then merges. A workout the ledger marked `synced` that is missing from the server was deleted elsewhere and is removed locally; unconfirmed local workouts are kept and uploaded. Uploads are held until the pull finishes.
+* **Push** (debounced after every change): uploads only workouts that are new or changed since confirmed (signature mismatch), in batches of 25; a rejected batch is retried row by row so one bad workout can't block the rest. Returns `{ ok, error, syncedWorkoutIds, failedWorkoutCount }`.
+* **Deleting** a History session deletes its `workout_history` row; until that succeeds the id stays queued in the ledger.
+* **Never store app state in auth `user_metadata`.** Supabase embeds it in every access token; older builds did (`yccih_cloud_state_v3`), which bloated tokens. `supabase/migrations/2026-11-08_move_metadata_snapshots.sql` moves those workouts into `workout_history` and strips the key.
+* **An unrecognised token reads as signed-out:** PostgREST answers it with 200 + no rows, not 401. The pull therefore treats a missing own `user_profiles` row as a session error rather than an empty account.
+* Failures are never silent: `cloudSyncStatus` (`idle`/`syncing`/`ok`/`error`) drives `CloudSyncBanner`.
 
 ### E. Authentication & Beta Access
 * Beta sign-up requires the beta tester code: **`imnotcrying`** (case-insensitive). This is only checked in the browser today.
