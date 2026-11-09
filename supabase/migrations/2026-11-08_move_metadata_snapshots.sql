@@ -56,6 +56,28 @@ FROM workouts
 ORDER BY w ->> 'id'
 ON CONFLICT (id) DO NOTHING;
 
+-- 1b. Keep sign-in tokens small: Supabase copies user_metadata into every access token. Older app
+-- builds saved the whole app state there ("yccih_cloud_state_v3"), producing tokens over 100 KB that
+-- the API rejects. This trigger drops that key on every write, so an outdated tab or device can't
+-- bring it back. (History lives in public.workout_history.)
+CREATE OR REPLACE FUNCTION public.strip_app_state_from_user_metadata()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SET search_path = public
+AS $$
+BEGIN
+  IF NEW.raw_user_meta_data ? 'yccih_cloud_state_v3' THEN
+    NEW.raw_user_meta_data := NEW.raw_user_meta_data - 'yccih_cloud_state_v3';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS strip_app_state_from_user_metadata ON auth.users;
+CREATE TRIGGER strip_app_state_from_user_metadata
+  BEFORE INSERT OR UPDATE OF raw_user_meta_data ON auth.users
+  FOR EACH ROW EXECUTE FUNCTION public.strip_app_state_from_user_metadata();
+
 -- 2. Remove the snapshot from sign-in accounts so access tokens are small again
 UPDATE auth.users
 SET raw_user_meta_data = raw_user_meta_data - 'yccih_cloud_state_v3'
@@ -64,4 +86,5 @@ WHERE raw_user_meta_data ? 'yccih_cloud_state_v3';
 -- 3. Check: History rows per account, and that no account still carries a snapshot
 SELECT
   (SELECT COUNT(*) FROM public.workout_history) AS workout_history_rows,
-  (SELECT COUNT(*) FROM auth.users WHERE raw_user_meta_data ? 'yccih_cloud_state_v3') AS accounts_with_snapshot;
+  (SELECT COUNT(*) FROM auth.users WHERE raw_user_meta_data ? 'yccih_cloud_state_v3') AS accounts_with_snapshot,
+  (SELECT MAX(LENGTH(raw_user_meta_data::text)) FROM auth.users) AS largest_metadata_bytes;
