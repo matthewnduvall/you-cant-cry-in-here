@@ -32,7 +32,9 @@ export function AppHeaderAndDrawer({
           zIndex: 30,
           backgroundColor: 'var(--dp-color-ground)',
           borderBottom: '2px solid var(--dp-color-rule)',
-          padding: '12px var(--dp-spacing-gutter)'
+          // Clears the iPhone notch / Dynamic Island and status bar (0 elsewhere); the header's dark
+          // background fills that strip so content never scrolls visibly behind it
+          padding: `calc(12px + env(safe-area-inset-top, 0px)) var(--dp-spacing-gutter) 12px`
         }}
       >
         <div
@@ -162,7 +164,7 @@ export function AppHeaderAndDrawer({
               height: '100%',
               backgroundColor: '#101010',
               borderRight: '2px solid var(--dp-color-rule)',
-              padding: '20px 16px',
+              padding: `calc(20px + env(safe-area-inset-top, 0px)) 16px calc(20px + env(safe-area-inset-bottom, 0px))`,
               display: 'flex',
               flexDirection: 'column',
               justifyContent: 'space-between'

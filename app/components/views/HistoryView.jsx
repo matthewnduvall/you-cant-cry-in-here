@@ -1217,7 +1217,7 @@ export function HistoryView({
             alignItems: 'center',
             justifyContent: 'center',
             zIndex: 430,
-            padding: '12px'
+            padding: `calc(12px + env(safe-area-inset-top, 0px)) 12px calc(12px + env(safe-area-inset-bottom, 0px))`
           }}
         >
           <div

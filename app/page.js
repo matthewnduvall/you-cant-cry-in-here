@@ -854,7 +854,8 @@ export default function App() {
         <footer
           style={{
             borderTop: '2px solid var(--dp-color-rule)',
-            padding: '14px var(--dp-spacing-gutter)',
+            // Extra room above the iPhone home indicator (0 elsewhere)
+            padding: `14px var(--dp-spacing-gutter) calc(14px + env(safe-area-inset-bottom, 0px))`,
             textAlign: 'center',
             fontSize: '11px',
             fontWeight: 700,
