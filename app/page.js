@@ -16,9 +16,8 @@ import {
 import { HomeView } from './components/views/HomeView';
 import { RoutineEditorView } from './components/views/RoutineEditorView';
 import { RoutinesView } from './components/views/RoutinesView';
-import { GymsView, GymEditorView } from './components/views/GymsView';
+import { GymEditorView } from './components/views/GymsView';
 import { HistoryView } from './components/views/HistoryView';
-import { GoalsView } from './components/views/GoalsView';
 import { ProgressionChartView, DEFAULT_CHART_LIFTS } from './components/views/ProgressionChartView';
 import { StimulusMapView } from './components/views/StimulusMapView';
 import { LeaderboardView } from './components/views/LeaderboardView';
@@ -26,7 +25,7 @@ import { SocialView } from './components/views/SocialView';
 import { ProfileView } from './components/views/ProfileView';
 import { SettingsView } from './components/views/SettingsView';
 import { InfoView } from './components/views/InfoView';
-import { OnboardingView } from './components/views/OnboardingView';
+import { ConfigurationView } from './components/views/ConfigurationView';
 import { CloudSyncBanner } from './components/CloudSyncBanner';
 import { AuthView } from './components/views/AuthView';
 import { useCloudAndStorageSync } from './hooks/useCloudAndStorageSync';
@@ -82,6 +81,8 @@ export default function App() {
   const [routineSelectReturnView, setRoutineSelectReturnView] = useState(null);
   // PROGRESS page tab: 'progress' (chart) | 'records' (Personal Records) | 'history'
   const [progressTabChoice, setProgressTabChoice] = useState('progress');
+  // CONFIGURATION page tab: 'body' | 'goals' | 'equipment' | 'routines'
+  const [configurationTab, setConfigurationTab] = useState('body');
   const [isCurrentEditorShared, setIsCurrentEditorShared] = useState(false);
 
   // --- Modal & Confirmation States ---
@@ -483,6 +484,82 @@ export default function App() {
     return () => window.removeEventListener('popstate', onPopState);
   }, [openedFromRoutines]);
 
+  // The PROGRESS page: tabs PROGRESS (chart) / PERSONAL RECORDS / HISTORY. Also each profile's PROGRESS tab;
+  // a friend's profile passes their history / PRs / chart series, its own tab state and readOnly.
+  // An open History workout (e.g. from the 1RM box's PR link) always shows your HISTORY tab.
+  const renderProgressPage = ({
+    readOnly = false,
+    history: profileHistory = history,
+    oneRepMaxes: prs = effectiveOneRepMaxes,
+    seriesByLift = progressionSeriesByLift,
+    tab = progressTab,
+    onTabChange = nextTab => {
+      if (nextTab !== 'history' && expandedHistoryWorkoutId) {
+        setConfirmedHistoryEditWorkoutId(null);
+        setExpandedHistoryWorkoutId(null);
+      }
+      setProgressTabChoice(nextTab);
+    }
+  } = {}) => (
+    <>
+      <div style={{ padding: '12px var(--dp-spacing-gutter) 0' }}>
+        <TabBar ariaLabel="Progress sections" tabs={PROGRESS_TABS} value={tab} onChange={onTabChange} />
+      </div>
+      {tab === 'progress' && (
+        <ProgressionChartView
+          colors={colors}
+          chartMetric={chartMetric}
+          setChartMetric={setChartMetric}
+          selectedChartLifts={selectedChartLifts}
+          setSelectedChartLifts={setSelectedChartLifts}
+          progressionSeriesByLift={seriesByLift}
+          oneRepMaxes={prs}
+          showGoalDistance={!readOnly}
+          targetStandardClass={targetStandardClass}
+          userBodyweightLbs={userBodyweightLbs}
+          totalHeightInches={totalHeightInches}
+          customGoalWeights={customGoalWeights}
+        />
+      )}
+      {tab !== 'progress' && (
+        <HistoryView
+          section={tab}
+          readOnly={readOnly}
+          colors={colors}
+          history={profileHistory}
+          setHistory={setHistory}
+          currentIncrementLbs={currentIncrementLbs}
+          historySessionsExpanded={historySessionsExpanded}
+          setHistorySessionsExpanded={setHistorySessionsExpanded}
+          expandedHistoryWorkoutId={expandedHistoryWorkoutId}
+          setExpandedHistoryWorkoutId={id => {
+            setConfirmedHistoryEditWorkoutId(null);
+            setExpandedHistoryWorkoutId(id);
+          }}
+          historyPRsExpanded={historyPRsExpanded}
+          setHistoryPRsExpanded={setHistoryPRsExpanded}
+          oneRepMaxes={prs}
+          setOneRepMaxes={setOneRepMaxes}
+          customPrExerciseIds={customPrExerciseIds}
+          setCustomPrExerciseIds={setCustomPrExerciseIds}
+          selectedGymId={selectedGymId}
+          gyms={gyms}
+          targetStandardClass={targetStandardClass}
+          userBodyweightLbs={userBodyweightLbs}
+          totalHeightInches={totalHeightInches}
+          customGoalWeights={customGoalWeights}
+          setHistoricalDraft={setHistoricalDraft}
+          setCurrentView={setCurrentView}
+          openPlateCalculatorForPR={openPlateCalculatorForPR}
+          openPlateCalculatorForSet={openPlateCalculatorForSet}
+          setSetValueTarget={setSetValueTarget}
+          setDeleteConfirmTarget={setDeleteConfirmTarget}
+          buildHistoryWorkoutEditorProps={buildHistoryWorkoutEditorProps}
+        />
+      )}
+    </>
+  );
+
   // Opens a logged workout on the PROGRESS page (expanded) and scrolls it into view below the sticky header
   const openHistoryWorkout = workoutId => {
     if (!workoutId) return;
@@ -678,88 +755,8 @@ export default function App() {
             />
           )}
 
-          {/* PROGRESS page (view id 'history'): tabs PROGRESS (chart) / PERSONAL RECORDS / HISTORY.
-              An open History workout (e.g. from the 1RM box's PR link) always shows the HISTORY tab. */}
-          {currentView === 'history' && (
-            <div style={{ padding: '12px var(--dp-spacing-gutter) 0' }}>
-              <TabBar
-                ariaLabel="Progress sections"
-                tabs={PROGRESS_TABS}
-                value={progressTab}
-                onChange={tab => {
-                  if (tab !== 'history' && expandedHistoryWorkoutId) {
-                    setConfirmedHistoryEditWorkoutId(null);
-                    setExpandedHistoryWorkoutId(null);
-                  }
-                  setProgressTabChoice(tab);
-                }}
-              />
-            </div>
-          )}
-          {currentView === 'history' && progressTab === 'progress' && (
-            <ProgressionChartView
-              colors={colors}
-              chartMetric={chartMetric}
-              setChartMetric={setChartMetric}
-              selectedChartLifts={selectedChartLifts}
-              setSelectedChartLifts={setSelectedChartLifts}
-              progressionSeriesByLift={progressionSeriesByLift}
-              oneRepMaxes={effectiveOneRepMaxes}
-              targetStandardClass={targetStandardClass}
-              userBodyweightLbs={userBodyweightLbs}
-              totalHeightInches={totalHeightInches}
-              customGoalWeights={customGoalWeights}
-            />
-          )}
-          {currentView === 'history' && progressTab !== 'progress' && (
-            <HistoryView
-              section={progressTab}
-              colors={colors}
-              history={history}
-              setHistory={setHistory}
-              currentIncrementLbs={currentIncrementLbs}
-              historySessionsExpanded={historySessionsExpanded}
-              setHistorySessionsExpanded={setHistorySessionsExpanded}
-              expandedHistoryWorkoutId={expandedHistoryWorkoutId}
-              setExpandedHistoryWorkoutId={id => {
-                setConfirmedHistoryEditWorkoutId(null);
-                setExpandedHistoryWorkoutId(id);
-              }}
-              historyPRsExpanded={historyPRsExpanded}
-              setHistoryPRsExpanded={setHistoryPRsExpanded}
-              oneRepMaxes={effectiveOneRepMaxes}
-              setOneRepMaxes={setOneRepMaxes}
-              customPrExerciseIds={customPrExerciseIds}
-              setCustomPrExerciseIds={setCustomPrExerciseIds}
-              selectedGymId={selectedGymId}
-              gyms={gyms}
-              targetStandardClass={targetStandardClass}
-              userBodyweightLbs={userBodyweightLbs}
-              totalHeightInches={totalHeightInches}
-              customGoalWeights={customGoalWeights}
-              setHistoricalDraft={setHistoricalDraft}
-              setCurrentView={setCurrentView}
-              openPlateCalculatorForPR={openPlateCalculatorForPR}
-              openPlateCalculatorForSet={openPlateCalculatorForSet}
-              setSetValueTarget={setSetValueTarget}
-              setDeleteConfirmTarget={setDeleteConfirmTarget}
-              buildHistoryWorkoutEditorProps={buildHistoryWorkoutEditorProps}
-            />
-          )}
-
-          {currentView === 'gyms' && (
-            <GymsView
-              colors={colors}
-              gyms={gyms}
-              setGyms={setGyms}
-              selectedGymId={selectedGymId}
-              setSelectedGymId={setSelectedGymId}
-              availableEquipment={availableEquipment}
-              setAvailableEquipment={setAvailableEquipment}
-              setGymDraft={setGymDraft}
-              setCurrentView={setCurrentView}
-            />
-          )}
+          {/* PROGRESS page (view id 'history'): see renderProgressPage */}
+          {currentView === 'history' && renderProgressPage()}
 
           {currentView === 'gym_editor' && gymDraft && (
             <GymEditorView
@@ -772,37 +769,77 @@ export default function App() {
             />
           )}
 
-          {currentView === 'goals' && (
-            <GoalsView
+          {/* 01 / CONFIGURATION: BODY METRICS · GOALS · EQUIPMENT · ROUTINES tabs (replaces Onboarding and the
+              Routines / Equipment / Goals menu pages) */}
+          {currentView === 'configuration' && (
+            <ConfigurationView
               colors={colors}
-              goalType={goalType}
-              setGoalType={setGoalType}
-              goalUnit={goalUnit}
-              setGoalUnit={setGoalUnit}
-              goalIncrement={goalIncrement}
-              setGoalIncrement={setGoalIncrement}
-              userBodyweightLbs={userBodyweightLbs}
-              userHeightFeet={userHeightFeet}
-              userHeightInches={userHeightInches}
-              totalHeightInches={totalHeightInches}
-              targetStandardClass={targetStandardClass}
-              setTargetStandardClass={setTargetStandardClass}
-              oneRepMaxes={effectiveOneRepMaxes}
-              customGoalWeights={customGoalWeights}
-              openPlateCalculatorForGoal={openPlateCalculatorForGoal}
-              customPrExerciseIds={customPrExerciseIds}
-              setCustomPrExerciseIds={setCustomPrExerciseIds}
-              selectedGymId={selectedGymId}
-              gyms={gyms}
+              tab={configurationTab}
+              setTab={setConfigurationTab}
+              setCurrentView={setCurrentView}
+              bodyMetricsProps={{
+                userBodyweightLbs,
+                setUserBodyweightLbs,
+                userHeightFeet,
+                setUserHeightFeet,
+                userHeightInches,
+                setUserHeightInches
+              }}
+              goalsProps={{
+                goalType,
+                setGoalType,
+                goalUnit,
+                setGoalUnit,
+                goalIncrement,
+                setGoalIncrement,
+                userBodyweightLbs,
+                userHeightFeet,
+                userHeightInches,
+                totalHeightInches,
+                targetStandardClass,
+                setTargetStandardClass,
+                oneRepMaxes: effectiveOneRepMaxes,
+                customGoalWeights,
+                openPlateCalculatorForGoal,
+                customPrExerciseIds,
+                setCustomPrExerciseIds,
+                selectedGymId,
+                gyms
+              }}
+              equipmentProps={{
+                gyms,
+                setGyms,
+                selectedGymId,
+                setSelectedGymId,
+                availableEquipment,
+                setAvailableEquipment,
+                setGymDraft
+              }}
+              routinesProps={{
+                user,
+                savedRoutines,
+                sharedRoutines,
+                friendsList,
+                selectedGymId,
+                setSelectedGymId,
+                gyms,
+                routineSelectReturnView: null,
+                handleOpenPreviewRoutine,
+                handleDirectLoadRoutine,
+                handleCancelRoutineSelection,
+                setDeleteConfirmTarget
+              }}
+              routinePreferencesProps={{ routinePreferences, setRoutinePreferences }}
             />
           )}
-
 
           {currentView === 'stimulus_map' && (
             <StimulusMapView
               colors={colors}
               stimulusGreenDays={stimulusGreenDays}
               stimulusYellowDays={stimulusYellowDays}
+              setStimulusGreenDays={setStimulusGreenDays}
+              setStimulusYellowDays={setStimulusYellowDays}
               muscleStimulusStatus={muscleStimulusStatus}
             />
           )}
@@ -836,6 +873,14 @@ export default function App() {
               appendSessionLog={appendSessionLog}
               setViewingFriendProfile={setViewingFriendProfile}
               setCurrentView={setCurrentView}
+              socialSettingsProps={{
+                profileIsPublic,
+                setProfileIsPublic,
+                shareStatsWithFriends,
+                setShareStatsWithFriends,
+                shareRoutinesWithFriends,
+                setShareRoutinesWithFriends
+              }}
             />
           )}
 
@@ -854,35 +899,31 @@ export default function App() {
               oneRepMaxes={effectiveOneRepMaxes}
               history={history}
               sharedRoutines={sharedRoutines}
-              openPlateCalculatorForPR={openPlateCalculatorForPR}
               handleOpenPreviewRoutine={handleOpenPreviewRoutine}
               setDeleteConfirmTarget={setDeleteConfirmTarget}
               onDeleteAccount={handleDeleteAccount}
               appendSessionLog={appendSessionLog}
+              renderProgressPage={renderProgressPage}
+              routinesProps={{
+                user,
+                savedRoutines,
+                sharedRoutines,
+                friendsList,
+                selectedGymId,
+                setSelectedGymId,
+                gyms,
+                routineSelectReturnView: null,
+                handleOpenPreviewRoutine,
+                handleDirectLoadRoutine,
+                handleCancelRoutineSelection,
+                setDeleteConfirmTarget
+              }}
             />
           )}
 
           {currentView === 'settings' && (
             <SettingsView
               colors={colors}
-              userBodyweightLbs={userBodyweightLbs}
-              setUserBodyweightLbs={setUserBodyweightLbs}
-              userHeightFeet={userHeightFeet}
-              setUserHeightFeet={setUserHeightFeet}
-              userHeightInches={userHeightInches}
-              setUserHeightInches={setUserHeightInches}
-              stimulusGreenDays={stimulusGreenDays}
-              setStimulusGreenDays={setStimulusGreenDays}
-              stimulusYellowDays={stimulusYellowDays}
-              setStimulusYellowDays={setStimulusYellowDays}
-              routinePreferences={routinePreferences}
-              setRoutinePreferences={setRoutinePreferences}
-              shareStatsWithFriends={shareStatsWithFriends}
-              setShareStatsWithFriends={setShareStatsWithFriends}
-              shareRoutinesWithFriends={shareRoutinesWithFriends}
-              setShareRoutinesWithFriends={setShareRoutinesWithFriends}
-              profileIsPublic={profileIsPublic}
-              setProfileIsPublic={setProfileIsPublic}
               importBackupInputRef={importBackupInputRef}
               handleExportBackupJSON={handleExportBackupJSON}
               handleImportBackupJSON={handleImportBackupJSON}
@@ -890,44 +931,6 @@ export default function App() {
             />
           )}
 
-          {currentView === 'onboarding' && (
-            <OnboardingView
-              colors={colors}
-              setCurrentView={setCurrentView}
-              userBodyweightLbs={userBodyweightLbs}
-              setUserBodyweightLbs={setUserBodyweightLbs}
-              userHeightFeet={userHeightFeet}
-              setUserHeightFeet={setUserHeightFeet}
-              userHeightInches={userHeightInches}
-              setUserHeightInches={setUserHeightInches}
-              totalHeightInches={totalHeightInches}
-              goalType={goalType}
-              setGoalType={setGoalType}
-              goalIncrement={goalIncrement}
-              setGoalIncrement={setGoalIncrement}
-              goalUnit={goalUnit}
-              setGoalUnit={setGoalUnit}
-              targetStandardClass={targetStandardClass}
-              setTargetStandardClass={setTargetStandardClass}
-              oneRepMaxes={effectiveOneRepMaxes}
-              setOneRepMaxes={setOneRepMaxes}
-              history={history}
-              setHistory={setHistory}
-              currentIncrementLbs={currentIncrementLbs}
-              customPrExerciseIds={customPrExerciseIds}
-              setCustomPrExerciseIds={setCustomPrExerciseIds}
-              customGoalWeights={customGoalWeights}
-              openPlateCalculatorForPR={openPlateCalculatorForPR}
-              openPlateCalculatorForSet={openPlateCalculatorForSet}
-              setSetValueTarget={setSetValueTarget}
-              selectedGymId={selectedGymId}
-              gyms={gyms}
-              availableEquipment={availableEquipment}
-              setAvailableEquipment={setAvailableEquipment}
-              routinePreferences={routinePreferences}
-              setRoutinePreferences={setRoutinePreferences}
-            />
-          )}
 
           {currentView === 'info' && (
             <InfoView colors={colors} />

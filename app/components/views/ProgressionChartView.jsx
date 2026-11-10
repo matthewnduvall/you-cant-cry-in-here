@@ -60,7 +60,9 @@ export function ProgressionChartView({
   targetStandardClass,
   userBodyweightLbs,
   totalHeightInches,
-  customGoalWeights
+  customGoalWeights,
+  // A friend's profile: their 1RM instead of distance to the viewer's goal
+  showGoalDistance = true
 }) {
   const [timeFrame, setTimeFrame] = useState('30D');
   const selectedLifts = Array.isArray(selectedChartLifts) ? selectedChartLifts : DEFAULT_CHART_LIFTS;
@@ -537,7 +539,7 @@ export function ProgressionChartView({
                       whiteSpace: 'nowrap'
                     }}
                   >
-                    {isTBD ? 'NOT LOGGED YET' : `${distance} LB FROM GOAL`}
+                    {isTBD ? 'NOT LOGGED YET' : showGoalDistance ? `${distance} LB FROM GOAL` : `1RM ${cur1RM} LB`}
                   </span>
                 </div>
                 <div

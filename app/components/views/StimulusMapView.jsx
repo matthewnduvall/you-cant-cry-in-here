@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { IOSListSection, IOSListRow } from '../Primitives';
+import { StimulusSettingsSection } from './SettingsView';
 
 // Status is shown by pattern as well as colour (red / green alone is hard to tell apart with colour blindness):
 // OVERDUE = diagonal stripes, RECOVERED = dots, RECOVERING = solid, never logged = solid grey.
@@ -47,6 +48,8 @@ export function StimulusMapView({
   colors,
   stimulusGreenDays,
   stimulusYellowDays,
+  setStimulusGreenDays,
+  setStimulusYellowDays,
   muscleStimulusStatus
 }) {
   return (
@@ -173,6 +176,14 @@ export function StimulusMapView({
           </IOSListRow>
         ))}
       </IOSListSection>
+
+      <StimulusSettingsSection
+        colors={colors}
+        stimulusGreenDays={stimulusGreenDays}
+        setStimulusGreenDays={setStimulusGreenDays}
+        stimulusYellowDays={stimulusYellowDays}
+        setStimulusYellowDays={setStimulusYellowDays}
+      />
     </div>
   );
 }

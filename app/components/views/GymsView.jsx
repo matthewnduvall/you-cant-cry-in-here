@@ -29,7 +29,7 @@ const sameEquipment = (a = [], b = []) => {
 };
 
 /**
- * EQUIPMENT page (view id 'gyms'): the athlete's equipment ON/OFF list (`availableEquipment`, the same
+ * Configuration → EQUIPMENT tab: the athlete's equipment ON/OFF list (`availableEquipment`, the same
  * GYM_EQUIPMENT_OPTIONS list as the setup editor) and their saved equipment setups. Tapping a saved
  * setup turns exactly its equipment on.
  */
@@ -147,7 +147,7 @@ export function GymEditorView({
   return (
     <div style={UI.pagePad}>
       <div style={UI.gutterBottom}>
-        <Button variant="secondary" onClick={() => setCurrentView('gyms')}>
+        <Button variant="secondary" onClick={() => setCurrentView('configuration')}>
           ← BACK
         </Button>
       </div>
@@ -185,7 +185,7 @@ export function GymEditorView({
             });
             // Saving a setup also makes it the active equipment
             setAvailableEquipment?.(GYM_EQUIPMENT_OPTIONS.filter(eq => gymDraft.equipment.includes(eq)));
-            setCurrentView('gyms');
+            setCurrentView('configuration');
           }}
         >
           SAVE SETUP

@@ -13,6 +13,7 @@ import {
 import { isSameFriend, applyFriendshipSync, applyOutgoingInvitesSync } from '../../utils/storageMigration';
 import { DeleteButton } from '../Controls';
 import { UI } from '../../styles/kineticTokens';
+import { SocialSettingsSection } from './SettingsView';
 
 const isEmailAddress = value => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || '').trim());
 
@@ -31,7 +32,9 @@ export function SocialView({
   setDeleteConfirmTarget,
   appendSessionLog,
   setViewingFriendProfile,
-  setCurrentView
+  setCurrentView,
+  // PRIVACY & SHARING settings (moved here from Settings)
+  socialSettingsProps
 }) {
   const [searchedAthletes, setSearchedAthletes] = useState([]);
   const [hasSearched, setHasSearched] = useState(false);
@@ -466,6 +469,8 @@ export function SocialView({
             </IOSListRow>
           ))}
       </IOSListSection>
+
+      <SocialSettingsSection colors={colors} {...socialSettingsProps} />
     </div>
   );
 }

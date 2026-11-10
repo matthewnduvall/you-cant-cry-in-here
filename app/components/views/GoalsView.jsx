@@ -377,7 +377,7 @@ export function GoalsView({
             </div>
 
             <div style={{ marginBottom: '12px' }}>
-              <div style={UI.stepLabel}>1. EQUIPMENT</div>
+              <div style={UI.stepLabel}>EQUIPMENT</div>
               <GymSelect
                 value={addGoalGymFilter}
                 onChange={nextFilter => {
@@ -395,7 +395,7 @@ export function GoalsView({
             </div>
 
             <div style={{ marginBottom: '12px' }}>
-              <div style={UI.stepLabel}>2. EXERCISE CATEGORY</div>
+              <div style={UI.stepLabel}>EXERCISE CATEGORY</div>
               <div
                 style={{
                   display: 'grid',
@@ -429,7 +429,7 @@ export function GoalsView({
             </div>
 
             <div style={{ marginBottom: '12px' }}>
-              <div style={UI.stepLabel}>3. MUSCLE GROUP</div>
+              <div style={UI.stepLabel}>MUSCLE GROUP</div>
               <select
                 aria-label="Filter by Muscle Group"
                 value={activeMuscle}
@@ -452,7 +452,7 @@ export function GoalsView({
             </div>
 
             <div style={{ marginBottom: '16px' }}>
-              <div style={UI.stepLabel}>4. SELECT EXERCISE</div>
+              <div style={UI.stepLabel}>EXERCISE</div>
               <select
                 value={selectedExId}
                 onChange={e => setAddGoalExerciseId(e.target.value)}

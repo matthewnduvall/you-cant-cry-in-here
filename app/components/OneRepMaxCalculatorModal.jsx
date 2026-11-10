@@ -4,7 +4,7 @@
 // 1RM CALCULATOR POP-UP
 // Same exercise editor as the session page (SlotEditor + the shared set-value / plate pop-ups),
 // with a PR date and a bright green CALCULATE 1RM button that hands the estimate to `onSave`.
-// Used by History (Personal Records) and Onboarding page 3.
+// Used by History (Personal Records).
 // ============================================================================
 
 import React, { useState } from 'react';

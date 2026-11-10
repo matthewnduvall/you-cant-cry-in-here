@@ -135,9 +135,10 @@ export function HistoryExerciseFilter({ history = [], filter, onChange }) {
             gridRow: 1,
             display: 'flex',
             alignItems: 'center',
+            justifyContent: 'center',
             gap: '6px',
             color: '#A0A0A0',
-            textAlign: 'left',
+            textAlign: 'center',
             whiteSpace: 'nowrap',
             overflow: 'hidden'
           }}
@@ -173,6 +174,7 @@ export function HistoryExerciseFilter({ history = [], filter, onChange }) {
       )}
 
       <select
+        className="kinetic-filter-select"
         aria-label="Filter by exercise type"
         value={filter.category}
         onChange={e => onChange({ ...filter, category: e.target.value, exerciseId: '' })}
@@ -184,6 +186,7 @@ export function HistoryExerciseFilter({ history = [], filter, onChange }) {
       </select>
 
       <select
+        className="kinetic-filter-select"
         aria-label="Filter by muscle group"
         value={filter.muscle}
         onChange={e => onChange({ ...filter, muscle: e.target.value, exerciseId: '' })}
@@ -197,6 +200,7 @@ export function HistoryExerciseFilter({ history = [], filter, onChange }) {
       </select>
 
       <select
+        className="kinetic-filter-select"
         aria-label="Filter by equipment"
         value={filter.equipment}
         onChange={e => onChange({ ...filter, equipment: e.target.value, exerciseId: '' })}
@@ -211,6 +215,7 @@ export function HistoryExerciseFilter({ history = [], filter, onChange }) {
       </select>
 
       <select
+        className="kinetic-filter-select"
         aria-label="Filter by exercise"
         value={filter.exerciseId}
         onChange={e => onChange({ ...filter, exerciseId: e.target.value })}

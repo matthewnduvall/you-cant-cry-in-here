@@ -22,7 +22,13 @@ export function RoutinesView({
   routineSelectReturnView,
   handleDirectLoadRoutine,
   handleCancelRoutineSelection,
-  setDeleteConfirmTarget
+  setDeleteConfirmTarget,
+  // The Configuration page's ROUTINE tab has nothing to cancel back to
+  showCancel = true,
+  // Which lists to show (a friend's profile shows only the routines they share)
+  sections = ['default', 'saved', 'shared', 'friends'],
+  // A friend's routines: LOAD only, no delete
+  readOnly = false
 }) {
   const friendRoutines = (friendsList || []).flatMap(f =>
     (f.sharedRoutines || []).map(r => ({ ...r, friendName: f.username }))
@@ -48,7 +54,7 @@ export function RoutinesView({
         style={{
           ...UI.gutterBottom,
           display: 'grid',
-          gridTemplateColumns: '1fr 1fr',
+          gridTemplateColumns: showCancel ? '1fr 1fr' : '1fr',
           gap: 0,
           borderTop: '1px solid var(--dp-color-rule)',
           borderLeft: '1px solid var(--dp-color-rule)'
@@ -63,6 +69,7 @@ export function RoutinesView({
           gyms={gyms}
         />
 
+        {showCancel && (
         <Button
           variant="secondary"
           onClick={() => handleCancelRoutineSelection?.()}
@@ -70,8 +77,10 @@ export function RoutinesView({
         >
           <span>CANCEL</span>
         </Button>
+        )}
       </div>
 
+      {sections.includes('default') && (
       <IOSListSection header={`DEFAULT ROUTINES (${filteredDefaultRoutines.length})`} colors={colors}>
         {filteredDefaultRoutines.length === 0 ? (
           <IOSListRow isLast={true} colors={colors}>
@@ -108,7 +117,9 @@ export function RoutinesView({
           })
         )}
       </IOSListSection>
+      )}
 
+      {sections.includes('saved') && (
       <IOSListSection header={`SAVED ROUTINES (${filteredSavedRoutines.length})`} colors={colors}>
         {filteredSavedRoutines.length === 0 ? (
           <IOSListRow isLast={true} colors={colors}>
@@ -140,7 +151,7 @@ export function RoutinesView({
                   >
                     LOAD →
                   </Button>
-                  <DeleteButton
+                  {!readOnly && <DeleteButton
                     label={`Delete ${r.label}`}
                     onClick={() =>
                       setDeleteConfirmTarget?.({
@@ -150,14 +161,16 @@ export function RoutinesView({
                         label: r.label
                       })
                     }
-                  />
+                  />}
                 </div>
               </IOSListRow>
             );
           })
         )}
       </IOSListSection>
+      )}
 
+      {sections.includes('shared') && (
       <IOSListSection header={`SHARED ROUTINES (${filteredSharedRoutines.length})`} colors={colors}>
         {filteredSharedRoutines.length === 0 ? (
           <IOSListRow isLast={true} colors={colors}>
@@ -189,7 +202,7 @@ export function RoutinesView({
                   >
                     LOAD →
                   </Button>
-                  <DeleteButton
+                  {!readOnly && <DeleteButton
                     label={`Delete ${r.label}`}
                     onClick={() =>
                       setDeleteConfirmTarget?.({
@@ -199,14 +212,16 @@ export function RoutinesView({
                         label: r.label
                       })
                     }
-                  />
+                  />}
                 </div>
               </IOSListRow>
             );
           })
         )}
       </IOSListSection>
+      )}
 
+      {sections.includes('friends') && (
       <IOSListSection header={`FRIENDS' ROUTINES (${filteredFriendRoutines.length})`} colors={colors}>
         {filteredFriendRoutines.length === 0 ? (
           <IOSListRow isLast={true} colors={colors}>
@@ -243,6 +258,7 @@ export function RoutinesView({
           })
         )}
       </IOSListSection>
+      )}
     </div>
   );
 }
