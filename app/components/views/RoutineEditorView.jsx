@@ -37,6 +37,7 @@ export function RoutineEditorView({
   handleShareCurrentEditor,
   handleUpdateSlotCategoryOrExercise,
   handleInsertSetAtPosition,
+  handleUpdateSetField,
   handleRecalculateSlotWeights,
   handleToggleSetDone,
   handleReorderExercises,
@@ -296,6 +297,9 @@ export function RoutineEditorView({
                         currentValue,
                         isAbs: false
                       })
+                    }
+                    onSetBandColor={({ exIdx, set, color }) =>
+                      handleUpdateSetField?.(slot.id, exIdx, set.id, 'bandColor', color)
                     }
                     onEditWeight={({ exIdx, set, exercise, ...setInfo }) =>
                       openPlateCalculatorForSet(slot.id, exIdx, set, exercise.name, null, setInfo)

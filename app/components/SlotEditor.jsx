@@ -20,6 +20,10 @@ import {
   getAvailableMuscleGroupsForCategory,
   doesExerciseInteractWithMuscleGroup,
   stripEquipmentFromExerciseName,
+  isBandEquipment,
+  getSetBandColor,
+  BAND_COLORS,
+  BAND_COLOR_HEX,
   getExerciseEquipmentOptions,
   getAllEquipmentFilterOptions,
   getUniqueShortExerciseNames,
@@ -187,6 +191,8 @@ function PrBadge({ marginRight = '6px' }) {
  * - onEditWeight({ exIdx, set, exercise, exerciseId, equipment, lastDisplay, showOneRepMax, setReps, prValue,
  *   prWorkoutId }): CURRENT weight pop-up; LAST and the 1RM box (PR / CURRENT, links to the PR's History entry)
  *   are shown there; no 1RM box for Timer sets
+ * - onSetBandColor({ exIdx, set, color }): band exercises show RED / PURPLE instead of a weight; tapping the
+ *   cell switches colour
  * - onToggleDone({ exIdx, set }), onDeleteSet({ exIdx, set, exercise })
  * - onReorderSets(exIdx, fromIdx, toIdx), onInsertSet('top' | 'bottom')
  * - actionLabel / onAction / actionTone ('recalculate' | 'calculate'): third bottom button
@@ -206,6 +212,7 @@ export function SlotEditor({
   removeLabel = 'Remove exercise',
   onEditSetValue,
   onEditWeight,
+  onSetBandColor,
   onToggleDone,
   onDeleteSet,
   onReorderSets,
@@ -593,6 +600,9 @@ export function SlotEditor({
   const renderSetRow = ({ exIdx, exId, set: st, setIdx, total }) => {
     const rowScheme = schemes[exIdx] || schemes[0];
     const isTimerScheme = rowScheme === 'Timer';
+    // Band exercises are loaded by band colour (RED / PURPLE) instead of weight
+    const isBandSet = isBandEquipment(pickerState(exIdx).equipment);
+    const bandColor = getSetBandColor(st);
     const exObj = EXERCISE_MAP[exId] || EXERCISE_LIBRARY[0];
     const curType = normalizeSetType(st.type);
     const base1RM = getBase1RM ? getBase1RM(exId) : getHistoricalCalculated1RM(exId, history, oneRepMaxes);
@@ -705,6 +715,23 @@ export function SlotEditor({
               </span>
             </button>
 
+            {isBandSet ? (
+            <button
+              type="button"
+              aria-label={`Band colour: ${bandColor}. Tap to switch`}
+              onClick={() =>
+                onSetBandColor?.({
+                  exIdx,
+                  set: st,
+                  color: BAND_COLORS[(BAND_COLORS.indexOf(bandColor) + 1) % BAND_COLORS.length]
+                })
+              }
+              style={{ ...setCellStyle(cellBg), cursor: 'pointer', overflow: 'hidden' }}
+            >
+              <span style={cellLabelStyle}>BAND</span>
+              <span style={cellValueStyle(BAND_COLOR_HEX[bandColor])}>{bandColor.toUpperCase()}</span>
+            </button>
+            ) : (
             <button
               type="button"
               aria-label="Current Weight"
@@ -729,6 +756,7 @@ export function SlotEditor({
               <span style={cellLabelStyle}>CURRENT</span>
               <span style={cellValueStyle('var(--dp-color-accent)')}>{st.weight}</span>
             </button>
+            )}
 
             <button
               type="button"

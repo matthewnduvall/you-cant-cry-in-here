@@ -1232,6 +1232,8 @@ export function useWorkoutMutations({
 
         const applyFieldChange = (st, exId, totalCount, sIdx, listScheme = slot.scheme) => {
           if (st.id !== setId) return st;
+          // Band exercises: the load is a band colour, not a weight
+          if (field === 'bandColor') return { ...st, bandColor: rawVal };
           const calc1RM = getHistoricalCalculated1RM(exId, history, oneRepMaxes);
           const lastW =
             st.lastWeight !== undefined

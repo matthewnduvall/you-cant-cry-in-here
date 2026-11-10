@@ -330,6 +330,7 @@ export function OneRepMaxCalculatorModal({
               setInfo
             )
           }
+          onSetBandColor={({ set, color }) => updateSet(set.id, 'bandColor', color)}
           onToggleDone={({ set }) => updateSet(set.id, 'completed', !set.completed)}
           onDeleteSet={({ set }) => deleteSet(set.id)}
           onReorderSets={(_, fromIdx, toIdx) => reorderSets(fromIdx, toIdx)}
