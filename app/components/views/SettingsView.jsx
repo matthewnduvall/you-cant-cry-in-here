@@ -82,7 +82,7 @@ export function SettingsView({
         </IOSListRow>
 
         <IOSListRow colors={colors}>
-          <span style={{ fontSize: '14px', fontWeight: 800, color: '#FFD60A' }}>YELLOW (READY)</span>
+          <span style={{ fontSize: '14px', fontWeight: 800, color: '#FFD60A' }}>YELLOW (RECOVERED)</span>
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
             <input
               type="number"
@@ -98,7 +98,7 @@ export function SettingsView({
         </IOSListRow>
 
         <IOSListRow isLast={true} colors={colors} style={{ opacity: 0.5 }}>
-          <span style={{ fontSize: '14px', fontWeight: 800, color: '#FF3B30' }}>RED (HIGH PRIORITY)</span>
+          <span style={{ fontSize: '14px', fontWeight: 800, color: '#FF3B30' }}>RED (OVERDUE)</span>
           <span style={{ fontSize: '13px', fontWeight: 800, color: '#A0A0A0' }}>
             {Number(stimulusYellowDays) + 1}+ DAYS (AUTO)
           </span>

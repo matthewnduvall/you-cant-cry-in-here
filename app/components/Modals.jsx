@@ -322,6 +322,7 @@ export function PlateCalculatorModal({
   calcUnit,
   calcIsSingleLoad,
   calcBarWeight,
+  calcBarLabel = 'Barbell',
   calcPlatesPerSide,
   setCalcPlatesPerSide,
   setCalcTotalFromInput,
@@ -490,7 +491,7 @@ export function PlateCalculatorModal({
                 <span style={{ fontSize: '11px', color: '#888888' }}>
                   {calcIsSingleLoad
                     ? 'Dumbbell — tap weights above (no bar, not doubled)'
-                    : `Barbell (${calcBarWeight} lb) — tap plates above (per side)`}
+                    : `${calcBarLabel} (${calcBarWeight} lb) — tap plates above (per side)`}
                 </span>
               ) : (
                 [...calcPlatesPerSide]

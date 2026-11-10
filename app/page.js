@@ -414,6 +414,7 @@ export default function App() {
     calcUnit,
     calcIsSingleLoad,
     calcBarWeight,
+    calcBarLabel,
     calcPlatesPerSide,
     setCalcPlatesPerSide,
     setCalcTotalFromInput,
@@ -977,6 +978,7 @@ export default function App() {
           calcUnit={calcUnit}
           calcIsSingleLoad={calcIsSingleLoad}
           calcBarWeight={calcBarWeight}
+          calcBarLabel={calcBarLabel}
           calcPlatesPerSide={calcPlatesPerSide}
           setCalcPlatesPerSide={setCalcPlatesPerSide}
           setCalcTotalFromInput={setCalcTotalFromInput}
