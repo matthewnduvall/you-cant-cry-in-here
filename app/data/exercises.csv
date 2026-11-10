@@ -166,6 +166,7 @@ exrx_upper_arms_cable_triceps_dip,Cable Triceps Dip,Upper Arms,Accessory,Cable,C
 exrx_upper_arms_cable_triceps_extension,Cable Triceps Extension,Upper Arms,Accessory,Cable,Cable Machine,Triceps Brachii,false,80,
 exrx_upper_arms_cable_triceps_extension_with_rope,Cable Triceps Extension (with rope),Upper Arms,Accessory,Cable,Cable Machine,Triceps Brachii,false,80,
 cable_tricep_pushdown,Cable Triceps Pushdown,Upper Arms,Accessory,Cable,Cable Machine,Triceps Brachii,false,85,tricep_skullcrusher|dumbbell_overhead_extension
+band_tricep_pushdown,Band Triceps Pushdown,Upper Arms,Accessory,Band,Resistance Bands,Triceps Brachii,false,60,cable_tricep_pushdown|dumbbell_overhead_extension
 exrx_upper_arms_stretch_doorway_biceps_stretch,Doorway Biceps Stretch,Upper Arms,Accessory,Stretch,,Biceps Brachii,false,25,
 exrx_upper_arms_dumbbell_alternating_curl,Dumbbell Alternating Curl,Upper Arms,Accessory,Dumbbell,Dumbbell,Biceps Brachii|Brachialis,false,75,
 exrx_upper_arms_dumbbell_alternating_incline_curl,Dumbbell Alternating Incline Curl,Upper Arms,Accessory,Dumbbell,Dumbbell,Biceps Brachii|Brachialis,false,75,
