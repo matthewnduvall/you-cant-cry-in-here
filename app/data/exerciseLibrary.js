@@ -620,14 +620,100 @@ export const findEquivalentExerciseForGym = (exerciseId, gymSelectionId, customG
   return best ? best.id : null;
 };
 
-/** Exercise name for pickers that already show the equipment: drops "Barbell" / "Dumbbell(s)". */
+// Equipment words the pickers show through the equipment filter instead of in the exercise name
+const NAME_EQUIPMENT_WORD = '(?:barbell|dumbbells?|ez[- ]?bar|landmine)';
+const NAME_EQUIPMENT_WITH_SLASH_AFTER = new RegExp(`\\b${NAME_EQUIPMENT_WORD}\\b\\s*\\/\\s*`, 'gi');
+const NAME_EQUIPMENT_WITH_SLASH_BEFORE = new RegExp(`\\s*\\/\\s*\\b${NAME_EQUIPMENT_WORD}\\b`, 'gi');
+const NAME_EQUIPMENT_ALONE = new RegExp(`\\b${NAME_EQUIPMENT_WORD}\\b`, 'gi');
+
+/**
+ * Exercise name for pickers that already show the equipment: drops Barbell, Dumbbell(s), EZ-Bar and Landmine,
+ * including the slash that offered them as an option ("Barbell / EZ-Bar Preacher Curl" → "Preacher Curl").
+ */
 export const stripEquipmentFromExerciseName = name => {
   const stripped = String(name || '')
-    .replace(/\b(barbell|dumbbells?)\b/gi, ' ')
+    .replace(NAME_EQUIPMENT_WITH_SLASH_AFTER, ' ')
+    .replace(NAME_EQUIPMENT_WITH_SLASH_BEFORE, ' ')
+    .replace(NAME_EQUIPMENT_ALONE, ' ')
     .replace(/\s{2,}/g, ' ')
-    .replace(/^[\s-]+|[\s-]+$/g, '')
+    .replace(/^[\s/-]+|[\s/-]+$/g, '')
     .trim();
   return stripped || String(name || '');
+};
+
+const equipmentKey = word => String(word || '').toLowerCase().replace(/[^a-z]/g, '').replace(/s$/, '');
+
+/**
+ * Short picker label that stays unique within a list: the stripped name, plus the equipment words it dropped
+ * (other than the list's own equipment) when another exercise in the list strips to the same name —
+ * e.g. under Barbell, "Landmine Romanian Deadlift" → "Romanian Deadlift (Landmine)".
+ */
+export const getUniqueShortExerciseNames = (exercises = [], currentEquipment = '') => {
+  const shortName = ex => stripEquipmentFromExerciseName(ex.name);
+  const count = labels => {
+    const counts = {};
+    labels.forEach(label => {
+      counts[label.toLowerCase()] = (counts[label.toLowerCase()] || 0) + 1;
+    });
+    return counts;
+  };
+  const shortCounts = count(exercises.map(shortName));
+  const labels = exercises.map(ex => {
+    const short = shortName(ex);
+    if (shortCounts[short.toLowerCase()] < 2) return short;
+    const dropped = (String(ex.name).match(NAME_EQUIPMENT_ALONE) || []).filter(
+      word => equipmentKey(word) !== equipmentKey(currentEquipment)
+    );
+    return dropped.length > 0 ? `${short} (${dropped.join(' / ')})` : short;
+  });
+  // Still identical (true duplicates in the library): fall back to the full names
+  const labelCounts = count(labels);
+  const byId = {};
+  exercises.forEach((ex, i) => {
+    byId[ex.id] = labelCounts[labels[i].toLowerCase()] > 1 ? ex.name : labels[i];
+  });
+  return byId;
+};
+
+// "A / B" equipment means either works, so the exercise is listed under both A and B in the equipment filter.
+// "Lever / Machine" names a single kind of machine, so it stays one option.
+const EQUIPMENT_KEPT_WHOLE = new Set(['lever / machine']);
+const EQUIPMENT_OPTION_ALIASES = { 'weight plates': 'Plate' };
+
+// Equipment-only gym presets: which equipment options they allow (custom gyms and Full Gym allow all)
+const PRESET_EQUIPMENT_OPTION_WORDS = {
+  preset_barbells_only: ['barbell', 'ez bar', 'landmine'],
+  barbell: ['barbell', 'ez bar', 'landmine'],
+  preset_dumbbells_only: ['dumbbell'],
+  dumbbell: ['dumbbell'],
+  preset_kettlebells_only: ['kettlebell'],
+  kettlebell: ['kettlebell'],
+  preset_bodyweight_only: ['bodyweight', 'body weight', 'isometric', 'stretch', 'plyometric', 'self-assisted'],
+  bodyweight: ['bodyweight', 'body weight', 'isometric', 'stretch', 'plyometric', 'self-assisted']
+};
+
+/**
+ * Equipment options of an exercise that the gym selection allows, e.g. "Dumbbell / Barbell" under Barbells Only
+ * → ["Barbell"]. Falls back to all of the exercise's options when none match.
+ */
+export const getExerciseEquipmentOptionsForGym = (ex, gymSelectionId) => {
+  const options = getExerciseEquipmentOptions(ex);
+  const words = PRESET_EQUIPMENT_OPTION_WORDS[gymSelectionId || ''];
+  if (!words) return options;
+  const allowed = options.filter(option => words.some(word => option.toLowerCase().includes(word)));
+  return allowed.length > 0 ? allowed : options;
+};
+
+/** Equipment filter options an exercise belongs to, e.g. "Landmine / Barbell" → ["Landmine", "Barbell"]. */
+export const getExerciseEquipmentOptions = ex => {
+  const raw = String(ex?.equipment || 'Bodyweight').trim();
+  if (EQUIPMENT_KEPT_WHOLE.has(raw.toLowerCase())) return [raw];
+  const options = raw
+    .split('/')
+    .map(part => part.trim())
+    .filter(Boolean)
+    .map(part => EQUIPMENT_OPTION_ALIASES[part.toLowerCase()] || part);
+  return options.length > 0 ? [...new Set(options)] : ['Bodyweight'];
 };
 
 /** The exercise in `pool` most similar to `exerciseId` (same movement, then same muscles), or pool[0]. */

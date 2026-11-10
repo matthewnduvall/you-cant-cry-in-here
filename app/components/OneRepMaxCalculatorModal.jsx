@@ -77,6 +77,8 @@ export function OneRepMaxCalculatorModal({
 
   const handleHeaderChange = changes => {
     setSlot(prev => {
+      // Equipment filter only (the exercise already allows it): keep the sets as they are
+      if (Object.keys(changes).every(key => key === 'equipmentFilter')) return { ...prev, ...changes };
       const next = { ...prev, ...changes };
       next.category = normalizeSlotCategory(next.category);
 
