@@ -435,6 +435,27 @@ export default function App() {
     return () => window.removeEventListener('popstate', onPopState);
   }, [openedFromRoutines]);
 
+  // Opens a logged workout on the PROGRESS page (expanded) and scrolls it into view below the sticky header
+  const openHistoryWorkout = workoutId => {
+    if (!workoutId) return;
+    setRoutineSelectReturnView(null);
+    setConfirmedHistoryEditWorkoutId(null);
+    setExpandedHistoryWorkoutId(workoutId);
+    setCurrentView('history');
+    let tries = 0;
+    const scrollToEntry = () => {
+      const el = document.getElementById(`history-entry-${workoutId}`);
+      if (!el) {
+        if (tries++ < 20) setTimeout(scrollToEntry, 100);
+        return;
+      }
+      const headerHeight = document.querySelector('header')?.offsetHeight || 0;
+      const top = el.getBoundingClientRect().top + window.scrollY - headerHeight - 8;
+      window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
+    };
+    setTimeout(scrollToEntry, 50);
+  };
+
   const buildHistoryWorkoutEditorProps = historyWorkout => ({
     colors,
     currentView: 'history',
@@ -600,6 +621,22 @@ export default function App() {
             />
           )}
 
+          {/* PROGRESS page: chart, then Personal Records + logged History (view id 'history') */}
+          {currentView === 'history' && (
+            <ProgressionChartView
+              colors={colors}
+              chartMetric={chartMetric}
+              setChartMetric={setChartMetric}
+              selectedChartLift={selectedChartLift}
+              setSelectedChartLift={setSelectedChartLift}
+              progressionSeriesByLift={progressionSeriesByLift}
+              oneRepMaxes={effectiveOneRepMaxes}
+              targetStandardClass={targetStandardClass}
+              userBodyweightLbs={userBodyweightLbs}
+              totalHeightInches={totalHeightInches}
+              customGoalWeights={customGoalWeights}
+            />
+          )}
           {currentView === 'history' && (
             <HistoryView
               colors={colors}
@@ -683,21 +720,6 @@ export default function App() {
             />
           )}
 
-          {currentView === 'progression_chart' && (
-            <ProgressionChartView
-              colors={colors}
-              chartMetric={chartMetric}
-              setChartMetric={setChartMetric}
-              selectedChartLift={selectedChartLift}
-              setSelectedChartLift={setSelectedChartLift}
-              progressionSeriesByLift={progressionSeriesByLift}
-              oneRepMaxes={effectiveOneRepMaxes}
-              targetStandardClass={targetStandardClass}
-              userBodyweightLbs={userBodyweightLbs}
-              totalHeightInches={totalHeightInches}
-              customGoalWeights={customGoalWeights}
-            />
-          )}
 
           {currentView === 'stimulus_map' && (
             <StimulusMapView
@@ -918,6 +940,7 @@ export default function App() {
           prRecordDate={prRecordDate}
           setPrRecordDate={setPrRecordDate}
           handleApplyCalculatedWeight={handleApplyCalculatedWeight}
+          onOpenHistoryWorkout={openHistoryWorkout}
         />
 
         <SetValueEditorModal

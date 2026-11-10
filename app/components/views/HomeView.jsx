@@ -263,7 +263,7 @@ export function HomeView({
         </button>
       </div>
 
-      {/* PRIMARY ACTIONS: NEW SESSION, AUTO SESSION, HISTORY (SHARED BORDERS, ZERO GAPS) */}
+      {/* PRIMARY ACTIONS: NEW SESSION, AUTO SESSION (History lives on the PROGRESS page) */}
       <section
         style={{
           padding: '16px var(--dp-spacing-gutter)',
@@ -274,7 +274,7 @@ export function HomeView({
         <div
           style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+            gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
             gap: 0,
             borderTop: '1px solid var(--dp-color-rule)',
             borderLeft: '1px solid var(--dp-color-rule)'
@@ -343,42 +343,14 @@ export function HomeView({
             <span>AUTO SESSION</span>
           </button>
 
-          <button
-            type="button"
-            onClick={() => setCurrentView('history')}
-            className="kinetic-btn"
-            style={{
-              height: '46px',
-              boxSizing: 'border-box',
-              padding: '0 6px',
-              backgroundColor: '#161616',
-              color: '#FFFFFF',
-              borderTop: 'none',
-              borderLeft: 'none',
-              borderRight: '1px solid var(--dp-color-rule)',
-              borderBottom: '1px solid var(--dp-color-rule)',
-              fontWeight: 800,
-              fontSize: '12px',
-              letterSpacing: '-0.02em',
-              lineHeight: 1,
-              whiteSpace: 'nowrap',
-              textTransform: 'uppercase',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              textAlign: 'center',
-              cursor: 'pointer'
-            }}
-          >
-            <span>HISTORY</span>
-          </button>
         </div>
       </section>
 
       {/* STATS SECTION ON HOME SCREEN */}
       <IOSListSection header="STATS" colors={colors}>
         {[
-          { id: 'progression_chart', idx: '01', title: 'PROGRESS', sub: 'Big 3 + OHP Weight & Volume Graphed Trends', num: '01' },
+          // PROGRESS is one page with the chart, Personal Records and logged History (view id 'history')
+          { id: 'history', idx: '01', title: 'PROGRESS', sub: 'Trends, Personal Records & Workout History', num: '01' },
           { id: 'stimulus_map', idx: '02', title: 'STIMULUS', sub: 'Recovery Windows & Muscle Readiness', num: '02' },
           { id: 'leaderboard', idx: '03', title: 'LEADERBOARD', sub: 'Big 3 + OHP Community Standings', num: '03' },
           { id: 'social', idx: '04', title: 'SOCIAL', sub: `${friendsList.length} Friends • ${pendingIncomingRequests.length} Pending Request`, num: '04' }

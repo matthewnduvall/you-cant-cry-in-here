@@ -75,7 +75,8 @@ export function usePlateCalculator({
     decomposeWeightToPlates(weight, plateCalcTarget?.exerciseId, plateCalcTarget?.equipment);
   };
 
-  // setInfo: { lastDisplay, incrementDisplay, onEditIncrement } from SlotEditor, shown in the TOTAL WEIGHT box
+  // setInfo from SlotEditor, shown around TOTAL WEIGHT:
+  // { lastDisplay, showOneRepMax, setReps, sessionSets, prValue, prWorkoutId }
   const openPlateCalculatorForSet = (slotId, exIndex, setItem, exerciseName, onApplyCustom = null, setInfo = {}) => {
     decomposeWeightToPlates(Number(setItem.weight) || 135, setInfo.exerciseId, setInfo.equipment);
     setPlateCalcTarget({
@@ -89,8 +90,11 @@ export function usePlateCalculator({
       exerciseName,
       onApplyCustom,
       lastDisplay: setInfo.lastDisplay,
-      incrementDisplay: setInfo.incrementDisplay,
-      onEditIncrement: setInfo.onEditIncrement
+      showOneRepMax: setInfo.showOneRepMax,
+      setReps: setInfo.setReps,
+      sessionSets: setInfo.sessionSets,
+      prValue: setInfo.prValue,
+      prWorkoutId: setInfo.prWorkoutId
     });
   };
 
