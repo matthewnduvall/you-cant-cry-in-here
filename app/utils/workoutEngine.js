@@ -15,7 +15,8 @@ import {
   formatTodayYMD,
   parseYMDToISO,
   roundTo5,
-  roundToIncrement
+  roundToIncrement,
+  stripEquipmentFromExerciseName
 } from '../data/exerciseLibrary';
 
 export const SET_TYPES_LIST = ['Warmup', 'Working', 'Top Out', 'Burn Out', '1 Rep Max'];
@@ -673,6 +674,7 @@ export const cloneSlots = slots => {
   return JSON.parse(JSON.stringify(slots));
 };
 
+// Session header NEXT bar: short exercise name (no Barbell / Dumbbell…) and 'SET 1 • 172.5 LB × 5' so it fits at phone width
 export const getNextIncompleteSetInfo = slots => {
   if (!Array.isArray(slots) || slots.length === 0) {
     return {
@@ -689,14 +691,14 @@ export const getNextIncompleteSetInfo = slots => {
         for (let exIdx = 0; exIdx < Math.min(2, slot.supersetSetsByExercise.length); exIdx++) {
           const st = slot.supersetSetsByExercise[exIdx]?.[sIdx];
           if (st && !st.completed) {
-            const exName = EXERCISE_MAP[ids[exIdx]]?.name || ids[exIdx] || 'Lift';
-            const repOrTime = isTimer ? getSetTimerMMSS(st, true) : `${st.reps} REPS`;
+            const exName = stripEquipmentFromExerciseName(EXERCISE_MAP[ids[exIdx]]?.name || ids[exIdx] || 'Lift');
+            const repOrTime = isTimer ? getSetTimerMMSS(st, true) : `${st.reps}`;
             const load = isBandEquipment(getSlotEquipmentChoice(slot, exIdx))
               ? `${getSetBandColor(st).toUpperCase()} BAND`
               : `${st.weight} LB`;
             return {
               topLine: `NEXT: ${exName.toUpperCase()}`,
-              bottomLine: `SET #${st.setNumber} • ${load} × ${repOrTime}`
+              bottomLine: `SET ${st.setNumber} • ${load} × ${repOrTime}`
             };
           }
         }
@@ -704,15 +706,15 @@ export const getNextIncompleteSetInfo = slots => {
     } else if (Array.isArray(slot.sets)) {
       for (const st of slot.sets) {
         if (st && !st.completed) {
-          const exName = EXERCISE_MAP[slot.exerciseId]?.name || slot.exerciseId || 'Lift';
-          const repOrTime = isTimer ? getSetTimerMMSS(st, true) : `${st.reps} REPS`;
+          const exName = stripEquipmentFromExerciseName(EXERCISE_MAP[slot.exerciseId]?.name || slot.exerciseId || 'Lift');
+          const repOrTime = isTimer ? getSetTimerMMSS(st, true) : `${st.reps}`;
           const load = isBandEquipment(getSlotEquipmentChoice(slot, 0))
             ? `${getSetBandColor(st).toUpperCase()} BAND`
             : `${st.weight} LB`;
           const loadStr = `${load} × ${repOrTime}`;
           return {
             topLine: `NEXT: ${exName.toUpperCase()}`,
-            bottomLine: `SET #${st.setNumber} • ${loadStr}`
+            bottomLine: `SET ${st.setNumber} • ${loadStr}`
           };
         }
       }

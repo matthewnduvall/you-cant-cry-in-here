@@ -63,6 +63,7 @@ export function RoutinesView({
         {/* EQUIPMENT DROPDOWN AT TOP OF ROUTINES SELECTION */}
 <GymSelect
           variant="tile"
+          tileLabel="FILTER BY EQUIPMENT"
           ariaLabel="Filter routines by equipment"
           value={selectedGymId}
           onChange={id => setSelectedGymId?.(id)}

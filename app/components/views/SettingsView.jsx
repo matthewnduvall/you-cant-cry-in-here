@@ -3,7 +3,8 @@
 import React, { useState } from 'react';
 import { UI } from '../../styles/kineticTokens';
 import { IOSListSection, IOSListRow } from '../Primitives';
-import { Button, CollapseToggle } from '../Controls';
+import { Button, CollapseToggle, DragNumberBadge } from '../Controls';
+import { usePointerReorder } from '../../hooks/usePointerReorder';
 
 /** BODY METRICS: bodyweight row + height row (Settings and the Configuration page's BODY METRICS tab). */
 export function BodyMetricsSection({
@@ -52,9 +53,12 @@ export function BodyMetricsSection({
 /** STIMULUS thresholds (green / yellow days; red = yellow + 1). Shown on the Stimulus page. */
 export function StimulusSettingsSection({ colors, stimulusGreenDays, setStimulusGreenDays, stimulusYellowDays, setStimulusYellowDays }) {
   return (
-    <IOSListSection header="STIMULUS THRESHOLDS" footer="Red threshold is automatically set to Yellow + 1 day." colors={colors}>
+    <IOSListSection header="STIMULUS THRESHOLDS" footer="OVERDUE starts the day after RECOVERED ends." colors={colors}>
       <IOSListRow colors={colors}>
-        <span style={{ fontSize: '14px', fontWeight: 800, color: '#30D158' }}>GREEN (RECOVERING)</span>
+<span style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', fontWeight: 800, color: '#30D158' }}>
+          <svg width="14" height="14" aria-hidden="true"><rect width="14" height="14" fill="#30D158" /></svg>
+          RECOVERING
+        </span>
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
           <input
             type="number"
@@ -68,7 +72,10 @@ export function StimulusSettingsSection({ colors, stimulusGreenDays, setStimulus
       </IOSListRow>
 
       <IOSListRow colors={colors}>
-        <span style={{ fontSize: '14px', fontWeight: 800, color: '#FFD60A' }}>YELLOW (RECOVERED)</span>
+<span style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', fontWeight: 800, color: '#FFD60A' }}>
+          <svg width="14" height="14" aria-hidden="true"><rect width="14" height="14" fill="#FFD60A" /><rect width="14" height="14" fill="url(#stim-dots)" /></svg>
+          RECOVERED
+        </span>
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
           <input
             type="number"
@@ -83,8 +90,11 @@ export function StimulusSettingsSection({ colors, stimulusGreenDays, setStimulus
         </div>
       </IOSListRow>
 
-      <IOSListRow isLast={true} colors={colors} style={{ opacity: 0.5 }}>
-        <span style={{ fontSize: '14px', fontWeight: 800, color: '#FF3B30' }}>RED (OVERDUE)</span>
+      <IOSListRow isLast={true} colors={colors}>
+        <span style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', fontWeight: 800, color: '#FF3B30' }}>
+          <svg width="14" height="14" aria-hidden="true"><rect width="14" height="14" fill="#FF3B30" /><rect width="14" height="14" fill="url(#stim-stripes)" /></svg>
+          OVERDUE
+        </span>
         <span style={{ fontSize: '13px', fontWeight: 800, color: '#A0A0A0' }}>
           {Number(stimulusYellowDays) + 1}+ DAYS (AUTO)
         </span>
@@ -95,57 +105,61 @@ export function StimulusSettingsSection({ colors, stimulusGreenDays, setStimulus
 
 /** ROUTINE PREFERENCES: the order of exercise types AUTO SESSION / + ADD EXERCISE fill. Configuration → ROUTINES. */
 export function RoutinePreferencesSection({ colors, routinePreferences, setRoutinePreferences }) {
+  // Drag a row's grippy handle to reorder (same handle as exercises and sets; works with touch)
+  const { dragIndex, overIndex, handleProps } = usePointerReorder((from, to) =>
+    setRoutinePreferences(prev => {
+      const copy = [...prev];
+      const [moved] = copy.splice(from, 1);
+      copy.splice(to, 0, moved);
+      return copy;
+    })
+  );
   return (
     <IOSListSection
       header="ROUTINE PREFERENCES"
-      footer="The order of exercise types used by AUTO SESSION and + ADD EXERCISE."
+      footer="The order of exercise types used by AUTO SESSION and + ADD EXERCISE. Drag a handle to reorder."
       colors={colors}
     >
       {routinePreferences.map((comp, idx) => (
-        <IOSListRow key={`${comp}_${idx}`} colors={colors}>
-          <span style={UI.rowTitle}>0{idx + 1} / {comp}</span>
-          <div style={{ display: 'flex', gap: '6px' }}>
-            <Button
-              variant="toggle"
-              style={{ width: '40px', height: '40px', padding: 0 }}
-              disabled={idx === 0}
-              onClick={() =>
-                setRoutinePreferences(prev => {
-                  const copy = [...prev];
-                  const tmp = copy[idx - 1];
-                  copy[idx - 1] = copy[idx];
-                  copy[idx] = tmp;
-                  return copy;
-                })
-              }
-            >
-              ↑
-            </Button>
-            <Button
-              variant="toggle"
-              style={{ width: '40px', height: '40px', padding: 0 }}
-              disabled={idx === routinePreferences.length - 1}
-              onClick={() =>
-                setRoutinePreferences(prev => {
-                  const copy = [...prev];
-                  const tmp = copy[idx + 1];
-                  copy[idx + 1] = copy[idx];
-                  copy[idx] = tmp;
-                  return copy;
-                })
-              }
-            >
-              ↓
-            </Button>
-            <Button
-              variant="toggle"
-              onClick={() => setRoutinePreferences(prev => prev.filter((_, i) => i !== idx))}
-              style={{ width: '40px', height: '40px', padding: 0, color: '#FF3B30' }}
-            >
-              ✕
-            </Button>
-          </div>
-        </IOSListRow>
+        <div
+          key={`${comp}_${idx}`}
+          data-reorder-index={idx}
+          style={{
+            display: 'grid',
+            gridTemplateColumns: '34px minmax(0, 1fr) 44px',
+            alignItems: 'stretch',
+            minHeight: '48px',
+            borderBottom: '1px solid var(--dp-color-rule)',
+            backgroundColor: overIndex === idx && dragIndex !== null && dragIndex !== idx ? '#1E1E22' : 'transparent',
+            opacity: dragIndex === idx ? 0.55 : 1
+          }}
+        >
+          <DragNumberBadge
+            label={idx + 1}
+            height="48px"
+            title="Drag to reorder"
+            aria-label={`Drag to reorder ${comp}`}
+            {...handleProps(idx)}
+          />
+          <span style={{ ...UI.rowTitle, display: 'flex', alignItems: 'center', padding: '0 12px' }}>{comp}</span>
+          <button
+            type="button"
+            aria-label={`Remove ${comp}`}
+            onClick={() => setRoutinePreferences(prev => prev.filter((_, i) => i !== idx))}
+            className="kinetic-btn"
+            style={{
+              background: 'none',
+              border: 'none',
+              borderLeft: '1px solid var(--dp-color-rule)',
+              color: '#8E8E93',
+              fontSize: '16px',
+              fontWeight: 800,
+              cursor: 'pointer'
+            }}
+          >
+            ✕
+          </button>
+        </div>
       ))}
 
       <IOSListRow isLast={true} colors={colors}>

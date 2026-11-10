@@ -295,28 +295,7 @@ export function ProgressionChartView({
               ...SHARED_CELL_BORDER
             }}
           >
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', marginBottom: '8px' }}>
-              {activeLifts.map(id => {
-                const meta = liftMeta[id] || {
-                  short: formatProgressExerciseLabel(id, EXERCISE_MAP[id]?.name || id),
-                  color: '#00E5FF'
-                };
-                return (
-                  <div key={id} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <span
-                      style={{
-                        width: '10px',
-                        height: '10px',
-                        backgroundColor: meta.color,
-                        display: 'inline-block'
-                      }}
-                    />
-                    <span style={{ fontSize: '11px', fontWeight: 800, color: '#FFFFFF' }}>{meta.short}</span>
-                  </div>
-                );
-              })}
-            </div>
-
+            {/* No separate legend: the lift toggles above carry each line's colour */}
             <svg
               viewBox={`0 0 ${svgW} ${svgH}`}
               style={{
