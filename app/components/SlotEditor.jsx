@@ -106,7 +106,10 @@ const cellValueStyle = (color = '#FFFFFF', size = '15px') => ({
 const bottomBtnStyle = (bg, color) => ({
   height: '40px',
   boxSizing: 'border-box',
-  padding: '0 8px',
+  padding: '0 4px',
+  whiteSpace: 'nowrap',
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
   backgroundColor: bg,
   color,
   ...SHARED_CELL_BORDER,
@@ -837,7 +840,16 @@ export function SlotEditor({
 
         {footer}
 
-        <div style={{ display: 'grid', gridTemplateColumns: onRemove ? 'repeat(4, minmax(0, 1fr))' : 'repeat(3, minmax(0, 1fr))', gap: 0 }}>
+        {/* + SET ^ · + SET ⌄ · RECALCULATE (widest label gets the most room) · DELETE — white text, DELETE red */}
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: onRemove
+              ? 'minmax(0, 0.9fr) minmax(0, 0.9fr) minmax(0, 1.3fr) minmax(0, 0.9fr)'
+              : 'minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.3fr)',
+            gap: 0
+          }}
+        >
           <button
             type="button"
             className="kinetic-btn"
@@ -852,7 +864,7 @@ export function SlotEditor({
             className="kinetic-btn"
             aria-label="Add set at bottom"
             onClick={() => onInsertSet?.('bottom')}
-            style={bottomBtnStyle('#161618', 'var(--dp-color-accent)')}
+            style={bottomBtnStyle('#161618', '#FFFFFF')}
           >
             + SET ⌄
           </button>
@@ -860,7 +872,7 @@ export function SlotEditor({
             type="button"
             className="kinetic-btn"
             onClick={() => onAction?.()}
-            style={actionTone === 'calculate' ? bottomBtnStyle('#30D158', '#000000') : bottomBtnStyle('#121E15', '#30D158')}
+            style={actionTone === 'calculate' ? bottomBtnStyle('#30D158', '#000000') : bottomBtnStyle('#161618', '#FFFFFF')}
           >
             {actionLabel}
           </button>

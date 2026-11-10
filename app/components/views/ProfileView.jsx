@@ -301,6 +301,9 @@ export function ProfileView({
           <RoutinesView colors={colors} showCancel={false} {...routinesProps} />
         ))}
 
+      {/* FRIENDS tab: same breathing room under the tabs as PERFORMANCE / ROUTINES */}
+      {profileTab === 'friends' && <div style={{ height: '16px' }} />}
+
       {profileTab === 'friends' && !isFriend && (
         <IOSListSection header={`FRIENDS (${(friendsList || []).length})`} colors={colors}>
           {(friendsList || []).length === 0 ? (
@@ -328,7 +331,7 @@ export function ProfileView({
 
       {profileTab === 'friends' && isFriend && (
         <IOSListSection
-          header={`@${profUser.username}'S FRIENDS`}
+          header={`@${profUser.username}'S FRIENDS${friendsOfFriend?.ok ? ` (${friendsOfFriend.friends.length})` : ''}`}
           colors={colors}
         >
           {!friendsOfFriend ? (
@@ -348,17 +351,19 @@ export function ProfileView({
               const status = requestStatusById[athlete.id] || athlete.relation;
               return (
                 <IOSListRow key={athlete.id} isLast={i === friendsOfFriend.friends.length - 1} colors={colors}>
-                  <span style={{ fontSize: '14px', fontWeight: 800, textTransform: 'uppercase' }}>@{athlete.username}</span>
+                  <span style={{ fontSize: '15px', fontWeight: 800, textTransform: 'uppercase', minWidth: 0, overflowWrap: 'anywhere' }}>
+                    @{athlete.username}
+                  </span>
                   {status === 'friends' ? (
-                    <span style={{ fontSize: '11px', fontWeight: 800, color: '#30D158' }}>FRIENDS ✓</span>
+                    <span style={{ fontSize: '12px', fontWeight: 800, color: '#30D158', flexShrink: 0 }}>FRIENDS ✓</span>
                   ) : status === 'requested' ? (
-                    <span style={{ fontSize: '11px', fontWeight: 800, color: '#A0A0A0' }}>REQUESTED</span>
+                    <span style={{ fontSize: '12px', fontWeight: 800, color: '#A0A0A0', flexShrink: 0 }}>REQUESTED</span>
                   ) : (
                     <Button
                       variant="primary"
                       disabled={status === 'sending'}
                       onClick={() => handleRequestFriend(athlete)}
-                      style={{ width: 'auto', flexShrink: 0, padding: '6px 12px', fontSize: '11px', border: '2px solid var(--dp-color-rule)' }}
+                      style={{ width: 'auto', minWidth: '96px', minHeight: '40px', flexShrink: 0, padding: '0 14px', fontSize: '12px', border: '2px solid var(--dp-color-rule)' }}
                     >
                       {status === 'sending'
                         ? 'SENDING…'

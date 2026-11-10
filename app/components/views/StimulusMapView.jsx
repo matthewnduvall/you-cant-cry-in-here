@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import { IOSListSection, IOSListRow } from '../Primitives';
 import { StimulusSettingsSection } from './SettingsView';
 
@@ -9,11 +9,27 @@ import { StimulusSettingsSection } from './SettingsView';
 const statusPattern = label =>
   /OVERDUE/.test(label || '') ? 'url(#stim-stripes)' : /RECOVERED/.test(label || '') ? 'url(#stim-dots)' : null;
 
-function MuscleRect({ status, strokeWidth, ...rect }) {
+// One body part on the map. Tapping (or Enter / Space) selects its muscle group: the readout under the map
+// names it and says when it was last trained, and every box of that group gets a white outline.
+function MuscleRect({ group, statusMap, selected, onSelect, strokeWidth, ...rect }) {
+  const status = statusMap?.[group];
   const pattern = statusPattern(status?.label);
   return (
-    <g>
-      <rect {...rect} fill={status?.color || '#4A4A50'} stroke="#101010" strokeWidth={strokeWidth} />
+    <g
+      role="button"
+      tabIndex={0}
+      aria-label={`${group}: ${status?.label || 'UNLOGGED'}`}
+      aria-pressed={selected}
+      onClick={() => onSelect?.(group)}
+      onKeyDown={e => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onSelect?.(group);
+        }
+      }}
+      style={{ cursor: 'pointer', outline: 'none' }}
+    >
+      <rect {...rect} fill={status?.color || '#4A4A50'} stroke={selected ? '#FFFFFF' : '#101010'} strokeWidth={selected ? 2.5 : strokeWidth} />
       {pattern && <rect {...rect} fill={pattern} stroke="none" pointerEvents="none" />}
     </g>
   );
@@ -52,6 +68,15 @@ export function StimulusMapView({
   setStimulusYellowDays,
   muscleStimulusStatus
 }) {
+  // Tapped muscle group (null = none yet)
+  const [selectedGroup, setSelectedGroup] = useState(null);
+  const part = group => ({
+    group,
+    statusMap: muscleStimulusStatus,
+    selected: selectedGroup === group,
+    onSelect: g => setSelectedGroup(prev => (prev === g ? null : g))
+  });
+  const selectedStatus = selectedGroup ? muscleStimulusStatus?.[selectedGroup] : null;
   return (
     <div style={{ paddingTop: '14px' }}>
       <StimulusPatternDefs />
@@ -92,7 +117,7 @@ export function StimulusMapView({
         }
         colors={colors}
       >
-        <IOSListRow isLast={true} colors={colors}>
+        <IOSListRow colors={colors}>
           <div style={{ width: '100%', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', padding: '8px 0' }}>
             <div
               style={{
@@ -105,23 +130,23 @@ export function StimulusMapView({
               </div>
               <svg viewBox="0 0 120 230" style={{ width: '100%', maxWidth: '135px', height: 'auto' }}>
                 <rect x="50" y="6" width="20" height="22" fill="#262626" stroke="#5C5C5C" strokeWidth="1.5" />
-                <MuscleRect x="54" y="28" width="12" height="8" status={muscleStimulusStatus.Neck} strokeWidth="1" />
-                <MuscleRect x="22" y="36" width="16" height="22" status={muscleStimulusStatus.Shoulders} strokeWidth="1.5" />
-                <MuscleRect x="82" y="36" width="16" height="22" status={muscleStimulusStatus.Shoulders} strokeWidth="1.5" />
-                <MuscleRect x="38" y="36" width="21" height="28" status={muscleStimulusStatus.Chest} strokeWidth="1.5" />
-                <MuscleRect x="61" y="36" width="21" height="28" status={muscleStimulusStatus.Chest} strokeWidth="1.5" />
-                <MuscleRect x="18" y="60" width="15" height="24" status={muscleStimulusStatus['Upper Arms']} strokeWidth="1.5" />
-                <MuscleRect x="87" y="60" width="15" height="24" status={muscleStimulusStatus['Upper Arms']} strokeWidth="1.5" />
-                <MuscleRect x="18" y="85" width="15" height="23" status={muscleStimulusStatus.Forearms} strokeWidth="1.5" />
-                <MuscleRect x="87" y="85" width="15" height="23" status={muscleStimulusStatus.Forearms} strokeWidth="1.5" />
-                <MuscleRect x="40" y="66" width="40" height="46" status={muscleStimulusStatus.Waist} strokeWidth="1.5" />
+                <MuscleRect x="54" y="28" width="12" height="8" {...part('Neck')} strokeWidth="1" />
+                <MuscleRect x="22" y="36" width="16" height="22" {...part('Shoulders')} strokeWidth="1.5" />
+                <MuscleRect x="82" y="36" width="16" height="22" {...part('Shoulders')} strokeWidth="1.5" />
+                <MuscleRect x="38" y="36" width="21" height="28" {...part('Chest')} strokeWidth="1.5" />
+                <MuscleRect x="61" y="36" width="21" height="28" {...part('Chest')} strokeWidth="1.5" />
+                <MuscleRect x="18" y="60" width="15" height="24" {...part('Upper Arms')} strokeWidth="1.5" />
+                <MuscleRect x="87" y="60" width="15" height="24" {...part('Upper Arms')} strokeWidth="1.5" />
+                <MuscleRect x="18" y="85" width="15" height="23" {...part('Forearms')} strokeWidth="1.5" />
+                <MuscleRect x="87" y="85" width="15" height="23" {...part('Forearms')} strokeWidth="1.5" />
+                <MuscleRect x="40" y="66" width="40" height="46" {...part('Waist')} strokeWidth="1.5" />
                 <line x1="60" y1="66" x2="60" y2="112" stroke="#101010" strokeWidth="1.5" />
                 <line x1="40" y1="81" x2="80" y2="81" stroke="#101010" strokeWidth="1.5" />
                 <line x1="40" y1="96" x2="80" y2="96" stroke="#101010" strokeWidth="1.5" />
-                <MuscleRect x="38" y="116" width="20" height="58" status={muscleStimulusStatus.Thighs} strokeWidth="1.5" />
-                <MuscleRect x="62" y="116" width="20" height="58" status={muscleStimulusStatus.Thighs} strokeWidth="1.5" />
-                <MuscleRect x="40" y="177" width="16" height="44" status={muscleStimulusStatus.Calves} strokeWidth="1.5" />
-                <MuscleRect x="64" y="177" width="16" height="44" status={muscleStimulusStatus.Calves} strokeWidth="1.5" />
+                <MuscleRect x="38" y="116" width="20" height="58" {...part('Thighs')} strokeWidth="1.5" />
+                <MuscleRect x="62" y="116" width="20" height="58" {...part('Thighs')} strokeWidth="1.5" />
+                <MuscleRect x="40" y="177" width="16" height="44" {...part('Calves')} strokeWidth="1.5" />
+                <MuscleRect x="64" y="177" width="16" height="44" {...part('Calves')} strokeWidth="1.5" />
               </svg>
             </div>
 
@@ -136,24 +161,49 @@ export function StimulusMapView({
               </div>
               <svg viewBox="0 0 120 230" style={{ width: '100%', maxWidth: '135px', height: 'auto' }}>
                 <rect x="50" y="6" width="20" height="22" fill="#262626" stroke="#5C5C5C" strokeWidth="1.5" />
-                <MuscleRect x="54" y="28" width="12" height="8" status={muscleStimulusStatus.Neck} strokeWidth="1" />
-                <MuscleRect x="22" y="36" width="16" height="22" status={muscleStimulusStatus.Shoulders} strokeWidth="1.5" />
-                <MuscleRect x="82" y="36" width="16" height="22" status={muscleStimulusStatus.Shoulders} strokeWidth="1.5" />
-                <MuscleRect x="38" y="36" width="44" height="52" status={muscleStimulusStatus.Back} strokeWidth="1.5" />
+                <MuscleRect x="54" y="28" width="12" height="8" {...part('Neck')} strokeWidth="1" />
+                <MuscleRect x="22" y="36" width="16" height="22" {...part('Shoulders')} strokeWidth="1.5" />
+                <MuscleRect x="82" y="36" width="16" height="22" {...part('Shoulders')} strokeWidth="1.5" />
+                <MuscleRect x="38" y="36" width="44" height="52" {...part('Back')} strokeWidth="1.5" />
                 <line x1="60" y1="36" x2="60" y2="88" stroke="#101010" strokeWidth="1.5" />
-                <MuscleRect x="18" y="60" width="15" height="24" status={muscleStimulusStatus['Upper Arms']} strokeWidth="1.5" />
-                <MuscleRect x="87" y="60" width="15" height="24" status={muscleStimulusStatus['Upper Arms']} strokeWidth="1.5" />
-                <MuscleRect x="18" y="85" width="15" height="23" status={muscleStimulusStatus.Forearms} strokeWidth="1.5" />
-                <MuscleRect x="87" y="85" width="15" height="23" status={muscleStimulusStatus.Forearms} strokeWidth="1.5" />
-                <MuscleRect x="42" y="90" width="36" height="22" status={muscleStimulusStatus.Waist} strokeWidth="1.5" />
-                <MuscleRect x="38" y="114" width="21" height="24" status={muscleStimulusStatus.Hips} strokeWidth="1.5" />
-                <MuscleRect x="61" y="114" width="21" height="24" status={muscleStimulusStatus.Hips} strokeWidth="1.5" />
-                <MuscleRect x="38" y="140" width="20" height="36" status={muscleStimulusStatus.Thighs} strokeWidth="1.5" />
-                <MuscleRect x="62" y="140" width="20" height="36" status={muscleStimulusStatus.Thighs} strokeWidth="1.5" />
-                <MuscleRect x="40" y="178" width="16" height="43" status={muscleStimulusStatus.Calves} strokeWidth="1.5" />
-                <MuscleRect x="64" y="178" width="16" height="43" status={muscleStimulusStatus.Calves} strokeWidth="1.5" />
+                <MuscleRect x="18" y="60" width="15" height="24" {...part('Upper Arms')} strokeWidth="1.5" />
+                <MuscleRect x="87" y="60" width="15" height="24" {...part('Upper Arms')} strokeWidth="1.5" />
+                <MuscleRect x="18" y="85" width="15" height="23" {...part('Forearms')} strokeWidth="1.5" />
+                <MuscleRect x="87" y="85" width="15" height="23" {...part('Forearms')} strokeWidth="1.5" />
+                <MuscleRect x="42" y="90" width="36" height="22" {...part('Waist')} strokeWidth="1.5" />
+                <MuscleRect x="38" y="114" width="21" height="24" {...part('Hips')} strokeWidth="1.5" />
+                <MuscleRect x="61" y="114" width="21" height="24" {...part('Hips')} strokeWidth="1.5" />
+                <MuscleRect x="38" y="140" width="20" height="36" {...part('Thighs')} strokeWidth="1.5" />
+                <MuscleRect x="62" y="140" width="20" height="36" {...part('Thighs')} strokeWidth="1.5" />
+                <MuscleRect x="40" y="178" width="16" height="43" {...part('Calves')} strokeWidth="1.5" />
+                <MuscleRect x="64" y="178" width="16" height="43" {...part('Calves')} strokeWidth="1.5" />
               </svg>
             </div>
+          </div>
+        </IOSListRow>
+        <IOSListRow isLast={true} colors={colors}>
+          <div aria-live="polite" style={{ display: 'flex', alignItems: 'center', gap: '8px', minHeight: '24px', width: '100%' }}>
+            {selectedGroup ? (
+              <>
+                <StatusSwatch color={selectedStatus?.color || '#4A4A50'} pattern={statusPattern(selectedStatus?.label)} size={14} />
+                <span style={{ fontSize: '15px', fontWeight: 800, textTransform: 'uppercase' }}>{selectedGroup}</span>
+                <span
+                  style={{
+                    marginLeft: 'auto',
+                    fontSize: '12px',
+                    fontWeight: 800,
+                    textTransform: 'uppercase',
+                    color: !selectedStatus || selectedStatus.label === 'UNLOGGED' ? '#8E8E93' : selectedStatus.color
+                  }}
+                >
+                  {selectedStatus?.label === 'UNLOGGED' || !selectedStatus ? 'NOT LOGGED YET' : selectedStatus.label}
+                </span>
+              </>
+            ) : (
+              <span style={{ fontSize: '12px', fontWeight: 700, color: '#A0A0A0' }}>
+                Tap a muscle group to see when you last trained it.
+              </span>
+            )}
           </div>
         </IOSListRow>
       </IOSListSection>
