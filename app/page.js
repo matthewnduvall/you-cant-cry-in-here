@@ -19,7 +19,7 @@ import { RoutinesView } from './components/views/RoutinesView';
 import { GymsView, GymEditorView } from './components/views/GymsView';
 import { HistoryView } from './components/views/HistoryView';
 import { GoalsView } from './components/views/GoalsView';
-import { ProgressionChartView } from './components/views/ProgressionChartView';
+import { ProgressionChartView, DEFAULT_CHART_LIFTS } from './components/views/ProgressionChartView';
 import { StimulusMapView } from './components/views/StimulusMapView';
 import { LeaderboardView } from './components/views/LeaderboardView';
 import { SocialView } from './components/views/SocialView';
@@ -31,6 +31,8 @@ import { CloudSyncBanner } from './components/CloudSyncBanner';
 import { AuthView } from './components/views/AuthView';
 import { useCloudAndStorageSync } from './hooks/useCloudAndStorageSync';
 import { useTelemetryAndAnalytics } from './hooks/useTelemetryAndAnalytics';
+import { useSessionSync } from './hooks/useSessionSync';
+import { SessionSyncModal, IncomingSyncInviteModal, SyncNoticeModal } from './components/SessionSyncModals';
 import { useWorkoutMutations } from './hooks/useWorkoutMutations';
 import { usePlateCalculator } from './hooks/usePlateCalculator';
 
@@ -76,6 +78,7 @@ export default function App() {
   // --- Modal & Confirmation States ---
   const [deleteConfirmTarget, setDeleteConfirmTarget] = useState(null);
   const [saveConfirmTarget, setSaveConfirmTarget] = useState(null);
+  const [showSessionSyncModal, setShowSessionSyncModal] = useState(false);
   const [historicalEditConfirmTarget, setHistoricalEditConfirmTarget] = useState(null);
   const [confirmedHistoryEditWorkoutId, setConfirmedHistoryEditWorkoutId] = useState(null);
   const [openedFromRoutines, setOpenedFromRoutines] = useState(false);
@@ -117,7 +120,8 @@ export default function App() {
   const [goalIncrement, setGoalIncrement] = useState(1.25);
   const [goalUnit, setGoalUnit] = useState('lb');
   const [chartMetric, setChartMetric] = useState('weight');
-  const [selectedChartLift, setSelectedChartLift] = useState('ALL');
+  // Progress chart lift toggles (Big 3 + OHP by default)
+  const [selectedChartLifts, setSelectedChartLifts] = useState(DEFAULT_CHART_LIFTS);
   const [targetStandardClass, setTargetStandardClass] = useState('Intermediate');
   const [customGoalWeights, setCustomGoalWeights] = useState({});
   const [userBodyweightLbs, setUserBodyweightLbs] = useState(220);
@@ -372,6 +376,26 @@ export default function App() {
     goalType
   });
 
+  // --- 3b. Live session sync with a friend (SYNC in the session header) ---
+  const sessionSync = useSessionSync({
+    user,
+    friendsList,
+    activeSession,
+    setActiveSession,
+    setCurrentView,
+    history,
+    oneRepMaxes: effectiveOneRepMaxes,
+    currentIncrementLbs,
+    userBodyweightLbs,
+    appendSessionLog
+  });
+
+  // RESET while synced would empty the friend's session too, so it ends the sync first
+  const handleResetSession = async () => {
+    if (sessionSync.syncId) await sessionSync.unsync();
+    handleResetCurrentEditor();
+  };
+
   // --- 4. Plate & Weight Calculator Hook ---
   const {
     plateCalcTarget,
@@ -526,7 +550,15 @@ export default function App() {
           isRoutineEditorView={isRoutineEditorView}
           currentEditorWorkout={currentEditorWorkout}
           onFinishSession={handleSaveCurrentEditor}
-          onResetSession={handleResetCurrentEditor}
+          onResetSession={handleResetSession}
+          sessionSync={
+            sessionSync.canSync
+              ? {
+                  status: sessionSync.syncId ? 'synced' : sessionSync.outgoingInvite ? 'pending' : 'idle',
+                  onClick: () => setShowSessionSyncModal(true)
+                }
+              : null
+          }
           finishSessionPending={Boolean(saveConfirmTarget)}
           timerTrigger={timerTrigger}
           setTimerTrigger={setTimerTrigger}
@@ -627,8 +659,8 @@ export default function App() {
               colors={colors}
               chartMetric={chartMetric}
               setChartMetric={setChartMetric}
-              selectedChartLift={selectedChartLift}
-              setSelectedChartLift={setSelectedChartLift}
+              selectedChartLifts={selectedChartLifts}
+              setSelectedChartLifts={setSelectedChartLifts}
               progressionSeriesByLift={progressionSeriesByLift}
               oneRepMaxes={effectiveOneRepMaxes}
               targetStandardClass={targetStandardClass}
@@ -949,6 +981,33 @@ export default function App() {
           handleUpdateSetField={handleUpdateSetField}
           handleUpdateSetType={handleUpdateSetType}
         />
+
+        <SessionSyncModal
+          open={showSessionSyncModal}
+          onClose={() => setShowSessionSyncModal(false)}
+          friends={friendsList}
+          isSynced={Boolean(sessionSync.syncId)}
+          syncPartnerName={sessionSync.syncPartnerName || ''}
+          outgoingInvite={sessionSync.outgoingInvite}
+          busy={sessionSync.isSyncBusy}
+          onInvite={friend => sessionSync.inviteFriendToSync(friend)}
+          onCancelInvite={() => sessionSync.cancelOutgoingInvite()}
+          onUnsync={async () => {
+            await sessionSync.unsync();
+            setShowSessionSyncModal(false);
+          }}
+        />
+
+        <IncomingSyncInviteModal
+          invite={sessionSync.incomingInvite}
+          fromName={sessionSync.incomingInviteFromName}
+          willReplaceSession={(activeSession?.slots || []).length > 0}
+          busy={sessionSync.isSyncBusy}
+          onAccept={() => sessionSync.acceptIncomingInvite()}
+          onDecline={() => sessionSync.declineIncomingInvite()}
+        />
+
+        <SyncNoticeModal message={sessionSync.syncNotice} onClose={sessionSync.clearSyncNotice} />
 
         <SaveConfirmModal
           saveConfirmTarget={saveConfirmTarget}

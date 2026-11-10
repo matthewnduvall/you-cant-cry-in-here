@@ -151,10 +151,11 @@ export function IOSListRow({ children, onClick, isLast = false, indexLabel, bgNu
 }
 
 /**
- * Locked header row above the rest timer: editable session name + green SAVE + red RESET.
- * SAVE / RESET appear only when the workout has exercises (showActions).
+ * Locked header row above the rest timer: editable session name + SYNC + green SAVE + red RESET.
+ * SAVE / RESET appear only when the workout has exercises (showActions); SYNC only when `sync` is given:
+ * { status: 'idle' | 'pending' | 'synced', onClick }.
  */
-export function SessionTitleBar({ title = '', onChangeTitle, onSave, onReset, showActions = false }) {
+export function SessionTitleBar({ title = '', onChangeTitle, onSave, onReset, showActions = false, sync = null }) {
   const cellBorder = {
     borderTop: 'none',
     borderLeft: 'none',
@@ -179,7 +180,9 @@ export function SessionTitleBar({ title = '', onChangeTitle, onSave, onReset, sh
       style={{
         marginTop: '10px',
         display: 'grid',
-        gridTemplateColumns: showActions ? 'minmax(0, 1fr) 64px 64px' : 'minmax(0, 1fr)',
+        gridTemplateColumns: ['minmax(0, 1fr)', sync ? '58px' : null, showActions ? '58px 58px' : null]
+          .filter(Boolean)
+          .join(' '),
         alignItems: 'stretch',
         gap: 0,
         borderTop: '1px solid var(--dp-color-rule)',
@@ -223,6 +226,20 @@ export function SessionTitleBar({ title = '', onChangeTitle, onSave, onReset, sh
           }}
         />
       </label>
+      {sync && (
+        <button
+          type="button"
+          className="kinetic-btn"
+          aria-label={sync.status === 'synced' ? 'Session synced with a friend' : 'Sync session with a friend'}
+          onClick={sync.onClick}
+          style={{
+            ...actionStyle(sync.status === 'synced' ? '#12301C' : '#141416', sync.status === 'synced' ? '#30D158' : '#FFFFFF'),
+            fontSize: sync.status === 'synced' ? '10px' : '12px'
+          }}
+        >
+          {sync.status === 'synced' ? 'SYNCED' : sync.status === 'pending' ? 'SYNC…' : 'SYNC'}
+        </button>
+      )}
       {showActions && (
         <>
           <button type="button" className="kinetic-btn" onClick={onSave} style={actionStyle('#30D158', '#101010')}>

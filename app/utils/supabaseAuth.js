@@ -1514,6 +1514,75 @@ export async function fetchFriendsOfAthlete(user, targetAthleteId) {
   };
 }
 
+// ---------------------------------------------------------------------------
+// Live session sync (public.shared_sessions). One row per sync between two friends; both apps poll it.
+// `structure` holds the shared exercise structure (see app/utils/sessionSync.js), never weights/reps.
+// ---------------------------------------------------------------------------
+
+const SHARED_SESSION_COLUMNS =
+  'id,owner_id,participant_id,owner_username,status,structure,structure_version,updated_by,updated_at';
+
+/** Invites an accepted friend to sync the current session. Returns { ok, row }. */
+export async function createSessionSyncInvite(user, friendId, structure) {
+  if (!user || !isUuid(user.id) || !isUuid(friendId) || friendId === user.id) return { ok: false, row: null };
+  const res = await authedRequest(user, `/rest/v1/shared_sessions?select=${SHARED_SESSION_COLUMNS}`, {
+    method: 'POST',
+    prefer: 'return=representation',
+    body: {
+      owner_id: user.id,
+      participant_id: friendId,
+      owner_username: user.username || null,
+      status: 'pending',
+      structure: structure || {},
+      structure_version: 1,
+      updated_by: user.id
+    }
+  });
+  const row = Array.isArray(res.data) ? res.data[0] : null;
+  return { ok: res.ok && Boolean(row), row, status: res.status };
+}
+
+/** Open syncs (pending or accepted) the athlete is part of, newest first. Returns { ok, rows }. */
+export async function fetchMySessionSyncs(user) {
+  if (!user || !isUuid(user.id)) return { ok: false, rows: [] };
+  const me = encodeURIComponent(user.id);
+  const res = await authedRequest(
+    user,
+    `/rest/v1/shared_sessions?select=${SHARED_SESSION_COLUMNS}&or=(owner_id.eq.${me},participant_id.eq.${me})&status=in.(pending,accepted)&order=updated_at.desc&limit=20`
+  );
+  return { ok: res.ok && Array.isArray(res.data), rows: Array.isArray(res.data) ? res.data : [], status: res.status };
+}
+
+/** One sync row by id (any status). Returns { ok, row }. */
+export async function fetchSessionSync(user, syncId) {
+  if (!user || !isUuid(syncId)) return { ok: false, row: null };
+  const res = await authedRequest(
+    user,
+    `/rest/v1/shared_sessions?select=${SHARED_SESSION_COLUMNS}&id=eq.${encodeURIComponent(syncId)}`
+  );
+  const row = Array.isArray(res.data) ? res.data[0] || null : null;
+  return { ok: res.ok, row, status: res.status };
+}
+
+/** Patches a sync row (status, structure, structure_version, updated_by). Returns { ok, row }. */
+export async function updateSessionSync(user, syncId, changes) {
+  if (!user || !isUuid(syncId)) return { ok: false, row: null };
+  const res = await authedRequest(
+    user,
+    `/rest/v1/shared_sessions?id=eq.${encodeURIComponent(syncId)}&select=${SHARED_SESSION_COLUMNS}`,
+    { method: 'PATCH', prefer: 'return=representation', body: { ...changes, updated_by: user.id } }
+  );
+  const row = Array.isArray(res.data) ? res.data[0] || null : null;
+  return { ok: res.ok && Boolean(row), row, status: res.status };
+}
+
+/** Accepts or declines an incoming sync invite. */
+export const respondToSessionSync = (user, syncId, accept) =>
+  updateSessionSync(user, syncId, { status: accept ? 'accepted' : 'declined' });
+
+/** Ends a sync (either athlete); the other app notices on its next poll. */
+export const endSessionSync = (user, syncId) => updateSessionSync(user, syncId, { status: 'ended' });
+
 /** Accepts an incoming friend request (by its friendship row id). */
 export async function acceptFriendRequestFromAthlete(user, requesterAthlete) {
   if (!user || !isUuid(requesterAthlete?.friendshipId)) return false;
