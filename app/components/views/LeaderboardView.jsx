@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { IOSListSection, IOSListRow } from '../Primitives';
 import { TabBar } from '../Controls';
+import { UI } from '../../styles/kineticTokens';
 import {
   EXERCISE_MAP,
   EXRX_CLASSES,
@@ -64,7 +65,9 @@ export function LeaderboardView({
   friendsList = [],
   userBodyweightLbs = 220,
   totalHeightInches = 70,
-  history = []
+  history = [],
+  // Section heading above the tabs (the Social page shows LEADERBOARDS)
+  title
 }) {
   const [activeTab, setActiveTab] = useState('big3_total');
   const selfName = user?.username || 'you (logged out)';
@@ -263,6 +266,7 @@ export function LeaderboardView({
   return (
     <div style={{ paddingTop: '12px' }}>
       <div style={{ padding: '0 var(--dp-spacing-gutter)', marginBottom: '14px' }}>
+        {title && <div style={{ ...UI.sectionTitle, marginBottom: '8px' }}>{title}</div>}
         <TabBar ariaLabel="Leaderboards" tabs={LEADERBOARD_TABS} value={activeTab} onChange={setActiveTab} />
       </div>
 

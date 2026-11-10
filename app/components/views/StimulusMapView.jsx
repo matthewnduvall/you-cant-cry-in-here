@@ -3,6 +3,7 @@
 import React from 'react';
 import { IOSListSection, IOSListRow } from '../Primitives';
 import { StimulusSettingsSection } from './SettingsView';
+import { UI } from '../../styles/kineticTokens';
 
 // Status is shown by pattern as well as colour (red / green alone is hard to tell apart with colour blindness):
 // OVERDUE = diagonal stripes, RECOVERED = dots, RECOVERING = solid, never logged = solid grey.
@@ -50,13 +51,60 @@ export function StimulusMapView({
   stimulusYellowDays,
   setStimulusGreenDays,
   setStimulusYellowDays,
-  muscleStimulusStatus
+  muscleStimulusStatus,
+  // Home page: the section can be collapsed (onToggleCollapsed shows the HIDE / SHOW button)
+  collapsed = false,
+  onToggleCollapsed
 }) {
+  const statuses = Object.values(muscleStimulusStatus || {});
+  const overdueCount = statuses.filter(s => /OVERDUE/.test(s?.label || '')).length;
+  const readyCount = statuses.filter(s => /RECOVERED/.test(s?.label || '')).length;
+  const toggle = onToggleCollapsed ? (
+    <button
+      type="button"
+      aria-expanded={!collapsed}
+      onClick={onToggleCollapsed}
+      className="kinetic-btn"
+      style={{
+        minWidth: '76px',
+        height: '40px',
+        padding: '0 12px',
+        backgroundColor: '#161618',
+        color: '#FFFFFF',
+        border: '1px solid var(--dp-color-rule)',
+        fontSize: '12px',
+        fontWeight: 800,
+        textTransform: 'uppercase',
+        cursor: 'pointer',
+        flexShrink: 0
+      }}
+    >
+      {collapsed ? 'SHOW' : 'HIDE'} <span style={{ color: 'var(--dp-color-accent)' }}>{collapsed ? '▾' : '▴'}</span>
+    </button>
+  ) : null;
+
+  if (collapsed) {
+    return (
+      <section style={{ marginBottom: '22px', padding: '0 var(--dp-spacing-gutter)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+          <div style={{ minWidth: 0 }}>
+            <div style={UI.sectionTitle}>STIMULUS</div>
+            <div style={{ fontSize: '12px', fontWeight: 700, color: '#A0A0A0', textTransform: 'uppercase' }}>
+              {overdueCount} OVERDUE • {readyCount} READY
+            </div>
+          </div>
+          {toggle}
+        </div>
+      </section>
+    );
+  }
+
   return (
     <div style={{ paddingTop: '14px' }}>
       <StimulusPatternDefs />
       <IOSListSection
         header="STIMULUS"
+        headerRight={toggle}
         footer={
           // Vertical legend: swatch (colour + pattern) | status | days since last trained
           <span
@@ -156,25 +204,6 @@ export function StimulusMapView({
             </div>
           </div>
         </IOSListRow>
-      </IOSListSection>
-
-      <IOSListSection header="MUSCLE GROUP TELEMETRY" colors={colors}>
-        {Object.entries(muscleStimulusStatus).map(([group, info], idx, arr) => (
-          <IOSListRow key={group} isLast={idx === arr.length - 1} colors={colors}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-              <span style={{ border: '2px solid #FFFFFF', display: 'inline-flex', lineHeight: 0 }}>
-                <svg width="14" height="14" aria-hidden="true">
-                  <rect width="14" height="14" fill={info.color} />
-                  {statusPattern(info.label) && <rect width="14" height="14" fill={statusPattern(info.label)} />}
-                </svg>
-              </span>
-              <span style={{ fontSize: '16px', fontWeight: 800, textTransform: 'uppercase' }}>{group}</span>
-            </div>
-            <span style={{ fontSize: '12px', fontWeight: 800, color: info.label === 'UNLOGGED' ? '#8E8E93' : info.color, textTransform: 'uppercase' }}>
-              {info.label}
-            </span>
-          </IOSListRow>
-        ))}
       </IOSListSection>
 
       <StimulusSettingsSection

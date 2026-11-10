@@ -230,14 +230,14 @@ export function AppHeaderAndDrawer({
                     setCurrentView(user ? 'profile' : 'auth');
                   }}
                 >
-                  <span>{user ? `00 / PROFILE (@${user.username})` : '00 / SIGN IN'}</span>
+                  <span>{user ? `PROFILE (@${user.username})` : 'SIGN IN'}</span>
                   <span>→</span>
                 </Button>
 
                 {[
-                  { id: 'configuration', label: '01 / CONFIGURATION', clearReturn: true },
-                  { id: 'info', label: '02 / INFO' },
-                  { id: 'settings', label: '03 / DATA' }
+                  { id: 'configuration', label: 'CONFIGURATION', clearReturn: true },
+                  { id: 'info', label: 'INFO' },
+                  { id: 'settings', label: 'DATA' }
                 ].map(nav => (
                   <Button
                     variant="drawer"

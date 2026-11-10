@@ -2,7 +2,14 @@
 
 import React, { useState, useEffect } from 'react';
 import { IOSListSection, IOSListRow } from '../Primitives';
-import { EXERCISE_MAP, formatDateYMD } from '../../data/exerciseLibrary';
+import { formatDateYMD } from '../../data/exerciseLibrary';
+import { StimulusMapView } from './StimulusMapView';
+import {
+  NEW_FRIEND_DAYS,
+  readFriendFirstSeen,
+  recordFriendFirstSeen,
+  daysBetweenYMD
+} from '../../utils/friendFirstSeen';
 
 // ============================================================================
 // VIEW: HOME SCREEN
@@ -141,7 +148,15 @@ export function HomeView({
   marqueePaused,
   setMarqueePaused,
   friendsList,
-  pendingIncomingRequests
+  pendingIncomingRequests,
+  // STIMULUS section (collapsible, starts expanded)
+  muscleStimulusStatus = {},
+  stimulusGreenDays,
+  stimulusYellowDays,
+  setStimulusGreenDays,
+  setStimulusYellowDays,
+  stimulusCollapsed = false,
+  setStimulusCollapsed
 }) {
   const [scrollerSeed, setScrollerSeed] = useState(1);
   const [todayFallbackStr, setTodayFallbackStr] = useState('');
@@ -164,6 +179,35 @@ export function HomeView({
     uniqueAthletes.push(f);
   });
 
+  const friendIdsKey = uniqueAthletes.map(f => String(f.id)).sort().join(',');
+  useEffect(() => {
+    if (!user?.id || !todayFallbackStr) return;
+    recordFriendFirstSeen(user.id, friendIdsKey ? friendIdsKey.split(',') : [], todayFallbackStr);
+  }, [user?.id, friendIdsKey, todayFallbackStr]);
+
+  // NEW FRIEND entries: friends first seen on this device in the last NEW_FRIEND_DAYS days. Before the
+  // account's first record exists nothing counts as new (existing friends on a new device aren't "new").
+  const firstSeen = todayFallbackStr ? readFriendFirstSeen(user?.id) : null;
+  const newFriendEntries = firstSeen
+    ? uniqueAthletes
+        .filter(f => {
+          const seen = firstSeen[String(f.id)];
+          if (seen === undefined) return true; // appeared since the last record
+          return Boolean(seen) && daysBetweenYMD(seen, todayFallbackStr) < NEW_FRIEND_DAYS;
+        })
+        .map(f => `NEW FRIEND: @${String(f.username || 'athlete').toUpperCase()}`)
+    : [];
+
+  // Your muscle groups that are ready (RECOVERED) or OVERDUE for stimulus, most overdue first
+  const muscleEntries = Object.entries(muscleStimulusStatus || {})
+    .filter(([, s]) => /OVERDUE|RECOVERED/.test(s?.label || ''))
+    .sort(([, a], [, b]) => (b?.daysAgo || 0) - (a?.daysAgo || 0))
+    .map(([group, s]) =>
+      /OVERDUE/.test(s.label)
+        ? `${group.toUpperCase()} OVERDUE (${s.daysAgo}D AGO)`
+        : `${group.toUpperCase()} READY (${s.daysAgo}D AGO)`
+    );
+
   // Limit to 10 athletes, up to 4 exercises each (Big 3 + OHP) = max 40 entries, ordered by time of entry
   const tickerEntryObjects = uniqueAthletes
     .slice(0, 10)
@@ -182,12 +226,15 @@ export function HomeView({
     .slice(0, 40)
     .map(item => item.text);
 
-  const baseTickerText =
-    sortedTickerEntries.length > 0
-      ? sortedTickerEntries.join('   ///   ') + '   ///   '
-      : uniqueAthletes.length === 0
-        ? 'INVITE FRIENDS TO KEEP TRACK OF PROGRESS!   ///   '
-        : 'NO RECENT LIFTS FROM YOUR FRIENDS YET   ///   ';
+  // Order: new friends, then your muscle groups, then friends' lifts (or a prompt when there are none)
+  const tickerItems = [
+    ...newFriendEntries,
+    ...muscleEntries,
+    ...(sortedTickerEntries.length > 0
+      ? sortedTickerEntries
+      : [uniqueAthletes.length === 0 ? 'INVITE FRIENDS TO KEEP TRACK OF PROGRESS!' : 'NO RECENT LIFTS FROM YOUR FRIENDS YET'])
+  ];
+  const baseTickerText = tickerItems.join('   ///   ') + '   ///   ';
 
   const repeatCount = Math.max(1, Math.ceil(90 / Math.max(1, baseTickerText.length)));
   const friendsTickerText = baseTickerText.repeat(repeatCount);
@@ -231,7 +278,7 @@ export function HomeView({
       <button
         type="button"
         aria-pressed={marqueePaused}
-        aria-label={marqueePaused ? 'Friends ticker paused. Tap to play' : 'Friends ticker. Tap to pause'}
+        aria-label={marqueePaused ? 'News ticker paused. Tap to play' : 'News ticker. Tap to pause'}
         onClick={() => setMarqueePaused(p => !p)}
         className={marqueePaused ? 'kinetic-marquee-paused' : ''}
         style={{
@@ -355,9 +402,7 @@ export function HomeView({
         {[
           // PROGRESS is one page with the chart, Personal Records and logged History (view id 'history')
           { id: 'history', idx: '01', title: 'PROGRESS', sub: 'Trends, Personal Records & Workout History', num: '01' },
-          { id: 'stimulus_map', idx: '02', title: 'STIMULUS', sub: 'Recovery Windows & Muscle Readiness', num: '02' },
-          { id: 'leaderboard', idx: '03', title: 'LEADERBOARD', sub: 'Big 3 + OHP Community Standings', num: '03' },
-          { id: 'social', idx: '04', title: 'SOCIAL', sub: `${friendsList.length} ${friendsList.length === 1 ? 'Friend' : 'Friends'} • ${pendingIncomingRequests.length} Pending ${pendingIncomingRequests.length === 1 ? 'Request' : 'Requests'}`, num: '04' }
+          { id: 'social', idx: '02', title: 'SOCIAL', sub: `${friendsList.length} ${friendsList.length === 1 ? 'Friend' : 'Friends'} • ${pendingIncomingRequests.length} Pending ${pendingIncomingRequests.length === 1 ? 'Request' : 'Requests'} • Leaderboards`, num: '02' }
         ].map((item, i, arr) => (
           <IOSListRow
             key={item.id}
@@ -381,6 +426,18 @@ export function HomeView({
           </IOSListRow>
         ))}
       </IOSListSection>
+
+      {/* STIMULUS: the muscle map, legend and thresholds (collapsible; starts expanded) */}
+      <StimulusMapView
+        colors={colors}
+        muscleStimulusStatus={muscleStimulusStatus}
+        stimulusGreenDays={stimulusGreenDays}
+        stimulusYellowDays={stimulusYellowDays}
+        setStimulusGreenDays={setStimulusGreenDays}
+        setStimulusYellowDays={setStimulusYellowDays}
+        collapsed={stimulusCollapsed}
+        onToggleCollapsed={() => setStimulusCollapsed?.(v => !v)}
+      />
     </div>
   );
 }
