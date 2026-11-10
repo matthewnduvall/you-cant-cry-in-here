@@ -19,7 +19,8 @@ import {
   getFilteredExercisesForSlotInline,
   getAvailableMuscleGroupsForCategory,
   roundTo5,
-  roundToIncrement
+  roundToIncrement,
+  CORE_PR_EXERCISE_IDS
 } from '../data/exerciseLibrary';
 import {
   getBestHistory1RM,
@@ -39,6 +40,27 @@ import {
 } from '../utils/workoutEngine';
 import { deleteCloudRoutineByKey, deleteCloudWorkoutsByIds } from '../utils/supabaseAuth';
 import { markWorkoutIdDeleted, clearDeletedWorkoutIds } from '../utils/cloudSyncLedger';
+
+// ---------------------------------------------------------------------------
+// Auto-pick scoring (+ ADD EXERCISE and AUTO SESSION). Score ≈ "days this muscle group is behind",
+// weighted by how much the group matters, plus a bonus for the Big 3 + OHP on compound picks.
+// ---------------------------------------------------------------------------
+const STIMULUS_DAYS_CAP = 14; // unlogged / very stale groups count as this many days behind
+const BIG4_BONUS_DAYS = 6; // Big 3 + OHP win unless their muscles were trained much more recently
+const SAME_WORKOUT_PENALTY_DAYS = 10; // avoid hitting the same muscle group twice in one workout
+const MUSCLE_GROUP_WEIGHT = {
+  Chest: 1,
+  Back: 1,
+  Thighs: 1,
+  Shoulders: 1,
+  Hips: 0.9,
+  'Upper Arms': 0.8,
+  Waist: 0.6,
+  Calves: 0.5,
+  Forearms: 0.4,
+  Neck: 0.25
+};
+const NON_TRAINING_EQUIPMENT = ['stretch', 'isometric'];
 
 export function useWorkoutMutations({
   currentView,
@@ -87,7 +109,9 @@ export function useWorkoutMutations({
   newSlotSupersetIds,
   newSlotScheme,
   setShowAddSlotModal,
-  appendSessionLog
+  appendSessionLog,
+  // { [muscleGroup]: { daysAgo } } from useTelemetryAndAnalytics — drives which muscles are "behind"
+  muscleStimulusStatus = {}
 }) {
   const getCurrentEditorWorkout = () => {
     if (currentView === 'historical_entry') return historicalDraft;
@@ -193,37 +217,64 @@ export function useWorkoutMutations({
       isExerciseCompatibleWithGymSelection(ex, selectedGymId, gyms)
     );
     const fallbackPool = compatiblePool.length > 0 ? compatiblePool : EXERCISE_LIBRARY;
+    const isTrainingExercise = ex =>
+      !NON_TRAINING_EQUIPMENT.some(word => String(ex.equipment || '').toLowerCase().includes(word));
 
-    const compatCompounds = compatiblePool.filter(e => e.category === 'Compound');
-    const compatAccessories = compatiblePool.filter(e => e.category === 'Accessory');
+    // Big 3 + OHP, or each one's closest equivalent for the active gyms/equipment filter
+    const big4Order = CORE_PR_EXERCISE_IDS.map(id => findEquivalentExerciseForGym(id, selectedGymId, gyms)).filter(
+      Boolean
+    );
+    const big4Rank = id => {
+      const idx = big4Order.indexOf(id);
+      return idx < 0 ? big4Order.length : idx;
+    };
 
-    let compIdx = 0;
-    let accIdx = 0;
+    // Muscle groups already in this workout (existing slots + picks made below)
+    const usedGroups = new Set();
+    usedIds.forEach(id => {
+      if (EXERCISE_MAP[id]?.muscleGroup) usedGroups.add(EXERCISE_MAP[id].muscleGroup);
+    });
 
-    const pickUnusedFromPool = (pool, startIdx) => {
-      if (!pool || pool.length === 0) return { item: EXERCISE_MAP.dumbbell_press, nextIdx: startIdx + 1 };
-      for (let offset = 0; offset < pool.length; offset++) {
-        const candidate = pool[(startIdx + offset) % pool.length];
-        if (candidate && !usedIds.has(candidate.id)) {
-          usedIds.add(candidate.id);
-          return { item: candidate, nextIdx: startIdx + offset + 1 };
-        }
-      }
-      const fallbackItem = pool[startIdx % pool.length];
-      if (fallbackItem) usedIds.add(fallbackItem.id);
-      return { item: fallbackItem, nextIdx: startIdx + 1 };
+    const daysBehind = group => {
+      const days = Number(muscleStimulusStatus?.[group]?.daysAgo);
+      return Math.min(STIMULUS_DAYS_CAP, Number.isFinite(days) ? days : STIMULUS_DAYS_CAP);
+    };
+
+    const scoreExercise = (ex, preferBig4) => {
+      let score = daysBehind(ex.muscleGroup) * (MUSCLE_GROUP_WEIGHT[ex.muscleGroup] ?? 0.7);
+      if (preferBig4 && big4Order.includes(ex.id)) score += BIG4_BONUS_DAYS;
+      if (usedGroups.has(ex.muscleGroup)) score -= SAME_WORKOUT_PENALTY_DAYS;
+      if (ex.isPriority) score += 1;
+      if (!String(ex.id).startsWith('exrx_')) score += 1.5; // hand-curated library entries first
+      return score;
+    };
+
+    // Best unused exercise of a category for the gym filter: most-behind muscle group first
+    const pickBest = (category, fallbackId) => {
+      const preferBig4 = category === 'Compound';
+      let pool = fallbackPool.filter(ex => ex.category === category && !usedIds.has(ex.id) && isTrainingExercise(ex));
+      if (pool.length === 0) pool = fallbackPool.filter(ex => !usedIds.has(ex.id) && isTrainingExercise(ex));
+      if (pool.length === 0) return EXERCISE_MAP[fallbackId] || EXERCISE_LIBRARY[0];
+      const best = pool
+        .map(ex => ({ ex, score: scoreExercise(ex, preferBig4) }))
+        .sort(
+          (a, b) =>
+            b.score - a.score ||
+            big4Rank(a.ex.id) - big4Rank(b.ex.id) ||
+            a.ex.name.localeCompare(b.ex.name)
+        )[0].ex;
+      usedIds.add(best.id);
+      usedGroups.add(best.muscleGroup);
+      return best;
     };
 
     const createSlotForPref = rawPref => {
       const pref = normalizeSlotCategory(rawPref);
       if (pref === 'Compound') {
-        const pool = compatCompounds.length > 0 ? compatCompounds : fallbackPool;
-        const picked = pickUnusedFromPool(pool, compIdx);
-        compIdx = picked.nextIdx;
-        const pick = picked.item || EXERCISE_MAP.dumbbell_press;
+        const pick = pickBest('Compound', 'barbell_bench_press');
         return createWorkoutSlot({
           category: 'Compound',
-          slotLabel: `Compound ${compIdx}`,
+          slotLabel: 'Compound',
           exerciseId: pick.id,
           scheme: '5x8',
           oneRepMaxes,
@@ -233,13 +284,8 @@ export function useWorkoutMutations({
         });
       }
       if (pref === 'Superset') {
-        const pool = compatAccessories.length > 0 ? compatAccessories : fallbackPool;
-        const picked1 = pickUnusedFromPool(pool, accIdx);
-        accIdx = picked1.nextIdx;
-        const picked2 = pickUnusedFromPool(pool, accIdx);
-        accIdx = picked2.nextIdx;
-        const a1 = picked1.item || EXERCISE_MAP.reverse_lunge;
-        const a2 = picked2.item || EXERCISE_MAP.front_flies;
+        const a1 = pickBest('Accessory', 'reverse_lunge');
+        const a2 = pickBest('Accessory', 'front_flies');
         return createWorkoutSlot({
           category: 'Superset',
           slotLabel: 'Superset',
@@ -251,10 +297,7 @@ export function useWorkoutMutations({
           userBodyweightLbs
         });
       }
-      const pool = compatAccessories.length > 0 ? compatAccessories : fallbackPool;
-      const picked = pickUnusedFromPool(pool, accIdx);
-      accIdx = picked.nextIdx;
-      const pick = picked.item || EXERCISE_MAP.dumbbell_hammer_curl;
+      const pick = pickBest('Accessory', 'dumbbell_hammer_curl');
       return createWorkoutSlot({
         category: 'Accessory',
         slotLabel: 'Accessory',
