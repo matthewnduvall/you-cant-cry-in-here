@@ -3,7 +3,6 @@
 import React, { useState, useEffect } from 'react';
 import { IOSListSection, IOSListRow } from '../Primitives';
 import { formatDateYMD } from '../../data/exerciseLibrary';
-import { StimulusMapView } from './StimulusMapView';
 import {
   NEW_FRIEND_DAYS,
   readFriendFirstSeen,
@@ -149,14 +148,8 @@ export function HomeView({
   setMarqueePaused,
   friendsList,
   pendingIncomingRequests,
-  // STIMULUS section (collapsible, starts expanded)
-  muscleStimulusStatus = {},
-  stimulusGreenDays,
-  stimulusYellowDays,
-  setStimulusGreenDays,
-  setStimulusYellowDays,
-  stimulusCollapsed = false,
-  setStimulusCollapsed
+  // Your muscle groups' stimulus status (READY / OVERDUE entries in the ticker)
+  muscleStimulusStatus = {}
 }) {
   const [scrollerSeed, setScrollerSeed] = useState(1);
   const [todayFallbackStr, setTodayFallbackStr] = useState('');
@@ -402,7 +395,8 @@ export function HomeView({
         {[
           // PROGRESS is one page with the chart, Personal Records and logged History (view id 'history')
           { id: 'history', idx: '01', title: 'PROGRESS', sub: 'Trends, Personal Records & Workout History', num: '01' },
-          { id: 'social', idx: '02', title: 'SOCIAL', sub: `${friendsList.length} ${friendsList.length === 1 ? 'Friend' : 'Friends'} • ${pendingIncomingRequests.length} Pending ${pendingIncomingRequests.length === 1 ? 'Request' : 'Requests'} • Leaderboards`, num: '02' }
+          { id: 'stimulus_map', idx: '02', title: 'STIMULUS', sub: 'Recovery Windows & Muscle Readiness', num: '02' },
+          { id: 'social', idx: '03', title: 'SOCIAL', sub: `${friendsList.length} ${friendsList.length === 1 ? 'Friend' : 'Friends'} • ${pendingIncomingRequests.length} Pending ${pendingIncomingRequests.length === 1 ? 'Request' : 'Requests'} • Leaderboards`, num: '03' }
         ].map((item, i, arr) => (
           <IOSListRow
             key={item.id}
@@ -426,18 +420,6 @@ export function HomeView({
           </IOSListRow>
         ))}
       </IOSListSection>
-
-      {/* STIMULUS: the muscle map, legend and thresholds (collapsible; starts expanded) */}
-      <StimulusMapView
-        colors={colors}
-        muscleStimulusStatus={muscleStimulusStatus}
-        stimulusGreenDays={stimulusGreenDays}
-        stimulusYellowDays={stimulusYellowDays}
-        setStimulusGreenDays={setStimulusGreenDays}
-        setStimulusYellowDays={setStimulusYellowDays}
-        collapsed={stimulusCollapsed}
-        onToggleCollapsed={() => setStimulusCollapsed?.(v => !v)}
-      />
     </div>
   );
 }
