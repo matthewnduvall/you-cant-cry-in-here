@@ -49,7 +49,7 @@ export function BodyMetricsSection({
   );
 }
 
-/** STIMULUS thresholds (green / yellow days; red = yellow + 1). Shown in the Home page's Stimulus section. */
+/** STIMULUS thresholds (green / yellow days; red = yellow + 1). Shown on the Stimulus page. */
 export function StimulusSettingsSection({ colors, stimulusGreenDays, setStimulusGreenDays, stimulusYellowDays, setStimulusYellowDays }) {
   return (
     <IOSListSection header="STIMULUS THRESHOLDS" footer="Red threshold is automatically set to Yellow + 1 day." colors={colors}>
