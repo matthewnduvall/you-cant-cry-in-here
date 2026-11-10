@@ -52,10 +52,10 @@ export function InfoView({
             </p>
 
             <p style={{ marginBottom: '12px' }}>
-              <strong style={{ color: 'var(--dp-color-accent)' }}>1.3 GYMS &amp; EQUIPMENT FILTERS:</strong> Selecting an active{' '}
-              <strong>Gyms/Equipment</strong> profile (<em>Full Gym</em>, <em>Barbells Only</em>, <em>Dumbells Only</em>,{' '}
-              <em>Bodyweight Only</em>, or a custom equipment setup you build) filters both manual exercise selectors and{' '}
-              <strong>AUTO</strong> routine generation so every prescribed lift matches the equipment physically available to you.
+              <strong style={{ color: 'var(--dp-color-accent)' }}>1.3 EQUIPMENT:</strong> Turn on the equipment you have on the{' '}
+              <strong>Equipment</strong> page (or tap a saved setup to switch to it). Exercises picked for you by{' '}
+              <strong>AUTO SESSION</strong> and <strong>+ ADD EXERCISE</strong> only use equipment that is on (bodyweight exercises always
+              count). Searching and the per-exercise filters still show every exercise.
             </p>
 
             <p style={{ marginBottom: 0 }}>

@@ -97,7 +97,7 @@ export function AddSlotModal({
         </div>
 
         <div style={{ marginBottom: '12px' }}>
-          <div style={UI.stepLabel}>1. GYMS/EQUIPMENT</div>
+          <div style={UI.stepLabel}>1. EQUIPMENT</div>
           <GymSelect
             value={addSlotGymFilter}
             onChange={nextFilter => {
@@ -851,7 +851,7 @@ export function SaveConfirmModal({
               letterSpacing: '0.03em'
             }}
           >
-            GYMS/EQUIPMENT DETECTED:{' '}
+            EQUIPMENT DETECTED:{' '}
             <span style={{ color: 'var(--dp-color-accent)' }}>{String(gymType || 'all').toUpperCase()}</span>
           </div>
         </div>

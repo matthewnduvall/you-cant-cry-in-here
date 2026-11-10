@@ -120,7 +120,7 @@ export default function App() {
   const [sharedRoutines, setSharedRoutines] = useState([]);
   const [gyms, setGyms] = useState([]);
   const [selectedGymId, setSelectedGymId] = useState('');
-  // Settings → Equipment: equipment types the athlete has (drives the default exercise picks)
+  // the Equipment page list: equipment types the athlete has (drives the default exercise picks)
   const [availableEquipment, setAvailableEquipment] = useState(null);
   const [gymDraft, setGymDraft] = useState(null);
 
@@ -754,6 +754,8 @@ export default function App() {
               setGyms={setGyms}
               selectedGymId={selectedGymId}
               setSelectedGymId={setSelectedGymId}
+              availableEquipment={availableEquipment}
+              setAvailableEquipment={setAvailableEquipment}
               setGymDraft={setGymDraft}
               setCurrentView={setCurrentView}
             />
@@ -765,7 +767,7 @@ export default function App() {
               gymDraft={gymDraft}
               setGymDraft={setGymDraft}
               setGyms={setGyms}
-              setSelectedGymId={setSelectedGymId}
+              setAvailableEquipment={setAvailableEquipment}
               setCurrentView={setCurrentView}
             />
           )}
@@ -875,8 +877,6 @@ export default function App() {
               setStimulusYellowDays={setStimulusYellowDays}
               routinePreferences={routinePreferences}
               setRoutinePreferences={setRoutinePreferences}
-              availableEquipment={availableEquipment}
-              setAvailableEquipment={setAvailableEquipment}
               shareStatsWithFriends={shareStatsWithFriends}
               setShareStatsWithFriends={setShareStatsWithFriends}
               shareRoutinesWithFriends={shareRoutinesWithFriends}

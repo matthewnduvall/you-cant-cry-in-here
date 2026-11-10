@@ -4,7 +4,6 @@ import React from 'react';
 import { UI } from '../../styles/kineticTokens';
 import { IOSListSection, IOSListRow } from '../Primitives';
 import { Button } from '../Controls';
-import { EquipmentToggleList } from '../EquipmentToggleList';
 
 export function SettingsView({
   colors,
@@ -20,8 +19,6 @@ export function SettingsView({
   setStimulusYellowDays,
   routinePreferences,
   setRoutinePreferences,
-  availableEquipment,
-  setAvailableEquipment,
   shareStatsWithFriends,
   setShareStatsWithFriends,
   shareRoutinesWithFriends,
@@ -104,8 +101,6 @@ export function SettingsView({
           </span>
         </IOSListRow>
       </IOSListSection>
-
-      <EquipmentToggleList colors={colors} value={availableEquipment} onChange={setAvailableEquipment} />
 
       <IOSListSection
         header="ROUTINE PREFERENCES"

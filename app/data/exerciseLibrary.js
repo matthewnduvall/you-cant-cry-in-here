@@ -21,7 +21,7 @@ export const GYM_EQUIPMENT_OPTIONS = [
   'Kettlebells'
 ];
 
-// Settings → Equipment starting lists for the old single-choice gym presets (used once to migrate)
+// the Equipment page list starting lists for the old single-choice gym presets (used once to migrate)
 const PRESET_EQUIPMENT_LISTS = {
   preset_barbells_only: ['Barbell', 'Weight Plates', 'EZ Bar', 'Landmine', 'Flat / Incline Bench', 'Squat Rack'],
   preset_dumbbells_only: ['Dumbbell', 'Flat / Incline Bench'],
@@ -29,7 +29,7 @@ const PRESET_EQUIPMENT_LISTS = {
   preset_bodyweight_only: ['Pull-Up Bar']
 };
 
-/** The equipment a gym selection stands for (Full Gym = everything). */
+/** The equipment a gym selection stands for (All Equipment = everything). */
 export const getEquipmentListForGymSelection = (gymSelectionId, customGyms = []) => {
   if (!gymSelectionId) return [...GYM_EQUIPMENT_OPTIONS];
   if (PRESET_EQUIPMENT_LISTS[gymSelectionId]) return [...PRESET_EQUIPMENT_LISTS[gymSelectionId]];
@@ -38,7 +38,7 @@ export const getEquipmentListForGymSelection = (gymSelectionId, customGyms = [])
 };
 
 /**
- * Settings → Equipment: does the athlete have everything this exercise needs? Exercises that need no equipment
+ * the Equipment page list: does the athlete have everything this exercise needs? Exercises that need no equipment
  * (bodyweight) always fit; a missing list (not set yet) means everything is available.
  */
 export const isExerciseAvailableWithEquipment = (ex, availableEquipment) => {
@@ -49,7 +49,7 @@ export const isExerciseAvailableWithEquipment = (ex, availableEquipment) => {
 };
 
 export const DEFAULT_GYM_EQUIPMENT_PRESETS = [
-  { id: '', name: 'Full Gym (All)' },
+  { id: '', name: 'All Equipment' },
   { id: 'preset_barbells_only', name: 'Barbells Only' },
   { id: 'preset_dumbbells_only', name: 'Dumbells Only' },
   { id: 'preset_kettlebells_only', name: 'Kettlebells Only' },
@@ -187,7 +187,7 @@ export const getGymSelectionLabel = (gymSelectionId, customGyms = []) => {
   const preset = DEFAULT_GYM_EQUIPMENT_PRESETS.find(p => p.id === (gymSelectionId || ''));
   if (preset) return preset.name;
   const custom = (customGyms || []).find(g => g.id === gymSelectionId);
-  return custom ? custom.name : 'Full Gym (All)';
+  return custom ? custom.name : 'All Equipment';
 };
 
 // Fast RFC-4180 CSV line parser supporting quoted fields and pipe-delimited array columns
@@ -579,7 +579,7 @@ export const isBodyweightExercise = exOrId => {
 };
 
 // ---------------------------------------------------------------------------
-// Equipment-swap helpers: find the closest equivalent exercise for a new gym/equipment
+// Equipment-swap helpers: find the closest equivalent exercise for a new equipment selection
 // selection, and convert a 1RM between equipment types.
 // ---------------------------------------------------------------------------
 
@@ -621,7 +621,7 @@ export const findEquivalentExerciseForGym = (exerciseId, gymSelectionId, customG
     excludeIds
   );
 
-/** Like findEquivalentExerciseForGym, for the Settings → Equipment list (e.g. Bench Press → Dumbbell Bench Press). */
+/** Like findEquivalentExerciseForGym, for the the Equipment page list list (e.g. Bench Press → Dumbbell Bench Press). */
 export const findEquivalentExerciseForEquipment = (exerciseId, availableEquipment, excludeIds = []) =>
   findEquivalentExerciseWhere(exerciseId, ex => isExerciseAvailableWithEquipment(ex, availableEquipment), excludeIds);
 

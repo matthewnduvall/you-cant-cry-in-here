@@ -125,7 +125,7 @@ const END_SUPERSET = '__end_superset__';
 
 /**
  * Exercises whose name / equipment / muscle group contain every word typed, best name matches first.
- * Searches the whole library (Settings → Equipment only drives the exercises picked automatically).
+ * Searches the whole library (the Equipment page list only drives the exercises picked automatically).
  */
 export const searchExercises = (query, pool = EXERCISE_LIBRARY) => {
   const words = String(query || '').toLowerCase().trim().split(' ').filter(Boolean);
@@ -185,7 +185,7 @@ function PrBadge({ marginRight = '6px' }) {
  * - number: label on the header drag handle; headerTitle: its tooltip
  * - categories: category options (default all; the 1RM calculator excludes Superset)
  * - The pickers, equipment filter and search always cover the whole exercise library; the athlete's
- *   Settings → Equipment only drives the default picks made by the hosts (see useWorkoutMutations).
+ *   the Equipment page list only drives the default picks made by the hosts (see useWorkoutMutations).
  * - history, oneRepMaxes: used for LAST values and the 1RM box (PR) in the weight pop-up
  * - getBase1RM(exId): optional override of the 1RM used for LAST when a set has no lastWeight
  * - prFlags: [bool, bool] shows PR badges next to the exercise picker(s)
