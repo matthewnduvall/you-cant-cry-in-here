@@ -797,7 +797,19 @@ export function SaveConfirmModal({
 }) {
   if (!saveConfirmTarget) return null;
 
-  const { name = '', shareWithFriends = true, gymType = 'all' } = saveConfirmTarget;
+  const { name = '', shareWithFriends = true, saveAsRoutine = false, gymType = 'all', sourceView } = saveConfirmTarget;
+  // The routine editor always saves a routine, so the ROUTINE toggle only shows for sessions/History.
+  const showRoutineToggle = sourceView !== 'routine_editor';
+  const toggleCellStyle = {
+    padding: '10px 8px',
+    minHeight: '44px',
+    fontSize: '12px',
+    textAlign: 'center',
+    borderTop: 'none',
+    borderLeft: 'none',
+    borderRight: '1px solid var(--dp-color-rule)',
+    borderBottom: '1px solid var(--dp-color-rule)'
+  };
 
   return (
     <div style={{ ...UI.modalBackdrop, zIndex: 92 }} onClick={() => setSaveConfirmTarget(null)}>
@@ -845,45 +857,45 @@ export function SaveConfirmModal({
         </div>
 
         <div style={{ marginBottom: '18px' }}>
-          <div style={UI.stepLabel}>2. SHARE WITH FRIENDS?</div>
+          <div style={UI.stepLabel}>2. SHARING</div>
           <div
             style={{
               display: 'grid',
-              gridTemplateColumns: '1fr 1fr',
+              gridTemplateColumns: showRoutineToggle ? '1fr 1fr' : '1fr',
               gap: 0,
               borderTop: '1px solid var(--dp-color-rule)',
               borderLeft: '1px solid var(--dp-color-rule)'
             }}
           >
-            <button
-              type="button"
-              onClick={() =>
-                setSaveConfirmTarget(prev => (prev ? { ...prev, shareWithFriends: true } : null))
-              }
-              className="kinetic-btn"
-              style={{
-                ...UI.pillBtn(Boolean(shareWithFriends)),
-                padding: '10px 8px',
-                fontSize: '12px',
-                textAlign: 'center',
-                borderTop: 'none',
-                borderLeft: 'none',
-                borderRight: '1px solid var(--dp-color-rule)',
-                borderBottom: '1px solid var(--dp-color-rule)'
-              }}
-            >
-              YES — SHARE ✓
-            </button>
             <Button
               variant="toggle"
-              active={!shareWithFriends}
+              active={Boolean(shareWithFriends)}
+              aria-pressed={Boolean(shareWithFriends)}
               onClick={() =>
-                setSaveConfirmTarget(prev => (prev ? { ...prev, shareWithFriends: false } : null))
+                setSaveConfirmTarget(prev => (prev ? { ...prev, shareWithFriends: !prev.shareWithFriends } : null))
               }
-              style={{ padding: '10px 8px', fontSize: '12px', textAlign: 'center', borderTop: 'none', borderLeft: 'none', borderRight: '1px solid var(--dp-color-rule)', borderBottom: '1px solid var(--dp-color-rule)' }}
+              style={toggleCellStyle}
             >
-              NO — PRIVATE
+              {shareWithFriends ? 'PUBLIC' : 'PRIVATE'}
             </Button>
+            {showRoutineToggle && (
+              <Button
+                variant="toggle"
+                active={Boolean(saveAsRoutine)}
+                aria-pressed={Boolean(saveAsRoutine)}
+                onClick={() =>
+                  setSaveConfirmTarget(prev => (prev ? { ...prev, saveAsRoutine: !prev.saveAsRoutine } : null))
+                }
+                style={toggleCellStyle}
+              >
+                {saveAsRoutine ? 'ROUTINE ✓' : 'ROUTINE'}
+              </Button>
+            )}
+          </div>
+          <div style={{ marginTop: '6px', fontSize: '11px', fontWeight: 700, color: '#A0A0A0', lineHeight: 1.4 }}>
+            {shareWithFriends ? 'Public: friends can load it from their routines.' : 'Private: only you can load it.'}
+            {showRoutineToggle &&
+              (saveAsRoutine ? ' It will also be saved to your routines.' : ' Tap ROUTINE to also save it to your routines.')}
           </div>
         </div>
 

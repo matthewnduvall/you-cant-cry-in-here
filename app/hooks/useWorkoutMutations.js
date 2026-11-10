@@ -572,6 +572,7 @@ export function useWorkoutMutations({
     setSaveConfirmTarget({
       name: currentWorkout.title || getDefaultSessionName(),
       shareWithFriends: Boolean(isCurrentEditorShared || shareRoutinesWithFriends),
+      saveAsRoutine: currentView === 'routine_editor',
       gymType: detectedGymType,
       sourceView: currentView
     });
@@ -597,12 +598,16 @@ export function useWorkoutMutations({
       gymType: routineGymType,
       slots: normalizedSlots
     };
-    setSavedRoutines(prev => {
-      const exists = prev.some(r => r.key === routineItem.key || r.label === finalTitle);
-      return exists
-        ? prev.map(r => (r.key === routineItem.key || r.label === finalTitle ? routineItem : r))
-        : [routineItem, ...prev];
-    });
+    // ROUTINE toggle: the routine editor always saves a routine; sessions/History only when it is on.
+    const shouldSaveRoutine = sourceView === 'routine_editor' || Boolean(confirmed?.saveAsRoutine);
+    if (shouldSaveRoutine) {
+      setSavedRoutines(prev => {
+        const exists = prev.some(r => r.key === routineItem.key || r.label === finalTitle);
+        return exists
+          ? prev.map(r => (r.key === routineItem.key || r.label === finalTitle ? routineItem : r))
+          : [routineItem, ...prev];
+      });
+    }
 
     if (shouldShare) {
       const sharedItem = {
@@ -624,7 +629,7 @@ export function useWorkoutMutations({
       setIsCurrentEditorShared(false);
     }
 
-    appendSessionLog?.('SAVE_WORKOUT', `Saved "${finalTitle}" (gymType=${routineGymType}, shareWithFriends=${shouldShare})`);
+    appendSessionLog?.('SAVE_WORKOUT', `Saved "${finalTitle}" (gymType=${routineGymType}, shareWithFriends=${shouldShare}, saveAsRoutine=${shouldSaveRoutine})`);
     setSaveConfirmTarget(null);
     setOpenedFromRoutines(false);
 
