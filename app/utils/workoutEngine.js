@@ -106,9 +106,9 @@ export const insertHistoryEntrySorted = (history, entry) =>
     (a, b) => new Date(b.startedAt || 0).getTime() - new Date(a.startedAt || 0).getTime()
   );
 
-/** Default scheme for new exercises from the training goal: Strength 5x5, Hypertrophy 5x10, Maintain 5x8. */
+/** Default scheme for new exercises from the training goal: Strength 5x5, Balanced 5x8 (default), Hypertrophy 5x10, Maintain 5x8. */
 export const getDefaultSchemeForGoal = goalType =>
-  goalType === 'Hypertrophy' ? '5x10' : goalType === 'Maintain' ? '5x8' : '5x5';
+  goalType === 'Strength' ? '5x5' : goalType === 'Hypertrophy' ? '5x10' : '5x8';
 
 export const SCHEME_OPTIONS = [
   '5x5',
@@ -344,7 +344,7 @@ export const calculateEquivalentRepsForWeight = (
   return Math.max(1, Math.min(50, computedReps));
 };
 
-export const getIncrementInLbs = (goalIncrement = 1.25, goalUnit = 'lb', goalType = 'Strength') => {
+export const getIncrementInLbs = (goalIncrement = 1.25, goalUnit = 'lb', goalType = 'Balanced') => {
   if (goalType === 'Maintain') return 0;
   const inc = Number(goalIncrement) || 0;
   return goalUnit === 'kg' ? roundToIncrement(inc * 2.20462) : roundToIncrement(inc);

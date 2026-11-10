@@ -138,7 +138,7 @@ export function useCloudAndStorageSync({
             : getEquipmentListForGymSelection(hydrated.settings.selectedGymId, hydrated.gyms || [])
         );
         if (hydrated.settings.goals) {
-          setGoalType(hydrated.settings.goals.goalType || 'Strength');
+          setGoalType(hydrated.settings.goals.goalType || 'Balanced');
           setGoalIncrement(hydrated.settings.goals.goalIncrement ?? 1.25);
           setGoalUnit(hydrated.settings.goals.goalUnit || 'lb');
           setChartMetric(hydrated.settings.goals.chartMetric || 'weight');
@@ -413,7 +413,9 @@ export function useCloudAndStorageSync({
               if (cloud.settings.bodyMetrics.heightInches !== undefined) setUserHeightInches(cloud.settings.bodyMetrics.heightInches);
             }
             if (cloud.settings.goals) {
-              if (cloud.settings.goals.goalType) setGoalType(cloud.settings.goals.goalType);
+              // Only a goal the app saved (pushes stamp settings.updatedAt): a new account's row holds the database
+              // defaults (Strength), which would override the app's default (Balanced)
+              if (cloud.settings.goals.goalType && cloud.settings.updatedAt) setGoalType(cloud.settings.goals.goalType);
               if (cloud.settings.goals.goalIncrement !== undefined) setGoalIncrement(cloud.settings.goals.goalIncrement);
               if (cloud.settings.goals.goalUnit) setGoalUnit(cloud.settings.goals.goalUnit);
               if (cloud.settings.goals.targetStandardClass) setTargetStandardClass(cloud.settings.goals.targetStandardClass);
@@ -714,7 +716,7 @@ export function useCloudAndStorageSync({
     setUserBodyweightLbs(220);
     setUserHeightFeet(5);
     setUserHeightInches(10);
-    setGoalType('Strength');
+    setGoalType('Balanced');
     setGoalIncrement(1.25);
     setGoalUnit('lb');
     setTargetStandardClass('Intermediate');

@@ -145,7 +145,8 @@ export function IOSListRow({ children, onClick, isLast = false, indexLabel, bgNu
 }
 
 /**
- * Locked header row above the rest timer: editable session name + SYNC + green SAVE + red RESET.
+ * Locked header row above the rest timer: editable session name + SYNC + green SAVE (`saveLabel`; FINISH in a live
+ * session) + red RESET.
  * SAVE / RESET appear only when the workout has exercises (showActions); SYNC only when `sync` is given:
  * { status: 'idle' | 'pending' | 'synced', onClick }.
  */
@@ -153,7 +154,15 @@ export function IOSListRow({ children, onClick, isLast = false, indexLabel, bgNu
 // NEXT bar ends exactly under the SAVE | RESET divider.
 const SESSION_ACTION_COL = '58px';
 
-export function SessionTitleBar({ title = '', onChangeTitle, onSave, onReset, showActions = false, sync = null }) {
+export function SessionTitleBar({
+  title = '',
+  onChangeTitle,
+  onSave,
+  onReset,
+  showActions = false,
+  sync = null,
+  saveLabel = 'SAVE'
+}) {
   const cellBorder = {
     borderTop: 'none',
     borderLeft: 'none',
@@ -241,7 +250,7 @@ export function SessionTitleBar({ title = '', onChangeTitle, onSave, onReset, sh
       {showActions && (
         <>
           <button type="button" className="kinetic-btn" onClick={onSave} style={actionStyle('#30D158', '#101010')}>
-            SAVE
+            {saveLabel}
           </button>
           <button type="button" className="kinetic-btn" onClick={onReset} style={actionStyle('#141416', '#FF3B30')}>
             RESET

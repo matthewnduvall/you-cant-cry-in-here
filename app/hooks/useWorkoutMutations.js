@@ -112,8 +112,8 @@ export function useWorkoutMutations({
   muscleStimulusStatus = {},
   // the Equipment page list (null = everything); drives every exercise picked for the athlete
   availableEquipment = null,
-  // Training goal: sets the default scheme of new exercises (Strength 5x5, Hypertrophy 5x10, Maintain 5x8)
-  goalType = 'Strength'
+  // Training goal: sets the default scheme of new exercises (Strength 5x5, Balanced 5x8, Hypertrophy 5x10, Maintain 5x8)
+  goalType = 'Balanced'
 }) {
   const defaultScheme = getDefaultSchemeForGoal(goalType);
   const isAvailable = ex => isExerciseAvailableWithEquipment(ex, availableEquipment);

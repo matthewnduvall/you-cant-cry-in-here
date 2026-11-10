@@ -611,7 +611,7 @@ export function SaveConfirmModal({
         </div>
 
         <div style={{ marginBottom: '14px' }}>
-          <div style={UI.stepLabel}>1. NAME TO SAVE UNDER</div>
+          <div style={UI.stepLabel}>NAME TO SAVE UNDER</div>
           <input
             type="text"
             value={name}
@@ -648,7 +648,7 @@ export function SaveConfirmModal({
         </div>
 
         <div style={{ marginBottom: '18px' }}>
-          <div style={UI.stepLabel}>2. SHARING</div>
+          <div style={UI.stepLabel}>SHARING</div>
           <div
             style={{
               display: 'grid',
@@ -682,11 +682,6 @@ export function SaveConfirmModal({
                 {saveAsRoutine ? 'ROUTINE ✓' : 'ROUTINE'}
               </Button>
             )}
-          </div>
-          <div style={{ marginTop: '6px', fontSize: '11px', fontWeight: 700, color: '#A0A0A0', lineHeight: 1.4 }}>
-            {shareWithFriends ? 'Public: friends can load it from their routines.' : 'Private: only you can load it.'}
-            {showRoutineToggle &&
-              (saveAsRoutine ? ' It will also be saved to your routines.' : ' Tap ROUTINE to also save it to your routines.')}
           </div>
         </div>
 

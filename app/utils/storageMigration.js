@@ -71,7 +71,7 @@ export const DEFAULT_SETTINGS_V2 = {
   prDefaultsCleanedV4: true,
   bodyMetrics: { bodyweightLbs: 220, heightFeet: 5, heightInches: 10 },
   goals: {
-    goalType: 'Strength', goalIncrement: 1.25, goalUnit: 'lb',
+    goalType: 'Balanced', goalIncrement: 1.25, goalUnit: 'lb',
     chartMetric: 'weight', targetStandardClass: 'Intermediate', customGoalWeights: {}
   },
   stimulus: { greenDays: 2, yellowDays: 4 },

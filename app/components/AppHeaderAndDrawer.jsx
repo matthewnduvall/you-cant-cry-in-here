@@ -177,6 +177,7 @@ export function AppHeaderAndDrawer({
             onReset={onResetSession}
             showActions={(currentEditorWorkout.slots || []).length > 0 && Boolean(onFinishSession)}
             sync={currentView === 'session' ? sessionSync : null}
+            saveLabel={currentView === 'session' ? 'FINISH' : 'SAVE'}
           />
         )}
         {isRoutineEditorView && currentEditorWorkout && (
