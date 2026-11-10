@@ -119,6 +119,34 @@ export function TabBar({ tabs = [], value, onChange, ariaLabel = 'Tabs', style }
   );
 }
 
+/** SHOW ▾ / HIDE ▴ button for collapsible sections (40 px tap target, orange caret). */
+export function CollapseToggle({ collapsed, onClick, label }) {
+  return (
+    <button
+      type="button"
+      aria-expanded={!collapsed}
+      aria-label={label ? `${collapsed ? 'Show' : 'Hide'} ${label}` : undefined}
+      onClick={onClick}
+      className="kinetic-btn"
+      style={{
+        minWidth: '76px',
+        height: '40px',
+        padding: '0 12px',
+        backgroundColor: '#161618',
+        color: '#FFFFFF',
+        border: '1px solid var(--dp-color-rule)',
+        fontSize: '12px',
+        fontWeight: 800,
+        textTransform: 'uppercase',
+        cursor: 'pointer',
+        flexShrink: 0
+      }}
+    >
+      {collapsed ? 'SHOW' : 'HIDE'} <span style={{ color: 'var(--dp-color-accent)' }}>{collapsed ? '▾' : '▴'}</span>
+    </button>
+  );
+}
+
 /**
  * Red ✕ delete button.
  * - variant "solid": red fill (removing whole items: history entries, friends, routines).

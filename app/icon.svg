@@ -11,14 +11,6 @@
     d="M256 96 C256 96 148 232 148 312 C148 374 196 420 256 420 C316 420 364 374 364 312 C364 232 256 96 256 96 Z"
     fill="#FFFFFF"
   />
-  <!-- Inner Brutalist Cutout / Highlight on Teardrop -->
-  <path
-    d="M210 296 C204 328 220 360 252 368"
-    fill="none"
-    stroke="#101010"
-    stroke-width="22"
-    stroke-linecap="square"
-  />
 
   <!-- Dark gap either side of the slash, only where it crosses the teardrop -->
   <line

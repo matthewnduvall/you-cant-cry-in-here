@@ -7,7 +7,8 @@ import {
   registerUserAccount,
   signInUserAccount,
   requestPasswordRecoveryEmail,
-  completePasswordRecoveryWithToken
+  completePasswordRecoveryWithToken,
+  accountHasSavedData
 } from '../../utils/supabaseAuth';
 import { Button } from '../Controls';
 
@@ -32,7 +33,9 @@ export function AuthView({
   pendingInviter,
   onInviteAccepted,
   setUser,
-  setCurrentView
+  setCurrentView,
+  // Workout History already on this device (then a first sign-in skips Configuration)
+  hasLocalHistory = false
 }) {
   const [loginError, setLoginError] = useState('');
   // Set by useCloudAndStorageSync when a session ends (revoked/expired or never saved on this device)
@@ -88,26 +91,28 @@ export function AuthView({
       } catch {
         // ignore storage error
       }
+      // Configuration only on a brand-new account's very first sign-in: any saved History, routines, PRs,
+      // equipment setups or settings (on the server, or History on this device) go straight Home.
+      // Checked before setUser so the app's own first sync can't make a new account look used.
+      const savedOnServer = await accountHasSavedData(result.user);
+      let hasOnboarded = false;
+      try {
+        const map = JSON.parse(window.localStorage.getItem('yccih_onboarded_users_v1') || '{}');
+        const uKey = (result.user.email || result.user.username || result.user.id || '').toLowerCase();
+        hasOnboarded = Boolean(map[uKey]);
+        map[uKey] = true;
+        window.localStorage.setItem('yccih_onboarded_users_v1', JSON.stringify(map));
+      } catch {
+        hasOnboarded = true;
+      }
+      // Couldn't reach the server: fall back to "already set up on this device"
+      const isBrandNew = savedOnServer === false ? !hasLocalHistory : savedOnServer === null && !hasOnboarded && !hasLocalHistory;
       setUser(result.user);
       if (onInviteAccepted) onInviteAccepted(result.user);
       setAuthUsername(result.user.username);
       setAuthEmail(result.user.email);
       setAuthPassword('');
-      let hasOnboarded = false;
-      if (typeof window !== 'undefined' && result.user) {
-        try {
-          const map = JSON.parse(window.localStorage.getItem('yccih_onboarded_users_v1') || '{}');
-          const uKey = (result.user.email || result.user.username || result.user.id || '').toLowerCase();
-          hasOnboarded = Boolean(map[uKey]);
-          if (!hasOnboarded) {
-            map[uKey] = true;
-            window.localStorage.setItem('yccih_onboarded_users_v1', JSON.stringify(map));
-          }
-        } catch {
-          hasOnboarded = true;
-        }
-      }
-      setCurrentView(hasOnboarded ? 'home' : 'configuration');
+      setCurrentView(isBrandNew ? 'configuration' : 'home');
     } catch (err) {
       setLoginError(err?.message || 'SIGN IN FAILED. CHECK YOUR USERNAME/EMAIL AND PASSWORD.');
     } finally {

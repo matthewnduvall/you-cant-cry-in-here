@@ -394,7 +394,7 @@ export function HomeView({
       <IOSListSection header="STATS" colors={colors}>
         {[
           // PROGRESS is one page with the chart, Personal Records and logged History (view id 'history')
-          { id: 'history', idx: '01', title: 'PROGRESS', sub: 'Trends, Personal Records & Workout History', num: '01' },
+          { id: 'history', idx: '01', title: 'PERFORMANCE', sub: 'Trends, Personal Records & Workout History', num: '01' },
           { id: 'stimulus_map', idx: '02', title: 'STIMULUS', sub: 'Recovery Windows & Muscle Readiness', num: '02' },
           { id: 'social', idx: '03', title: 'SOCIAL', sub: `${friendsList.length} ${friendsList.length === 1 ? 'Friend' : 'Friends'} • ${pendingIncomingRequests.length} Pending ${pendingIncomingRequests.length === 1 ? 'Request' : 'Requests'} • Leaderboards`, num: '03' }
         ].map((item, i, arr) => (

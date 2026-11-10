@@ -16,9 +16,10 @@ import { Button, TabBar } from '../Controls';
 import { RoutinesView } from './RoutinesView';
 import { buildProgressionSeriesByLift } from '../../hooks/useTelemetryAndAnalytics';
 
-// Profile tabs: PROGRESS (their Progress page: chart / personal records / history) · ROUTINES · FRIENDS
+// Profile tabs: PERFORMANCE (their Progress page: progress / personal records / history — not called PROGRESS,
+// so it doesn't read PROGRESS > PROGRESS) · ROUTINES · FRIENDS
 const PROFILE_TABS = [
-  { id: 'progress', label: 'PROGRESS' },
+  { id: 'progress', label: 'PERFORMANCE' },
   { id: 'routines', label: 'ROUTINES' },
   { id: 'friends', label: 'FRIENDS' }
 ];

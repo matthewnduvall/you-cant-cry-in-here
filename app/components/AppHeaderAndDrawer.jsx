@@ -236,8 +236,7 @@ export function AppHeaderAndDrawer({
 
                 {[
                   { id: 'configuration', label: 'CONFIGURATION', clearReturn: true },
-                  { id: 'info', label: 'INFO' },
-                  { id: 'settings', label: 'DATA' }
+                  { id: 'info', label: 'INFO' }
                 ].map(nav => (
                   <Button
                     variant="drawer"
