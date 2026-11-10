@@ -19,6 +19,8 @@ import {
   getFilteredExercisesForSlotInline,
   getAvailableMuscleGroupsForCategory,
   stripEquipmentFromExerciseName,
+  getExerciseEquipmentOptionsForGym,
+  getUniqueShortExerciseNames,
   findClosestExerciseInPool,
   isExerciseCompatibleWithGymSelection
 } from '../data/exerciseLibrary';
@@ -244,8 +246,15 @@ export function SlotEditor({
       ex => !isSuperset || ex.id !== supIds[1 - half]
     );
     const pool = basePool.some(ex => ex.id === exId) ? basePool : [exObj, ...basePool];
-    return { exId, exObj, category, availMuscles, muscle, pool, scheme: schemes[half] };
+    // The athlete's equipment choice for this exercise; must be one the exercise allows ("A / B" = either)
+    const exEquipment = equipmentOptionsOf(exObj);
+    const savedEquipment = isSuperset ? slot.supersetEquipmentFilters?.[half] : slot.equipmentFilter;
+    const equipment = exEquipment.includes(savedEquipment) ? savedEquipment : exEquipment[0];
+    return { exId, exObj, category, availMuscles, muscle, pool, equipment, scheme: schemes[half] };
   };
+
+  // Equipment options of an exercise ("A / B" = either), limited to what the gym setting allows
+  const equipmentOptionsOf = ex => getExerciseEquipmentOptionsForGym(ex, selectedGymId);
 
   const sendHeaderChange = (half, changes) =>
     onHeaderChange?.(isSuperset ? { ...changes, supersetHalf: half } : changes);
@@ -269,10 +278,21 @@ export function SlotEditor({
   const handleSearchPick = (half, ex) => {
     setSearch(null);
     if (!ex) return;
-    const changes = { exerciseId: ex.id, muscleGroupFilter: ex.muscleGroup || 'All Muscles' };
+    const current = pickerState(half);
+    const exEquipment = equipmentOptionsOf(ex);
+    // Equipment named in the search ("landmine row") wins, then the current choice, then the exercise's first
+    const lettersOnly = text => String(text || '').toLowerCase().replace(/[^a-z]/g, '');
+    const typed = lettersOnly(search?.query);
+    const namedInSearch = exEquipment.find(eq => typed && typed.includes(lettersOnly(eq)));
+    const changes = {
+      exerciseId: ex.id,
+      muscleGroupFilter: ex.muscleGroup || 'All Muscles',
+      equipmentFilter:
+        namedInSearch || (exEquipment.includes(current.equipment) ? current.equipment : exEquipment[0])
+    };
     const exCategory = normalizeSlotCategory(ex.category);
     const allowed = isSuperset ? SUPERSET_HALF_CATEGORIES : categories;
-    if (allowed.includes(exCategory) && exCategory !== pickerState(half).category) changes.category = exCategory;
+    if (allowed.includes(exCategory) && exCategory !== current.category) changes.category = exCategory;
     sendHeaderChange(half, changes);
   };
 
@@ -403,10 +423,13 @@ export function SlotEditor({
 
   // Row 1: Search, Type, Muscle Group. Row 2: Equipment, Exercise, Scheme. Supersets render this twice (A, B).
   const renderHeaderBlock = half => {
-    const { exId, category, availMuscles, muscle, pool, scheme } = pickerState(half);
-    const equipment = equipmentOf(EXERCISE_MAP[exId]);
-    const equipmentOptions = [...new Set(pool.map(equipmentOf))].sort((a, b) => a.localeCompare(b));
-    const exercisesForEquipment = pool.filter(ex => equipmentOf(ex) === equipment);
+    const { exId, category, availMuscles, muscle, pool, equipment, scheme } = pickerState(half);
+    const equipmentOptions = [...new Set(pool.flatMap(equipmentOptionsOf))].sort((a, b) => a.localeCompare(b));
+    const hasEquipment = (ex, eq) => equipmentOptionsOf(ex).includes(eq);
+    const exercisesForEquipment = pool.filter(ex => hasEquipment(ex, equipment));
+    // Short names; where two would read the same, the dropped equipment word is added in brackets
+    const shortNames = getUniqueShortExerciseNames(exercisesForEquipment, equipment);
+    const displayName = ex => shortNames[ex.id] || stripEquipmentFromExerciseName(ex.name);
     const tag = isSuperset ? (half === 0 ? 'A ' : 'B ') : '';
     const typeOptions = isSuperset ? SUPERSET_HALF_CATEGORIES : categories;
     return (
@@ -466,11 +489,17 @@ export function SlotEditor({
         <select
           aria-label={isSuperset ? `Superset Exercise ${half + 1} Equipment` : 'Exercise Equipment'}
           value={equipment}
-          onChange={e =>
+          onChange={e => {
+            const nextEquipment = e.target.value;
+            // Keep the exercise when it already allows this equipment; otherwise jump to the closest one that does
+            const nextExerciseId = hasEquipment(EXERCISE_MAP[exId], nextEquipment)
+              ? exId
+              : findClosestExerciseInPool(exId, pool.filter(ex => hasEquipment(ex, nextEquipment)));
             sendHeaderChange(half, {
-              exerciseId: findClosestExerciseInPool(exId, pool.filter(ex => equipmentOf(ex) === e.target.value))
-            })
-          }
+              equipmentFilter: nextEquipment,
+              ...(nextExerciseId && nextExerciseId !== exId ? { exerciseId: nextExerciseId } : {})
+            });
+          }}
           style={{ ...headerSelectStyle, gridColumn: 1, gridRow: 2 }}
         >
           {equipmentOptions.map(eq => (
@@ -502,7 +531,7 @@ export function SlotEditor({
           >
             {exercisesForEquipment.map(ex => (
               <option key={ex.id} value={ex.id}>
-                {stripEquipmentFromExerciseName(ex.name).toUpperCase()}
+                {displayName(ex).toUpperCase()}
               </option>
             ))}
           </select>
@@ -665,6 +694,7 @@ export function SlotEditor({
                   set: st,
                   exercise: exObj,
                   exerciseId: exObj.id,
+                  equipment: pickerState(exIdx).equipment,
                   lastDisplay: isTimerScheme ? lastTimerDisplay : lastW,
                   incrementDisplay: isTimerScheme ? null : displayIncValue,
                   onEditIncrement: isTimerScheme ? null : () => editValue('increment', setIncValue)

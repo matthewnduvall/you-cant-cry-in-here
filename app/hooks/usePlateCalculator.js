@@ -13,8 +13,9 @@ const BARBELL_WEIGHT_LBS = 45;
 const AVAILABLE_LB_PLATES = [45, 35, 25, 10, 5, 2.5, 1.25];
 
 // Dumbbells and kettlebells are picked by their own weight: no bar, no x2 for two sides.
-const isSingleLoadExercise = exerciseId => {
-  const eq = (EXERCISE_MAP[exerciseId]?.equipment || '').toLowerCase();
+// `equipment` is the athlete's equipment choice for an exercise that allows several ("Dumbbell / Barbell").
+const isSingleLoadExercise = (exerciseId, equipment) => {
+  const eq = String(equipment || EXERCISE_MAP[exerciseId]?.equipment || '').toLowerCase();
   return eq.includes('dumbbell') || eq.includes('kettlebell');
 };
 
@@ -56,8 +57,8 @@ export function usePlateCalculator({
     return plates.sort((a, b) => b - a);
   };
 
-  const decomposeWeightToPlates = (initialWeight, exerciseId) => {
-    const singleLoad = isSingleLoadExercise(exerciseId);
+  const decomposeWeightToPlates = (initialWeight, exerciseId, equipment) => {
+    const singleLoad = isSingleLoadExercise(exerciseId, equipment);
     setCalcUnit('lb');
     setCalcIsSingleLoad(singleLoad);
     const plates = platesForWeight(initialWeight, singleLoad);
@@ -71,12 +72,12 @@ export function usePlateCalculator({
   // TOTAL WEIGHT typed in by hand: show the plates for it, keeping the typed number if they can't match it
   const setCalcTotalFromInput = value => {
     const weight = Math.max(0, Math.round((Number(value) || 0) * 100) / 100);
-    decomposeWeightToPlates(weight, plateCalcTarget?.exerciseId);
+    decomposeWeightToPlates(weight, plateCalcTarget?.exerciseId, plateCalcTarget?.equipment);
   };
 
   // setInfo: { lastDisplay, incrementDisplay, onEditIncrement } from SlotEditor, shown in the TOTAL WEIGHT box
   const openPlateCalculatorForSet = (slotId, exIndex, setItem, exerciseName, onApplyCustom = null, setInfo = {}) => {
-    decomposeWeightToPlates(Number(setItem.weight) || 135, setInfo.exerciseId);
+    decomposeWeightToPlates(Number(setItem.weight) || 135, setInfo.exerciseId, setInfo.equipment);
     setPlateCalcTarget({
       mode: 'set',
       slotId,
@@ -84,6 +85,7 @@ export function usePlateCalculator({
       setId: setItem.id,
       setNumber: setItem.setNumber,
       exerciseId: setInfo.exerciseId,
+      equipment: setInfo.equipment,
       exerciseName,
       onApplyCustom,
       lastDisplay: setInfo.lastDisplay,

@@ -973,6 +973,8 @@ export function useWorkoutMutations({
       cats[half] = isSupersetCategory(cat) ? cats[half] : cat;
     }
     if (changes.muscleGroupFilter !== undefined) muscles[half] = changes.muscleGroupFilter;
+    const equipmentFilters = [slot.supersetEquipmentFilters?.[0], slot.supersetEquipmentFilters?.[1]];
+    if (changes.equipmentFilter !== undefined) equipmentFilters[half] = changes.equipmentFilter;
     if (changes.scheme && changes.scheme !== schemes[half]) {
       schemes[half] = changes.scheme;
       rebuildHalf = true;
@@ -1020,6 +1022,7 @@ export function useWorkoutMutations({
       supersetCategories: cats,
       supersetMuscleFilters: muscles,
       supersetSchemes: schemes,
+      supersetEquipmentFilters: equipmentFilters,
       scheme: schemes[0],
       muscleGroupFilter: muscles[0],
       supersetSetsByExercise: matrix,
@@ -1050,6 +1053,7 @@ export function useWorkoutMutations({
       id: slot.id,
       familyMuscleGroup: slot.familyMuscleGroup,
       muscleGroupFilter: muscles[keep],
+      equipmentFilter: slot.supersetEquipmentFilters?.[keep],
       sets,
       supersetSetsByExercise: [sets]
     };
@@ -1065,6 +1069,10 @@ export function useWorkoutMutations({
         }
         if (isSupersetCategory(slot.category) && changes.supersetHalf !== undefined) {
           return applySupersetHalfChange(slot, changes);
+        }
+        // Equipment filter only (the exercise already allows it): nothing to rebuild
+        if (Object.keys(changes).every(key => key === 'equipmentFilter')) {
+          return { ...slot, equipmentFilter: changes.equipmentFilter };
         }
         const currentEx = EXERCISE_MAP[slot.exerciseId] || EXERCISE_LIBRARY[0];
         const targetMuscleGroup =
@@ -1199,7 +1207,8 @@ export function useWorkoutMutations({
           ...rebuiltSlot,
           id: slot.id,
           familyMuscleGroup: targetMuscleGroup,
-          muscleGroupFilter: nextMuscleFilter
+          muscleGroupFilter: nextMuscleFilter,
+          equipmentFilter: changes.equipmentFilter ?? slot.equipmentFilter
         };
       });
       return { ...prev, slots: nextSlots };
