@@ -156,7 +156,7 @@ export function AuthView({
       }
       setCurrentView('onboarding');
     } catch (err) {
-      setSignupError(err?.message || 'ACCOUNT CREATION FAILED. VERIFY ALL FIELDS AND BETA CODE.');
+      setSignupError(err?.message || 'Account creation failed. Check every field and the beta code.');
     } finally {
       setAuthSubmitting(null);
     }

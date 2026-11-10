@@ -300,7 +300,7 @@ export function ProfileView({
           header={`@${profUser.username}'S FRIENDS`}
           footer={
             friendsOfFriend?.ok && friendsOfFriend.friends.length === 0
-              ? 'NO PUBLIC FRIENDS TO SHOW, OR THIS PROFILE IS PRIVATE.'
+              ? 'No public friends to show, or this profile is private.'
               : null
           }
           colors={colors}

@@ -241,7 +241,7 @@ export function HistoryView({
   const handleConfirmImportCsv = () => {
     const raw = String(importCsvText || '').trim();
     if (!raw) {
-      setImportCsvStatus('PLEASE UPLOAD OR PASTE A .CSV FILE FIRST.');
+      setImportCsvStatus('Upload or paste a .csv file first.');
       return;
     }
 
@@ -318,7 +318,7 @@ export function HistoryView({
     });
 
     if (importedSetsCount === 0 || sessionsByDate.size === 0) {
-      setImportCsvStatus('COULD NOT PARSE ANY VALID (DATE, EXERCISE, SET, WEIGHT, REPS) ROWS.');
+      setImportCsvStatus('No valid rows found. Each row needs a date, exercise, set, weight and reps.');
       return;
     }
 
@@ -773,10 +773,10 @@ export function HistoryView({
                     }}
                   >
                     {isTBD
-                      ? `${targetStandardClass.toUpperCase()} GOAL: ${goal1RM}\u00A0LB`
+                      ? `${targetStandardClass} goal: ${goal1RM}\u00A0lb`
                       : diffFromGoal > 0
-                        ? `${targetStandardClass.toUpperCase()} GOAL: ${goal1RM}\u00A0LB (${diffFromGoal}\u00A0LB TO GOAL)`
-                        : `${targetStandardClass.toUpperCase()} GOAL: ${goal1RM}\u00A0LB (ACHIEVED +${Math.abs(diffFromGoal)}\u00A0LB)`}
+                        ? `${targetStandardClass} goal: ${goal1RM}\u00A0lb (${diffFromGoal}\u00A0lb to go)`
+                        : `${targetStandardClass} goal: ${goal1RM}\u00A0lb ${diffFromGoal === 0 ? '(reached)' : `(beaten by ${Math.abs(diffFromGoal)}\u00A0lb)`}`}
                   </div>
                 </div>
 
@@ -1365,8 +1365,7 @@ export function HistoryView({
                   fontSize: '11px',
                   fontWeight: 800,
                   color: '#FF3B30',
-                  marginBottom: '10px',
-                  textTransform: 'uppercase'
+                  marginBottom: '10px'
                 }}
               >
                 {importCsvStatus}
