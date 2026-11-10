@@ -71,7 +71,7 @@ exrx_shoulders_cable_y_raise,Cable Y Raise,Shoulders,Accessory,Cable,Cable Machi
 exrx_shoulders_stretch_doorway_anterior_deltoid_stretch,Doorway Anterior Deltoid Stretch,Shoulders,Accessory,Stretch,,Deltoid - Anterior,false,25,
 exrx_shoulders_dumbbell_alternating_front_raise,Dumbbell Alternating Front Raise,Shoulders,Accessory,Dumbbell,Dumbbell,Deltoid - Anterior,false,45,
 arnold_press,Dumbbell Arnold Press,Shoulders,Compound,Dumbbell,Dumbbell,Deltoid - Anterior|Deltoid - Lateral|Triceps Brachii,false,110,dumbbell_shoulder_press|overhead_press
-reverse_flies,Dumbbell Bent-Over Rear Delt Raise,Shoulders,Accessory,Dumbbell,Dumbbell,Deltoid - Posterior|Infraspinatus & Teres Minor|Rhomboids|Trapezius - Middle,false,55,cable_face_pull|side_raise_dumbbell
+reverse_flies,Dumbbell Reverse Fly,Shoulders,Accessory,Dumbbell,Dumbbell,Deltoid - Posterior|Infraspinatus & Teres Minor|Rhomboids|Trapezius - Middle,false,55,cable_face_pull|side_raise_dumbbell
 dumbbell_front_raise,Dumbbell Front Raise,Shoulders,Accessory,Dumbbell,Dumbbell,Deltoid - Anterior|Pectoralis Major - Clavicular,false,50,front_raise_ez_bar|side_raise_dumbbell
 exrx_shoulders_dumbbell_full_can_lateral_raise,Dumbbell Full Can Lateral Raise,Shoulders,Accessory,Dumbbell,Dumbbell,Supraspinatus|Deltoid - Lateral,false,35,
 exrx_shoulders_dumbbell_incline_lateral_raise,Dumbbell Incline Lateral Raise,Shoulders,Accessory,Dumbbell,Dumbbell,Deltoid - Lateral,false,45,

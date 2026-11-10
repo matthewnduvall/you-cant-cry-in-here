@@ -299,6 +299,7 @@ export default function App() {
     handleCancelRoutineSelection,
     handleApplyPreviewRoutine,
     handleAutoBuildWorkout,
+    handleAddAutoSlot,
     handleSaveCurrentEditor,
     handleConfirmSaveWorkout,
     handleShareCurrentEditor,
@@ -452,6 +453,7 @@ export default function App() {
     updateCurrentWorkoutState,
     handleApplyPreviewRoutine,
     handleAutoBuildWorkout,
+    handleAddAutoSlot,
     handleSaveCurrentEditor,
     handleShareCurrentEditor,
     handleResetCurrentEditor,
@@ -552,6 +554,7 @@ export default function App() {
               updateCurrentWorkoutState={updateCurrentWorkoutState}
               handleApplyPreviewRoutine={handleApplyPreviewRoutine}
               handleAutoBuildWorkout={handleAutoBuildWorkout}
+              handleAddAutoSlot={handleAddAutoSlot}
               handleSaveCurrentEditor={handleSaveCurrentEditor}
               handleShareCurrentEditor={handleShareCurrentEditor}
               handleResetCurrentEditor={handleResetCurrentEditor}

@@ -17,7 +17,10 @@ import {
   normalizeSlotCategory,
   isSupersetCategory,
   getFilteredExercisesForSlotInline,
-  getAvailableMuscleGroupsForCategory
+  getAvailableMuscleGroupsForCategory,
+  stripEquipmentFromExerciseName,
+  findClosestExerciseInPool,
+  isExerciseCompatibleWithGymSelection
 } from '../data/exerciseLibrary';
 import {
   SCHEME_OPTIONS,
@@ -98,6 +101,46 @@ const bottomBtnStyle = (bg, color) => ({
   cursor: 'pointer'
 });
 
+const equipmentOf = ex => ex?.equipment || 'Bodyweight';
+
+const SEARCH_RESULT_LIMIT = 12;
+
+/** Exercises whose name / equipment / muscle group contain every word typed, best name matches first. */
+const searchExercises = (query, selectedGymId, gyms) => {
+  const words = String(query || '').toLowerCase().trim().split(' ').filter(Boolean);
+  if (words.length === 0) return [];
+  const inGym = EXERCISE_LIBRARY.filter(ex => isExerciseCompatibleWithGymSelection(ex, selectedGymId, gyms));
+  const pool = inGym.length > 0 ? inGym : EXERCISE_LIBRARY;
+  const phrase = words.join(' ');
+  const rank = ex => {
+    const name = ex.name.toLowerCase();
+    if (name.startsWith(phrase) || stripEquipmentFromExerciseName(ex.name).toLowerCase().startsWith(phrase)) return 0;
+    if (name.includes(phrase)) return 1;
+    return 2;
+  };
+  return pool
+    .filter(ex => {
+      const hay = `${ex.name} ${ex.equipment || ''} ${ex.muscleGroup || ''}`.toLowerCase();
+      return words.every(w => hay.includes(w));
+    })
+    .sort(
+      (a, b) =>
+        rank(a) - rank(b) ||
+        Number(Boolean(b.isPriority)) - Number(Boolean(a.isPriority)) ||
+        a.name.localeCompare(b.name)
+    )
+    .slice(0, SEARCH_RESULT_LIMIT);
+};
+
+function SearchGlyph() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 16 16" aria-hidden="true" style={{ flexShrink: 0 }}>
+      <circle cx="6.5" cy="6.5" r="5" fill="none" stroke="currentColor" strokeWidth="2" />
+      <line x1="10.2" y1="10.2" x2="15" y2="15" stroke="currentColor" strokeWidth="2" />
+    </svg>
+  );
+}
+
 function PrBadge({ marginRight = '6px' }) {
   return (
     <span
@@ -125,7 +168,6 @@ function PrBadge({ marginRight = '6px' }) {
  * - selectedGymId, gyms: filter the exercise pickers
  * - history, oneRepMaxes, currentIncrementLbs: used to show LAST / INC values
  * - getBase1RM(exId): optional override of the 1RM used for LAST when a set has no lastWeight
- * - infoCell: node shown in the third column under the scheme (1RM readout, PR date, ...)
  * - prFlags: [bool, bool] shows PR badges next to the exercise picker(s)
  * - onHeaderChange(changes): { category | muscleGroupFilter | scheme | exerciseId | supersetExerciseIds }
  * - onRemove / removeLabel: the full-height ✕ on the header
@@ -148,7 +190,6 @@ export function SlotEditor({
   oneRepMaxes = {},
   currentIncrementLbs = 0,
   getBase1RM,
-  infoCell = null,
   prFlags = [false, false],
   onHeaderChange,
   onRemove,
@@ -165,6 +206,8 @@ export function SlotEditor({
   footer = null
 }) {
   const [draggedSet, setDraggedSet] = useState(null);
+  // null = search closed; a string = the search box is open with this text
+  const [searchQuery, setSearchQuery] = useState(null);
 
   const normCat = normalizeSlotCategory(slot.category);
   const ex1 = EXERCISE_MAP[slot.exerciseId] || EXERCISE_LIBRARY[0];
@@ -202,6 +245,206 @@ export function SlotEditor({
       rows.push({ exIdx: 0, exId: slot.exerciseId, set: st, setIdx: i, total: arr.length })
     );
   }
+
+  const pickExercise = (idx, nextId) => {
+    if (!nextId) return;
+    if (!isSuperset) {
+      onHeaderChange?.({ exerciseId: nextId });
+      return;
+    }
+    const nextIds = [...supIds];
+    nextIds[idx] = nextId;
+    onHeaderChange?.({ supersetExerciseIds: nextIds });
+  };
+
+  // Search result → the slot takes that exercise, its muscle group and (outside supersets) its category
+  const handleSearchPick = ex => {
+    setSearchQuery(null);
+    if (!ex) return;
+    if (isSuperset) {
+      pickExercise(0, ex.id);
+      return;
+    }
+    const changes = { exerciseId: ex.id, muscleGroupFilter: ex.muscleGroup || 'All Muscles' };
+    const exCategory = normalizeSlotCategory(ex.category);
+    if (exCategory !== normCat && categories.includes(exCategory)) changes.category = exCategory;
+    onHeaderChange?.(changes);
+  };
+
+  const searchResults = searchQuery ? searchExercises(searchQuery, selectedGymId, gyms) : [];
+
+  const renderSearchCell = () =>
+    searchQuery === null ? (
+      <button
+        type="button"
+        aria-label="Search exercises"
+        onClick={() => setSearchQuery('')}
+        style={{
+          ...headerSelectStyle,
+          gridColumn: 1,
+          gridRow: 1,
+          display: 'flex',
+          alignItems: 'center',
+          gap: '6px',
+          color: '#A0A0A0',
+          textAlign: 'left'
+        }}
+      >
+        <SearchGlyph />
+        SEARCH
+      </button>
+    ) : (
+      <input
+        type="search"
+        aria-label="Search exercises"
+        placeholder="SEARCH"
+        autoFocus
+        enterKeyHint="search"
+        value={searchQuery}
+        onChange={e => setSearchQuery(e.target.value)}
+        onBlur={() => setSearchQuery(null)}
+        onKeyDown={e => {
+          if (e.key === 'Escape') setSearchQuery(null);
+          if (e.key === 'Enter' && searchResults[0]) handleSearchPick(searchResults[0]);
+        }}
+        style={{
+          ...headerSelectStyle,
+          gridColumn: 1,
+          gridRow: 1,
+          cursor: 'text',
+          outline: 'none',
+          border: '2px solid var(--dp-color-accent)',
+          textTransform: 'none',
+          fontFamily: 'inherit'
+        }}
+      />
+    );
+
+  const renderSearchResults = () => {
+    if (searchQuery === null) return null;
+    const hintStyle = { padding: '12px', fontSize: '11px', fontWeight: 800, color: '#A0A0A0' };
+    return (
+      <div
+        role="listbox"
+        aria-label="Exercise search results"
+        // Keep focus in the search box while a result is tapped
+        onMouseDown={e => e.preventDefault()}
+        style={{
+          position: 'absolute',
+          top: '40px',
+          left: 0,
+          right: 0,
+          zIndex: 40,
+          maxHeight: '300px',
+          overflowY: 'auto',
+          backgroundColor: '#101010',
+          border: '2px solid var(--dp-color-accent)',
+          boxShadow: '0 12px 24px rgba(0, 0, 0, 0.6)'
+        }}
+      >
+        {searchQuery.trim() === '' ? (
+          <div style={hintStyle}>TYPE AN EXERCISE, EQUIPMENT OR MUSCLE</div>
+        ) : searchResults.length === 0 ? (
+          <div style={hintStyle}>NO MATCHING EXERCISES</div>
+        ) : (
+          searchResults.map(ex => (
+            <button
+              key={ex.id}
+              type="button"
+              role="option"
+              aria-selected={ex.id === supIds[0]}
+              onClick={() => handleSearchPick(ex)}
+              style={{
+                display: 'block',
+                width: '100%',
+                textAlign: 'left',
+                padding: '9px 12px',
+                backgroundColor: ex.id === supIds[0] ? '#1E1E22' : 'transparent',
+                border: 'none',
+                borderBottom: '1px solid var(--dp-color-rule)',
+                cursor: 'pointer'
+              }}
+            >
+              <span style={{ display: 'block', fontSize: '13px', fontWeight: 800, color: '#FFFFFF', textTransform: 'uppercase' }}>
+                {stripEquipmentFromExerciseName(ex.name)}
+              </span>
+              <span
+                style={{
+                  display: 'block',
+                  fontSize: '10px',
+                  fontWeight: 800,
+                  color: '#A0A0A0',
+                  textTransform: 'uppercase',
+                  marginTop: '2px'
+                }}
+              >
+                {[equipmentOf(ex), ex.muscleGroup, ex.category].filter(Boolean).join(' · ')}
+              </span>
+            </button>
+          ))
+        )}
+      </div>
+    );
+  };
+
+  // Equipment (column 1) and exercise name (column 2) for exercise idx, on header row 2 + idx
+  const renderExercisePicker = idx => {
+    const exId = supIds[idx];
+    const pool = poolWith(EXERCISE_MAP[exId]);
+    const equipment = equipmentOf(EXERCISE_MAP[exId]);
+    const equipmentOptions = [...new Set(pool.map(equipmentOf))].sort((a, b) => a.localeCompare(b));
+    const exercisesForEquipment = pool.filter(ex => equipmentOf(ex) === equipment);
+    const gridRow = 2 + idx;
+    return (
+      <React.Fragment key={idx}>
+        <select
+          aria-label={isSuperset ? `Superset Exercise ${idx + 1} Equipment` : 'Exercise Equipment'}
+          value={equipment}
+          onChange={e =>
+            pickExercise(
+              idx,
+              findClosestExerciseInPool(exId, pool.filter(ex => equipmentOf(ex) === e.target.value))
+            )
+          }
+          style={{ ...headerSelectStyle, gridColumn: 1, gridRow }}
+        >
+          {equipmentOptions.map(eq => (
+            <option key={eq} value={eq}>
+              {eq.toUpperCase()}
+            </option>
+          ))}
+        </select>
+        <div
+          style={{
+            gridColumn: 2,
+            gridRow,
+            width: '100%',
+            minWidth: 0,
+            height: '40px',
+            boxSizing: 'border-box',
+            backgroundColor: '#141416',
+            ...SHARED_CELL_BORDER,
+            display: 'flex',
+            alignItems: 'center'
+          }}
+        >
+          <select
+            aria-label={isSuperset ? `Superset Exercise ${idx + 1}` : 'Select Exercise'}
+            value={exId}
+            onChange={e => pickExercise(idx, e.target.value)}
+            style={exerciseSelectStyle}
+          >
+            {exercisesForEquipment.map(ex => (
+              <option key={ex.id} value={ex.id}>
+                {stripEquipmentFromExerciseName(ex.name).toUpperCase()}
+              </option>
+            ))}
+          </select>
+          {prFlags[idx] && <PrBadge marginRight="6px" />}
+        </div>
+      </React.Fragment>
+    );
+  };
 
   const isDragging = (exIdx, setIdx) =>
     draggedSet && draggedSet.exIdx === exIdx && (setIdx === undefined || draggedSet.setIdx === setIdx);
@@ -402,94 +645,72 @@ export function SlotEditor({
       <div style={{ display: 'grid', gridTemplateColumns: '34px minmax(0, 1fr) 34px', gap: 0, alignItems: 'stretch' }}>
         <DragNumberBadge label={number} color="var(--dp-color-accent)" height="100%" bg="#18181B" title={headerTitle} />
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 0, minWidth: 0 }}>
-          {/* Row 1: Category, Muscle Group, Scheme */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 0, height: '40px' }}>
-            <select
-              aria-label="Exercise Category"
-              value={normCat}
-              onChange={e => onHeaderChange?.({ category: e.target.value })}
-              style={{ ...headerSelectStyle, backgroundColor: 'var(--dp-color-accent)', color: '#101010' }}
-            >
-              {categories.map(cat => (
-                <option key={cat} value={cat}>
-                  {cat.toUpperCase()}
-                </option>
-              ))}
-            </select>
+        {/* Row 1: Search, Category, Muscle Group. Row 2 (+3 for supersets): Equipment, Exercise, Scheme */}
+        <div
+          style={{
+            position: 'relative',
+            display: 'grid',
+            gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+            gridAutoRows: '40px',
+            gap: 0,
+            minWidth: 0
+          }}
+        >
+          {renderSearchCell()}
 
-            <select
-              aria-label="Muscle Group Filter"
-              value={activeMuscleFilter}
-              onChange={e => onHeaderChange?.({ muscleGroupFilter: e.target.value })}
-              style={headerSelectStyle}
-            >
-              {availMuscleGroups.map(mg => (
-                <option key={mg} value={mg}>
-                  {mg.toUpperCase()}
-                </option>
-              ))}
-            </select>
+          <select
+            aria-label="Exercise Category"
+            value={normCat}
+            onChange={e => onHeaderChange?.({ category: e.target.value })}
+            style={{
+              ...headerSelectStyle,
+              gridColumn: 2,
+              gridRow: 1,
+              backgroundColor: 'var(--dp-color-accent)',
+              color: '#101010'
+            }}
+          >
+            {categories.map(cat => (
+              <option key={cat} value={cat}>
+                {cat.toUpperCase()}
+              </option>
+            ))}
+          </select>
 
-            <select
-              aria-label="Set and Rep Scheme"
-              value={slot.scheme || '5x8'}
-              onChange={e => onHeaderChange?.({ scheme: e.target.value })}
-              style={headerSelectStyle}
-            >
-              {SCHEME_OPTIONS.map(scm => (
-                <option key={scm} value={scm}>
-                  {scm.toUpperCase()}
-                </option>
-              ))}
-            </select>
-          </div>
+          <select
+            aria-label="Muscle Group Filter"
+            value={activeMuscleFilter}
+            onChange={e => onHeaderChange?.({ muscleGroupFilter: e.target.value })}
+            style={{ ...headerSelectStyle, gridColumn: 3, gridRow: 1 }}
+          >
+            {availMuscleGroups.map(mg => (
+              <option key={mg} value={mg}>
+                {mg.toUpperCase()}
+              </option>
+            ))}
+          </select>
 
-          {/* Row 2: Exercise picker(s) + info cell */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 0, height: '40px' }}>
-            {(isSuperset ? [0, 1] : [0]).map(idx => {
-              const exId = supIds[idx];
-              return (
-                <div
-                  key={idx}
-                  style={{
-                    gridColumn: isSuperset ? undefined : 'span 2',
-                    width: '100%',
-                    minWidth: 0,
-                    height: '40px',
-                    boxSizing: 'border-box',
-                    backgroundColor: '#141416',
-                    ...SHARED_CELL_BORDER,
-                    display: 'flex',
-                    alignItems: 'center'
-                  }}
-                >
-                  <select
-                    aria-label={isSuperset ? `Superset Exercise ${idx + 1}` : 'Select Exercise'}
-                    value={exId}
-                    onChange={e => {
-                      if (!isSuperset) {
-                        onHeaderChange?.({ exerciseId: e.target.value });
-                        return;
-                      }
-                      const nextIds = [...supIds];
-                      nextIds[idx] = e.target.value;
-                      onHeaderChange?.({ supersetExerciseIds: nextIds });
-                    }}
-                    style={exerciseSelectStyle}
-                  >
-                    {poolWith(EXERCISE_MAP[exId]).map(ex => (
-                      <option key={ex.id} value={ex.id}>
-                        {ex.name.toUpperCase()} ({ex.equipment.toUpperCase()})
-                      </option>
-                    ))}
-                  </select>
-                  {prFlags[idx] && <PrBadge marginRight={isSuperset ? '6px' : '8px'} />}
-                </div>
-              );
-            })}
-            {infoCell}
-          </div>
+          {(isSuperset ? [0, 1] : [0]).map(renderExercisePicker)}
+
+          <select
+            aria-label="Set and Rep Scheme"
+            value={slot.scheme || '5x8'}
+            onChange={e => onHeaderChange?.({ scheme: e.target.value })}
+            style={{
+              ...headerSelectStyle,
+              gridColumn: 3,
+              gridRow: isSuperset ? '2 / span 2' : 2,
+              height: '100%'
+            }}
+          >
+            {SCHEME_OPTIONS.map(scm => (
+              <option key={scm} value={scm}>
+                {scm.toUpperCase()}
+              </option>
+            ))}
+          </select>
+
+          {renderSearchResults()}
         </div>
 
         <DeleteButton label={removeLabel} variant="outline" fill minHeight="80px" onClick={() => onRemove?.()} />
@@ -528,37 +749,6 @@ export function SlotEditor({
           </button>
         </div>
       </div>
-    </div>
-  );
-}
-
-/** Read-only third-column cell for the slot header (e.g. "1RM: 225 LB"). */
-export function SlotInfoCell({ children }) {
-  return (
-    <div
-      style={{
-        width: '100%',
-        minWidth: 0,
-        height: '40px',
-        boxSizing: 'border-box',
-        backgroundColor: '#18181B',
-        ...SHARED_CELL_BORDER,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        fontSize: '12px',
-        fontWeight: 800,
-        color: '#C0C0C0',
-        textTransform: 'uppercase',
-        userSelect: 'none',
-        pointerEvents: 'none',
-        whiteSpace: 'nowrap',
-        overflow: 'hidden',
-        textOverflow: 'ellipsis',
-        padding: '0 4px'
-      }}
-    >
-      {children}
     </div>
   );
 }
