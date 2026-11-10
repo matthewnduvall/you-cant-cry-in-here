@@ -114,8 +114,8 @@ export function useSessionSync({
     if (!res.ok) {
       setSyncNotice(
         res.status === 404
-          ? 'SYNC ISN’T SET UP YET: RUN supabase/migrations/2026-11-09_shared_sessions.sql IN SUPABASE.'
-          : 'COULDN’T SEND THE SYNC INVITE. CHECK YOUR CONNECTION AND TRY AGAIN.'
+          ? 'Sync isn’t set up yet: run supabase/migrations/2026-11-09_shared_sessions.sql in Supabase.'
+          : 'Couldn’t send the sync invite. Check your connection and try again.'
       );
       return false;
     }
@@ -141,7 +141,7 @@ export function useSessionSync({
     setIsSyncBusy(false);
     setIncomingInvite(null);
     if (!res.ok) {
-      setSyncNotice('COULDN’T JOIN THE SESSION. IT MAY HAVE BEEN CANCELLED.');
+      setSyncNotice('Couldn’t join the session. It may have been cancelled.');
       return;
     }
     const shared = res.row || row;
@@ -220,7 +220,7 @@ export function useSessionSync({
           log('SYNC_LINKED', `@${pending.friendName} joined the session`);
         } else if (!row) {
           setOutgoingInvite(null);
-          setSyncNotice(`@${String(pending.friendName).toUpperCase()} DECLINED THE SYNC.`);
+          setSyncNotice(`@${pending.friendName} declined the sync.`);
         }
       }
     };
@@ -245,7 +245,7 @@ export function useSessionSync({
       if (row.status === 'ended' || row.status === 'declined') {
         endedRemotelyRef.current.add(row.id);
         const partner = latestRef.current.activeSession?.syncPartnerName || 'Your friend';
-        detachSync(`@${String(partner).toUpperCase()} ENDED THE SYNC. YOUR SESSION IS UNCHANGED.`);
+        detachSync(`@${partner} ended the sync. Your session is unchanged.`);
         return;
       }
       const rowTime = timeOf(row.updated_at);

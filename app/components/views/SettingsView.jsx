@@ -109,7 +109,7 @@ export function SettingsView({
 
       <IOSListSection
         header="ROUTINE PREFERENCES"
-        footer="Controls the default structure generated when you tap AUTO."
+        footer="The order of exercise types used by AUTO SESSION and + ADD EXERCISE."
         colors={colors}
       >
         {routinePreferences.map((comp, idx) => (

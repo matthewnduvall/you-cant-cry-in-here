@@ -455,6 +455,12 @@ export function PlateCalculatorModal({
         })()}
 
         <div>
+            {/* Always says how the buttons load (the empty-bar hint below disappears once plates are added) */}
+            <div style={{ fontSize: '11px', fontWeight: 800, color: '#A0A0A0', textTransform: 'uppercase', marginBottom: '6px' }}>
+              {calcIsSingleLoad
+                ? `${calcBarLabel} weight (not doubled, no bar)`
+                : `Plates per side (added to both sides) · ${calcBarLabel} ${calcBarWeight} lb bar`}
+            </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '6px', marginBottom: '6px' }}>
               {[45, 35, 25].map(p => (
                 <Button

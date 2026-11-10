@@ -353,12 +353,11 @@ export function HomeView({
           { id: 'history', idx: '01', title: 'PROGRESS', sub: 'Trends, Personal Records & Workout History', num: '01' },
           { id: 'stimulus_map', idx: '02', title: 'STIMULUS', sub: 'Recovery Windows & Muscle Readiness', num: '02' },
           { id: 'leaderboard', idx: '03', title: 'LEADERBOARD', sub: 'Big 3 + OHP Community Standings', num: '03' },
-          { id: 'social', idx: '04', title: 'SOCIAL', sub: `${friendsList.length} Friends • ${pendingIncomingRequests.length} Pending Request`, num: '04' }
+          { id: 'social', idx: '04', title: 'SOCIAL', sub: `${friendsList.length} ${friendsList.length === 1 ? 'Friend' : 'Friends'} • ${pendingIncomingRequests.length} Pending ${pendingIncomingRequests.length === 1 ? 'Request' : 'Requests'}`, num: '04' }
         ].map((item, i, arr) => (
           <IOSListRow
             key={item.id}
             indexLabel={item.idx}
-            bgNumeral={item.num}
             isLast={i === arr.length - 1}
             colors={colors}
             onClick={() => {

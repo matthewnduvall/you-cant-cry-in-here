@@ -293,15 +293,15 @@ export function SocialView({
         {hasSearched && (
           searchedAthletes.length === 0 ? (
             <IOSListRow isLast={true} colors={colors}>
-              <span style={{ fontSize: '12px', fontWeight: 700, color: '#888888', textTransform: 'uppercase' }}>
+              <span style={{ fontSize: '12px', fontWeight: 700, color: '#A0A0A0' }}>
                 {!user || searchError === 'signed_out'
-                  ? 'SIGN IN TO SEARCH FOR ATHLETES.'
+                  ? 'Sign in to search for athletes.'
                   : searchError === 'session'
-                    ? 'YOUR SESSION ENDED. SIGN OUT AND SIGN IN AGAIN, THEN RETRY.'
+                    ? 'Your session ended. Sign out and sign in again, then retry.'
                     : searchError === 'network'
-                      ? 'SEARCH FAILED. CHECK YOUR CONNECTION AND TRY AGAIN.'
+                      ? 'Search failed. Check your connection and try again.'
                       : canSendInvite
-                        ? <>NO ATHLETE USES {currentQuery.toUpperCase()} YET. TAP SEND INVITE TO EMAIL THEM AN INVITE.</>
+                        ? <>No athlete uses {currentQuery} yet. Tap SEND INVITE to email them an invite.</>
                         : <>NO ATHLETES FOUND FOR &quot;{friendSearchQuery.trim().toUpperCase()}&quot;. SEARCH A USERNAME OR AN EXACT EMAIL.</>}
               </span>
             </IOSListRow>

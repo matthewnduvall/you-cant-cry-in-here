@@ -717,10 +717,10 @@ export function OnboardingView({
                       }}
                     >
                       {isTBD
-                        ? `${targetStandardClass.toUpperCase()} GOAL: ${goal1RM}\u00A0LB`
+                        ? `${targetStandardClass} goal: ${goal1RM}\u00A0lb`
                         : diffFromGoal > 0
-                          ? `${targetStandardClass.toUpperCase()} GOAL: ${goal1RM}\u00A0LB (${diffFromGoal}\u00A0LB TO GOAL)`
-                          : `${targetStandardClass.toUpperCase()} GOAL: ${goal1RM}\u00A0LB (ACHIEVED +${Math.abs(diffFromGoal)}\u00A0LB)`}
+                          ? `${targetStandardClass} goal: ${goal1RM}\u00A0lb (${diffFromGoal}\u00A0lb to go)`
+                          : `${targetStandardClass} goal: ${goal1RM}\u00A0lb ${diffFromGoal === 0 ? '(reached)' : `(beaten by ${Math.abs(diffFromGoal)}\u00A0lb)`}`}
                     </div>
                   </div>
 
