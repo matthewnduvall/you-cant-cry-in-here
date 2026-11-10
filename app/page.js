@@ -6,7 +6,6 @@ import { getIncrementInLbs, getInitial1RMs } from './utils/workoutEngine';
 import { AppHeaderAndDrawer } from './components/AppHeaderAndDrawer';
 import {
   DeleteConfirmModal,
-  AddSlotModal,
   PlateCalculatorModal,
   SetValueEditorModal,
   SaveConfirmModal,
@@ -108,13 +107,6 @@ export default function App() {
   };
 
   // --- Add Exercise Modal State ---
-  const [showAddSlotModal, setShowAddSlotModal] = useState(false);
-  const [addSlotGymFilter, setAddSlotGymFilter] = useState('');
-  const [newSlotCategory, setNewSlotCategory] = useState('Compound');
-  const [newSlotMuscleGroup, setNewSlotMuscleGroup] = useState('All Muscles');
-  const [newSlotEx1, setNewSlotEx1] = useState('barbell_bench_press');
-  const [newSlotSupersetIds, setNewSlotSupersetIds] = useState(['reverse_lunge', 'front_flies']);
-  const [newSlotScheme, setNewSlotScheme] = useState('5x8');
 
   // --- Saved & Shared Routines + Gyms State ---
   const [savedRoutines, setSavedRoutines] = useState([]);
@@ -334,7 +326,6 @@ export default function App() {
     handleInsertSetAtPosition,
     handleRecalculateSlotWeights,
     handleToggleSetDone,
-    handleAddManualSlot,
     handleChangeGymSelection
   } = useWorkoutMutations({
     currentView,
@@ -376,13 +367,6 @@ export default function App() {
     setSavedRoutines,
     setSharedRoutines,
     setTimerTrigger,
-    addSlotGymFilter,
-    newSlotCategory,
-    newSlotMuscleGroup,
-    newSlotEx1,
-    newSlotSupersetIds,
-    newSlotScheme,
-    setShowAddSlotModal,
     appendSessionLog,
     muscleStimulusStatus,
     availableEquipment,
@@ -595,12 +579,6 @@ export default function App() {
     history,
     oneRepMaxes: effectiveOneRepMaxes,
     currentIncrementLbs,
-    newSlotCategory,
-    newSlotMuscleGroup,
-    setAddSlotGymFilter,
-    setNewSlotEx1,
-    setNewSlotSupersetIds,
-    setShowAddSlotModal,
     setHistoricalDraft,
     setDeleteConfirmTarget,
     isCurrentEditorShared,
@@ -706,12 +684,6 @@ export default function App() {
               history={history}
               oneRepMaxes={effectiveOneRepMaxes}
               currentIncrementLbs={currentIncrementLbs}
-              newSlotCategory={newSlotCategory}
-              newSlotMuscleGroup={newSlotMuscleGroup}
-              setAddSlotGymFilter={setAddSlotGymFilter}
-              setNewSlotEx1={setNewSlotEx1}
-              setNewSlotSupersetIds={setNewSlotSupersetIds}
-              setShowAddSlotModal={setShowAddSlotModal}
               setHistoricalDraft={setHistoricalDraft}
               setDeleteConfirmTarget={setDeleteConfirmTarget}
               isCurrentEditorShared={isCurrentEditorShared}
@@ -802,9 +774,7 @@ export default function App() {
                 customGoalWeights,
                 openPlateCalculatorForGoal,
                 customPrExerciseIds,
-                setCustomPrExerciseIds,
-                selectedGymId,
-                gyms
+                setCustomPrExerciseIds
               }}
               equipmentProps={{
                 gyms,
@@ -986,24 +956,6 @@ export default function App() {
           handleConfirmDeleteAction={handleConfirmDeleteAction}
         />
 
-        <AddSlotModal
-          showAddSlotModal={showAddSlotModal}
-          setShowAddSlotModal={setShowAddSlotModal}
-          addSlotGymFilter={addSlotGymFilter}
-          setAddSlotGymFilter={setAddSlotGymFilter}
-          newSlotCategory={newSlotCategory}
-          setNewSlotCategory={setNewSlotCategory}
-          newSlotMuscleGroup={newSlotMuscleGroup}
-          setNewSlotMuscleGroup={setNewSlotMuscleGroup}
-          newSlotEx1={newSlotEx1}
-          setNewSlotEx1={setNewSlotEx1}
-          newSlotSupersetIds={newSlotSupersetIds}
-          setNewSlotSupersetIds={setNewSlotSupersetIds}
-          newSlotScheme={newSlotScheme}
-          setNewSlotScheme={setNewSlotScheme}
-          gyms={gyms}
-          handleAddManualSlot={handleAddManualSlot}
-        />
 
         <PlateCalculatorModal
           plateCalcTarget={plateCalcTarget}

@@ -4,18 +4,12 @@ import React, { useState } from 'react';
 import { UI, SHARED_CELL_BORDER, SHARED_GROUP_OUTER } from '../../styles/kineticTokens';
 import {
   CORE_PR_EXERCISE_IDS,
-  EXERCISE_LIBRARY,
   EXERCISE_MAP,
   EXRX_CLASSES,
-  SLOT_CATEGORIES,
-  normalizeSlotCategory,
-  getAvailableMuscleGroupsForCategory,
-  filterAddSlotExercises,
   getExRxTargetForLift
 } from '../../data/exerciseLibrary';
-import { Button, CloseButton, GymSelect, SegmentButton } from '../Controls';
-
-const GOAL_EXERCISE_CATEGORIES = SLOT_CATEGORIES.filter(c => c !== 'Superset');
+import { Button, CloseButton, SegmentButton } from '../Controls';
+import { ExercisePicker, resolvePickerExerciseId } from '../ExercisePicker';
 
 export function GoalsView({
   colors,
@@ -35,14 +29,9 @@ export function GoalsView({
   customGoalWeights,
   openPlateCalculatorForGoal,
   customPrExerciseIds = [],
-  setCustomPrExerciseIds,
-  selectedGymId = '',
-  gyms = []
+  setCustomPrExerciseIds
 }) {
   const [showAddGoalExerciseModal, setShowAddGoalExerciseModal] = useState(false);
-  const [addGoalGymFilter, setAddGoalGymFilter] = useState(selectedGymId || '');
-  const [addGoalCategory, setAddGoalCategory] = useState('Primary Compound');
-  const [addGoalMuscleGroup, setAddGoalMuscleGroup] = useState('All Muscles');
   const [addGoalExerciseId, setAddGoalExerciseId] = useState('dumbbell_bench_press');
 
   const displayedGoalIds = Array.from(
@@ -53,13 +42,8 @@ export function GoalsView({
     ])
   );
 
-  const normCat = normalizeSlotCategory(addGoalCategory);
-  const availMuscleGroups = getAvailableMuscleGroupsForCategory(normCat, addGoalGymFilter, gyms);
-  const activeMuscle = availMuscleGroups.includes(addGoalMuscleGroup) ? addGoalMuscleGroup : 'All Muscles';
-  const modalPool = filterAddSlotExercises(addGoalGymFilter, normCat, gyms, activeMuscle);
-  const selectedExId = modalPool.some(x => x.id === addGoalExerciseId)
-    ? addGoalExerciseId
-    : modalPool[0]?.id || EXERCISE_LIBRARY[0]?.id;
+  // Always a real exercise that isn't already in the goals list
+  const selectedExId = resolvePickerExerciseId(addGoalExerciseId, displayedGoalIds);
 
   const handleConfirmAddGoalExercise = () => {
     if (!selectedExId) return;
@@ -227,6 +211,8 @@ export function GoalsView({
             </div>
 
             <select
+              className="kinetic-filter-select"
+              aria-label="Strength class goal"
               value={targetStandardClass}
               onChange={e => setTargetStandardClass(e.target.value)}
               style={{
@@ -353,14 +339,7 @@ export function GoalsView({
       <div style={{ padding: '0 var(--dp-spacing-gutter)', display: 'flex', flexDirection: 'column', gap: 0 }}>
         <Button
           variant="dashed"
-          onClick={() => {
-            setAddGoalGymFilter(selectedGymId || '');
-            const avail = filterAddSlotExercises(selectedGymId || '', addGoalCategory, gyms, addGoalMuscleGroup);
-            if (avail.length > 0) {
-              setAddGoalExerciseId(avail[0].id);
-            }
-            setShowAddGoalExerciseModal(true);
-          }}
+          onClick={() => setShowAddGoalExerciseModal(true)}
           style={{ height: '48px', fontSize: '14px', border: '1px solid var(--dp-color-rule)', backgroundColor: '#161618' }}
         >
           + ADD EXERCISE
@@ -376,94 +355,13 @@ export function GoalsView({
               <CloseButton onClick={() => setShowAddGoalExerciseModal(false)} />
             </div>
 
-            <div style={{ marginBottom: '12px' }}>
-              <div style={UI.stepLabel}>EQUIPMENT</div>
-              <GymSelect
-                value={addGoalGymFilter}
-                onChange={nextFilter => {
-                  setAddGoalGymFilter(nextFilter);
-                  const nextGroups = getAvailableMuscleGroupsForCategory(normCat, nextFilter, gyms);
-                  const nextMg = nextGroups.includes(activeMuscle) ? activeMuscle : 'All Muscles';
-                  setAddGoalMuscleGroup(nextMg);
-                  const nextAvail = filterAddSlotExercises(nextFilter, normCat, gyms, nextMg);
-                  if (nextAvail.length > 0 && !nextAvail.some(x => x.id === addGoalExerciseId)) {
-                    setAddGoalExerciseId(nextAvail[0].id);
-                  }
-                }}
-                gyms={gyms}
+            {/* The standard exercise picker (same as the session editor header) */}
+            <div style={{ marginBottom: '16px', ...SHARED_GROUP_OUTER }}>
+              <ExercisePicker
+                exerciseId={selectedExId}
+                onChange={setAddGoalExerciseId}
+                excludeIds={displayedGoalIds}
               />
-            </div>
-
-            <div style={{ marginBottom: '12px' }}>
-              <div style={UI.stepLabel}>EXERCISE CATEGORY</div>
-              <div
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(2, 1fr)',
-                  gap: 0,
-                  borderTop: '1px solid var(--dp-color-rule)',
-                  borderLeft: '1px solid var(--dp-color-rule)'
-                }}
-              >
-                {GOAL_EXERCISE_CATEGORIES.map(cat => (
-                  <Button
-                    variant="toggle"
-                    active={normCat === cat}
-                    key={cat}
-                    onClick={() => {
-                      setAddGoalCategory(cat);
-                      const nextGroups = getAvailableMuscleGroupsForCategory(cat, addGoalGymFilter, gyms);
-                      const nextMg = nextGroups.includes(activeMuscle) ? activeMuscle : 'All Muscles';
-                      setAddGoalMuscleGroup(nextMg);
-                      const nextAvail = filterAddSlotExercises(addGoalGymFilter, cat, gyms, nextMg);
-                      if (nextAvail.length > 0 && !nextAvail.some(x => x.id === addGoalExerciseId)) {
-                        setAddGoalExerciseId(nextAvail[0].id);
-                      }
-                    }}
-                    style={{ borderTop: 'none', borderLeft: 'none', borderRight: '1px solid var(--dp-color-rule)', borderBottom: '1px solid var(--dp-color-rule)' }}
-                  >
-                    {cat}
-                  </Button>
-                ))}
-              </div>
-            </div>
-
-            <div style={{ marginBottom: '12px' }}>
-              <div style={UI.stepLabel}>MUSCLE GROUP</div>
-              <select
-                aria-label="Filter by Muscle Group"
-                value={activeMuscle}
-                onChange={e => {
-                  const nextMg = e.target.value;
-                  setAddGoalMuscleGroup(nextMg);
-                  const nextAvail = filterAddSlotExercises(addGoalGymFilter, normCat, gyms, nextMg);
-                  if (nextAvail.length > 0) {
-                    setAddGoalExerciseId(nextAvail[0].id);
-                  }
-                }}
-                style={{ ...UI.select, textTransform: 'uppercase' }}
-              >
-                {availMuscleGroups.map(mg => (
-                  <option key={mg} value={mg}>
-                    {mg.toUpperCase()}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div style={{ marginBottom: '16px' }}>
-              <div style={UI.stepLabel}>EXERCISE</div>
-              <select
-                value={selectedExId}
-                onChange={e => setAddGoalExerciseId(e.target.value)}
-                style={UI.select}
-              >
-                {modalPool.map(ex => (
-                  <option key={ex.id} value={ex.id}>
-                    {ex.name} ({ex.equipment})
-                  </option>
-                ))}
-              </select>
             </div>
 
             <Button

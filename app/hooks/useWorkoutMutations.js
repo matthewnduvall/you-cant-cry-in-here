@@ -14,7 +14,6 @@ import {
   formatTodayYMD,
   findEquivalentExerciseForGym,
   convertEquivalent1RM,
-  filterAddSlotExercises,
   getFilteredExercisesForSlotInline,
   getAvailableMuscleGroupsForCategory,
   roundTo5,
@@ -104,13 +103,6 @@ export function useWorkoutMutations({
   setSavedRoutines,
   setSharedRoutines,
   setTimerTrigger,
-  addSlotGymFilter,
-  newSlotCategory,
-  newSlotMuscleGroup,
-  newSlotEx1,
-  newSlotSupersetIds,
-  newSlotScheme,
-  setShowAddSlotModal,
   appendSessionLog,
   // { [muscleGroup]: { daysAgo } } from useTelemetryAndAnalytics — drives which muscles are "behind"
   muscleStimulusStatus = {},
@@ -1891,52 +1883,6 @@ export function useWorkoutMutations({
     });
   };
 
-  const handleAddManualSlot = () => {
-    const normCat = normalizeSlotCategory(newSlotCategory);
-    const activeMuscle = newSlotMuscleGroup || 'All Muscles';
-    const validList = filterAddSlotExercises(addSlotGymFilter, normCat, gyms, activeMuscle);
-
-    const resolvedEx1 = validList.some(ex => ex.id === newSlotEx1)
-      ? newSlotEx1
-      : validList[0]?.id || newSlotEx1 || 'barbell_bench_press';
-
-    const resolvedSupersetIds = isSupersetCategory(normCat)
-      ? [
-          validList.some(ex => ex.id === newSlotSupersetIds?.[0])
-            ? newSlotSupersetIds[0]
-            : validList[0]?.id || 'reverse_lunge',
-          validList.some(ex => ex.id === newSlotSupersetIds?.[1])
-            ? newSlotSupersetIds[1]
-            : validList[1]?.id || validList[0]?.id || 'front_flies'
-        ]
-      : [resolvedEx1];
-
-    const resolvedMuscleGroupFilter =
-      activeMuscle !== 'All Muscles'
-        ? activeMuscle
-        : EXERCISE_MAP[resolvedEx1]?.muscleGroup || 'All Muscles';
-
-    const newSlot = {
-      ...createWorkoutSlot({
-        category: normCat,
-        slotLabel: normCat,
-        exerciseId: resolvedEx1,
-        supersetExerciseIds: resolvedSupersetIds,
-        scheme: newSlotScheme,
-        oneRepMaxes,
-        history,
-        incrementLbs: currentIncrementLbs,
-        userBodyweightLbs
-      }),
-      muscleGroupFilter: resolvedMuscleGroupFilter
-    };
-    updateCurrentWorkoutState(prev => ({
-      ...(prev || { id: `session_${Date.now()}`, title: getDefaultSessionName(), slots: [] }),
-      slots: [...(prev?.slots || []), newSlot]
-    }));
-    setShowAddSlotModal(false);
-  };
-
   return {
     isRoutineEditorView,
     currentEditorWorkout,
@@ -1963,7 +1909,6 @@ export function useWorkoutMutations({
     handleInsertSetAtPosition,
     handleRecalculateSlotWeights,
     handleToggleSetDone,
-    handleAddManualSlot,
     handleChangeGymSelection
   };
 }

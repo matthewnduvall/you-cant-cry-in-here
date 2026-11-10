@@ -262,7 +262,7 @@ function GymOptions({ gyms = [] }) {
  * Equipment selector (presets + the user's saved equipment setups).
  * - variant "field": a plain bordered select (forms, modals).
  * - variant "cell": a select sitting in a shared-border grid (filter rows).
- * - variant "tile": the two-line "EQUIPMENT ▾ / <SELECTION>" cell with an invisible
+ * - variant "tile": the two-line "EQUIPMENT ▾ (orange caret) / <SELECTION>" cell with an invisible
  *   select over it (session editor, routines). `style` applies to the tile container.
  */
 export function GymSelect({
@@ -270,12 +270,13 @@ export function GymSelect({
   onChange,
   gyms = [],
   variant = 'field',
-  tileLabel = 'EQUIPMENT ▾',
+  tileLabel = 'EQUIPMENT',
   ariaLabel = 'Select equipment',
   style
 }) {
   const select = (extraStyle = {}) => (
     <select
+      className="kinetic-filter-select"
       aria-label={ariaLabel}
       value={value || ''}
       onChange={e => onChange?.(e.target.value)}
@@ -289,7 +290,6 @@ export function GymSelect({
     return select({
       width: '100%',
       height: '40px',
-      backgroundColor: '#141416',
       color: '#FFFFFF',
       ...SHARED_CELL_BORDER,
       fontSize: '12px',
@@ -323,7 +323,9 @@ export function GymSelect({
         ...style
       }}
     >
-      <div style={{ ...UI.fieldLabel, lineHeight: 1.15 }}>{tileLabel}</div>
+      <div style={{ ...UI.fieldLabel, lineHeight: 1.15 }}>
+        {tileLabel} <span aria-hidden="true" style={{ color: 'var(--dp-color-accent)' }}>▾</span>
+      </div>
       <div
         style={{
           fontSize: '13px',

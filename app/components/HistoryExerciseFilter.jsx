@@ -13,10 +13,9 @@ import {
   getExerciseEquipmentOptions,
   stripEquipmentFromExerciseName
 } from '../data/exerciseLibrary';
-import { headerSelectStyle, searchExercises, SearchGlyph } from './SlotEditor';
+import { headerSelectStyle, searchExercises } from './SlotEditor';
+import { ExerciseSearchCell, ExerciseSearchResults, PICKER_GRID_COLUMNS, equipmentNamedInSearch } from './ExercisePicker';
 
-// Five shared columns, as in the slot editor: row 1 = SEARCH | TYPE | MUSCLE, row 2 = EQUIPMENT | EXERCISE
-const FILTER_GRID_COLUMNS = '80px minmax(0, 15fr) minmax(0, 85fr) minmax(0, 17fr) minmax(0, 108fr)';
 
 export const EMPTY_HISTORY_FILTER = { category: 'All', muscle: 'All Muscles', equipment: 'All', exerciseId: '' };
 
@@ -107,71 +106,28 @@ export function HistoryExerciseFilter({ history = [], filter, onChange }) {
     onChange({
       category: normalizeSlotCategory(ex.category),
       muscle: ex.muscleGroup || 'All Muscles',
-      equipment: getExerciseEquipmentOptions(ex)[0] || 'All',
+      equipment: equipmentNamedInSearch(query, getExerciseEquipmentOptions(ex)) || getExerciseEquipmentOptions(ex)[0] || 'All',
       exerciseId: ex.id
     });
   };
-
-  const hintStyle = { padding: '12px', fontSize: '11px', fontWeight: 800, color: '#A0A0A0' };
 
   return (
     <div
       style={{
         position: 'relative',
         display: 'grid',
-        gridTemplateColumns: FILTER_GRID_COLUMNS,
+        gridTemplateColumns: PICKER_GRID_COLUMNS,
         gridAutoRows: '40px',
         gap: 0
       }}
     >
-      {query === null ? (
-        <button
-          type="button"
-          aria-label="Search logged exercises"
-          onClick={() => setQuery('')}
-          style={{
-            ...headerSelectStyle,
-            gridColumn: '1 / 3',
-            gridRow: 1,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: '6px',
-            color: '#A0A0A0',
-            textAlign: 'center',
-            whiteSpace: 'nowrap',
-            overflow: 'hidden'
-          }}
-        >
-          <SearchGlyph />
-          {SEARCH_LABEL}
-        </button>
-      ) : (
-        <input
-          type="search"
-          aria-label="Search logged exercises"
-          placeholder={SEARCH_LABEL}
-          autoFocus
-          enterKeyHint="search"
-          value={query}
-          onChange={e => setQuery(e.target.value)}
-          onBlur={() => setQuery(null)}
-          onKeyDown={e => {
-            if (e.key === 'Escape') setQuery(null);
-            if (e.key === 'Enter' && results[0]) pickExercise(results[0]);
-          }}
-          style={{
-            ...headerSelectStyle,
-            gridColumn: '1 / 3',
-            gridRow: 1,
-            cursor: 'text',
-            outline: 'none',
-            border: '2px solid var(--dp-color-accent)',
-            textTransform: 'none',
-            fontFamily: 'inherit'
-          }}
-        />
-      )}
+      <ExerciseSearchCell
+        query={query}
+        setQuery={setQuery}
+        ariaLabel="Search logged exercises"
+        label={SEARCH_LABEL}
+        onEnter={() => results[0] && pickExercise(results[0])}
+      />
 
       <select
         className="kinetic-filter-select"
@@ -229,68 +185,14 @@ export function HistoryExerciseFilter({ history = [], filter, onChange }) {
         ))}
       </select>
 
-      {query !== null && (
-        <div
-          role="listbox"
-          aria-label="Logged exercise search results"
-          // Keep focus in the search box while a result is tapped
-          onMouseDown={e => e.preventDefault()}
-          style={{
-            position: 'absolute',
-            top: '40px',
-            left: 0,
-            right: 0,
-            zIndex: 40,
-            maxHeight: '300px',
-            overflowY: 'auto',
-            backgroundColor: '#101010',
-            border: '2px solid var(--dp-color-accent)',
-            boxShadow: '0 12px 24px rgba(0, 0, 0, 0.6)'
-          }}
-        >
-          {query.trim() === '' ? (
-            <div style={hintStyle}>TYPE AN EXERCISE, EQUIPMENT OR MUSCLE YOU HAVE LOGGED</div>
-          ) : results.length === 0 ? (
-            <div style={hintStyle}>NO LOGGED EXERCISES MATCH</div>
-          ) : (
-            results.map(ex => (
-              <button
-                key={ex.id}
-                type="button"
-                role="option"
-                aria-selected={ex.id === filter.exerciseId}
-                onClick={() => pickExercise(ex)}
-                style={{
-                  display: 'block',
-                  width: '100%',
-                  textAlign: 'left',
-                  padding: '9px 12px',
-                  backgroundColor: ex.id === filter.exerciseId ? '#1E1E22' : 'transparent',
-                  border: 'none',
-                  borderBottom: '1px solid var(--dp-color-rule)',
-                  cursor: 'pointer'
-                }}
-              >
-                <span style={{ display: 'block', fontSize: '13px', fontWeight: 800, color: '#FFFFFF', textTransform: 'uppercase' }}>
-                  {stripEquipmentFromExerciseName(ex.name)}
-                </span>
-                <span
-                  style={{
-                    display: 'block',
-                    fontSize: '11px',
-                    fontWeight: 800,
-                    color: '#A0A0A0',
-                    textTransform: 'uppercase',
-                    marginTop: '2px'
-                  }}
-                >
-                  {[ex.equipment || 'Bodyweight', ex.muscleGroup, normalizeSlotCategory(ex.category)].filter(Boolean).join(' · ')}
-                </span>
-              </button>
-            ))
-          )}
-        </div>
-      )}
+      <ExerciseSearchResults
+        query={query}
+        results={results}
+        selectedId={filter.exerciseId}
+        onPick={pickExercise}
+        emptyHint="TYPE AN EXERCISE, EQUIPMENT OR MUSCLE YOU HAVE LOGGED"
+        noMatchHint="NO LOGGED EXERCISES MATCH"
+      />
     </div>
   );
 }

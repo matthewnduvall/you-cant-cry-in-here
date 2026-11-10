@@ -51,7 +51,7 @@ export const isExerciseAvailableWithEquipment = (ex, availableEquipment) => {
 export const DEFAULT_GYM_EQUIPMENT_PRESETS = [
   { id: '', name: 'All Equipment' },
   { id: 'preset_barbells_only', name: 'Barbells Only' },
-  { id: 'preset_dumbbells_only', name: 'Dumbells Only' },
+  { id: 'preset_dumbbells_only', name: 'Dumbbells Only' },
   { id: 'preset_kettlebells_only', name: 'Kettlebells Only' },
   { id: 'preset_bodyweight_only', name: 'Bodyweight Only' }
 ];

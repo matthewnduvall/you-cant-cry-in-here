@@ -7,8 +7,9 @@ import {
   getExRxTargetForLift,
   parseYMDToISO
 } from '../../data/exerciseLibrary';
-import { UI, SHARED_CELL_BORDER, SHARED_GROUP_OUTER } from '../../styles/kineticTokens';
+import { SHARED_CELL_BORDER, SHARED_GROUP_OUTER } from '../../styles/kineticTokens';
 import { SegmentButton } from '../Controls';
+import { ExercisePicker } from '../ExercisePicker';
 
 // Big 3 + OHP: each has its own toggle and is shown by default
 const CORE_LIFT_IDS = ['barbell_bench_press', 'barbell_back_squat', 'barbell_deadlift', 'overhead_press'];
@@ -295,63 +296,20 @@ export function ProgressionChartView({
             })}
           </div>
 
-          {/* CUSTOM EXERCISE SELECTOR ROW (SHOWN WHEN CUSTOM IS ACTIVE) */}
+          {/* CUSTOM EXERCISE (SHOWN WHEN CUSTOM IS ACTIVE): the standard exercise picker */}
           {isCustomActive && (
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: '130px minmax(0, 1fr)',
-                gap: 0,
-                height: '42px',
-                backgroundColor: '#18181B'
+            <ExercisePicker
+              exerciseId={activeCustomId}
+              types={['Compound', 'Accessory']}
+              onChange={nextId => {
+                const prevId = activeCustomId;
+                setCustomExerciseId(nextId);
+                setSelectedChartLifts?.(prev => {
+                  const list = (Array.isArray(prev) ? prev : DEFAULT_CHART_LIFTS).filter(id => id !== prevId);
+                  return list.includes(nextId) ? list : [...list, nextId];
+                });
               }}
-            >
-              <div
-                style={{
-                  padding: '0 10px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  fontSize: '11px',
-                  fontWeight: 800,
-                  color: CUSTOM_COLOR,
-                  textTransform: 'uppercase',
-                  ...SHARED_CELL_BORDER
-                }}
-              >
-                CUSTOM EXERCISE
-              </div>
-              <select
-                aria-label="Select Custom Exercise for Progress"
-                value={activeCustomId}
-                onChange={e => {
-                  const nextId = e.target.value;
-                  const prevId = activeCustomId;
-                  setCustomExerciseId(nextId);
-                  setSelectedChartLifts?.(prev => {
-                    const list = (Array.isArray(prev) ? prev : DEFAULT_CHART_LIFTS).filter(id => id !== prevId);
-                    return list.includes(nextId) ? list : [...list, nextId];
-                  });
-                }}
-                style={{
-                  width: '100%',
-                  height: '42px',
-                  backgroundColor: '#141416',
-                  color: '#FFFFFF',
-                  ...SHARED_CELL_BORDER,
-                  padding: '0 10px',
-                  fontSize: '12px',
-                  fontWeight: 800,
-                  textTransform: 'uppercase',
-                  cursor: 'pointer'
-                }}
-              >
-                {EXERCISE_LIBRARY.map(ex => (
-                  <option key={ex.id} value={ex.id}>
-                    {formatProgressExerciseLabel(ex.id, ex.name)} ({ex.equipment.toUpperCase()})
-                  </option>
-                ))}
-              </select>
-            </div>
+            />
           )}
 
           {/* SVG CHART CELL */}
