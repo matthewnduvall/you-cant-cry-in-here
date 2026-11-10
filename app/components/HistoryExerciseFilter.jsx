@@ -155,35 +155,38 @@ export function HistoryExerciseFilter({ history = [], filter, onChange }) {
         ))}
       </select>
 
-      <select
-        className="kinetic-filter-select"
-        aria-label="Filter by equipment"
-        value={filter.equipment}
-        onChange={e => onChange({ ...filter, equipment: e.target.value, exerciseId: '' })}
-        style={{ ...headerSelectStyle, gridColumn: '1 / 3', gridRow: 2 }}
-      >
-        <option value="All">ALL EQUIPMENT</option>
-        {equipmentOptions.map(eq => (
-          <option key={eq} value={eq}>
-            {eq.toUpperCase()}
-          </option>
-        ))}
-      </select>
-
-      <select
-        className="kinetic-filter-select"
-        aria-label="Filter by exercise"
-        value={filter.exerciseId}
-        onChange={e => onChange({ ...filter, exerciseId: e.target.value })}
-        style={{ ...headerSelectStyle, gridColumn: '3 / 6', gridRow: 2 }}
-      >
-        <option value="">ALL EXERCISES ({exerciseOptions.length})</option>
-        {exerciseOptions.map(ex => (
-          <option key={ex.id} value={ex.id}>
-            {exerciseLabel(ex).toUpperCase()}
-          </option>
-        ))}
-      </select>
+      {/* Row 2: EQUIPMENT | EXERCISE in equal halves, so ALL EQUIPMENT / ALL EXERCISES (N) fit at phone width */}
+      <div style={{ gridColumn: '1 / 6', gridRow: 2, display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: 0 }}>
+        <select
+          className="kinetic-filter-select"
+          aria-label="Filter by equipment"
+          value={filter.equipment}
+          onChange={e => onChange({ ...filter, equipment: e.target.value, exerciseId: '' })}
+          style={headerSelectStyle}
+        >
+          <option value="All">ALL EQUIPMENT</option>
+          {equipmentOptions.map(eq => (
+            <option key={eq} value={eq}>
+              {eq.toUpperCase()}
+            </option>
+          ))}
+        </select>
+  
+        <select
+          className="kinetic-filter-select"
+          aria-label="Filter by exercise"
+          value={filter.exerciseId}
+          onChange={e => onChange({ ...filter, exerciseId: e.target.value })}
+          style={headerSelectStyle}
+        >
+          <option value="">ALL EXERCISES ({exerciseOptions.length})</option>
+          {exerciseOptions.map(ex => (
+            <option key={ex.id} value={ex.id}>
+              {exerciseLabel(ex).toUpperCase()}
+            </option>
+          ))}
+        </select>
+      </div>
 
       <ExerciseSearchResults
         query={query}

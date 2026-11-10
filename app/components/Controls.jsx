@@ -215,11 +215,15 @@ export function DragNumberBadge({
   height = '44px',
   minHeight,
   bg = '#121212',
-  title = 'Click and drag to rearrange'
+  title = 'Click and drag to rearrange',
+  // Extra handlers / attributes (e.g. pointer-drag props from usePointerReorder)
+  style: extraStyle,
+  ...rest
 }) {
   return (
     <div
       title={title}
+      {...rest}
       style={{
         position: 'relative',
         width: '34px',
@@ -234,7 +238,8 @@ export function DragNumberBadge({
         cursor: 'grab',
         userSelect: 'none',
         overflow: 'hidden',
-        flexShrink: 0
+        flexShrink: 0,
+        ...extraStyle
       }}
     >
       <div
