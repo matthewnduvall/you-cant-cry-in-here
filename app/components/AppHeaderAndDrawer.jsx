@@ -15,6 +15,8 @@ export function AppHeaderAndDrawer({
   isRoutineEditorView,
   currentEditorWorkout,
   onFinishSession,
+  // true while the save confirmation opened by the ✓ is showing (the ✓ turns green)
+  finishSessionPending = false,
   timerTrigger,
   setTimerTrigger,
   updateCurrentWorkoutState,
@@ -140,6 +142,7 @@ export function AppHeaderAndDrawer({
             onMarkDone={
               onFinishSession && (currentEditorWorkout.slots || []).length > 0 ? onFinishSession : undefined
             }
+            markDoneActive={finishSessionPending}
           />
         )}
       </header>

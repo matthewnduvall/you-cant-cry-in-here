@@ -29,7 +29,8 @@ import {
   getEffectiveIncrementForExercise,
   getHistoricalCalculated1RM,
   getSetTimerMMSS,
-  getLastLoggedTimerDisplay
+  getLastLoggedTimerDisplay,
+  getSupersetSchemes
 } from '../utils/workoutEngine';
 import { DeleteButton, DragNumberBadge } from './Controls';
 
@@ -105,6 +106,10 @@ const equipmentOf = ex => ex?.equipment || 'Bodyweight';
 
 const SEARCH_RESULT_LIMIT = 12;
 
+// Each superset exercise is a Compound or Accessory pick; this value in its type menu ends the superset
+const SUPERSET_HALF_CATEGORIES = ['Compound', 'Accessory'];
+const END_SUPERSET = '__end_superset__';
+
 /** Exercises whose name / equipment / muscle group contain every word typed, best name matches first. */
 const searchExercises = (query, selectedGymId, gyms) => {
   const words = String(query || '').toLowerCase().trim().split(' ').filter(Boolean);
@@ -169,8 +174,9 @@ function PrBadge({ marginRight = '6px' }) {
  * - history, oneRepMaxes, currentIncrementLbs: used to show LAST / INC values
  * - getBase1RM(exId): optional override of the 1RM used for LAST when a set has no lastWeight
  * - prFlags: [bool, bool] shows PR badges next to the exercise picker(s)
- * - onHeaderChange(changes): { category | muscleGroupFilter | scheme | exerciseId | supersetExerciseIds }
- * - onRemove / removeLabel: the full-height ✕ on the header
+ * - onHeaderChange(changes): { category | muscleGroupFilter | scheme | exerciseId }. Supersets add
+ *   supersetHalf (0 = A, 1 = B) to say which exercise changed, or send { endSuperset: half } to drop one.
+ * - onRemove / removeLabel: red DELETE button at the end of the bottom row (omit to hide it)
  * - onEditSetValue({ mode, exIdx, set, exercise, currentValue }): mode = type | increment | reps | timer
  * - onEditWeight({ exIdx, set, exercise, lastDisplay, incrementDisplay, onEditIncrement }): CURRENT weight
  *   pop-up; LAST / INC are shown there (not as row columns), INC is null for Timer sets
@@ -206,23 +212,12 @@ export function SlotEditor({
   footer = null
 }) {
   const [draggedSet, setDraggedSet] = useState(null);
-  // null = search closed; a string = the search box is open with this text
-  const [searchQuery, setSearchQuery] = useState(null);
+  // null = search closed; { half, query } = the search box of that exercise (0 = A / single, 1 = B) is open
+  const [search, setSearch] = useState(null);
 
   const normCat = normalizeSlotCategory(slot.category);
-  const ex1 = EXERCISE_MAP[slot.exerciseId] || EXERCISE_LIBRARY[0];
   const isSuperset = isSupersetCategory(normCat);
-  const isTimerScheme = slot.scheme === 'Timer';
-  const availMuscleGroups = getAvailableMuscleGroupsForCategory(normCat, selectedGymId, gyms);
-  const rawSlotMuscle = slot.muscleGroupFilter || ex1?.muscleGroup || 'All Muscles';
-  const activeMuscleFilter = availMuscleGroups.includes(rawSlotMuscle) ? rawSlotMuscle : 'All Muscles';
-  const exercisePool = getFilteredExercisesForSlotInline(
-    { ...slot, muscleGroupFilter: activeMuscleFilter },
-    selectedGymId,
-    gyms
-  );
-  const poolWith = exObj =>
-    exercisePool.some(e => e.id === exObj?.id) || !exObj ? exercisePool : [exObj, ...exercisePool];
+  const halves = isSuperset ? [0, 1] : [0];
 
   const supIds = isSuperset
     ? [
@@ -230,6 +225,30 @@ export function SlotEditor({
         slot.supersetExerciseIds?.[1] || slot.secondaryExerciseId || 'front_flies'
       ]
     : [slot.exerciseId];
+  const schemes = isSuperset ? getSupersetSchemes(slot) : [slot.scheme || '5x8'];
+
+  // One picker per exercise. A superset is two full pickers (type, muscle, equipment, exercise, scheme).
+  const pickerState = half => {
+    const exId = supIds[half];
+    const exObj = EXERCISE_MAP[exId] || EXERCISE_LIBRARY[0];
+    let category = normCat;
+    if (isSuperset) {
+      const cat = normalizeSlotCategory(slot.supersetCategories?.[half] || exObj.category || 'Accessory');
+      category = isSupersetCategory(cat) ? 'Accessory' : cat;
+    }
+    const availMuscles = getAvailableMuscleGroupsForCategory(category, selectedGymId, gyms);
+    const rawMuscle =
+      (isSuperset ? slot.supersetMuscleFilters?.[half] : slot.muscleGroupFilter) || exObj.muscleGroup || 'All Muscles';
+    const muscle = availMuscles.includes(rawMuscle) ? rawMuscle : 'All Muscles';
+    const basePool = getFilteredExercisesForSlotInline({ category, muscleGroupFilter: muscle }, selectedGymId, gyms).filter(
+      ex => !isSuperset || ex.id !== supIds[1 - half]
+    );
+    const pool = basePool.some(ex => ex.id === exId) ? basePool : [exObj, ...basePool];
+    return { exId, exObj, category, availMuscles, muscle, pool, scheme: schemes[half] };
+  };
+
+  const sendHeaderChange = (half, changes) =>
+    onHeaderChange?.(isSuperset ? { ...changes, supersetHalf: half } : changes);
 
   // Superset sets alternate A1, B1, A2, B2, ...
   const rows = [];
@@ -246,66 +265,59 @@ export function SlotEditor({
     );
   }
 
-  const pickExercise = (idx, nextId) => {
-    if (!nextId) return;
-    if (!isSuperset) {
-      onHeaderChange?.({ exerciseId: nextId });
-      return;
-    }
-    const nextIds = [...supIds];
-    nextIds[idx] = nextId;
-    onHeaderChange?.({ supersetExerciseIds: nextIds });
-  };
-
-  // Search result → the slot takes that exercise, its muscle group and (outside supersets) its category
-  const handleSearchPick = ex => {
-    setSearchQuery(null);
+  // Search result → that exercise, its muscle group and its type (Compound / Accessory)
+  const handleSearchPick = (half, ex) => {
+    setSearch(null);
     if (!ex) return;
-    if (isSuperset) {
-      pickExercise(0, ex.id);
-      return;
-    }
     const changes = { exerciseId: ex.id, muscleGroupFilter: ex.muscleGroup || 'All Muscles' };
     const exCategory = normalizeSlotCategory(ex.category);
-    if (exCategory !== normCat && categories.includes(exCategory)) changes.category = exCategory;
-    onHeaderChange?.(changes);
+    const allowed = isSuperset ? SUPERSET_HALF_CATEGORIES : categories;
+    if (allowed.includes(exCategory) && exCategory !== pickerState(half).category) changes.category = exCategory;
+    sendHeaderChange(half, changes);
   };
 
-  const searchResults = searchQuery ? searchExercises(searchQuery, selectedGymId, gyms) : [];
+  const searchResults = search?.query ? searchExercises(search.query, selectedGymId, gyms) : [];
 
-  const renderSearchCell = () =>
-    searchQuery === null ? (
-      <button
-        type="button"
-        aria-label="Search exercises"
-        onClick={() => setSearchQuery('')}
-        style={{
-          ...headerSelectStyle,
-          gridColumn: 1,
-          gridRow: 1,
-          display: 'flex',
-          alignItems: 'center',
-          gap: '6px',
-          color: '#A0A0A0',
-          textAlign: 'left'
-        }}
-      >
-        <SearchGlyph />
-        SEARCH
-      </button>
-    ) : (
+  const renderSearchCell = half => {
+    const label = isSuperset ? (half === 0 ? 'A · SEARCH' : 'B · SEARCH') : 'SEARCH';
+    const ariaLabel = isSuperset ? `Search exercises (${half === 0 ? 'A' : 'B'})` : 'Search exercises';
+    if (search?.half !== half) {
+      return (
+        <button
+          type="button"
+          aria-label={ariaLabel}
+          onClick={() => setSearch({ half, query: '' })}
+          style={{
+            ...headerSelectStyle,
+            gridColumn: 1,
+            gridRow: 1,
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            color: '#A0A0A0',
+            textAlign: 'left',
+            whiteSpace: 'nowrap',
+            overflow: 'hidden'
+          }}
+        >
+          <SearchGlyph />
+          {label}
+        </button>
+      );
+    }
+    return (
       <input
         type="search"
-        aria-label="Search exercises"
-        placeholder="SEARCH"
+        aria-label={ariaLabel}
+        placeholder={label}
         autoFocus
         enterKeyHint="search"
-        value={searchQuery}
-        onChange={e => setSearchQuery(e.target.value)}
-        onBlur={() => setSearchQuery(null)}
+        value={search.query}
+        onChange={e => setSearch({ half, query: e.target.value })}
+        onBlur={() => setSearch(null)}
         onKeyDown={e => {
-          if (e.key === 'Escape') setSearchQuery(null);
-          if (e.key === 'Enter' && searchResults[0]) handleSearchPick(searchResults[0]);
+          if (e.key === 'Escape') setSearch(null);
+          if (e.key === 'Enter' && searchResults[0]) handleSearchPick(half, searchResults[0]);
         }}
         style={{
           ...headerSelectStyle,
@@ -319,9 +331,11 @@ export function SlotEditor({
         }}
       />
     );
+  };
 
-  const renderSearchResults = () => {
-    if (searchQuery === null) return null;
+  const renderSearchResults = half => {
+    if (search?.half !== half) return null;
+    const currentId = supIds[half];
     const hintStyle = { padding: '12px', fontSize: '11px', fontWeight: 800, color: '#A0A0A0' };
     return (
       <div
@@ -342,7 +356,7 @@ export function SlotEditor({
           boxShadow: '0 12px 24px rgba(0, 0, 0, 0.6)'
         }}
       >
-        {searchQuery.trim() === '' ? (
+        {search.query.trim() === '' ? (
           <div style={hintStyle}>TYPE AN EXERCISE, EQUIPMENT OR MUSCLE</div>
         ) : searchResults.length === 0 ? (
           <div style={hintStyle}>NO MATCHING EXERCISES</div>
@@ -352,14 +366,14 @@ export function SlotEditor({
               key={ex.id}
               type="button"
               role="option"
-              aria-selected={ex.id === supIds[0]}
-              onClick={() => handleSearchPick(ex)}
+              aria-selected={ex.id === currentId}
+              onClick={() => handleSearchPick(half, ex)}
               style={{
                 display: 'block',
                 width: '100%',
                 textAlign: 'left',
                 padding: '9px 12px',
-                backgroundColor: ex.id === supIds[0] ? '#1E1E22' : 'transparent',
+                backgroundColor: ex.id === currentId ? '#1E1E22' : 'transparent',
                 border: 'none',
                 borderBottom: '1px solid var(--dp-color-rule)',
                 cursor: 'pointer'
@@ -387,26 +401,77 @@ export function SlotEditor({
     );
   };
 
-  // Equipment (column 1) and exercise name (column 2) for exercise idx, on header row 2 + idx
-  const renderExercisePicker = idx => {
-    const exId = supIds[idx];
-    const pool = poolWith(EXERCISE_MAP[exId]);
+  // Row 1: Search, Type, Muscle Group. Row 2: Equipment, Exercise, Scheme. Supersets render this twice (A, B).
+  const renderHeaderBlock = half => {
+    const { exId, category, availMuscles, muscle, pool, scheme } = pickerState(half);
     const equipment = equipmentOf(EXERCISE_MAP[exId]);
     const equipmentOptions = [...new Set(pool.map(equipmentOf))].sort((a, b) => a.localeCompare(b));
     const exercisesForEquipment = pool.filter(ex => equipmentOf(ex) === equipment);
-    const gridRow = 2 + idx;
+    const tag = isSuperset ? (half === 0 ? 'A ' : 'B ') : '';
+    const typeOptions = isSuperset ? SUPERSET_HALF_CATEGORIES : categories;
     return (
-      <React.Fragment key={idx}>
+      <div
+        key={half}
+        style={{
+          position: 'relative',
+          display: 'grid',
+          gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+          gridAutoRows: '40px',
+          gap: 0,
+          minWidth: 0,
+          ...(half === 1 ? { borderTop: '2px solid var(--dp-color-rule)' } : {})
+        }}
+      >
+        {renderSearchCell(half)}
+
         <select
-          aria-label={isSuperset ? `Superset Exercise ${idx + 1} Equipment` : 'Exercise Equipment'}
+          aria-label={`${tag}Exercise Category`.trim()}
+          value={category}
+          onChange={e => {
+            if (e.target.value === END_SUPERSET) {
+              onHeaderChange?.({ endSuperset: half });
+              return;
+            }
+            sendHeaderChange(half, { category: e.target.value });
+          }}
+          style={{
+            ...headerSelectStyle,
+            gridColumn: 2,
+            gridRow: 1,
+            backgroundColor: 'var(--dp-color-accent)',
+            color: '#101010'
+          }}
+        >
+          {typeOptions.map(cat => (
+            <option key={cat} value={cat}>
+              {cat.toUpperCase()}
+            </option>
+          ))}
+          {isSuperset && <option value={END_SUPERSET}>✕ REMOVE FROM SUPERSET</option>}
+        </select>
+
+        <select
+          aria-label={`${tag}Muscle Group Filter`.trim()}
+          value={muscle}
+          onChange={e => sendHeaderChange(half, { muscleGroupFilter: e.target.value })}
+          style={{ ...headerSelectStyle, gridColumn: 3, gridRow: 1 }}
+        >
+          {availMuscles.map(mg => (
+            <option key={mg} value={mg}>
+              {mg.toUpperCase()}
+            </option>
+          ))}
+        </select>
+
+        <select
+          aria-label={isSuperset ? `Superset Exercise ${half + 1} Equipment` : 'Exercise Equipment'}
           value={equipment}
           onChange={e =>
-            pickExercise(
-              idx,
-              findClosestExerciseInPool(exId, pool.filter(ex => equipmentOf(ex) === e.target.value))
-            )
+            sendHeaderChange(half, {
+              exerciseId: findClosestExerciseInPool(exId, pool.filter(ex => equipmentOf(ex) === e.target.value))
+            })
           }
-          style={{ ...headerSelectStyle, gridColumn: 1, gridRow }}
+          style={{ ...headerSelectStyle, gridColumn: 1, gridRow: 2 }}
         >
           {equipmentOptions.map(eq => (
             <option key={eq} value={eq}>
@@ -414,10 +479,11 @@ export function SlotEditor({
             </option>
           ))}
         </select>
+
         <div
           style={{
             gridColumn: 2,
-            gridRow,
+            gridRow: 2,
             width: '100%',
             minWidth: 0,
             height: '40px',
@@ -429,9 +495,9 @@ export function SlotEditor({
           }}
         >
           <select
-            aria-label={isSuperset ? `Superset Exercise ${idx + 1}` : 'Select Exercise'}
+            aria-label={isSuperset ? `Superset Exercise ${half + 1}` : 'Select Exercise'}
             value={exId}
-            onChange={e => pickExercise(idx, e.target.value)}
+            onChange={e => sendHeaderChange(half, { exerciseId: e.target.value })}
             style={exerciseSelectStyle}
           >
             {exercisesForEquipment.map(ex => (
@@ -440,9 +506,24 @@ export function SlotEditor({
               </option>
             ))}
           </select>
-          {prFlags[idx] && <PrBadge marginRight="6px" />}
+          {prFlags[half] && <PrBadge marginRight="6px" />}
         </div>
-      </React.Fragment>
+
+        <select
+          aria-label={`${tag}Set and Rep Scheme`.trim()}
+          value={scheme}
+          onChange={e => sendHeaderChange(half, { scheme: e.target.value })}
+          style={{ ...headerSelectStyle, gridColumn: 3, gridRow: 2 }}
+        >
+          {SCHEME_OPTIONS.map(scm => (
+            <option key={scm} value={scm}>
+              {scm.toUpperCase()}
+            </option>
+          ))}
+        </select>
+
+        {renderSearchResults(half)}
+      </div>
     );
   };
 
@@ -450,6 +531,8 @@ export function SlotEditor({
     draggedSet && draggedSet.exIdx === exIdx && (setIdx === undefined || draggedSet.setIdx === setIdx);
 
   const renderSetRow = ({ exIdx, exId, set: st, setIdx, total }) => {
+    const rowScheme = schemes[exIdx] || schemes[0];
+    const isTimerScheme = rowScheme === 'Timer';
     const exObj = EXERCISE_MAP[exId] || EXERCISE_LIBRARY[0];
     const curType = normalizeSetType(st.type);
     const base1RM = getBase1RM ? getBase1RM(exId) : getHistoricalCalculated1RM(exId, history, oneRepMaxes);
@@ -457,13 +540,13 @@ export function SlotEditor({
     const lastW =
       st.lastWeight !== undefined
         ? st.lastWeight
-        : calculateLastEquivalentWeightForSet(base1RM, st, total, normCat, setIdx, slot.scheme);
+        : calculateLastEquivalentWeightForSet(base1RM, st, total, normCat, setIdx, rowScheme);
     const timerMMSS = isTimerScheme ? st.timerStr ?? getSetTimerMMSS(st, true) : '';
     const lastTimerDisplay = isTimerScheme ? getLastLoggedTimerDisplay(exId, st, setIdx, lastW, history) : '';
     const setIncValue =
       st.increment !== undefined
         ? st.increment
-        : curType === '1 Rep Max' && slot.scheme !== 'Pyramid 1RM'
+        : curType === '1 Rep Max' && rowScheme !== 'Pyramid 1RM'
           ? 0
           : Math.round(((Number(st.weight) || 0) - (Number(lastW) || 0)) * 100) / 100 || effInc;
     const displayIncValue =
@@ -641,79 +724,10 @@ export function SlotEditor({
 
   return (
     <div style={SHARED_GROUP_OUTER}>
-      {/* Header: drag handle + two rows of controls + full-height ✕ */}
-      <div style={{ display: 'grid', gridTemplateColumns: '34px minmax(0, 1fr) 34px', gap: 0, alignItems: 'stretch' }}>
+      {/* Header: drag handle + exercise picker(s), full width */}
+      <div style={{ display: 'grid', gridTemplateColumns: '34px minmax(0, 1fr)', gap: 0, alignItems: 'stretch' }}>
         <DragNumberBadge label={number} color="var(--dp-color-accent)" height="100%" bg="#18181B" title={headerTitle} />
-
-        {/* Row 1: Search, Category, Muscle Group. Row 2 (+3 for supersets): Equipment, Exercise, Scheme */}
-        <div
-          style={{
-            position: 'relative',
-            display: 'grid',
-            gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
-            gridAutoRows: '40px',
-            gap: 0,
-            minWidth: 0
-          }}
-        >
-          {renderSearchCell()}
-
-          <select
-            aria-label="Exercise Category"
-            value={normCat}
-            onChange={e => onHeaderChange?.({ category: e.target.value })}
-            style={{
-              ...headerSelectStyle,
-              gridColumn: 2,
-              gridRow: 1,
-              backgroundColor: 'var(--dp-color-accent)',
-              color: '#101010'
-            }}
-          >
-            {categories.map(cat => (
-              <option key={cat} value={cat}>
-                {cat.toUpperCase()}
-              </option>
-            ))}
-          </select>
-
-          <select
-            aria-label="Muscle Group Filter"
-            value={activeMuscleFilter}
-            onChange={e => onHeaderChange?.({ muscleGroupFilter: e.target.value })}
-            style={{ ...headerSelectStyle, gridColumn: 3, gridRow: 1 }}
-          >
-            {availMuscleGroups.map(mg => (
-              <option key={mg} value={mg}>
-                {mg.toUpperCase()}
-              </option>
-            ))}
-          </select>
-
-          {(isSuperset ? [0, 1] : [0]).map(renderExercisePicker)}
-
-          <select
-            aria-label="Set and Rep Scheme"
-            value={slot.scheme || '5x8'}
-            onChange={e => onHeaderChange?.({ scheme: e.target.value })}
-            style={{
-              ...headerSelectStyle,
-              gridColumn: 3,
-              gridRow: isSuperset ? '2 / span 2' : 2,
-              height: '100%'
-            }}
-          >
-            {SCHEME_OPTIONS.map(scm => (
-              <option key={scm} value={scm}>
-                {scm.toUpperCase()}
-              </option>
-            ))}
-          </select>
-
-          {renderSearchResults()}
-        </div>
-
-        <DeleteButton label={removeLabel} variant="outline" fill minHeight="80px" onClick={() => onRemove?.()} />
+        <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>{halves.map(renderHeaderBlock)}</div>
       </div>
 
       {/* Sets */}
@@ -722,22 +736,24 @@ export function SlotEditor({
 
         {footer}
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 0 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: onRemove ? 'repeat(4, minmax(0, 1fr))' : 'repeat(3, minmax(0, 1fr))', gap: 0 }}>
           <button
             type="button"
             className="kinetic-btn"
+            aria-label="Add set at top"
             onClick={() => onInsertSet?.('top')}
             style={bottomBtnStyle('#161618', '#FFFFFF')}
           >
-            + ADD SET TOP
+            + SET ^
           </button>
           <button
             type="button"
             className="kinetic-btn"
+            aria-label="Add set at bottom"
             onClick={() => onInsertSet?.('bottom')}
             style={bottomBtnStyle('#161618', 'var(--dp-color-accent)')}
           >
-            + ADD SET BOTTOM
+            + SET ⌄
           </button>
           <button
             type="button"
@@ -747,6 +763,17 @@ export function SlotEditor({
           >
             {actionLabel}
           </button>
+          {onRemove && (
+            <button
+              type="button"
+              className="kinetic-btn"
+              aria-label={removeLabel}
+              onClick={() => onRemove()}
+              style={bottomBtnStyle('#1E1214', '#FF3B30')}
+            >
+              DELETE
+            </button>
+          )}
         </div>
       </div>
     </div>

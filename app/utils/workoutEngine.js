@@ -473,6 +473,12 @@ export const generateSetsForScheme = (
   }
 };
 
+/** [schemeA, schemeB] for a superset (each exercise may run its own scheme); falls back to slot.scheme. */
+export const getSupersetSchemes = slot => [
+  slot?.supersetSchemes?.[0] || slot?.scheme || '5x8',
+  slot?.supersetSchemes?.[1] || slot?.scheme || '5x8'
+];
+
 export const createWorkoutSlot = ({
   category,
   slotLabel,
@@ -480,6 +486,8 @@ export const createWorkoutSlot = ({
   secondaryExerciseId = null,
   supersetExerciseIds = null,
   scheme = '5x8',
+  // Superset only: [schemeA, schemeB]; defaults to scheme for both
+  supersetSchemes = null,
   oneRepMaxes = {},
   history = [],
   incrementLbs = 0,
@@ -505,16 +513,18 @@ export const createWorkoutSlot = ({
     const exA = rawIds[0] || 'reverse_lunge';
     const exB = rawIds[1] || (exA === 'reverse_lunge' ? 'front_flies' : 'reverse_lunge');
     const cleanIds = [exA, exB];
+    const schemes = [supersetSchemes?.[0] || scheme, supersetSchemes?.[1] || scheme];
 
-    const setsByExercise = cleanIds.map(id => {
+    const setsByExercise = cleanIds.map((id, idx) => {
       const calcMax = resolveBase1RM(id);
-      return generateSetsForScheme(scheme, calcMax, 'Superset', id, incrementLbs, userBodyweightLbs);
+      return generateSetsForScheme(schemes[idx], calcMax, 'Superset', id, incrementLbs, userBodyweightLbs);
     });
     return {
       id: uid,
       category: 'Superset',
       slotLabel: slotLabel || 'Superset',
-      scheme,
+      scheme: schemes[0],
+      supersetSchemes: schemes,
       restSeconds,
       muscleGroupFilter: EXERCISE_MAP[cleanIds[0]]?.muscleGroup || 'All Muscles',
       exerciseId: cleanIds[0],

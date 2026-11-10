@@ -25,6 +25,7 @@ import {
   estimate1RMFromSet
 } from '../utils/workoutEngine';
 import { SlotEditor } from './SlotEditor';
+import { CloseButton } from './Controls';
 
 const CALC_CATEGORIES = SLOT_CATEGORIES.filter(c => c !== 'Superset');
 
@@ -282,14 +283,19 @@ export function OneRepMaxCalculatorModal({
           style={{
             ...SHARED_GROUP_OUTER,
             borderRight: '1px solid var(--dp-color-rule)',
-            padding: '10px 12px',
+            padding: '6px 6px 6px 12px',
             fontSize: '15px',
             fontWeight: 800,
             textTransform: 'uppercase',
-            color: 'var(--dp-color-accent)'
+            color: 'var(--dp-color-accent)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '8px'
           }}
         >
-          CALCULATE 1RM PERSONAL RECORD
+          <span>CALCULATE 1RM PERSONAL RECORD</span>
+          <CloseButton onClick={() => onClose?.()} />
         </div>
         <SlotEditor
           slot={slot}
@@ -303,8 +309,6 @@ export function OneRepMaxCalculatorModal({
           currentIncrementLbs={currentIncrementLbs}
           getBase1RM={base1RMFor}
           onHeaderChange={handleHeaderChange}
-          onRemove={() => onClose?.()}
-          removeLabel="Close calculator"
           onEditSetValue={({ mode, set, exercise, currentValue }) =>
             setSetValueTarget?.({
               mode,
