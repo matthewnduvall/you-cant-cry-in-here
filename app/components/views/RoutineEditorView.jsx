@@ -420,8 +420,8 @@ export function RoutineEditorView({
                         isAbs: false
                       })
                     }
-                    onEditWeight={({ exIdx, set, exercise }) =>
-                      openPlateCalculatorForSet(slot.id, exIdx, set, exercise.name)
+                    onEditWeight={({ exIdx, set, exercise, ...setInfo }) =>
+                      openPlateCalculatorForSet(slot.id, exIdx, set, exercise.name, null, setInfo)
                     }
                     onToggleDone={({ exIdx, set }) => handleToggleSetDone(slot, exIdx, set)}
                     onDeleteSet={({ exIdx, set, exercise }) =>

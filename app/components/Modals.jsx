@@ -265,18 +265,66 @@ export function AddSlotModal({
   );
 }
 
+// TOTAL WEIGHT readout that turns into a number field when tapped (replaces the old DIRECT TOTAL mode)
+function EditableTotalWeight({ value, unit, onCommit }) {
+  const [draft, setDraft] = useState(null);
+  const commit = () => {
+    if (draft !== null && draft.trim() !== '' && !Number.isNaN(Number(draft))) onCommit?.(draft);
+    setDraft(null);
+  };
+  const bigText = { fontSize: '30px', fontWeight: 800, color: 'var(--dp-color-accent)', whiteSpace: 'nowrap', lineHeight: 1.2 };
+  return (
+    <div style={{ textAlign: 'center', minWidth: 0 }}>
+      <div style={{ fontSize: '10px', fontWeight: 800, color: '#A0A0A0' }}>TOTAL WEIGHT ✎</div>
+      {draft === null ? (
+        <button
+          type="button"
+          aria-label="Edit total weight"
+          onClick={() => setDraft(String(value))}
+          style={{ ...bigText, background: 'none', border: 'none', padding: 0, cursor: 'text', width: '100%' }}
+        >
+          {value} {unit.toUpperCase()}
+        </button>
+      ) : (
+        <input
+          type="text"
+          inputMode="decimal"
+          aria-label="Total weight"
+          autoFocus
+          value={draft}
+          onFocus={e => e.target.select()}
+          onChange={e => setDraft(e.target.value.replace(/[^0-9.]/g, ''))}
+          onBlur={commit}
+          onKeyDown={e => {
+            if (e.key === 'Enter') e.currentTarget.blur();
+            if (e.key === 'Escape') setDraft(null);
+          }}
+          style={{
+            ...bigText,
+            width: '100%',
+            boxSizing: 'border-box',
+            textAlign: 'center',
+            backgroundColor: '#141414',
+            border: '2px solid var(--dp-color-accent)',
+            padding: '0 4px',
+            fontFamily: 'inherit'
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
 export function PlateCalculatorModal({
   plateCalcTarget,
   setPlateCalcTarget,
   computedPlateCalculatorTotal,
   calcUnit,
-  calcMode,
-  setCalcMode,
+  calcIsSingleLoad,
   calcBarWeight,
   calcPlatesPerSide,
   setCalcPlatesPerSide,
-  calcDirectTotal,
-  setCalcDirectTotal,
+  setCalcTotalFromInput,
   prRecordDate,
   setPrRecordDate,
   handleApplyCalculatedWeight
@@ -302,40 +350,81 @@ export function PlateCalculatorModal({
           <CloseButton onClick={() => setPlateCalcTarget(null)} />
         </div>
 
-        <div
-          style={{
-            backgroundColor: '#101010', border: '2px solid var(--dp-color-rule)',
-            padding: '12px', textAlign: 'center', marginBottom: '12px'
-          }}
-        >
-          <div style={{ fontSize: '10px', fontWeight: 800, color: '#A0A0A0' }}>TOTAL WEIGHT</div>
-          <div style={{ fontSize: '30px', fontWeight: 800, color: 'var(--dp-color-accent)' }}>
-            {computedPlateCalculatorTotal} {calcUnit.toUpperCase()}
-          </div>
-        </div>
+        {(() => {
+          const hasLast = plateCalcTarget.mode === 'set' && plateCalcTarget.lastDisplay !== undefined;
+          const hasInc =
+            plateCalcTarget.mode === 'set' &&
+            plateCalcTarget.incrementDisplay !== undefined &&
+            plateCalcTarget.incrementDisplay !== null;
+          const sideLabel = { fontSize: '10px', fontWeight: 800, color: '#A0A0A0', lineHeight: 1 };
+          const sideValue = color => ({ fontSize: '16px', fontWeight: 800, color, marginTop: '4px', lineHeight: 1.1 });
+          const totalBlock = (
+            <EditableTotalWeight
+              value={computedPlateCalculatorTotal}
+              unit={calcUnit}
+              onCommit={setCalcTotalFromInput}
+            />
+          );
+          if (!hasLast && !hasInc) {
+            return (
+              <div
+                style={{
+                  backgroundColor: '#101010', border: '2px solid var(--dp-color-rule)',
+                  padding: '12px', textAlign: 'center', marginBottom: '12px'
+                }}
+              >
+                {totalBlock}
+              </div>
+            );
+          }
+          return (
+            <div
+              style={{
+                backgroundColor: '#101010', border: '2px solid var(--dp-color-rule)',
+                display: 'grid', gridTemplateColumns: '64px minmax(0, 1fr) 64px', alignItems: 'stretch',
+                marginBottom: '12px'
+              }}
+            >
+              <div
+                style={{
+                  display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                  borderRight: '1px solid var(--dp-color-rule)', padding: '8px 2px'
+                }}
+              >
+                {hasLast && (
+                  <>
+                    <span style={sideLabel}>LAST</span>
+                    <span style={sideValue('#C8C8C8')}>{plateCalcTarget.lastDisplay}</span>
+                  </>
+                )}
+              </div>
+              <div style={{ padding: '12px 4px' }}>{totalBlock}</div>
+              {hasInc ? (
+                <button
+                  type="button"
+                  aria-label="Weight Increment"
+                  onClick={() => {
+                    const editIncrement = plateCalcTarget.onEditIncrement;
+                    setPlateCalcTarget(null);
+                    editIncrement?.();
+                  }}
+                  style={{
+                    display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                    backgroundColor: 'transparent', border: 'none', borderLeft: '1px solid var(--dp-color-rule)',
+                    padding: '8px 2px', cursor: 'pointer', color: '#FFFFFF'
+                  }}
+                >
+                  <span style={sideLabel}>INC ✎</span>
+                  <span style={sideValue('#FFFFFF')}>{plateCalcTarget.incrementDisplay}</span>
+                </button>
+              ) : (
+                <div style={{ borderLeft: '1px solid var(--dp-color-rule)' }} />
+              )}
+            </div>
+          );
+        })()}
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px', marginBottom: '12px' }}>
-          <Button
-            variant="toggle"
-            active={calcMode === 'per_side'}
-            onClick={() => setCalcMode('per_side')}
-          >
-            PLATES PER SIDE
-          </Button>
-          <Button
-            variant="toggle"
-            active={calcMode === 'total'}
-            onClick={() => {
-              setCalcDirectTotal(computedPlateCalculatorTotal);
-              setCalcMode('total');
-            }}
-          >
-            DIRECT TOTAL
-          </Button>
-        </div>
-
-        {calcMode === 'per_side' ? (
-          <div>
+        <div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '6px', marginBottom: '6px' }}>
               {[45, 35, 25].map(p => (
                 <Button
@@ -370,7 +459,9 @@ export function PlateCalculatorModal({
             >
               {calcPlatesPerSide.length === 0 ? (
                 <span style={{ fontSize: '11px', color: '#888888' }}>
-                  Barbell ({calcBarWeight} lb) — tap plates above
+                  {calcIsSingleLoad
+                    ? 'Dumbbell — tap weights above (no bar, not doubled)'
+                    : `Barbell (${calcBarWeight} lb) — tap plates above (per side)`}
                 </span>
               ) : (
                 [...calcPlatesPerSide]
@@ -395,18 +486,7 @@ export function PlateCalculatorModal({
                   ))
               )}
             </div>
-          </div>
-        ) : (
-          <div style={{ marginBottom: '12px' }}>
-            <input
-              type="number"
-              step="1.25"
-              value={calcDirectTotal}
-              onChange={e => setCalcDirectTotal(e.target.value)}
-              style={{ ...UI.numInput('100%'), padding: '10px', fontSize: '18px' }}
-            />
-          </div>
-        )}
+        </div>
 
         {plateCalcTarget.mode === 'pr' && (
           <div

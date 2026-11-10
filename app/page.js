@@ -369,13 +369,11 @@ export default function App() {
     plateCalcTarget,
     setPlateCalcTarget,
     calcUnit,
-    calcMode,
-    setCalcMode,
+    calcIsSingleLoad,
     calcBarWeight,
     calcPlatesPerSide,
     setCalcPlatesPerSide,
-    calcDirectTotal,
-    setCalcDirectTotal,
+    setCalcTotalFromInput,
     prRecordDate,
     setPrRecordDate,
     openPlateCalculatorForSet,
@@ -897,13 +895,11 @@ export default function App() {
           setPlateCalcTarget={setPlateCalcTarget}
           computedPlateCalculatorTotal={computedPlateCalculatorTotal}
           calcUnit={calcUnit}
-          calcMode={calcMode}
-          setCalcMode={setCalcMode}
+          calcIsSingleLoad={calcIsSingleLoad}
           calcBarWeight={calcBarWeight}
           calcPlatesPerSide={calcPlatesPerSide}
           setCalcPlatesPerSide={setCalcPlatesPerSide}
-          calcDirectTotal={calcDirectTotal}
-          setCalcDirectTotal={setCalcDirectTotal}
+          setCalcTotalFromInput={setCalcTotalFromInput}
           prRecordDate={prRecordDate}
           setPrRecordDate={setPrRecordDate}
           handleApplyCalculatedWeight={handleApplyCalculatedWeight}
