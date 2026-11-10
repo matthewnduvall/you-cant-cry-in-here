@@ -156,8 +156,10 @@ export const SessionRestTimerBar = React.memo(function SessionRestTimerBar({
   nextLiftInfo = { topLine: '', bottomLine: '' },
   onChangeDefaultRest,
   onStopTimer,
-  // Optional: shows a green ✓ cell on the right that finishes the session (opens the save confirmation)
-  onMarkDone
+  // Optional: shows a ✓ cell on the right that finishes the session (opens the save confirmation).
+  // Grey like an unchecked set until markDoneActive (the athlete tapped it), then green.
+  onMarkDone,
+  markDoneActive = false
 }) {
   const [remaining, setRemaining] = useState(defaultRestSeconds);
 
@@ -325,14 +327,15 @@ export const SessionRestTimerBar = React.memo(function SessionRestTimerBar({
           type="button"
           onClick={onMarkDone}
           aria-label="Finish session"
+          aria-pressed={markDoneActive}
           title="Finish session"
           className="kinetic-btn"
           style={{
             width: '100%',
             height: '45px',
             boxSizing: 'border-box',
-            backgroundColor: '#30D158',
-            color: '#101010',
+            backgroundColor: markDoneActive ? '#30D158' : '#242428',
+            color: markDoneActive ? '#101010' : '#9A9A9A',
             border: 'none',
             borderRight: '1px solid var(--dp-color-rule)',
             borderBottom: '1px solid var(--dp-color-rule)',

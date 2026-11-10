@@ -498,6 +498,7 @@ export default function App() {
           isRoutineEditorView={isRoutineEditorView}
           currentEditorWorkout={currentEditorWorkout}
           onFinishSession={handleSaveCurrentEditor}
+          finishSessionPending={Boolean(saveConfirmTarget)}
           timerTrigger={timerTrigger}
           setTimerTrigger={setTimerTrigger}
           updateCurrentWorkoutState={updateCurrentWorkoutState}

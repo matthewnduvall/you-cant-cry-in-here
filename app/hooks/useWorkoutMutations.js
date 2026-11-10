@@ -28,6 +28,8 @@ import {
   calculateEquivalentRepsForWeight,
   getEffectiveIncrementForExercise,
   createWorkoutSlot,
+  generateSetsForScheme,
+  getSupersetSchemes,
   normalizeSlotLabels,
   buildPresetSlots,
   checkIsWorkoutComplete,
@@ -869,6 +871,7 @@ export function useWorkoutMutations({
         exerciseId: newIds[0],
         supersetExerciseIds: isSuperset ? newIds : [newIds[0]],
         scheme: slot.scheme,
+        supersetSchemes: isSuperset ? getSupersetSchemes(slot) : null,
         oneRepMaxes,
         history,
         incrementLbs: currentIncrementLbs,
@@ -896,11 +899,130 @@ export function useWorkoutMutations({
     );
   };
 
+  // A superset is two full exercise pickers. Each half (0 = A, 1 = B) has its own type (Compound /
+  // Accessory), muscle group, exercise and scheme; changing one half rebuilds only that half's sets.
+  const supersetHalfState = slot => {
+    const ids = [
+      slot.supersetExerciseIds?.[0] || slot.exerciseId || 'reverse_lunge',
+      slot.supersetExerciseIds?.[1] || slot.secondaryExerciseId || 'front_flies'
+    ];
+    const cats = ids.map((id, i) => {
+      const cat = normalizeSlotCategory(slot.supersetCategories?.[i] || EXERCISE_MAP[id]?.category || 'Accessory');
+      return isSupersetCategory(cat) ? 'Accessory' : cat;
+    });
+    const muscles = ids.map(
+      (id, i) => slot.supersetMuscleFilters?.[i] || EXERCISE_MAP[id]?.muscleGroup || 'All Muscles'
+    );
+    const matrix = [
+      slot.supersetSetsByExercise?.[0] || slot.sets || [],
+      slot.supersetSetsByExercise?.[1] || slot.secondarySets || []
+    ];
+    return { ids, cats, muscles, schemes: getSupersetSchemes(slot), matrix };
+  };
+
+  const applySupersetHalfChange = (slot, changes) => {
+    const half = changes.supersetHalf === 1 ? 1 : 0;
+    const { ids, cats, muscles, schemes, matrix } = supersetHalfState(slot);
+    let rebuildHalf = false;
+
+    if (changes.category) {
+      const cat = normalizeSlotCategory(changes.category);
+      cats[half] = isSupersetCategory(cat) ? cats[half] : cat;
+    }
+    if (changes.muscleGroupFilter !== undefined) muscles[half] = changes.muscleGroupFilter;
+    if (changes.scheme && changes.scheme !== schemes[half]) {
+      schemes[half] = changes.scheme;
+      rebuildHalf = true;
+    }
+    if (changes.exerciseId && changes.exerciseId !== ids[half]) {
+      ids[half] = changes.exerciseId;
+      rebuildHalf = true;
+      if (changes.muscleGroupFilter === undefined) {
+        muscles[half] = EXERCISE_MAP[changes.exerciseId]?.muscleGroup || muscles[half];
+      }
+    }
+
+    const availMuscles = getAvailableMuscleGroupsForCategory(cats[half], selectedGymId, gyms);
+    if (!availMuscles.includes(muscles[half])) muscles[half] = 'All Muscles';
+
+    if (!changes.exerciseId && (changes.category || changes.muscleGroupFilter !== undefined)) {
+      const pool = getFilteredExercisesForSlotInline(
+        { category: cats[half], muscleGroupFilter: muscles[half] },
+        selectedGymId,
+        gyms
+      ).filter(ex => ex.id !== ids[1 - half]);
+      if (pool.length > 0 && !pool.some(ex => ex.id === ids[half])) {
+        ids[half] = pool[0].id;
+        rebuildHalf = true;
+      }
+    }
+
+    if (rebuildHalf) {
+      matrix[half] = generateSetsForScheme(
+        schemes[half],
+        getHistoricalCalculated1RM(ids[half], history, oneRepMaxes),
+        'Superset',
+        ids[half],
+        currentIncrementLbs,
+        userBodyweightLbs
+      );
+    }
+
+    return {
+      ...slot,
+      category: 'Superset',
+      exerciseId: ids[0],
+      secondaryExerciseId: ids[1],
+      supersetExerciseIds: ids,
+      supersetCategories: cats,
+      supersetMuscleFilters: muscles,
+      supersetSchemes: schemes,
+      scheme: schemes[0],
+      muscleGroupFilter: muscles[0],
+      supersetSetsByExercise: matrix,
+      sets: matrix[0],
+      secondarySets: matrix[1]
+    };
+  };
+
+  // "Remove from superset" on half `removedHalf`: the slot becomes the other exercise on its own, sets kept
+  const endSuperset = (slot, removedHalf) => {
+    const keep = removedHalf === 1 ? 0 : 1;
+    const { ids, cats, muscles, schemes, matrix } = supersetHalfState(slot);
+    const rebuilt = createWorkoutSlot({
+      category: cats[keep],
+      slotLabel: cats[keep],
+      exerciseId: ids[keep],
+      scheme: schemes[keep],
+      oneRepMaxes,
+      history,
+      incrementLbs: currentIncrementLbs,
+      restSeconds: slot.restSeconds || 90,
+      userBodyweightLbs
+    });
+    const keptSets = (matrix[keep] || []).map((st, i) => ({ ...st, setNumber: i + 1 }));
+    const sets = keptSets.length > 0 ? keptSets : rebuilt.sets;
+    return {
+      ...rebuilt,
+      id: slot.id,
+      familyMuscleGroup: slot.familyMuscleGroup,
+      muscleGroupFilter: muscles[keep],
+      sets,
+      supersetSetsByExercise: [sets]
+    };
+  };
+
   const handleUpdateSlotCategoryOrExercise = (slotId, changes) => {
     updateCurrentWorkoutState(prev => {
       if (!prev) return prev;
       const nextSlots = prev.slots.map(slot => {
         if (slot.id !== slotId) return slot;
+        if (isSupersetCategory(slot.category) && changes.endSuperset !== undefined) {
+          return endSuperset(slot, changes.endSuperset);
+        }
+        if (isSupersetCategory(slot.category) && changes.supersetHalf !== undefined) {
+          return applySupersetHalfChange(slot, changes);
+        }
         const currentEx = EXERCISE_MAP[slot.exerciseId] || EXERCISE_LIBRARY[0];
         const targetMuscleGroup =
           changes.exerciseId && EXERCISE_MAP[changes.exerciseId]
@@ -1047,13 +1169,13 @@ export function useWorkoutMutations({
       const nextSlots = prev.slots.map(slot => {
         if (slot.id !== slotId) return slot;
 
-        const applyFieldChange = (st, exId, totalCount, sIdx) => {
+        const applyFieldChange = (st, exId, totalCount, sIdx, listScheme = slot.scheme) => {
           if (st.id !== setId) return st;
           const calc1RM = getHistoricalCalculated1RM(exId, history, oneRepMaxes);
           const lastW =
             st.lastWeight !== undefined
               ? st.lastWeight
-              : calculateLastEquivalentWeightForSet(calc1RM, st, totalCount, slot.category, sIdx, slot.scheme);
+              : calculateLastEquivalentWeightForSet(calc1RM, st, totalCount, slot.category, sIdx, listScheme);
 
           if (field === 'increment') {
             const rawStr = String(rawVal ?? '');
@@ -1101,7 +1223,9 @@ export function useWorkoutMutations({
           const supIds = slot.supersetExerciseIds || [slot.exerciseId, slot.secondaryExerciseId];
           const nextMatrix = slot.supersetSetsByExercise.map((list, idx) =>
             idx === exIndex
-              ? list.map((st, sIdx) => applyFieldChange(st, supIds[idx] || slot.exerciseId, list.length, sIdx))
+              ? list.map((st, sIdx) =>
+                  applyFieldChange(st, supIds[idx] || slot.exerciseId, list.length, sIdx, getSupersetSchemes(slot)[idx])
+                )
               : list
           );
           return {
@@ -1125,7 +1249,7 @@ export function useWorkoutMutations({
       const nextSlots = prev.slots.map(slot => {
         if (slot.id !== slotId) return slot;
 
-        const updateSingleSet = (st, exId, totalCount, sIdx) => {
+        const updateSingleSet = (st, exId, totalCount, sIdx, listScheme = slot.scheme) => {
           if (st.id !== setId) return st;
           const calc1RM = getHistoricalCalculated1RM(exId, history, oneRepMaxes);
           const effInc = getEffectiveIncrementForExercise(exId, currentIncrementLbs);
@@ -1144,7 +1268,7 @@ export function useWorkoutMutations({
             };
           }
           const updatedSet = { ...st, type: newType, lastEditedField: 'type' };
-          const lastW = calculateLastEquivalentWeightForSet(calc1RM, updatedSet, totalCount, slot.category, sIdx, slot.scheme);
+          const lastW = calculateLastEquivalentWeightForSet(calc1RM, updatedSet, totalCount, slot.category, sIdx, listScheme);
           const setInc =
             st.increment !== undefined && st.increment !== '' && !Number.isNaN(Number(st.increment))
               ? Number(st.increment)
@@ -1161,7 +1285,9 @@ export function useWorkoutMutations({
           const supIds = slot.supersetExerciseIds || [slot.exerciseId, slot.secondaryExerciseId];
           const nextMatrix = slot.supersetSetsByExercise.map((list, idx) =>
             idx === exIndex
-              ? list.map((st, sIdx) => updateSingleSet(st, supIds[idx] || slot.exerciseId, list.length, sIdx))
+              ? list.map((st, sIdx) =>
+                  updateSingleSet(st, supIds[idx] || slot.exerciseId, list.length, sIdx, getSupersetSchemes(slot)[idx])
+                )
               : list
           );
           return {
@@ -1189,13 +1315,13 @@ export function useWorkoutMutations({
       const nextSlots = prev.slots.map(slot => {
         if (slot.id !== slotId) return slot;
 
-        const insertIntoList = (list, exId) => {
+        const insertIntoList = (list, exId, listScheme = slot.scheme) => {
           const currentList = Array.isArray(list) ? list : [];
           const refSet = isTop ? currentList[0] : currentList[currentList.length - 1];
           const base1RM = getHistoricalCalculated1RM(exId, history, oneRepMaxes);
           const effInc = getEffectiveIncrementForExercise(exId, currentIncrementLbs);
           const nextCount = currentList.length + 1;
-          const isTimerScheme = slot.scheme === 'Timer';
+          const isTimerScheme = listScheme === 'Timer';
           const newReps = isTimerScheme
             ? refSet?.durationSeconds || 120
             : refSet
@@ -1223,7 +1349,7 @@ export function useWorkoutMutations({
               ? 0
               : isBw
                 ? bwDefault
-                : calculateLastEquivalentWeightForSet(base1RM, draftSet, nextCount, slot.category, 0, slot.scheme);
+                : calculateLastEquivalentWeightForSet(base1RM, draftSet, nextCount, slot.category, 0, listScheme);
           const newSet = {
             ...draftSet,
             lastWeight: lastW,
@@ -1237,7 +1363,7 @@ export function useWorkoutMutations({
         if (isSupersetCategory(slot.category) && Array.isArray(slot.supersetSetsByExercise)) {
           const supIds = slot.supersetExerciseIds || [slot.exerciseId, slot.secondaryExerciseId];
           const nextMatrix = slot.supersetSetsByExercise.map((list, idx) =>
-            insertIntoList(list, supIds[idx] || slot.exerciseId)
+            insertIntoList(list, supIds[idx] || slot.exerciseId, getSupersetSchemes(slot)[idx])
           );
           return {
             ...slot,
@@ -1260,9 +1386,11 @@ export function useWorkoutMutations({
       const nextSlots = prev.slots.map(slot => {
         if (slot.id !== slotId) return slot;
 
-        let nextSlotScheme = slot.scheme;
+        const baseSchemes = isSupersetCategory(slot.category) ? getSupersetSchemes(slot) : [slot.scheme];
+        const nextSchemes = [...baseSchemes];
 
-        const recalcList = (list, exId) => {
+        const recalcList = (list, exId, half = 0) => {
+          const listScheme = baseSchemes[half];
           const currentList = Array.isArray(list) ? list : [];
           const totalCount = currentList.length;
           if (totalCount === 0) return [];
@@ -1298,8 +1426,8 @@ export function useWorkoutMutations({
 
           // Case A: Last set is '1 Rep Max' (either via 'Pyramid 1RM' or user changing the last set to '1 Rep Max')
           if (isLastSet1RM) {
-            if (slot.scheme === 'Pyramid') {
-              nextSlotScheme = 'Pyramid 1RM';
+            if (listScheme === 'Pyramid') {
+              nextSchemes[half] = 'Pyramid 1RM';
             }
             const rampBase1RM =
               lastSet?.lastEditedField === 'weight'
@@ -1411,10 +1539,10 @@ export function useWorkoutMutations({
           // Case B: Last set was edited (weight, increment, reps, or type) and is not '1 Rep Max'
           // Adjust both weight and reps across incomplete preceding sets to make that last set possible
           if (lastSetWasEdited && totalCount > 1) {
-            if (slot.scheme === 'Pyramid 1RM' && lastSet.type === 'Top Out') {
-              nextSlotScheme = 'Pyramid';
+            if (listScheme === 'Pyramid 1RM' && lastSet.type === 'Top Out') {
+              nextSchemes[half] = 'Pyramid';
             }
-            const effectiveScheme = nextSlotScheme === 'Pyramid 1RM' ? 'Pyramid' : nextSlotScheme;
+            const effectiveScheme = nextSchemes[half] === 'Pyramid 1RM' ? 'Pyramid' : nextSchemes[half];
 
             let finalLastReps = Math.max(1, Number(lastSet.reps) || 1);
             let finalLastWeight = Math.max(0, Number(lastSet.weight) || 0);
@@ -1549,11 +1677,11 @@ export function useWorkoutMutations({
             }
 
             const isPyramid1RMWarmup =
-              slot.scheme === 'Pyramid 1RM' &&
+              listScheme === 'Pyramid 1RM' &&
               st.type === 'Warmup' &&
               idx < totalCount - 1;
             const isPyramid1RMTopSet =
-              slot.scheme === 'Pyramid 1RM' &&
+              listScheme === 'Pyramid 1RM' &&
               st.type === '1 Rep Max' &&
               idx === totalCount - 1;
 
@@ -1581,7 +1709,7 @@ export function useWorkoutMutations({
                 totalCount,
                 slot.category,
                 idx,
-                slot.scheme
+                listScheme
               );
               const nextInc = Math.round((chosenWeight - newLastW) * 100) / 100;
               return {
@@ -1616,7 +1744,7 @@ export function useWorkoutMutations({
               totalCount,
               slot.category,
               idx,
-              slot.scheme
+              listScheme
             );
             const targetW = Math.max(0, roundToIncrement(lastW + defaultInc));
             return {
@@ -1633,11 +1761,12 @@ export function useWorkoutMutations({
         if (isSupersetCategory(slot.category) && Array.isArray(slot.supersetSetsByExercise)) {
           const supIds = slot.supersetExerciseIds || [slot.exerciseId, slot.secondaryExerciseId];
           const nextMatrix = slot.supersetSetsByExercise.map((list, idx) =>
-            recalcList(list, supIds[idx] || slot.exerciseId)
+            recalcList(list, supIds[idx] || slot.exerciseId, idx)
           );
           return {
             ...slot,
-            scheme: nextSlotScheme,
+            scheme: nextSchemes[0],
+            supersetSchemes: [nextSchemes[0], nextSchemes[1] || nextSchemes[0]],
             supersetSetsByExercise: nextMatrix,
             sets: nextMatrix[0] || [],
             secondarySets: nextMatrix[1] || []
@@ -1645,7 +1774,7 @@ export function useWorkoutMutations({
         }
 
         const nextSets = recalcList(slot.sets || [], slot.exerciseId);
-        return { ...slot, scheme: nextSlotScheme, sets: nextSets, supersetSetsByExercise: [nextSets] };
+        return { ...slot, scheme: nextSchemes[0], sets: nextSets, supersetSetsByExercise: [nextSets] };
       });
       return { ...prev, slots: nextSlots };
     });
