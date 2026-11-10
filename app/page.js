@@ -436,6 +436,37 @@ export default function App() {
     }
   }, [currentView]);
 
+  // BACK (header): the pages visited since Home, newest last. Going Home clears it; going back pops it.
+  const viewHistoryRef = useRef([]);
+  const lastViewRef = useRef(currentView);
+  const goingBackRef = useRef(false);
+  useEffect(() => {
+    const prev = lastViewRef.current;
+    if (prev === currentView) return;
+    if (goingBackRef.current) goingBackRef.current = false;
+    else if (currentView === 'home') viewHistoryRef.current = [];
+    else viewHistoryRef.current = [...viewHistoryRef.current, prev].slice(-30);
+    lastViewRef.current = currentView;
+  }, [currentView]);
+  // Previous page that can still be shown (editors need their draft; sign-in only while signed out), else Home
+  const handleBack = () => {
+    const canShow = view =>
+      view &&
+      view !== currentView &&
+      !(view === 'gym_editor' && !gymDraft) &&
+      !(view === 'historical_entry' && !historicalDraft) &&
+      !(view === 'routine_editor' && !routineDraft) &&
+      !(view === 'friend_profile' && !viewingFriendProfile) &&
+      !(view === 'auth' && user);
+    const stack = [...viewHistoryRef.current];
+    let target = stack.pop();
+    while (target && !canShow(target)) target = stack.pop();
+    viewHistoryRef.current = stack;
+    goingBackRef.current = true;
+    setRoutineSelectReturnView(null);
+    setCurrentView(target || 'home');
+  };
+
   // Locked interface: iOS Safari ignores `user-scalable=no`, so cancel its pinch-zoom gestures and
   // multi-touch zoom directly (the viewport export in layout.js covers other browsers).
   useEffect(() => {
@@ -619,6 +650,7 @@ export default function App() {
         <AppHeaderAndDrawer
           currentView={currentView}
           setCurrentView={setCurrentView}
+          onBack={handleBack}
           setRoutineSelectReturnView={setRoutineSelectReturnView}
           showHamburgerDrawer={showHamburgerDrawer}
           setShowHamburgerDrawer={setShowHamburgerDrawer}

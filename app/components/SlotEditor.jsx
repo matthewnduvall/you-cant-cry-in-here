@@ -236,11 +236,7 @@ export function SlotEditor({
 }) {
   // Drag a set's numbered handle to reorder sets (pointer events: works with touch). Keys are 'exIdx:setIdx';
   // superset sets only move within their own exercise.
-  const {
-    dragKey: draggedSetKey,
-    overKey: overSetKey,
-    handleProps: setHandleProps
-  } = usePointerReorder(
+  const { handleProps: setHandleProps, rowDragStyle: setDragStyle } = usePointerReorder(
     (from, to) => {
       const [fromEx, fromIdx] = String(from).split(':').map(Number);
       const [toEx, toIdx] = String(to).split(':').map(Number);
@@ -630,9 +626,6 @@ export function SlotEditor({
     );
   };
 
-  const isDragging = (exIdx, setIdx) => draggedSetKey === `${exIdx}:${setIdx}`;
-  const isDropTarget = (exIdx, setIdx) =>
-    draggedSetKey !== null && overSetKey === `${exIdx}:${setIdx}` && draggedSetKey !== overSetKey;
 
   const renderSetRow = ({ exIdx, exId, set: st, setIdx, total }) => {
     const rowScheme = schemes[exIdx] || schemes[0];
@@ -664,9 +657,9 @@ export function SlotEditor({
           gridTemplateColumns: '34px minmax(0, 1fr) 34px',
           gap: 0,
           alignItems: 'stretch',
-          opacity: isDragging(exIdx, setIdx) ? 0.55 : 1,
-          // Where the dragged set will land
-          boxShadow: isDropTarget(exIdx, setIdx) ? 'inset 0 0 0 2px var(--dp-color-accent)' : 'none'
+          backgroundColor: '#141416',
+          // Held set lifts and follows the finger; the landing set is outlined
+          ...setDragStyle(`${exIdx}:${setIdx}`)
         }}
       >
         <DragNumberBadge

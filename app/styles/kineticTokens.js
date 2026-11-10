@@ -42,6 +42,21 @@ export const KINETIC_CSS = `
     box-sizing: border-box;
   }
 
+  /* No text selection or iOS long-press callout (the "highlighter") in the app UI: holding a drag handle or a
+     button should never start selecting text. Fields you type into keep normal selection. */
+  .kinetic-app {
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+  }
+  .kinetic-app input,
+  .kinetic-app textarea,
+  .kinetic-app [contenteditable="true"] {
+    -webkit-user-select: text;
+    user-select: text;
+    -webkit-touch-callout: default;
+  }
+
   /* Fallback colours for dropdowns; each dropdown uses .kinetic-filter-select (below) or its own inline style.
      Options keep a dark list on every platform. */
   .kinetic-app select {

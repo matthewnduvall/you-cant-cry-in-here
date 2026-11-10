@@ -53,11 +53,7 @@ export function RoutineEditorView({
 }) {
   // Drag an exercise's numbered grippy handle to reorder (pointer events: works with touch). The page scrolls when
   // the finger rests below the sticky session header (~146 px) or near the bottom edge.
-  const {
-    dragIndex: draggedSlotIndex,
-    overIndex: overSlotIndex,
-    handleProps: slotHandleProps
-  } = usePointerReorder((from, to) => handleReorderExercises?.(from, to), { attribute: 'data-slot-reorder', edgeTop: 190 });
+  const { handleProps: slotHandleProps, rowDragStyle: slotDragStyle } = usePointerReorder((from, to) => handleReorderExercises?.(from, to), { attribute: 'data-slot-reorder', edgeTop: 190 });
 
   if (!currentEditorWorkout) return null;
 
@@ -259,12 +255,9 @@ export function RoutineEditorView({
                   style={{
                     borderBottom: '2px solid var(--dp-color-rule)',
                     padding: '12px 0',
-                    opacity: draggedSlotIndex === sIdx ? 0.55 : 1,
-                    // Where the dragged exercise will land
-                    boxShadow:
-                      draggedSlotIndex !== null && overSlotIndex === sIdx && draggedSlotIndex !== sIdx
-                        ? 'inset 0 0 0 2px var(--dp-color-accent)'
-                        : 'none'
+                    backgroundColor: 'var(--dp-color-ground)',
+                    // Held exercise lifts and follows the finger; the landing exercise is outlined
+                    ...slotDragStyle(sIdx)
                   }}
                 >
                   <SlotEditor
