@@ -1,9 +1,9 @@
 'use client';
 
 import React from 'react';
-import { UI } from '../../styles/kineticTokens';
+import { UI, SHARED_GROUP_OUTER } from '../../styles/kineticTokens';
 import { IOSListSection, IOSListRow } from '../Primitives';
-import { Button } from '../Controls';
+import { Button, GymSelect } from '../Controls';
 
 export function SettingsView({
   colors,
@@ -19,6 +19,9 @@ export function SettingsView({
   setStimulusYellowDays,
   routinePreferences,
   setRoutinePreferences,
+  selectedGymId = '',
+  setSelectedGymId,
+  gyms = [],
   shareStatsWithFriends,
   setShareStatsWithFriends,
   shareRoutinesWithFriends,
@@ -102,14 +105,21 @@ export function SettingsView({
         </IOSListRow>
       </IOSListSection>
 
-      <IOSListSection header="GYMS/EQUIPMENT" colors={colors}>
-        <IOSListRow isLast={true} colors={colors} style={{ opacity: 0.45 }}>
-          <div>
-            <div style={UI.rowTitle}>SMART LOCATIONS</div>
-            <div style={UI.rowSub}>COMING SOON</div>
-          </div>
-          <span style={UI.badge(false)}>LOCKED</span>
-        </IOSListRow>
+      <IOSListSection
+        header="ACTIVE GYMS / EQUIPMENT FILTER"
+        footer="+ ADD EXERCISE, AUTO SESSION and the exercise pickers only use exercises that fit this equipment."
+        colors={colors}
+      >
+        <div style={SHARED_GROUP_OUTER}>
+          <GymSelect
+            variant="cell"
+            ariaLabel="Active gyms / equipment filter"
+            value={selectedGymId}
+            onChange={setSelectedGymId}
+            gyms={gyms}
+            style={{ height: '46px', padding: '0 12px', fontSize: '14px' }}
+          />
+        </div>
       </IOSListSection>
 
       <IOSListSection

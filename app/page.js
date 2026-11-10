@@ -362,7 +362,8 @@ export default function App() {
     newSlotSupersetIds,
     newSlotScheme,
     setShowAddSlotModal,
-    appendSessionLog
+    appendSessionLog,
+    muscleStimulusStatus
   });
 
   // --- 4. Plate & Weight Calculator Hook ---
@@ -770,6 +771,9 @@ export default function App() {
               setStimulusYellowDays={setStimulusYellowDays}
               routinePreferences={routinePreferences}
               setRoutinePreferences={setRoutinePreferences}
+              selectedGymId={selectedGymId}
+              setSelectedGymId={setSelectedGymId}
+              gyms={gyms}
               shareStatsWithFriends={shareStatsWithFriends}
               setShareStatsWithFriends={setShareStatsWithFriends}
               shareRoutinesWithFriends={shareRoutinesWithFriends}
