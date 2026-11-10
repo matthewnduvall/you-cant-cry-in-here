@@ -14,7 +14,7 @@ CREATE TABLE IF NOT EXISTS public.user_profiles (
   settings JSONB NOT NULL DEFAULT '{
     "bodyMetrics": { "bodyweightLbs": 220, "heightFeet": 5, "heightInches": 10 },
     "goals": {
-      "goalType": "Strength",
+      "goalType": "Balanced",
       "goalIncrement": 1.25,
       "goalUnit": "lb",
       "targetStandardClass": "Intermediate",
@@ -38,7 +38,7 @@ ALTER TABLE public.user_profiles ADD COLUMN IF NOT EXISTS one_rep_maxes JSONB NO
 ALTER TABLE public.user_profiles ADD COLUMN IF NOT EXISTS settings JSONB NOT NULL DEFAULT '{
   "bodyMetrics": { "bodyweightLbs": 220, "heightFeet": 5, "heightInches": 10 },
   "goals": {
-    "goalType": "Strength",
+    "goalType": "Balanced",
     "goalIncrement": 1.25,
     "goalUnit": "lb",
     "targetStandardClass": "Intermediate",

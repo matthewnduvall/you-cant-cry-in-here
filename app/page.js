@@ -116,7 +116,8 @@ export default function App() {
   const [gymDraft, setGymDraft] = useState(null);
 
   // --- Goals, Standards & Settings State ---
-  const [goalType, setGoalType] = useState('Strength');
+  // Primary training goal (Strength 5x5 · Balanced 5x8 · Hypertrophy 5x10 · Maintain 5x8); Balanced by default
+  const [goalType, setGoalType] = useState('Balanced');
   const [goalIncrement, setGoalIncrement] = useState(1.25);
   const [goalUnit, setGoalUnit] = useState('lb');
   const [chartMetric, setChartMetric] = useState('weight');

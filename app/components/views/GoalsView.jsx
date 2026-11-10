@@ -92,12 +92,12 @@ export function GoalsView({
         <div
           style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+            gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
             gap: 0,
             ...SHARED_GROUP_OUTER
           }}
         >
-          {['Strength', 'Hypertrophy', 'Maintain'].map(opt => (
+          {['Strength', 'Balanced', 'Hypertrophy', 'Maintain'].map(opt => (
             <SegmentButton
               active={goalType === opt}
               key={opt}
@@ -109,7 +109,7 @@ export function GoalsView({
           ))}
         </div>
 
-        {(goalType === 'Strength' || goalType === 'Hypertrophy') && (
+        {goalType !== 'Maintain' && (
           <div style={{ marginTop: '14px' }}>
             <div
               style={{
