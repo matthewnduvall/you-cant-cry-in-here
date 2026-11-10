@@ -327,7 +327,9 @@ export function PlateCalculatorModal({
   setCalcTotalFromInput,
   prRecordDate,
   setPrRecordDate,
-  handleApplyCalculatedWeight
+  handleApplyCalculatedWeight,
+  // Opens a logged History workout (the PR's) on the PROGRESS page
+  onOpenHistoryWorkout
 }) {
   if (!plateCalcTarget) return null;
 
@@ -352,12 +354,37 @@ export function PlateCalculatorModal({
 
         {(() => {
           const hasLast = plateCalcTarget.mode === 'set' && plateCalcTarget.lastDisplay !== undefined;
-          const hasInc =
-            plateCalcTarget.mode === 'set' &&
-            plateCalcTarget.incrementDisplay !== undefined &&
-            plateCalcTarget.incrementDisplay !== null;
+          const hasOneRepMax = plateCalcTarget.mode === 'set' && Boolean(plateCalcTarget.showOneRepMax);
           const sideLabel = { fontSize: '10px', fontWeight: 800, color: '#A0A0A0', lineHeight: 1 };
           const sideValue = color => ({ fontSize: '16px', fontWeight: 800, color, marginTop: '4px', lineHeight: 1.1 });
+          // 1RM box: PR = best 1RM logged in History; CURRENT = best 1RM across this exercise's sets in the
+          // session, with this set at the weight being picked. Same estimate History uses to find PRs, so
+          // CURRENT above PR means the session would log a new PR.
+          const prValue = Number(plateCalcTarget.prValue) || 0;
+          const prWorkoutId = plateCalcTarget.prWorkoutId || null;
+          const estimate1RM = (weight, reps) => {
+            const w = Number(weight) || 0;
+            const r = Math.max(1, Number(reps) || 1);
+            if (w <= 0) return 0;
+            return r === 1 ? w : Math.round(w * (1 + r / 30));
+          };
+          const currentTotal = Number(computedPlateCalculatorTotal) || 0;
+          const sessionSets = Array.isArray(plateCalcTarget.sessionSets) ? plateCalcTarget.sessionSets : [];
+          const current1RM = Math.max(
+            estimate1RM(currentTotal, plateCalcTarget.setReps),
+            ...sessionSets
+              .filter(st => st && st.id !== plateCalcTarget.setId)
+              .map(st => estimate1RM(st.weight, st.reps))
+          );
+          const oneRepMaxLabel = color => ({ fontSize: '10px', fontWeight: 800, color, lineHeight: 1, whiteSpace: 'nowrap' });
+          const oneRepMaxValue = {
+            fontSize: '14px',
+            fontWeight: 800,
+            color: '#C8C8C8',
+            lineHeight: 1.1,
+            marginTop: '2px',
+            whiteSpace: 'nowrap'
+          };
           const totalBlock = (
             <EditableTotalWeight
               value={computedPlateCalculatorTotal}
@@ -365,7 +392,7 @@ export function PlateCalculatorModal({
               onCommit={setCalcTotalFromInput}
             />
           );
-          if (!hasLast && !hasInc) {
+          if (!hasLast && !hasOneRepMax) {
             return (
               <div
                 style={{
@@ -381,7 +408,7 @@ export function PlateCalculatorModal({
             <div
               style={{
                 backgroundColor: '#101010', border: '2px solid var(--dp-color-rule)',
-                display: 'grid', gridTemplateColumns: '64px minmax(0, 1fr) 64px', alignItems: 'stretch',
+                display: 'grid', gridTemplateColumns: '64px minmax(0, 1fr) 72px', alignItems: 'stretch',
                 marginBottom: '12px'
               }}
             >
@@ -399,23 +426,25 @@ export function PlateCalculatorModal({
                 )}
               </div>
               <div style={{ padding: '12px 4px' }}>{totalBlock}</div>
-              {hasInc ? (
+              {hasOneRepMax ? (
                 <button
                   type="button"
-                  aria-label="Weight Increment"
+                  aria-label={prWorkoutId ? '1RM: open the Personal Record in History' : '1RM (no Personal Record logged yet)'}
+                  disabled={!prWorkoutId}
                   onClick={() => {
-                    const editIncrement = plateCalcTarget.onEditIncrement;
                     setPlateCalcTarget(null);
-                    editIncrement?.();
+                    onOpenHistoryWorkout?.(prWorkoutId);
                   }}
                   style={{
                     display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
                     backgroundColor: 'transparent', border: 'none', borderLeft: '1px solid var(--dp-color-rule)',
-                    padding: '8px 2px', cursor: 'pointer', color: '#FFFFFF'
+                    padding: '8px 2px', cursor: prWorkoutId ? 'pointer' : 'default', color: '#C8C8C8', opacity: 1
                   }}
                 >
-                  <span style={sideLabel}>INC ✎</span>
-                  <span style={sideValue('#FFFFFF')}>{plateCalcTarget.incrementDisplay}</span>
+                  <span style={oneRepMaxLabel('var(--dp-color-accent)')}>{prWorkoutId ? 'PR ↗' : 'PR'}</span>
+                  <span style={oneRepMaxValue}>{prValue > 0 ? prValue : 'TBD'}</span>
+                  <span style={{ ...oneRepMaxLabel('#A0A0A0'), marginTop: '6px' }}>CURRENT</span>
+                  <span style={oneRepMaxValue}>{current1RM > 0 ? current1RM : '—'}</span>
                 </button>
               ) : (
                 <div style={{ borderLeft: '1px solid var(--dp-color-rule)' }} />

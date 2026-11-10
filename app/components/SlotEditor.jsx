@@ -28,7 +28,7 @@ import {
   SCHEME_OPTIONS,
   normalizeSetType,
   calculateLastEquivalentWeightForSet,
-  getEffectiveIncrementForExercise,
+  getBestHistory1RMInfo,
   getHistoricalCalculated1RM,
   getSetTimerMMSS,
   getLastLoggedTimerDisplay,
@@ -176,15 +176,16 @@ function PrBadge({ marginRight = '6px' }) {
  * - categories: category options (default all; the 1RM calculator excludes Superset)
  * - The pickers, equipment filter and search always cover the whole exercise library; the athlete's
  *   Settings → Equipment only drives the default picks made by the hosts (see useWorkoutMutations).
- * - history, oneRepMaxes, currentIncrementLbs: used to show LAST / INC values
+ * - history, oneRepMaxes: used for LAST values and the 1RM box (PR) in the weight pop-up
  * - getBase1RM(exId): optional override of the 1RM used for LAST when a set has no lastWeight
  * - prFlags: [bool, bool] shows PR badges next to the exercise picker(s)
  * - onHeaderChange(changes): { category | muscleGroupFilter | scheme | exerciseId }. Supersets add
  *   supersetHalf (0 = A, 1 = B) to say which exercise changed, or send { endSuperset: half } to drop one.
  * - onRemove / removeLabel: red DELETE button at the end of the bottom row (omit to hide it)
  * - onEditSetValue({ mode, exIdx, set, exercise, currentValue }): mode = type | increment | reps | timer
- * - onEditWeight({ exIdx, set, exercise, lastDisplay, incrementDisplay, onEditIncrement }): CURRENT weight
- *   pop-up; LAST / INC are shown there (not as row columns), INC is null for Timer sets
+ * - onEditWeight({ exIdx, set, exercise, exerciseId, equipment, lastDisplay, showOneRepMax, setReps, prValue,
+ *   prWorkoutId }): CURRENT weight pop-up; LAST and the 1RM box (PR / CURRENT, links to the PR's History entry)
+ *   are shown there; no 1RM box for Timer sets
  * - onToggleDone({ exIdx, set }), onDeleteSet({ exIdx, set, exercise })
  * - onReorderSets(exIdx, fromIdx, toIdx), onInsertSet('top' | 'bottom')
  * - actionLabel / onAction / actionTone ('recalculate' | 'calculate'): third bottom button
@@ -197,7 +198,6 @@ export function SlotEditor({
   categories = SLOT_CATEGORIES,
   history = [],
   oneRepMaxes = {},
-  currentIncrementLbs = 0,
   getBase1RM,
   prFlags = [false, false],
   onHeaderChange,
@@ -588,25 +588,14 @@ export function SlotEditor({
     const exObj = EXERCISE_MAP[exId] || EXERCISE_LIBRARY[0];
     const curType = normalizeSetType(st.type);
     const base1RM = getBase1RM ? getBase1RM(exId) : getHistoricalCalculated1RM(exId, history, oneRepMaxes);
-    const effInc = getEffectiveIncrementForExercise(exId, currentIncrementLbs);
     const lastW =
       st.lastWeight !== undefined
         ? st.lastWeight
         : calculateLastEquivalentWeightForSet(base1RM, st, total, normCat, setIdx, rowScheme);
     const timerMMSS = isTimerScheme ? st.timerStr ?? getSetTimerMMSS(st, true) : '';
     const lastTimerDisplay = isTimerScheme ? getLastLoggedTimerDisplay(exId, st, setIdx, lastW, history) : '';
-    const setIncValue =
-      st.increment !== undefined
-        ? st.increment
-        : curType === '1 Rep Max' && rowScheme !== 'Pyramid 1RM'
-          ? 0
-          : Math.round(((Number(st.weight) || 0) - (Number(lastW) || 0)) * 100) / 100 || effInc;
-    const displayIncValue =
-      setIncValue === '' || setIncValue === '-' || setIncValue === '.' || setIncValue === '-.'
-        ? setIncValue
-        : Number(setIncValue) < 0
-          ? `${setIncValue}`
-          : `+${setIncValue}`;
+    // Logged PR for the weight pop-up's 1RM box (and the History workout it came from)
+    const prInfo = getBestHistory1RMInfo(exId, history);
     const setNumText = isSuperset ? `${exIdx === 0 ? 'A' : 'B'}${st.setNumber}` : `${st.setNumber}`;
     const cellBg = st.completed ? '#16291B' : '#141416';
     const editValue = (mode, currentValue) => onEditSetValue?.({ mode, exIdx, set: st, exercise: exObj, currentValue });
@@ -719,8 +708,12 @@ export function SlotEditor({
                   exerciseId: exObj.id,
                   equipment: pickerState(exIdx).equipment,
                   lastDisplay: isTimerScheme ? lastTimerDisplay : lastW,
-                  incrementDisplay: isTimerScheme ? null : displayIncValue,
-                  onEditIncrement: isTimerScheme ? null : () => editValue('increment', setIncValue)
+                  showOneRepMax: !isTimerScheme,
+                  setReps: st.reps,
+                  // This exercise's sets in the session, for the pop-up's CURRENT (session) 1RM
+                  sessionSets: (isSuperset ? slot.supersetSetsByExercise?.[exIdx] : slot.sets) || [],
+                  prValue: prInfo.best,
+                  prWorkoutId: prInfo.workoutId
                 })
               }
               style={{ ...setCellStyle(cellBg), cursor: 'pointer', overflow: 'hidden' }}
