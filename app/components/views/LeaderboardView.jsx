@@ -10,10 +10,10 @@ import {
   getExRxCurrentClass
 } from '../../data/exerciseLibrary';
 
-// One tab per leaderboard; the section header below the tabs keeps the full name
+// One tab per leaderboard (BIG 3 / BW first and default); the tabs name the board, so no section titles
 const LEADERBOARD_TABS = [
-  { id: 'big3_total', label: 'BIG 3 TOTAL' },
   { id: 'big3_normalized', label: 'BIG 3 / BW' },
+  { id: 'big3_total', label: 'BIG 3 TOTAL' },
   { id: 'ohp_normalized', label: 'OHP / BW' },
   { id: 'most_improved', label: 'MOST IMPROVED' }
 ];
@@ -66,10 +66,12 @@ export function LeaderboardView({
   userBodyweightLbs = 220,
   totalHeightInches = 70,
   history = [],
-  // Section heading above the tabs (the Social page shows LEADERBOARDS)
-  title
+  // Section heading above the tabs (optional)
+  title,
+  // Inside the Social page's LEADERBOARDS tab: no extra top padding
+  embedded = false
 }) {
-  const [activeTab, setActiveTab] = useState('big3_total');
+  const [activeTab, setActiveTab] = useState('big3_normalized');
   const selfName = user?.username || 'you (logged out)';
   const selfBw = Math.max(50, Number(userBodyweightLbs) || 220);
 
@@ -264,14 +266,14 @@ export function LeaderboardView({
   );
 
   return (
-    <div style={{ paddingTop: '12px' }}>
+    <div style={{ paddingTop: embedded ? 0 : '12px' }}>
       <div style={{ padding: '0 var(--dp-spacing-gutter)', marginBottom: '14px' }}>
         {title && <div style={{ ...UI.sectionTitle, marginBottom: '8px' }}>{title}</div>}
         <TabBar ariaLabel="Leaderboards" tabs={LEADERBOARD_TABS} value={activeTab} onChange={setActiveTab} />
       </div>
 
       {activeTab === 'big3_total' && (
-      <IOSListSection header="BIG 3 TOTAL" colors={colors}>
+      <IOSListSection colors={colors}>
         {big3TotalEntries.map((entry, idx, arr) => (
           <IOSListRow
             key={`big3_tot_${entry.id}_${idx}`}
@@ -304,7 +306,7 @@ export function LeaderboardView({
       )}
 
       {activeTab === 'big3_normalized' && (
-      <IOSListSection header="BIG 3 NORMALIZED" colors={colors}>
+      <IOSListSection colors={colors}>
         {big3NormalizedEntries.map((entry, idx, arr) => (
           <IOSListRow
             key={`big3_norm_${entry.id}_${idx}`}
@@ -337,7 +339,7 @@ export function LeaderboardView({
       )}
 
       {activeTab === 'ohp_normalized' && (
-      <IOSListSection header="OVERHEAD PRESS NORMALIZED" colors={colors}>
+      <IOSListSection colors={colors}>
         {ohpNormalizedEntries.map((entry, idx, arr) => (
           <IOSListRow
             key={`ohp_norm_${entry.id}_${idx}`}
@@ -370,7 +372,7 @@ export function LeaderboardView({
       )}
 
       {activeTab === 'most_improved' && (
-      <IOSListSection header="MOST IMPROVED" colors={colors}>
+      <IOSListSection colors={colors}>
         {mostImprovedEntries.length === 0 ? (
           <IOSListRow isLast={true} colors={colors}>
             <span style={{ fontSize: '12px', fontWeight: 700, color: '#888888', textTransform: 'uppercase' }}>

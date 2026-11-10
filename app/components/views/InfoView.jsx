@@ -4,31 +4,16 @@ import React from 'react';
 import { UI } from '../../styles/kineticTokens';
 import { IOSListSection, IOSListRow } from '../Primitives';
 import { Button } from '../Controls';
+import { DataBackupSection } from './SettingsView';
 
 export function InfoView({
   colors,
   setCurrentView,
-  user = null,
-  shareStatsWithFriends = true,
-  setShareStatsWithFriends,
-  shareRoutinesWithFriends = true,
-  setShareRoutinesWithFriends,
   importBackupInputRef,
   handleExportBackupJSON,
   handleImportBackupJSON,
   handleResetToDemoDefaults
 }) {
-  const stepBoxStyle = {
-    marginTop: '8px',
-    marginBottom: '14px',
-    padding: '10px 12px',
-    backgroundColor: '#101010',
-    border: '2px solid var(--dp-color-rule)',
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '10px'
-  };
-
   return (
     <div style={UI.pagePad}>
       <IOSListSection header="01 // APP LOGIC & 1RM APPROACH" colors={colors}>
@@ -52,8 +37,8 @@ export function InfoView({
             </p>
 
             <p style={{ marginBottom: '12px' }}>
-              <strong style={{ color: 'var(--dp-color-accent)' }}>1.3 EQUIPMENT:</strong> Turn on the equipment you have on the{' '}
-              <strong>Equipment</strong> page (or tap a saved setup to switch to it). Exercises picked for you by{' '}
+              <strong style={{ color: 'var(--dp-color-accent)' }}>1.3 EQUIPMENT:</strong> Turn on the equipment you have in{' '}
+              <strong>Configuration → Equipment</strong> (or tap a saved setup to switch to it). Exercises picked for you by{' '}
               <strong>AUTO SESSION</strong> and <strong>+ ADD EXERCISE</strong> only use equipment that is on (bodyweight exercises always
               count). Searching and the per-exercise filters still show every exercise.
             </p>
@@ -82,66 +67,27 @@ export function InfoView({
             </p>
 
             {/* 2.3 CLOUD AUTH & PRIVACY */}
-            <div>
-              <p style={{ marginBottom: '4px' }}>
-                <strong style={{ color: 'var(--dp-color-accent)' }}>2.3 CLOUD AUTH &amp; PRIVACY:</strong> Registered accounts are protected by Supabase Cloud authentication and Row-Level Security (RLS) policies ensuring only you can access or modify your private records, while social stats and routines are only shared with friends if enabled below.
-              </p>
-              <div style={stepBoxStyle}>
-                <div
-                  onClick={() => setShareStatsWithFriends?.(p => !p)}
-                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer' }}
-                >
-                  <span style={{ fontSize: '12px', fontWeight: 800, textTransform: 'uppercase' }}>
-                    SHARE STATS WITH FRIENDS
-                  </span>
-                  <span style={UI.badge(shareStatsWithFriends)}>{shareStatsWithFriends ? 'ON' : 'OFF'}</span>
-                </div>
-                <div
-                  onClick={() => setShareRoutinesWithFriends?.(p => !p)}
-                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer' }}
-                >
-                  <span style={{ fontSize: '12px', fontWeight: 800, textTransform: 'uppercase' }}>
-                    SHARE ROUTINES WITH FRIENDS
-                  </span>
-                  <span style={UI.badge(shareRoutinesWithFriends)}>{shareRoutinesWithFriends ? 'ON' : 'OFF'}</span>
-                </div>
-              </div>
-            </div>
+            <p style={{ marginBottom: '12px' }}>
+              <strong style={{ color: 'var(--dp-color-accent)' }}>2.3 CLOUD AUTH &amp; PRIVACY:</strong> Registered accounts are protected by Supabase Cloud authentication and Row-Level Security (RLS) policies ensuring only you can access or modify your private records. Your stats and routines are shared with friends only if you turn that on in{' '}
+              <strong>Social → Privacy &amp; Sharing</strong>.
+            </p>
 
             {/* 2.4 PORTABLE BACKUPS & DELETION */}
-            <div>
-              <p style={{ marginBottom: '4px' }}>
-                <strong style={{ color: 'var(--dp-color-accent)' }}>2.4 PORTABLE BACKUPS &amp; DELETION:</strong> You maintain full ownership of your data—use the controls below (or in <strong>MENU → 06 / SETTINGS</strong>) at any time to export a complete <strong>.JSON</strong> backup file, restore from a backup, or permanently clear and reset local data.
-              </p>
-              <div style={{ ...stepBoxStyle, marginBottom: 0 }}>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-                  <Button
-                    variant="secondary"
-                    onClick={handleExportBackupJSON}
-                    style={{ padding: '10px 8px', fontSize: '11px', color: 'var(--dp-color-accent)' }}
-                  >
-                    EXPORT .JSON ↓
-                  </Button>
-                  <Button
-                    variant="secondary"
-                    onClick={() => importBackupInputRef?.current?.click()}
-                    style={{ padding: '10px 8px', fontSize: '11px' }}
-                  >
-                    IMPORT .JSON ↑
-                  </Button>
-                </div>
-                <Button
-                  variant="secondary"
-                  onClick={handleResetToDemoDefaults}
-                  style={{ padding: '8px', fontSize: '11px', color: '#FF3B30' }}
-                >
-                  CLEAR &amp; RESET ALL LOCAL DATA ↺
-                </Button>
-              </div>
-            </div>
+            <p style={{ marginBottom: 0 }}>
+              <strong style={{ color: 'var(--dp-color-accent)' }}>2.4 PORTABLE BACKUPS &amp; DELETION:</strong> You keep full ownership of your data: use <strong>DATA &amp; BACKUP</strong> below at any time to export a complete <strong>.JSON</strong> backup, restore from a backup, or clear and reset local data.
+            </p>
           </div>
         </IOSListRow>
       </IOSListSection>
+
+      {/* DATA & BACKUP (was the separate Data page) */}
+      <DataBackupSection
+        colors={colors}
+        importBackupInputRef={importBackupInputRef}
+        handleExportBackupJSON={handleExportBackupJSON}
+        handleImportBackupJSON={handleImportBackupJSON}
+        handleResetToDemoDefaults={handleResetToDemoDefaults}
+      />
 
       <div style={UI.gutterWrap}>
         <Button variant="primary" onClick={() => setCurrentView('home')}>

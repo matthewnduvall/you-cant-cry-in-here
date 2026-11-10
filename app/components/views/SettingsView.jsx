@@ -1,9 +1,9 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import { UI } from '../../styles/kineticTokens';
 import { IOSListSection, IOSListRow } from '../Primitives';
-import { Button } from '../Controls';
+import { Button, CollapseToggle } from '../Controls';
 
 /** BODY METRICS: bodyweight row + height row (Settings and the Configuration page's BODY METRICS tab). */
 export function BodyMetricsSection({
@@ -166,7 +166,7 @@ export function RoutinePreferencesSection({ colors, routinePreferences, setRouti
   );
 }
 
-/** SOCIAL settings: profile visibility and sharing. Shown on the Social page. */
+/** SOCIAL settings: profile visibility and sharing. Shown on the Social page, collapsed by default. */
 export function SocialSettingsSection({
   colors,
   profileIsPublic = true,
@@ -174,11 +174,36 @@ export function SocialSettingsSection({
   shareStatsWithFriends,
   setShareStatsWithFriends,
   shareRoutinesWithFriends,
-  setShareRoutinesWithFriends
+  setShareRoutinesWithFriends,
+  // false = always open, no SHOW / HIDE (the Social page's PRIVACY tab)
+  collapsible = true
 }) {
+  // Starts collapsed; collapsed it shows a one-line summary of the current choices
+  const [collapsedState, setCollapsed] = useState(true);
+  const collapsed = collapsible && collapsedState;
+  const toggle = (
+    <CollapseToggle collapsed={collapsed} onClick={() => setCollapsed(v => !v)} label="privacy and sharing" />
+  );
+  if (collapsed) {
+    return (
+      <section style={{ marginBottom: '22px', padding: '0 var(--dp-spacing-gutter)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+          <div style={{ minWidth: 0 }}>
+            <div style={UI.sectionTitle}>PRIVACY & SHARING</div>
+            <div style={{ fontSize: '12px', fontWeight: 700, color: '#A0A0A0', textTransform: 'uppercase' }}>
+              {profileIsPublic ? 'PUBLIC' : 'PRIVATE'} • STATS {shareStatsWithFriends ? 'SHARED' : 'NOT SHARED'} • ROUTINES{' '}
+              {shareRoutinesWithFriends ? 'SHARED' : 'NOT SHARED'}
+            </div>
+          </div>
+          {toggle}
+        </div>
+      </section>
+    );
+  }
   return (
     <IOSListSection
       header="PRIVACY & SHARING"
+      headerRight={collapsible ? toggle : null}
       footer={
         profileIsPublic
           ? 'PUBLIC: friends can see your friends list on your profile, and you appear in your friends\x27 lists so their friends can send you requests.'
@@ -204,8 +229,8 @@ export function SocialSettingsSection({
   );
 }
 
-/** 03 / DATA page (view id 'settings'): DATA & BACKUP only. */
-export function SettingsView({
+/** DATA & BACKUP: export / import a .json backup and reset local data. Shown at the bottom of the Info page. */
+export function DataBackupSection({
   colors,
   importBackupInputRef,
   handleExportBackupJSON,
@@ -213,7 +238,6 @@ export function SettingsView({
   handleResetToDemoDefaults
 }) {
   return (
-    <div style={UI.pagePad}>
       <IOSListSection
         header="DATA & BACKUP"
         footer="Your workout history, PRs, routines, gyms, and settings are automatically saved to versioned local storage and retained across app updates."
@@ -241,8 +265,5 @@ export function SettingsView({
           <span style={{ ...UI.badge(false), color: '#FF3B30' }}>RESET ↺</span>
         </IOSListRow>
       </IOSListSection>
-    </div>
   );
 }
-
-export default SettingsView;

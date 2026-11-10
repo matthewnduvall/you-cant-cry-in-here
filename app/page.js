@@ -21,7 +21,6 @@ import { ProgressionChartView, DEFAULT_CHART_LIFTS } from './components/views/Pr
 import { StimulusMapView } from './components/views/StimulusMapView';
 import { SocialView } from './components/views/SocialView';
 import { ProfileView } from './components/views/ProfileView';
-import { SettingsView } from './components/views/SettingsView';
 import { InfoView } from './components/views/InfoView';
 import { ConfigurationView } from './components/views/ConfigurationView';
 import { CloudSyncBanner } from './components/CloudSyncBanner';
@@ -491,8 +490,6 @@ export default function App() {
       {tab === 'progress' && (
         <ProgressionChartView
           colors={colors}
-          chartMetric={chartMetric}
-          setChartMetric={setChartMetric}
           selectedChartLifts={selectedChartLifts}
           setSelectedChartLifts={setSelectedChartLifts}
           progressionSeriesByLift={seriesByLift}
@@ -885,19 +882,16 @@ export default function App() {
             />
           )}
 
-          {currentView === 'settings' && (
-            <SettingsView
+
+          {currentView === 'info' && (
+            <InfoView
               colors={colors}
+              setCurrentView={setCurrentView}
               importBackupInputRef={importBackupInputRef}
               handleExportBackupJSON={handleExportBackupJSON}
               handleImportBackupJSON={handleImportBackupJSON}
               handleResetToDemoDefaults={handleResetToDemoDefaults}
             />
-          )}
-
-
-          {currentView === 'info' && (
-            <InfoView colors={colors} />
           )}
 
           {currentView === 'auth' && (
@@ -923,6 +917,7 @@ export default function App() {
               onInviteAccepted={handleInviteAccepted}
               setUser={setUser}
               setCurrentView={setCurrentView}
+              hasLocalHistory={(history || []).length > 0}
             />
           )}
         </div>

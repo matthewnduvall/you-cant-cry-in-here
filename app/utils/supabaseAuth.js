@@ -1366,6 +1366,32 @@ async function authedRequest(user, path, { method = 'GET', body, prefer } = {}) 
 }
 
 /**
+ * Does this account already have anything saved on the server? true = any workout History, saved routine,
+ * PR, saved equipment setup, or settings the app has saved (the app's pushes stamp `settings.updatedAt`;
+ * the database's default settings for a new account don't have it). false = brand-new account.
+ * null = couldn't tell (not configured / network / session problem).
+ */
+export async function accountHasSavedData(user) {
+  if (!user || !isUuid(user.id)) return null;
+  const id = encodeURIComponent(user.id);
+  const [profile, history, routines] = await Promise.all([
+    authedRequest(user, `/rest/v1/user_profiles?id=eq.${id}&select=settings,one_rep_maxes,gyms`),
+    authedRequest(user, `/rest/v1/workout_history?user_id=eq.${id}&select=id&limit=1`),
+    authedRequest(user, `/rest/v1/routines?user_id=eq.${id}&select=key&limit=1`)
+  ]);
+  if (!profile.ok || !history.ok || !routines.ok) return null;
+  const row = Array.isArray(profile.data) ? profile.data[0] : null;
+  // An unrecognised token reads as signed-out (200 + no rows): don't treat that as a new account
+  if (!row) return null;
+  const hasPrs = Object.values(row.one_rep_maxes || {}).some(v => Number(v) > 0);
+  const hasGyms = Array.isArray(row.gyms) && row.gyms.length > 0;
+  const hasSavedSettings = Boolean(row.settings && row.settings.updatedAt);
+  const hasHistory = Array.isArray(history.data) && history.data.length > 0;
+  const hasRoutines = Array.isArray(routines.data) && routines.data.length > 0;
+  return hasHistory || hasRoutines || hasPrs || hasGyms || hasSavedSettings;
+}
+
+/**
  * Loads full profiles (PRs, history, shared routines) for the given friend ids. RLS returns only
  * athletes who are accepted friends. Returns null if the request failed (so callers keep cached data).
  */

@@ -11,10 +11,17 @@ import {
   getValidSupabaseAccessToken
 } from '../../utils/supabaseAuth';
 import { isSameFriend, applyFriendshipSync, applyOutgoingInvitesSync } from '../../utils/storageMigration';
-import { DeleteButton } from '../Controls';
+import { DeleteButton, TabBar } from '../Controls';
 import { UI } from '../../styles/kineticTokens';
 import { SocialSettingsSection } from './SettingsView';
 import { LeaderboardView } from './LeaderboardView';
+
+// Social tabs: LEADERBOARDS (default) · FRIENDS (find athletes, requests, friends list) · PRIVACY
+const SOCIAL_TABS = [
+  { id: 'leaderboards', label: 'LEADERBOARDS' },
+  { id: 'friends', label: 'FRIENDS' },
+  { id: 'privacy', label: 'PRIVACY' }
+];
 
 const isEmailAddress = value => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || '').trim());
 
@@ -39,6 +46,7 @@ export function SocialView({
   // LEADERBOARDS (moved here from their own page)
   leaderboardProps
 }) {
+  const [socialTab, setSocialTab] = useState('leaderboards');
   const [searchedAthletes, setSearchedAthletes] = useState([]);
   const [hasSearched, setHasSearched] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
@@ -210,7 +218,27 @@ export function SocialView({
     isEmailAddress(currentQuery);
 
   return (
-    <div style={{ paddingTop: '14px' }}>
+    <div style={{ paddingTop: '12px' }}>
+      <div style={{ padding: '0 var(--dp-spacing-gutter)', marginBottom: '14px' }}>
+        <TabBar
+          ariaLabel="Social"
+          // Waiting friend requests show on the FRIENDS tab, e.g. FRIENDS (2)
+          tabs={SOCIAL_TABS.map(t =>
+            t.id === 'friends' && pendingIncomingRequests.length > 0 ? { ...t, label: `FRIENDS (${pendingIncomingRequests.length})` } : t
+          )}
+          value={socialTab}
+          onChange={setSocialTab}
+        />
+      </div>
+
+      {socialTab === 'leaderboards' && (
+        <LeaderboardView colors={colors} user={user} friendsList={friendsList} embedded {...leaderboardProps} />
+      )}
+
+      {socialTab === 'privacy' && <SocialSettingsSection colors={colors} collapsible={false} {...socialSettingsProps} />}
+
+      {socialTab === 'friends' && (
+      <>
       {/* FIND ATHLETES: the search bar sits straight under the heading (no surrounding box); results and invite
           feedback appear in a list box below it */}
       <section style={{ marginBottom: '22px', padding: '0 var(--dp-spacing-gutter)' }}>
@@ -472,10 +500,8 @@ export function SocialView({
             </IOSListRow>
           ))}
       </IOSListSection>
-
-      <LeaderboardView colors={colors} user={user} friendsList={friendsList} title="LEADERBOARDS" {...leaderboardProps} />
-
-      <SocialSettingsSection colors={colors} {...socialSettingsProps} />
+      </>
+      )}
     </div>
   );
 }

@@ -51,8 +51,6 @@ const formatProgressExerciseLabel = (exId, rawName) => {
 
 export function ProgressionChartView({
   colors,
-  chartMetric,
-  setChartMetric,
   // Lifts drawn on the chart (toggles; several at once)
   selectedChartLifts = DEFAULT_CHART_LIFTS,
   setSelectedChartLifts,
@@ -65,6 +63,7 @@ export function ProgressionChartView({
   // A friend's profile: their 1RM instead of distance to the viewer's goal
   showGoalDistance = true
 }) {
+  // The chart always shows the estimated 1 rep max (the VOLUME view was removed)
   const [timeFrame, setTimeFrame] = useState('30D');
   const selectedLifts = Array.isArray(selectedChartLifts) ? selectedChartLifts : DEFAULT_CHART_LIFTS;
   const [customExerciseId, setCustomExerciseId] = useState(() => {
@@ -146,7 +145,7 @@ export function ProgressionChartView({
 
   const allVals = activeLifts.flatMap(id =>
     (filteredSeriesByLift[id] || []).map(pt =>
-      chartMetric === 'weight' ? pt.weight : pt.volume
+      pt.weight
     )
   );
 
@@ -198,30 +197,6 @@ export function ProgressionChartView({
             ...SHARED_GROUP_OUTER
           }}
         >
-          {/* METRIC TOGGLE ROW: 1 REP MAX | VOLUME (ZERO GAP, SHARED BORDERS) */}
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: '1fr 1fr',
-              gap: 0
-            }}
-          >
-            <SegmentButton
-              active={chartMetric === 'weight'}
-              onClick={() => setChartMetric('weight')}
-              style={{ height: '44px', padding: '0 8px' }}
-            >
-              1 REP MAX
-            </SegmentButton>
-            <SegmentButton
-              active={chartMetric === 'volume'}
-              onClick={() => setChartMetric('volume')}
-              style={{ height: '44px', padding: '0 8px' }}
-            >
-              VOLUME
-            </SegmentButton>
-          </div>
-
           {/* TIME FRAME FILTER ROW: 30 DAYS | 90 DAYS | 1 YEAR | ALL (ZERO GAP, SHARED BORDERS) */}
           <div
             style={{
@@ -366,7 +341,7 @@ export function ProgressionChartView({
                       strokeDasharray="3 3"
                     />
                     <text x={padL - 6} y={y + 3} textAnchor="end" fill="#A0A0A0" fontSize="12.5" fontWeight="700">
-                      {tickVal >= 1000 && chartMetric === 'volume' ? `${(tickVal / 1000).toFixed(1)}k` : tickVal}
+                      {tickVal}
                     </text>
                   </g>
                 );
@@ -395,7 +370,7 @@ export function ProgressionChartView({
 
                 const coords = series.map(pt => {
                   const x = getXByTime(pt.timestampMs);
-                  const rawVal = chartMetric === 'weight' ? pt.weight : pt.volume;
+                  const rawVal = pt.weight;
                   const y = getY(rawVal);
                   return { x, y, rawVal, dateLabel: pt.dateLabel };
                 });
@@ -465,12 +440,8 @@ export function ProgressionChartView({
             );
             const distance = Math.max(0, goalWeight - cur1RM);
             const series = filteredSeriesByLift[liftId] || [];
-            const firstVal = series.length ? (chartMetric === 'weight' ? series[0].weight : series[0].volume) : 0;
-            const latestVal = series.length
-              ? chartMetric === 'weight'
-                ? series[series.length - 1].weight
-                : series[series.length - 1].volume
-              : 0;
+            const firstVal = series.length ? series[0].weight : 0;
+            const latestVal = series.length ? series[series.length - 1].weight : 0;
             const delta = latestVal - firstVal;
 
             return (

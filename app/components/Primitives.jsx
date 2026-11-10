@@ -149,6 +149,10 @@ export function IOSListRow({ children, onClick, isLast = false, indexLabel, bgNu
  * SAVE / RESET appear only when the workout has exercises (showActions); SYNC only when `sync` is given:
  * { status: 'idle' | 'pending' | 'synced', onClick }.
  */
+// Width of the header's SYNC / SAVE / RESET cells and the rest-timer bar's ✓ cell. They share it so the orange
+// NEXT bar ends exactly under the SAVE | RESET divider.
+const SESSION_ACTION_COL = '58px';
+
 export function SessionTitleBar({ title = '', onChangeTitle, onSave, onReset, showActions = false, sync = null }) {
   const cellBorder = {
     borderTop: 'none',
@@ -174,7 +178,7 @@ export function SessionTitleBar({ title = '', onChangeTitle, onSave, onReset, sh
       style={{
         marginTop: '8px',
         display: 'grid',
-        gridTemplateColumns: ['minmax(0, 1fr)', sync ? '58px' : null, showActions ? '58px 58px' : null]
+        gridTemplateColumns: ['minmax(0, 1fr)', sync ? SESSION_ACTION_COL : null, showActions ? `${SESSION_ACTION_COL} ${SESSION_ACTION_COL}` : null]
           .filter(Boolean)
           .join(' '),
         alignItems: 'stretch',
@@ -282,7 +286,7 @@ export const SessionRestTimerBar = React.memo(function SessionRestTimerBar({
       style={{
         marginTop: flushTop ? 0 : '10px',
         display: 'grid',
-        gridTemplateColumns: onMarkDone ? '120px minmax(0, 1fr) 52px' : '120px minmax(0, 1fr)',
+        gridTemplateColumns: onMarkDone ? `120px minmax(0, 1fr) ${SESSION_ACTION_COL}` : '120px minmax(0, 1fr)',
         alignItems: 'stretch',
         gap: 0,
         height: flushTop ? '40px' : '41px',
