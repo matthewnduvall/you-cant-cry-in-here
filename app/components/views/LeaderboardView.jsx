@@ -1,12 +1,21 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import { IOSListSection, IOSListRow } from '../Primitives';
+import { TabBar } from '../Controls';
 import {
   EXERCISE_MAP,
   EXRX_CLASSES,
   getExRxCurrentClass
 } from '../../data/exerciseLibrary';
+
+// One tab per leaderboard; the section header below the tabs keeps the full name
+const LEADERBOARD_TABS = [
+  { id: 'big3_total', label: 'BIG 3 TOTAL' },
+  { id: 'big3_normalized', label: 'BIG 3 / BW' },
+  { id: 'ohp_normalized', label: 'OHP / BW' },
+  { id: 'most_improved', label: 'MOST IMPROVED' }
+];
 
 const BIG_THREE_LIFT_IDS = ['barbell_bench_press', 'barbell_back_squat', 'barbell_deadlift'];
 const STANDING_SCALE = ['Below Untrained', ...EXRX_CLASSES]; // ['Below Untrained', 'Untrained', 'Novice', 'Intermediate', 'Advanced', 'Elite']
@@ -57,6 +66,7 @@ export function LeaderboardView({
   totalHeightInches = 70,
   history = []
 }) {
+  const [activeTab, setActiveTab] = useState('big3_total');
   const selfName = user?.username || 'you (logged out)';
   const selfBw = Math.max(50, Number(userBodyweightLbs) || 220);
 
@@ -251,7 +261,12 @@ export function LeaderboardView({
   );
 
   return (
-    <div style={{ paddingTop: '14px' }}>
+    <div style={{ paddingTop: '12px' }}>
+      <div style={{ padding: '0 var(--dp-spacing-gutter)', marginBottom: '14px' }}>
+        <TabBar ariaLabel="Leaderboards" tabs={LEADERBOARD_TABS} value={activeTab} onChange={setActiveTab} />
+      </div>
+
+      {activeTab === 'big3_total' && (
       <IOSListSection header="BIG 3 TOTAL" colors={colors}>
         {big3TotalEntries.map((entry, idx, arr) => (
           <IOSListRow
@@ -282,7 +297,9 @@ export function LeaderboardView({
           </IOSListRow>
         ))}
       </IOSListSection>
+      )}
 
+      {activeTab === 'big3_normalized' && (
       <IOSListSection header="BIG 3 NORMALIZED" colors={colors}>
         {big3NormalizedEntries.map((entry, idx, arr) => (
           <IOSListRow
@@ -313,7 +330,9 @@ export function LeaderboardView({
           </IOSListRow>
         ))}
       </IOSListSection>
+      )}
 
+      {activeTab === 'ohp_normalized' && (
       <IOSListSection header="OVERHEAD PRESS NORMALIZED" colors={colors}>
         {ohpNormalizedEntries.map((entry, idx, arr) => (
           <IOSListRow
@@ -344,7 +363,9 @@ export function LeaderboardView({
           </IOSListRow>
         ))}
       </IOSListSection>
+      )}
 
+      {activeTab === 'most_improved' && (
       <IOSListSection header="MOST IMPROVED" colors={colors}>
         {mostImprovedEntries.length === 0 ? (
           <IOSListRow isLast={true} colors={colors}>
@@ -386,6 +407,7 @@ export function LeaderboardView({
           ))
         )}
       </IOSListSection>
+      )}
     </div>
   );
 }

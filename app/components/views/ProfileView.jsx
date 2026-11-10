@@ -36,11 +36,13 @@ export function ProfileView({
   onDeleteAccount,
   appendSessionLog
 }) {
-  const isFriend = currentView === 'friend_profile' && viewingFriendProfile;
+  // A boolean: effects depend on it, and the profile object is replaced after every server refresh (using the
+  // object here made each refresh re-run both effects, looping between LOADING FRIENDS and the empty state)
+  const isFriend = Boolean(currentView === 'friend_profile' && viewingFriendProfile);
   const [showAllPrs, setShowAllPrs] = useState(false);
   const [friendUnavailable, setFriendUnavailable] = useState(false);
-  // A friend's friends (public profiles only): null while loading, else { ok, friends }
-  const [friendsOfFriend, setFriendsOfFriend] = useState(null);
+  // A friend's friends (public profiles only): { forId, result: { ok, friends } } for the profile it was loaded for
+  const [friendsOfFriendEntry, setFriendsOfFriendEntry] = useState(null);
   // athleteId -> 'sending' | 'requested' | 'friends' | 'error'
   const [requestStatusById, setRequestStatusById] = useState({});
   // null | 'deleting' | error message
@@ -93,20 +95,25 @@ export function ProfileView({
     };
   }, [isFriend, viewingFriendProfile?.id, user?.id]);
 
-  // Their friends list (empty when their profile is private)
+  // Their friends list (empty when their profile is private). Loaded once per profile; a result kept for
+  // another profile counts as still loading, so nothing is reset in the cleanup.
+  const viewingFriendId = viewingFriendProfile?.id || null;
   useEffect(() => {
-    if (!isFriend || !viewingFriendProfile?.id || !user) return;
+    if (!isFriend || !viewingFriendId || !user) return;
     let cancelled = false;
     (async () => {
-      const result = await fetchFriendsOfAthlete(user, viewingFriendProfile.id);
-      if (!cancelled) setFriendsOfFriend(result);
+      const result = await fetchFriendsOfAthlete(user, viewingFriendId);
+      if (!cancelled) {
+        setFriendsOfFriendEntry({ forId: viewingFriendId, result });
+        setRequestStatusById({});
+      }
     })();
     return () => {
       cancelled = true;
-      setFriendsOfFriend(null);
-      setRequestStatusById({});
     };
-  }, [isFriend, viewingFriendProfile?.id, user]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isFriend, viewingFriendId, user?.id]);
+  const friendsOfFriend = friendsOfFriendEntry?.forId === viewingFriendId ? friendsOfFriendEntry.result : null;
 
   const handleRequestFriend = async athlete => {
     setRequestStatusById(prev => ({ ...prev, [athlete.id]: 'sending' }));
@@ -298,16 +305,15 @@ export function ProfileView({
       {isFriend && (
         <IOSListSection
           header={`@${profUser.username}'S FRIENDS`}
-          footer={
-            friendsOfFriend?.ok && friendsOfFriend.friends.length === 0
-              ? 'No public friends to show, or this profile is private.'
-              : null
-          }
           colors={colors}
         >
           {!friendsOfFriend ? (
             <IOSListRow isLast={true} colors={colors}>
-              <span style={{ fontSize: '12px', color: '#888888' }}>Loading friends…</span>
+              <span style={{ fontSize: '12px', fontWeight: 700, color: '#A0A0A0', textTransform: 'uppercase' }}>LOADING FRIENDS…</span>
+            </IOSListRow>
+          ) : friendsOfFriend.ok && friendsOfFriend.friends.length === 0 ? (
+            <IOSListRow isLast={true} colors={colors}>
+              <span style={{ fontSize: '12px', fontWeight: 700, color: '#A0A0A0' }}>No public friends to show, or this profile is private.</span>
             </IOSListRow>
           ) : !friendsOfFriend.ok ? (
             <IOSListRow isLast={true} colors={colors}>

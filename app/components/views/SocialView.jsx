@@ -12,6 +12,7 @@ import {
 } from '../../utils/supabaseAuth';
 import { isSameFriend, applyFriendshipSync, applyOutgoingInvitesSync } from '../../utils/storageMigration';
 import { DeleteButton } from '../Controls';
+import { UI } from '../../styles/kineticTokens';
 
 const isEmailAddress = value => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || '').trim());
 
@@ -204,16 +205,11 @@ export function SocialView({
 
   return (
     <div style={{ paddingTop: '14px' }}>
-      <IOSListSection
-        header="FIND ATHLETES"
-        footer="Search a username or an exact email. If an email has no account yet, SEND INVITE emails them the beta code (imnotcrying) and a sign-up link from invites@youcantcryinhere.com."
-        colors={colors}
-      >
-        <IOSListRow
-          isLast={!hasSearched && !inviteEmailFeedback}
-          colors={colors}
-        >
-          <div style={{ display: 'flex', width: '100%', gap: 0 }}>
+      {/* FIND ATHLETES: the search bar sits straight under the heading (no surrounding box); results and invite
+          feedback appear in a list box below it */}
+      <section style={{ marginBottom: '22px', padding: '0 var(--dp-spacing-gutter)' }}>
+        <div style={{ ...UI.sectionTitle, marginBottom: '8px' }}>FIND ATHLETES</div>
+          <div style={{ display: 'flex', width: '100%', gap: 0, height: '52px' }}>
             <input
               type="text"
               placeholder="SEARCH USERNAME OR EMAIL..."
@@ -235,12 +231,14 @@ export function SocialView({
               style={{
                 flex: 1,
                 minWidth: 0,
-                backgroundColor: '#101010',
+                height: '100%',
+                boxSizing: 'border-box',
+                backgroundColor: '#141414',
                 color: '#FFFFFF',
                 border: '2px solid var(--dp-color-rule)',
                 borderRight: 'none',
-                padding: '10px 12px',
-                fontSize: '13px',
+                padding: '0 14px',
+                fontSize: '15px',
                 fontWeight: 800,
                 textTransform: 'uppercase',
                 outline: 'none'
@@ -252,11 +250,13 @@ export function SocialView({
               onClick={canSendInvite ? handleSendServerEmailInvite : handleRunAthleteSearch}
               className="kinetic-btn"
               style={{
-                padding: '10px 16px',
+                height: '100%',
+                boxSizing: 'border-box',
+                padding: '0 18px',
                 backgroundColor: canSendInvite ? '#30D158' : 'var(--dp-color-accent)',
                 color: '#101010',
                 border: '2px solid var(--dp-color-rule)',
-                fontSize: '12px',
+                fontSize: '13px',
                 fontWeight: 800,
                 textTransform: 'uppercase',
                 cursor: 'pointer',
@@ -273,8 +273,9 @@ export function SocialView({
                     : 'SEARCH'}
             </button>
           </div>
-        </IOSListRow>
 
+        {(inviteEmailFeedback || hasSearched) && (
+        <div style={{ marginTop: '8px', border: '2px solid var(--dp-color-rule)', backgroundColor: '#141414' }}>
         {inviteEmailFeedback && (
           <IOSListRow isLast={!hasSearched} colors={colors}>
             <span
@@ -398,7 +399,9 @@ export function SocialView({
             })
           )
         )}
-      </IOSListSection>
+        </div>
+        )}
+      </section>
 
       {pendingIncomingRequests.length > 0 && (
         <IOSListSection header="INCOMING REQUESTS" colors={colors}>
@@ -427,9 +430,13 @@ export function SocialView({
 
       <IOSListSection
         header={`FRIENDS (${friendsList.length})`}
-        footer="Tap any friend to open their Profile page and view their Personal Records and Shared Routines."
         colors={colors}
       >
+        {friendsList.length === 0 && (
+          <IOSListRow isLast={true} colors={colors}>
+            <span style={{ fontSize: '12px', fontWeight: 700, color: '#A0A0A0', textTransform: 'uppercase' }}>NO FRIENDS YET</span>
+          </IOSListRow>
+        )}
         {friendsList
           .filter(
             f =>

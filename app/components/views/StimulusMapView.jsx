@@ -55,15 +55,36 @@ export function StimulusMapView({
       <IOSListSection
         header="STIMULUS"
         footer={
-          <span style={{ lineHeight: 1.7 }}>
-            <StatusSwatch color="#30D158" />
-            <span style={{ color: '#30D158' }}>RECOVERING</span> (solid) 0–{stimulusGreenDays}d •{' '}
-            <StatusSwatch color="#FFD60A" pattern="url(#stim-dots)" />
-            <span style={{ color: '#FFD60A' }}>RECOVERED</span> (dotted) {Number(stimulusGreenDays) + 1}–{stimulusYellowDays}d •{' '}
-            <StatusSwatch color="#FF3B30" pattern="url(#stim-stripes)" />
-            <span style={{ color: '#FF3B30' }}>OVERDUE</span> (striped) {Number(stimulusYellowDays) + 1}+ days •{' '}
-            <StatusSwatch color="#4A4A50" />
-            <span style={{ color: '#8E8E93' }}>GREY</span> not logged yet
+          // Vertical legend: swatch (colour + pattern) | status | days since last trained
+          <span
+            style={{ display: 'grid', gridTemplateColumns: 'auto auto 1fr', columnGap: '6px', rowGap: '4px', alignItems: 'center', lineHeight: 1.4 }}
+          >
+            {[
+              { color: '#30D158', label: 'RECOVERING', text: '#30D158', range: `0–${stimulusGreenDays} DAYS` },
+              {
+                color: '#FFD60A',
+                pattern: 'url(#stim-dots)',
+                label: 'RECOVERED',
+                text: '#FFD60A',
+                range: `${Number(stimulusGreenDays) + 1}–${stimulusYellowDays} DAYS`
+              },
+              {
+                color: '#FF3B30',
+                pattern: 'url(#stim-stripes)',
+                label: 'OVERDUE',
+                text: '#FF3B30',
+                range: `${Number(stimulusYellowDays) + 1}+ DAYS`
+              },
+              { color: '#4A4A50', label: 'UNLOGGED', text: '#8E8E93', range: 'NOT LOGGED YET' }
+            ].map(item => (
+              <React.Fragment key={item.label}>
+                <span style={{ lineHeight: 0 }}>
+                  <StatusSwatch color={item.color} pattern={item.pattern} />
+                </span>
+                <span style={{ color: item.text }}>{item.label}</span>
+                <span>{item.range}</span>
+              </React.Fragment>
+            ))}
           </span>
         }
         colors={colors}

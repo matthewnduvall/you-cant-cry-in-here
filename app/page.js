@@ -35,6 +35,13 @@ import { useSessionSync } from './hooks/useSessionSync';
 import { SessionSyncModal, IncomingSyncInviteModal, SyncNoticeModal } from './components/SessionSyncModals';
 import { useWorkoutMutations } from './hooks/useWorkoutMutations';
 import { usePlateCalculator } from './hooks/usePlateCalculator';
+import { TabBar } from './components/Controls';
+
+const PROGRESS_TABS = [
+  { id: 'progress', label: 'PROGRESS' },
+  { id: 'records', label: 'PERSONAL RECORDS' },
+  { id: 'history', label: 'HISTORY' }
+];
 
 // ============================================================================
 // MAIN KINETIC APPLICATION COMPONENT
@@ -73,6 +80,8 @@ export default function App() {
   const [routineDraft, setRoutineDraft] = useState(null);
   const [previewRoutineDraft, setPreviewRoutineDraft] = useState(null);
   const [routineSelectReturnView, setRoutineSelectReturnView] = useState(null);
+  // PROGRESS page tab: 'progress' (chart) | 'records' (Personal Records) | 'history'
+  const [progressTabChoice, setProgressTabChoice] = useState('progress');
   const [isCurrentEditorShared, setIsCurrentEditorShared] = useState(false);
 
   // --- Modal & Confirmation States ---
@@ -145,6 +154,8 @@ export default function App() {
   const [historySessionsExpanded, setHistorySessionsExpanded] = useState(true);
   const [historyPRsExpanded, setHistoryPRsExpanded] = useState(true);
   const [expandedHistoryWorkoutId, setExpandedHistoryWorkoutId] = useState(null);
+  // An open History workout (PR link, History edits) always shows the HISTORY tab
+  const progressTab = expandedHistoryWorkoutId ? 'history' : progressTabChoice;
   const [customPrExerciseIds, setCustomPrExerciseIds] = useState([]);
 
   // --- Social & Friends State ---
@@ -478,6 +489,7 @@ export default function App() {
     setRoutineSelectReturnView(null);
     setConfirmedHistoryEditWorkoutId(null);
     setExpandedHistoryWorkoutId(workoutId);
+    setProgressTabChoice('history');
     setCurrentView('history');
     let tries = 0;
     const scrollToEntry = () => {
@@ -666,8 +678,25 @@ export default function App() {
             />
           )}
 
-          {/* PROGRESS page: chart, then Personal Records + logged History (view id 'history') */}
+          {/* PROGRESS page (view id 'history'): tabs PROGRESS (chart) / PERSONAL RECORDS / HISTORY.
+              An open History workout (e.g. from the 1RM box's PR link) always shows the HISTORY tab. */}
           {currentView === 'history' && (
+            <div style={{ padding: '12px var(--dp-spacing-gutter) 0' }}>
+              <TabBar
+                ariaLabel="Progress sections"
+                tabs={PROGRESS_TABS}
+                value={progressTab}
+                onChange={tab => {
+                  if (tab !== 'history' && expandedHistoryWorkoutId) {
+                    setConfirmedHistoryEditWorkoutId(null);
+                    setExpandedHistoryWorkoutId(null);
+                  }
+                  setProgressTabChoice(tab);
+                }}
+              />
+            </div>
+          )}
+          {currentView === 'history' && progressTab === 'progress' && (
             <ProgressionChartView
               colors={colors}
               chartMetric={chartMetric}
@@ -682,8 +711,9 @@ export default function App() {
               customGoalWeights={customGoalWeights}
             />
           )}
-          {currentView === 'history' && (
+          {currentView === 'history' && progressTab !== 'progress' && (
             <HistoryView
+              section={progressTab}
               colors={colors}
               history={history}
               setHistory={setHistory}
