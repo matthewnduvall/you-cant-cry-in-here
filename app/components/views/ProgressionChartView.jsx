@@ -33,12 +33,13 @@ const getPointTimestampMs = pt => {
   return Number.isFinite(ms) ? ms : 0;
 };
 
-const formatBottomAxisDate = ms => {
+// Bottom-axis date: M/D, plus /YY once the visible range spans more than a year (e.g. 10/9/25)
+const formatBottomAxisDate = (ms, withYear = false) => {
   const dt = new Date(ms);
   if (Number.isNaN(dt.getTime())) return '';
   const m = dt.getMonth() + 1;
   const d = dt.getDate();
-  return `${m}/${d}`;
+  return withYear ? `${m}/${d}/${String(dt.getFullYear()).slice(-2)}` : `${m}/${d}`;
 };
 
 const formatProgressExerciseLabel = (exId, rawName) => {
@@ -174,14 +175,20 @@ export function ProgressionChartView({
   const getY = val => padT + plotH - ((val - minVal) / Math.max(1, maxVal - minVal)) * plotH;
   const yTicks = [0, 0.25, 0.5, 0.75, 1].map(t => Math.round(minVal + t * (maxVal - minVal)));
 
+  // Dates carry the year once the visible range is longer than a year
+  const showYearOnAxis = domainMaxMs - domainMinMs > 365 * DAY_MS;
   // Always generate 10 evenly spaced date ticks along the bottom X-axis for the active timeframe
-  const xDateTicks = Array.from({ length: 6 }, (_, idx) => {
-    const ratio = idx / 5;
+  // 6 ticks (M/D), or 4 when the labels carry the year so they don't crowd
+  const xTickCount = showYearOnAxis ? 4 : 6;
+  const xDateTicks = Array.from({ length: xTickCount }, (_, idx) => {
+    const ratio = idx / (xTickCount - 1);
     const tickMs = Math.round(domainMinMs + ratio * (domainMaxMs - domainMinMs));
     return {
       key: `xtick_${idx}`,
       x: padL + ratio * plotW,
-      label: formatBottomAxisDate(tickMs)
+      // The last label ends at its gridline so it never runs off the chart's right edge
+      anchor: idx === xTickCount - 1 ? 'end' : 'middle',
+      label: formatBottomAxisDate(tickMs, showYearOnAxis)
     };
   });
 
@@ -332,7 +339,7 @@ export function ProgressionChartView({
                   <text
                     x={tick.x}
                     y={svgH - 9}
-                    textAnchor="middle"
+                    textAnchor={tick.anchor}
                     fill="#A0A0A0"
                     fontSize="12.5"
                     fontWeight="800"
