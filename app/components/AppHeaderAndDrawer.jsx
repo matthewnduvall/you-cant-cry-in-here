@@ -5,7 +5,7 @@ import { SFSymbol, SessionRestTimerBar, SessionTitleBar } from './Primitives';
 import { getNextIncompleteSetInfo } from '../utils/workoutEngine';
 import { Button } from './Controls';
 
-// Header centre title per view (shown with a ← back button beside it)
+// Header centre title per view (the ← back button sits next to ☰ on the left)
 const PAGE_TITLES = {
   history: 'PERFORMANCE',
   stimulus_map: 'STIMULUS',
@@ -70,7 +70,7 @@ export function AppHeaderAndDrawer({
             gap: '8px'
           }}
         >
-          <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
+          <div style={{ display: 'flex', justifyContent: 'flex-start', gap: '6px' }}>
             <button
               type="button"
               aria-label="Open navigation menu"
@@ -91,10 +91,8 @@ export function AppHeaderAndDrawer({
             >
               <SFSymbol name="line.3.horizontal" size={20} color="#FFFFFF" />
             </button>
-          </div>
-
-          {currentView !== 'home' ? (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0, justifySelf: 'center' }}>
+            {/* ← BACK, just right of the menu button (not on Home) */}
+            {currentView !== 'home' && (
               <button
                 type="button"
                 aria-label="Back to the previous page"
@@ -118,7 +116,12 @@ export function AppHeaderAndDrawer({
               >
                 ←
               </button>
-              {/* Page name (no longer a hidden Home link: HOME is in the menu, ← goes back) */}
+            )}
+          </div>
+
+          {currentView !== 'home' ? (
+            <div style={{ display: 'flex', alignItems: 'center', minWidth: 0, justifySelf: 'center' }}>
+              {/* Page name (no longer a hidden Home link: HOME is in the menu, ← next to ☰ goes back) */}
               <h1
                 style={{
                   margin: 0,
