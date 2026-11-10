@@ -10,7 +10,11 @@ import {
 import { SHARED_CELL_BORDER, SHARED_GROUP_OUTER } from '../../styles/kineticTokens';
 import { SegmentButton } from '../Controls';
 
-const BIG_THREE_IDS = ['barbell_bench_press', 'barbell_back_squat', 'barbell_deadlift'];
+// Big 3 + OHP: each has its own toggle and is shown by default
+const CORE_LIFT_IDS = ['barbell_bench_press', 'barbell_back_squat', 'barbell_deadlift', 'overhead_press'];
+export const DEFAULT_CHART_LIFTS = [...CORE_LIFT_IDS];
+const DEFAULT_CUSTOM_EXERCISE_ID = 'incline_bench_press';
+const CUSTOM_COLOR = '#BF5AF2';
 
 const TIME_FRAME_OPTIONS = [
   { id: '30D', label: '30 DAYS', days: 30 },
@@ -48,8 +52,9 @@ export function ProgressionChartView({
   colors,
   chartMetric,
   setChartMetric,
-  selectedChartLift,
-  setSelectedChartLift,
+  // Lifts drawn on the chart (toggles; several at once)
+  selectedChartLifts = DEFAULT_CHART_LIFTS,
+  setSelectedChartLifts,
   progressionSeriesByLift,
   oneRepMaxes,
   targetStandardClass,
@@ -57,43 +62,39 @@ export function ProgressionChartView({
   totalHeightInches,
   customGoalWeights
 }) {
-  const [timeFrame, setTimeFrame] = useState('ALL');
+  const [timeFrame, setTimeFrame] = useState('30D');
+  const selectedLifts = Array.isArray(selectedChartLifts) ? selectedChartLifts : DEFAULT_CHART_LIFTS;
   const [customExerciseId, setCustomExerciseId] = useState(() => {
-    if (
-      selectedChartLift &&
-      selectedChartLift !== 'ALL' &&
-      !BIG_THREE_IDS.includes(selectedChartLift) &&
-      EXERCISE_MAP[selectedChartLift]
-    ) {
-      return selectedChartLift;
-    }
-    return 'overhead_press';
+    const picked = selectedLifts.find(id => !CORE_LIFT_IDS.includes(id) && EXERCISE_MAP[id]);
+    if (picked) return picked;
+    return EXERCISE_MAP[DEFAULT_CUSTOM_EXERCISE_ID] ? DEFAULT_CUSTOM_EXERCISE_ID : EXERCISE_LIBRARY[0].id;
   });
 
-  const isCustomActive =
-    selectedChartLift !== 'ALL' && !BIG_THREE_IDS.includes(selectedChartLift);
-
-  const activeCustomId = isCustomActive && EXERCISE_MAP[selectedChartLift]
-    ? selectedChartLift
-    : customExerciseId;
-
-  const customEx = EXERCISE_MAP[activeCustomId] || EXERCISE_MAP.overhead_press;
+  const activeCustomId = customExerciseId;
+  const isCustomActive = selectedLifts.includes(activeCustomId);
+  const customEx = EXERCISE_MAP[activeCustomId];
 
   const liftMeta = {
     barbell_bench_press: { short: 'BENCH', color: '#FF6B00' },
     barbell_back_squat: { short: 'SQUAT', color: '#30D158' },
     barbell_deadlift: { short: 'DEADLIFT', color: '#FFD60A' },
+    overhead_press: { short: 'OHP', color: '#00E5FF' },
     [activeCustomId]: {
       short: formatProgressExerciseLabel(activeCustomId, customEx?.name || 'CUSTOM'),
-      color: '#00E5FF'
+      color: CUSTOM_COLOR
     }
   };
 
-  const displayedLiftIds = Array.from(new Set([...BIG_THREE_IDS, activeCustomId]));
-  const activeLifts =
-    selectedChartLift === 'ALL'
-      ? displayedLiftIds
-      : [isCustomActive ? activeCustomId : selectedChartLift];
+  const toggleLift = liftId =>
+    setSelectedChartLifts?.(prev => {
+      const list = Array.isArray(prev) ? prev : DEFAULT_CHART_LIFTS;
+      return list.includes(liftId) ? list.filter(id => id !== liftId) : [...list, liftId];
+    });
+
+  // Lower list: Big 3 + OHP, plus the custom exercise while its toggle is on
+  const displayedLiftIds = isCustomActive ? [...CORE_LIFT_IDS, activeCustomId] : [...CORE_LIFT_IDS];
+  const activeLifts = displayedLiftIds.filter(id => selectedLifts.includes(id));
+  const singleLift = activeLifts.length === 1;
 
   // Collect all timestamps across active lifts (and fallback to all displayed lifts)
   const rawTimestamps = activeLifts.flatMap(id =>
@@ -111,7 +112,7 @@ export function ProgressionChartView({
     refTimestamps.length > 0 ? Math.min(...refTimestamps) : maxDataMs - 30 * DAY_MS;
 
   const selectedTimeFrameObj =
-    TIME_FRAME_OPTIONS.find(t => t.id === timeFrame) || TIME_FRAME_OPTIONS[3];
+    TIME_FRAME_OPTIONS.find(t => t.id === timeFrame) || TIME_FRAME_OPTIONS[0];
 
   const domainMaxMs = maxDataMs;
   const domainMinMs = selectedTimeFrameObj.days
@@ -254,7 +255,7 @@ export function ProgressionChartView({
             })}
           </div>
 
-          {/* LIFT FILTER ROW: ALL | BENCH | SQUAT | DEAD | CUSTOM (ZERO GAP, SHARED BORDERS) */}
+          {/* LIFT TOGGLES: BENCH | SQUAT | DEAD | OHP | CUSTOM — any combination (ZERO GAP, SHARED BORDERS) */}
           <div
             style={{
               display: 'grid',
@@ -263,29 +264,33 @@ export function ProgressionChartView({
             }}
           >
             {[
-              { id: 'ALL', label: 'ALL', active: selectedChartLift === 'ALL' },
-              { id: 'barbell_bench_press', label: 'BENCH', active: selectedChartLift === 'barbell_bench_press' },
-              { id: 'barbell_back_squat', label: 'SQUAT', active: selectedChartLift === 'barbell_back_squat' },
-              { id: 'barbell_deadlift', label: 'DEAD', active: selectedChartLift === 'barbell_deadlift' },
-              { id: 'CUSTOM', label: 'CUSTOM', active: isCustomActive }
-            ].map(f => (
-              <SegmentButton
-                active={f.active}
-                activeColor="ink"
-                inactiveColor="#A0A0A0"
-                key={f.id}
-                onClick={() => {
-                  if (f.id === 'CUSTOM') {
-                    setSelectedChartLift(activeCustomId);
-                  } else {
-                    setSelectedChartLift(f.id);
-                  }
-                }}
-                style={{ height: '42px', padding: '0 4px', fontSize: '11px' }}
-              >
-                {f.label}
-              </SegmentButton>
-            ))}
+              { id: 'barbell_bench_press', label: 'BENCH' },
+              { id: 'barbell_back_squat', label: 'SQUAT' },
+              { id: 'barbell_deadlift', label: 'DEAD' },
+              { id: 'overhead_press', label: 'OHP' },
+              { id: activeCustomId, label: 'CUSTOM', isCustom: true }
+            ].map(f => {
+              const active = selectedLifts.includes(f.id);
+              const color = f.isCustom ? CUSTOM_COLOR : liftMeta[f.id]?.color;
+              return (
+                <SegmentButton
+                  active={active}
+                  activeColor="ink"
+                  inactiveColor="#A0A0A0"
+                  key={f.isCustom ? 'CUSTOM' : f.id}
+                  onClick={() => toggleLift(f.id)}
+                  style={{
+                    height: '42px',
+                    padding: '0 4px',
+                    fontSize: '11px',
+                    // Lift colour under each toggle so the buttons double as the chart legend
+                    boxShadow: `inset 0 -3px 0 ${active ? color : 'transparent'}`
+                  }}
+                >
+                  {f.label}
+                </SegmentButton>
+              );
+            })}
           </div>
 
           {/* CUSTOM EXERCISE SELECTOR ROW (SHOWN WHEN CUSTOM IS ACTIVE) */}
@@ -306,7 +311,7 @@ export function ProgressionChartView({
                   alignItems: 'center',
                   fontSize: '11px',
                   fontWeight: 800,
-                  color: '#00E5FF',
+                  color: CUSTOM_COLOR,
                   textTransform: 'uppercase',
                   ...SHARED_CELL_BORDER
                 }}
@@ -318,8 +323,12 @@ export function ProgressionChartView({
                 value={activeCustomId}
                 onChange={e => {
                   const nextId = e.target.value;
+                  const prevId = activeCustomId;
                   setCustomExerciseId(nextId);
-                  setSelectedChartLift(nextId);
+                  setSelectedChartLifts?.(prev => {
+                    const list = (Array.isArray(prev) ? prev : DEFAULT_CHART_LIFTS).filter(id => id !== prevId);
+                    return list.includes(nextId) ? list : [...list, nextId];
+                  });
                 }}
                 style={{
                   width: '100%',
@@ -439,7 +448,7 @@ export function ProgressionChartView({
 
                 return (
                   <g key={liftId}>
-                    {selectedChartLift !== 'ALL' && areaPoints && (
+                    {singleLift && areaPoints && (
                       <polygon points={areaPoints} fill={color} fillOpacity="0.14" />
                     )}
                     <polyline fill="none" stroke={color} strokeWidth="2.75" points={polylinePoints} />
@@ -454,7 +463,7 @@ export function ProgressionChartView({
                           stroke={color}
                           strokeWidth="2.2"
                         />
-                        {(selectedChartLift !== 'ALL' || cIdx === coords.length - 1) && (
+                        {(singleLift || cIdx === coords.length - 1) && (
                           <text x={c.x} y={c.y - 8} textAnchor="middle" fill={color} fontSize="9" fontWeight="800">
                             {c.rawVal}
                           </text>
@@ -494,10 +503,11 @@ export function ProgressionChartView({
             return (
               <div
                 key={liftId}
-                onClick={() => setSelectedChartLift(prev => (prev === liftId ? 'ALL' : liftId))}
+                onClick={() => toggleLift(liftId)}
                 style={{
                   padding: '10px 12px',
-                  backgroundColor: selectedChartLift === liftId ? '#1C1C20' : '#141416',
+                  backgroundColor: selectedLifts.includes(liftId) ? '#1C1C20' : '#141416',
+                  opacity: selectedLifts.includes(liftId) ? 1 : 0.55,
                   ...SHARED_CELL_BORDER,
                   cursor: 'pointer'
                 }}

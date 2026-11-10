@@ -17,6 +17,8 @@ export function AppHeaderAndDrawer({
   onFinishSession,
   // RESET in the locked session header
   onResetSession,
+  // SYNC in the locked session header (live session sync): { status, onClick } or null to hide it
+  sessionSync = null,
   // true while the save confirmation opened by the ✓ is showing (the ✓ turns green)
   finishSessionPending = false,
   timerTrigger,
@@ -138,6 +140,7 @@ export function AppHeaderAndDrawer({
             onSave={onFinishSession}
             onReset={onResetSession}
             showActions={(currentEditorWorkout.slots || []).length > 0 && Boolean(onFinishSession)}
+            sync={currentView === 'session' ? sessionSync : null}
           />
         )}
         {isRoutineEditorView && currentEditorWorkout && (
