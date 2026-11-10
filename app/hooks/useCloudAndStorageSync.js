@@ -181,11 +181,14 @@ export function useCloudAndStorageSync({
     const inviteFromEmail = (searchParams.get('invite_from_email') || '').trim().toLowerCase();
     const invitedEmail = (searchParams.get('invited_email') || '').trim().toLowerCase();
     const inviteBetaCode = (searchParams.get('beta_code') || '').trim();
+    const inviteId = (searchParams.get('invite_id') || '').trim();
 
     if (inviteFrom) {
       const inviterObj = {
         username: inviteFrom,
-        email: inviteFromEmail
+        email: inviteFromEmail,
+        // Claimed on the next friendship sync once signed in (claimPendingInviteLink)
+        inviteId: inviteId || undefined
       };
       setPendingInviter(inviterObj);
       try {
@@ -198,7 +201,7 @@ export function useCloudAndStorageSync({
       if (invitedEmail) setSignupEmail(invitedEmail);
 
       // Signed-in athletes: the invite is claimed server-side on the next friendship sync
-      // (claim_my_invites), so nothing is added locally here.
+      // (claim_invite_link by the link's invite id, then claim_my_invites by email).
       if (!hydrated?.user) {
         setAuthMode('signup');
         setCurrentView('auth');

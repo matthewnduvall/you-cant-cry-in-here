@@ -15,7 +15,15 @@ import { IOSListSection, IOSListRow } from './Primitives';
 export const EQUIPMENT_SETTINGS_FOOTER =
   'Exercises picked for you (+ ADD EXERCISE, AUTO SESSION) only use equipment that is ON. Bodyweight exercises always count. Searching and the per-exercise filters still show every exercise.';
 
-export function EquipmentToggleList({ colors, value, onChange, header = 'EQUIPMENT', footer = EQUIPMENT_SETTINGS_FOOTER }) {
+export function EquipmentToggleList({
+  colors,
+  value,
+  onChange,
+  header = 'EQUIPMENT',
+  footer = EQUIPMENT_SETTINGS_FOOTER,
+  // Onboarding places the list inside its own padded section with its own heading
+  sectionStyle
+}) {
   const selected = new Set(Array.isArray(value) ? value : GYM_EQUIPMENT_OPTIONS);
   const toggle = item => {
     const next = new Set(selected);
@@ -27,7 +35,7 @@ export function EquipmentToggleList({ colors, value, onChange, header = 'EQUIPME
   const allOn = GYM_EQUIPMENT_OPTIONS.every(option => selected.has(option));
 
   return (
-    <IOSListSection header={header} footer={footer} colors={colors}>
+    <IOSListSection header={header} footer={footer} colors={colors} style={sectionStyle}>
       <IOSListRow colors={colors} onClick={() => onChange?.(allOn ? [] : [...GYM_EQUIPMENT_OPTIONS])}>
         <span style={{ ...UI.rowTitle, color: 'var(--dp-color-accent)' }}>{allOn ? 'TURN ALL OFF' : 'TURN ALL ON'}</span>
         <span style={UI.badge(allOn)}>

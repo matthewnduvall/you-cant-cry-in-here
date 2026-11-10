@@ -192,10 +192,11 @@ export default function App() {
 
   const handleInviteAccepted = joinedUser => {
     if (!pendingInviter || !pendingInviter.username) return;
-    // The friendship itself is created in the database when the invited email signs up
-    // (friend_invites → handle_new_profile_friendships), and shows up on the next friendship sync.
+    // The friendship itself is created in the database: by the invite link's id on the next friendship
+    // sync (claim_invite_link, which then clears the stored invite), or when the invited email signs up
+    // (friend_invites → handle_new_profile_friendships).
     setPendingInviter(null);
-    if (typeof window !== 'undefined') {
+    if (typeof window !== 'undefined' && !pendingInviter.inviteId) {
       window.localStorage.removeItem('yccih_pending_inviter_v1');
     }
     appendSessionLog('social_invite_accepted', {

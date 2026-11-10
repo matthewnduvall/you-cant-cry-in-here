@@ -46,6 +46,20 @@ const STRENGTH_CLASS_DESCRIPTIONS = [
 
 
 
+// Every section inside an onboarding page uses this heading (numbered when a page has several sections),
+// under the shared page header (PAGE N OF 6 + title + intro). Matches pages 5 and 6.
+const ONBOARDING_SECTION_TITLE = {
+  fontSize: '14px',
+  fontWeight: 800,
+  color: 'var(--dp-color-accent)',
+  textTransform: 'uppercase',
+  marginBottom: '6px'
+};
+// One intro line under every page title
+const ONBOARDING_INTRO = { fontSize: '13px', color: '#A0A0A0', lineHeight: 1.45, marginBottom: '12px', fontWeight: 600 };
+const onboardingBodyText = { fontSize: '13px', color: '#A0A0A0', lineHeight: 1.5 };
+const ONBOARDING_SECTION_NOTE = { fontSize: '12px', fontWeight: 600, color: '#A0A0A0', marginBottom: '8px', lineHeight: 1.4 };
+
 export function OnboardingView({
   colors,
   setCurrentView,
@@ -227,11 +241,11 @@ export function OnboardingView({
                 }}
               >
                 {step === 1 && 'BODY METRICS'}
-                {step === 2 && 'GOALS AND STANDARDS'}
+                {step === 2 && 'GOALS & STANDARDS'}
                 {step === 3 && 'PERSONAL RECORDS'}
-                {step === 4 && 'GYMS, EQUIPMENT & ROUTINES'}
+                {step === 4 && 'EQUIPMENT & ROUTINE'}
                 {step === 5 && 'PROGRESS & STIMULUS'}
-                {step === 6 && 'SOCIAL FEATURES & LEADERBOARD'}
+                {step === 6 && 'FRIENDS, SYNC & LEADERBOARDS'}
               </div>
             </div>
 
@@ -287,15 +301,7 @@ export function OnboardingView({
       {/* ===================================================================== */}
       {step === 1 && (
         <section style={{ marginBottom: '20px', padding: '0 var(--dp-spacing-gutter)' }}>
-          <div
-            style={{
-              fontSize: '13px',
-              color: colors.secondaryLabel,
-              lineHeight: 1.45,
-              marginBottom: '12px',
-              fontWeight: 600
-            }}
-          >
+          <div style={ONBOARDING_INTRO}>
             Enter your current bodyweight and height below to calibrate strength
             standards and normalized leaderboard scores, then press{' '}
             <strong style={{ color: '#FFFFFF' }}>NEXT →</strong>.
@@ -435,19 +441,12 @@ export function OnboardingView({
       {/* ===================================================================== */}
       {step === 2 && (
         <section style={{ marginBottom: '20px', padding: '0 var(--dp-spacing-gutter)' }}>
+          <div style={ONBOARDING_INTRO}>
+            Choose what you train for and how fast weights go up. Your goal also sets the default scheme for new exercises (Strength 5×5, Hypertrophy 5×10, Maintain 5×8).
+          </div>
           {/* PRIMARY FOCUS */}
           <div style={{ marginBottom: '16px' }}>
-            <div
-              style={{
-                fontSize: '11px',
-                fontWeight: 800,
-                color: colors.secondaryLabel,
-                marginBottom: '6px',
-                textTransform: 'uppercase'
-              }}
-            >
-              PRIMARY TRAINING FOCUS
-            </div>
+            <div style={ONBOARDING_SECTION_TITLE}>1. PRIMARY TRAINING FOCUS</div>
             <div
               style={{
                 display: 'grid',
@@ -482,17 +481,8 @@ export function OnboardingView({
 
           {/* PROGRESSION INCREMENT */}
           <div style={{ marginBottom: '16px' }}>
-            <div
-              style={{
-                fontSize: '11px',
-                fontWeight: 800,
-                color: colors.secondaryLabel,
-                marginBottom: '6px',
-                textTransform: 'uppercase'
-              }}
-            >
-              PROGRESSION INCREMENT (BARBELL LIFTS AUTOMATICALLY × 2)
-            </div>
+            <div style={ONBOARDING_SECTION_TITLE}>2. PROGRESSION INCREMENT</div>
+            <div style={ONBOARDING_SECTION_NOTE}>Added each session. Barbell lifts automatically use double.</div>
             <div
               style={{
                 display: 'grid',
@@ -537,17 +527,8 @@ export function OnboardingView({
 
           {/* STRENGTH CLASS GOAL — VERTICAL DESCRIPTIVE SELECTOR (SHARED BORDERS) */}
           <div>
-            <div
-              style={{
-                fontSize: '11px',
-                fontWeight: 800,
-                color: colors.secondaryLabel,
-                marginBottom: '6px',
-                textTransform: 'uppercase'
-              }}
-            >
-              STRENGTH CLASS GOAL (TAP TO SELECT)
-            </div>
+            <div style={ONBOARDING_SECTION_TITLE}>3. STRENGTH CLASS GOAL</div>
+            <div style={ONBOARDING_SECTION_NOTE}>Tap the level you want to reach.</div>
             <div
               style={{
                 display: 'flex',
@@ -637,19 +618,10 @@ export function OnboardingView({
       {/* ===================================================================== */}
       {step === 3 && (
         <section style={{ marginBottom: '20px', padding: '0 var(--dp-spacing-gutter)' }}>
-          <div
-            style={{
-              fontSize: '13px',
-              color: colors.secondaryLabel,
-              lineHeight: 1.45,
-              marginBottom: '12px',
-              fontWeight: 600
-            }}
-          >
+          <div style={ONBOARDING_INTRO}>
             Set your core <strong style={{ color: '#FFFFFF' }}>Personal Records</strong>{' '}
-            below (missing records are highlighted in{' '}
-            <strong style={{ color: '#FF3B30' }}>RED</strong>), or add any other
-            exercise using the filters below.
+            below (missing ones show <strong style={{ color: '#FFFFFF' }}>TBD</strong>), or add any other exercise
+            using the filters below.
           </div>
 
           <div
@@ -966,26 +938,25 @@ export function OnboardingView({
       {/* ===================================================================== */}
       {step === 4 && (
         <section style={{ marginBottom: '20px', padding: '0 var(--dp-spacing-gutter)' }}>
-          {/* EQUIPMENT (same list as Settings → Equipment) */}
+          <div style={ONBOARDING_INTRO}>
+            Turn on the equipment you have, then set the order of exercise types the app fills in for you.
+          </div>
+          {/* 1. EQUIPMENT (same list as Settings → Equipment) */}
+          <div style={ONBOARDING_SECTION_TITLE}>1. EQUIPMENT</div>
           <EquipmentToggleList
             colors={colors}
             value={availableEquipment}
             onChange={setAvailableEquipment}
+            header={null}
+            sectionStyle={{ padding: 0 }}
             footer="Turn on the equipment you have. Exercises picked for you will only use it; you can change this any time in Settings."
           />
 
           {/* DEFAULT ROUTINE STRUCTURE WITH GRIPPY DRAG HANDLES */}
           <div>
-            <div
-              style={{
-                fontSize: '11px',
-                fontWeight: 800,
-                color: colors.secondaryLabel,
-                marginBottom: '6px',
-                textTransform: 'uppercase'
-              }}
-            >
-              DEFAULT ROUTINE STRUCTURE ({routinePreferences.length} SLOTS — DRAG TO REORDER)
+            <div style={ONBOARDING_SECTION_TITLE}>2. DEFAULT ROUTINE STRUCTURE</div>
+            <div style={ONBOARDING_SECTION_NOTE}>
+              {routinePreferences.length} exercise slots, in order. Drag to reorder; AUTO SESSION and + ADD EXERCISE follow it.
             </div>
 
             <div
@@ -1100,6 +1071,9 @@ export function OnboardingView({
       {/* ===================================================================== */}
       {step === 5 && (
         <section style={{ marginBottom: '20px', padding: '0 var(--dp-spacing-gutter)' }}>
+          <div style={ONBOARDING_INTRO}>
+            Two pages track how you&apos;re doing: your lifts over time, and which muscles are due for training.
+          </div>
           <div style={SHARED_GROUP_OUTER}>
             {/* 1. PROGRESS SUMMARY + EXAMPLE CHART IMAGE */}
             <div
@@ -1109,17 +1083,7 @@ export function OnboardingView({
                 ...SHARED_CELL_BORDER
               }}
             >
-              <div
-                style={{
-                  fontSize: '14px',
-                  fontWeight: 800,
-                  color: 'var(--dp-color-accent)',
-                  textTransform: 'uppercase',
-                  marginBottom: '6px'
-                }}
-              >
-                1. PROGRESS
-              </div>
+              <div style={ONBOARDING_SECTION_TITLE}>1. PROGRESS</div>
               <div
                 style={{
                   fontSize: '13px',
@@ -1285,17 +1249,7 @@ export function OnboardingView({
                 ...SHARED_CELL_BORDER
               }}
             >
-              <div
-                style={{
-                  fontSize: '14px',
-                  fontWeight: 800,
-                  color: 'var(--dp-color-accent)',
-                  textTransform: 'uppercase',
-                  marginBottom: '6px'
-                }}
-              >
-                2. STIMULUS
-              </div>
+              <div style={ONBOARDING_SECTION_TITLE}>2. STIMULUS</div>
               <div
                 style={{
                   fontSize: '13px',
@@ -1408,105 +1362,52 @@ export function OnboardingView({
       )}
 
       {/* ===================================================================== */}
-      {/* PAGE 6 OF 6: SOCIAL FEATURES & LEADERBOARD (SINGLE-SENTENCE SUMMARIES) */}
+      {/* PAGE 6 OF 6: SOCIAL — FRIENDS, SYNC, LEADERBOARDS, FEEDBACK */}
       {/* ===================================================================== */}
       {step === 6 && (
         <section style={{ marginBottom: '20px', padding: '0 var(--dp-spacing-gutter)' }}>
+          <div style={ONBOARDING_INTRO}>
+            Train with friends: find them, sync a session live, and compare on the leaderboards.
+          </div>
           <div style={SHARED_GROUP_OUTER}>
-            {/* 1. SOCIAL FEATURES (SINGLE SENTENCE) */}
-            <div
-              style={{
-                padding: '16px 14px',
-                backgroundColor: '#141416',
-                ...SHARED_CELL_BORDER
-              }}
-            >
-              <div
-                style={{
-                  fontSize: '14px',
-                  fontWeight: 800,
-                  color: 'var(--dp-color-accent)',
-                  textTransform: 'uppercase',
-                  marginBottom: '6px'
-                }}
-              >
-                1. SOCIAL &amp; SHARED ROUTINES
-              </div>
-              <div
-                style={{
-                  fontSize: '13px',
-                  color: colors.secondaryLabel,
-                  lineHeight: 1.5
-                }}
-              >
-                Invite training partners via email (pre-loaded with beta code{' '}
-                <strong style={{ color: 'var(--dp-color-accent)' }}>imnotcrying</strong>{' '}
-                for automatic friendship) to stream their latest Big 3 lifts on the
-                Home ticker and load their shared routines.
+            <div style={{ padding: '16px 14px', backgroundColor: '#141416', ...SHARED_CELL_BORDER }}>
+              <div style={ONBOARDING_SECTION_TITLE}>1. FRIENDS &amp; SHARED ROUTINES</div>
+              <div style={onboardingBodyText}>
+                Find training partners on <strong style={{ color: '#FFFFFF' }}>SOCIAL</strong> by username or email. If
+                they don&apos;t have an account yet, <strong style={{ color: '#FFFFFF' }}>SEND INVITE</strong> emails them
+                the beta code (<strong style={{ color: 'var(--dp-color-accent)' }}>imnotcrying</strong>) and a link: when
+                they join through it you&apos;re friends automatically. Friends&apos; latest Big 3 lifts stream on the Home
+                ticker and you can load their shared routines. You start out friends with{' '}
+                <strong style={{ color: '#FFFFFF' }}>@matt</strong>.
               </div>
             </div>
 
-            {/* 2. LEADERBOARD (SINGLE SENTENCE) */}
-            <div
-              style={{
-                padding: '16px 14px',
-                backgroundColor: '#141416',
-                ...SHARED_CELL_BORDER
-              }}
-            >
-              <div
-                style={{
-                  fontSize: '14px',
-                  fontWeight: 800,
-                  color: 'var(--dp-color-accent)',
-                  textTransform: 'uppercase',
-                  marginBottom: '6px'
-                }}
-              >
-                2. LEADERBOARDS
+            <div style={{ padding: '16px 14px', backgroundColor: '#141416', ...SHARED_CELL_BORDER }}>
+              <div style={ONBOARDING_SECTION_TITLE}>2. TRAIN TOGETHER (SYNC)</div>
+              <div style={onboardingBodyText}>
+                Tap <strong style={{ color: '#FFFFFF' }}>SYNC</strong> next to SAVE in a session and pick a friend. Once
+                they accept, the exercises, their order, schemes and sets are mirrored between your phones within a few
+                seconds, while weights, reps and checkmarks stay your own. Each of you saves your own copy;{' '}
+                <strong style={{ color: '#FFFFFF' }}>UNSYNC</strong>, RESET or saving ends it.
               </div>
-              <div
-                style={{
-                  fontSize: '13px',
-                  color: colors.secondaryLabel,
-                  lineHeight: 1.5
-                }}
-              >
+            </div>
+
+            <div style={{ padding: '16px 14px', backgroundColor: '#141416', ...SHARED_CELL_BORDER }}>
+              <div style={ONBOARDING_SECTION_TITLE}>3. LEADERBOARDS</div>
+              <div style={onboardingBodyText}>
                 Compete with friends across <strong style={{ color: '#FFFFFF' }}>Big 3 Total</strong>,{' '}
                 <strong style={{ color: '#FFFFFF' }}>Big 3 Normalized</strong>,{' '}
                 <strong style={{ color: '#FFFFFF' }}>Overhead Press Normalized</strong>, and{' '}
-                <strong style={{ color: '#FFFFFF' }}>Most Improved</strong> rankings
-                with live Strength Standard standings.
+                <strong style={{ color: '#FFFFFF' }}>Most Improved</strong> rankings with live strength-standard
+                standings.
               </div>
             </div>
 
-            <div
-              style={{
-                padding: '16px 14px',
-                backgroundColor: '#141416',
-                ...SHARED_CELL_BORDER
-              }}
-            >
-              <div
-                style={{
-                  fontSize: '14px',
-                  fontWeight: 800,
-                  color: 'var(--dp-color-accent)',
-                  textTransform: 'uppercase',
-                  marginBottom: '6px'
-                }}
-              >
-                3. FEEDBACK
-              </div>
-              <div
-                style={{
-                  fontSize: '13px',
-                  color: colors.secondaryLabel,
-                  lineHeight: 1.5
-                }}
-              >
-                This app is in constant development, if you have any suggestions, requests, or issues please tap the{' '}
-                <strong style={{ color: '#FFFFFF' }}>FEEDBACK</strong> button on the top right and relay the info. Thanks!
+            <div style={{ padding: '16px 14px', backgroundColor: '#141416', ...SHARED_CELL_BORDER }}>
+              <div style={ONBOARDING_SECTION_TITLE}>4. FEEDBACK</div>
+              <div style={onboardingBodyText}>
+                The app is in constant development. For suggestions, requests or problems, tap{' '}
+                <strong style={{ color: '#FFFFFF' }}>FEEDBACK</strong> at the top right. Thanks!
               </div>
             </div>
           </div>

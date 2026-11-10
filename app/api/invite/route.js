@@ -70,9 +70,9 @@ export async function POST(request) {
     ).replace(/^@/, '');
 
     // Record the invite as the signed-in inviter (RLS rejects anything else)
-    const inviteRes = await fetch(`${supabaseUrl}/rest/v1/friend_invites`, {
+    const inviteRes = await fetch(`${supabaseUrl}/rest/v1/friend_invites?select=id`, {
       method: 'POST',
-      headers: { ...userHeaders, 'Content-Type': 'application/json' },
+      headers: { ...userHeaders, 'Content-Type': 'application/json', Prefer: 'return=representation' },
       body: JSON.stringify({
         inviter_user_id: authUser.id,
         inviter_username: senderHandle,
@@ -84,6 +84,10 @@ export async function POST(request) {
     if (!inviteRes.ok) {
       return NextResponse.json({ ok: false, error: 'Could not record the invite. Try again.' }, { status: 502 });
     }
+    // The invite's id goes in the link: whoever joins through it becomes friends with the inviter,
+    // whatever email they sign up with (claim_invite_link)
+    const insertedInvite = await inviteRes.json().catch(() => []);
+    const inviteId = Array.isArray(insertedInvite) ? insertedInvite[0]?.id : null;
 
     const rawOrigin =
       process.env.NEXT_PUBLIC_APP_URL ||
@@ -95,7 +99,8 @@ export async function POST(request) {
     const joinParams = new URLSearchParams({
       invite_from: senderHandle,
       invited_email: cleanTarget,
-      beta_code: 'imnotcrying'
+      beta_code: 'imnotcrying',
+      ...(inviteId ? { invite_id: inviteId } : {})
     });
     const joinUrl = `${origin}/?${joinParams.toString()}`;
 
