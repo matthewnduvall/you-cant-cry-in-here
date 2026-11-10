@@ -695,7 +695,7 @@ export function SlotEditor({
             </div>
           )}
 
-          {/* Set Type, CURRENT, REPS/TIMER, ✓ (LAST / INC live in the CURRENT weight pop-up) */}
+          {/* Set Type, weight, REPS/TIMER, ✓ (LAST and the 1RM box live in the weight pop-up) */}
           <div
             style={{
               display: 'grid',
@@ -751,7 +751,7 @@ export function SlotEditor({
             ) : (
             <button
               type="button"
-              aria-label="Current Weight"
+              aria-label={`Weight ${st.weight} lb. Tap to change`}
               onClick={() =>
                 onEditWeight?.({
                   exIdx,
@@ -770,8 +770,8 @@ export function SlotEditor({
               }
               style={{ ...setCellStyle(cellBg), cursor: 'pointer', overflow: 'hidden' }}
             >
-              <span style={cellLabelStyle}>CURRENT</span>
-              <span style={cellValueStyle('var(--dp-color-accent)')}>{st.weight}</span>
+              {/* Just the weight, centred in the cell (no CURRENT label) */}
+              <span style={{ ...cellValueStyle('var(--dp-color-accent)'), marginTop: 0 }}>{st.weight}</span>
             </button>
             )}
 
