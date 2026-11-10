@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { IOSListSection, IOSListRow } from '../Primitives';
-import { CORE_PR_EXERCISE_IDS, EXERCISE_LIBRARY, EXERCISE_MAP } from '../../data/exerciseLibrary';
+import { EXERCISE_LIBRARY } from '../../data/exerciseLibrary';
 import { getBestHistory1RM } from '../../utils/workoutEngine';
 import {
   fetchAthleteProfileSnapshot,
@@ -12,9 +12,16 @@ import {
   signOutUser
 } from '../../utils/supabaseAuth';
 import { isSameFriend, applyFriendshipSync } from '../../utils/storageMigration';
-import { Button } from '../Controls';
+import { Button, TabBar } from '../Controls';
+import { RoutinesView } from './RoutinesView';
+import { buildProgressionSeriesByLift } from '../../hooks/useTelemetryAndAnalytics';
 
-const PROFILE_PR_LIMIT = 10;
+// Profile tabs: PROGRESS (their Progress page: chart / personal records / history) · ROUTINES · FRIENDS
+const PROFILE_TABS = [
+  { id: 'progress', label: 'PROGRESS' },
+  { id: 'routines', label: 'ROUTINES' },
+  { id: 'friends', label: 'FRIENDS' }
+];
 
 export function ProfileView({
   colors,
@@ -30,16 +37,21 @@ export function ProfileView({
   oneRepMaxes,
   history = [],
   sharedRoutines,
-  openPlateCalculatorForPR,
   handleOpenPreviewRoutine,
   setDeleteConfirmTarget,
   onDeleteAccount,
-  appendSessionLog
+  appendSessionLog,
+  // (opts) => the Progress page (tabs PROGRESS / PERSONAL RECORDS / HISTORY); opts.readOnly for a friend
+  renderProgressPage,
+  // Your own routines (same props as Configuration → ROUTINES)
+  routinesProps
 }) {
   // A boolean: effects depend on it, and the profile object is replaced after every server refresh (using the
   // object here made each refresh re-run both effects, looping between LOADING FRIENDS and the empty state)
   const isFriend = Boolean(currentView === 'friend_profile' && viewingFriendProfile);
-  const [showAllPrs, setShowAllPrs] = useState(false);
+  const [profileTab, setProfileTab] = useState('progress');
+  // A friend's Progress page has its own inner tab (yours shares the PROGRESS page's)
+  const [friendProgressTab, setFriendProgressTab] = useState('progress');
   const [friendUnavailable, setFriendUnavailable] = useState(false);
   // A friend's friends (public profiles only): { forId, result: { ok, friends } } for the profile it was loaded for
   const [friendsOfFriendEntry, setFriendsOfFriendEntry] = useState(null);
@@ -132,9 +144,13 @@ export function ProfileView({
     ? liveFriendMatch
     : user || { username: 'guest', email: 'Not Signed In' };
 
-  const profHistory = isFriend
-    ? (liveFriendMatch?.history?.length ? liveFriendMatch.history : viewingFriendProfile?.history) || []
-    : history || [];
+  // A friend's logged History (the stored array itself, so the chart below is only rebuilt when it changes)
+  const friendHistorySource = isFriend
+    ? liveFriendMatch?.history?.length
+      ? liveFriendMatch.history
+      : viewingFriendProfile?.history
+    : null;
+  const profHistory = isFriend ? friendHistorySource || [] : history || [];
   const rawProfPRs = isFriend
     ? { ...(viewingFriendProfile?.prs || {}), ...(liveFriendMatch?.prs || {}) }
     : oneRepMaxes || {};
@@ -149,23 +165,14 @@ export function ProfileView({
     });
   }
 
-  // Logged PRs sorted heaviest first, then any core lifts still TBD; show the top 10 until expanded.
-  const allPrRows = Array.from(
-    new Set([...CORE_PR_EXERCISE_IDS, ...Object.keys(profPRs || {}).filter(id => Number(profPRs[id]) > 0)])
-  )
-    .map(id => EXERCISE_MAP[id])
-    .filter(Boolean)
-    .map(ex => {
-      const rawVal = Math.max(Number(profPRs?.[ex.id]) || 0, getBestHistory1RM(ex.id, profHistory));
-      return { ex, rawVal, isTBD: rawVal <= 0 };
-    })
-    .sort((a, b) => b.rawVal - a.rawVal);
-  const hasMorePrs = allPrRows.length > PROFILE_PR_LIMIT;
-  const visiblePrRows = showAllPrs ? allPrRows : allPrRows.slice(0, PROFILE_PR_LIMIT);
-
   const profRoutines = isFriend
     ? liveFriendMatch?.sharedRoutines || viewingFriendProfile?.sharedRoutines || []
     : sharedRoutines;
+  // A friend's PROGRESS chart is built from their logged History
+  const friendSeriesByLift = useMemo(
+    () => (isFriend ? buildProgressionSeriesByLift(friendHistorySource || []) : null),
+    [isFriend, friendHistorySource]
+  );
 
   return (
     <div style={{ paddingTop: '14px' }}>
@@ -255,54 +262,70 @@ export function ProfileView({
         )}
       </IOSListSection>
 
-      <IOSListSection header="PERSONAL RECORDS" colors={colors}>
-        {visiblePrRows.map(({ ex, rawVal, isTBD }, i) => {
-            return (
-              <IOSListRow
-                key={ex.id}
-                isLast={i === visiblePrRows.length - 1 && !hasMorePrs}
-                colors={colors}
-                onClick={!isFriend ? () => openPlateCalculatorForPR(ex.id, ex.name, isTBD ? ex.default1RM : rawVal) : undefined}
-              >
-                <span style={{ fontSize: '14px', fontWeight: 800, textTransform: 'uppercase' }}>{ex.name}</span>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
-                  <span style={{ fontSize: '15px', fontWeight: 800, color: 'var(--dp-color-accent)' }}>
-                    {isTBD ? 'TBD' : `${rawVal} LB`} {!isFriend && '✎'}
-                  </span>
-                </div>
-              </IOSListRow>
-            );
-          })}
-        {hasMorePrs && (
-          <IOSListRow isLast={true} colors={colors} onClick={() => setShowAllPrs(prev => !prev)}>
-            <span style={{ fontSize: '13px', fontWeight: 800, color: 'var(--dp-color-accent)', textTransform: 'uppercase' }}>
-              {showAllPrs ? 'SHOW TOP 10 ↑' : `SEE ALL (${allPrRows.length}) ↓`}
-            </span>
-          </IOSListRow>
-        )}
-      </IOSListSection>
+      <div style={{ padding: '0 var(--dp-spacing-gutter)', marginBottom: '4px' }}>
+        <TabBar ariaLabel="Profile sections" tabs={PROFILE_TABS} value={profileTab} onChange={setProfileTab} />
+      </div>
 
-      <IOSListSection header="SHARED ROUTINES" colors={colors}>
-        {profRoutines.length === 0 ? (
-          <IOSListRow isLast={true} colors={colors}>
-            <span style={{ fontSize: '12px', color: '#888888' }}>No routines shared yet.</span>
-          </IOSListRow>
+      {profileTab === 'progress' &&
+        renderProgressPage?.(
+          isFriend
+            ? {
+                readOnly: true,
+                history: profHistory,
+                oneRepMaxes: profPRs,
+                seriesByLift: friendSeriesByLift,
+                tab: friendProgressTab,
+                onTabChange: setFriendProgressTab
+              }
+            : {}
+        )}
+
+      {profileTab === 'routines' &&
+        (isFriend ? (
+          <RoutinesView
+            colors={colors}
+            user={{ username: profUser.username }}
+            savedRoutines={[]}
+            sharedRoutines={profRoutines}
+            friendsList={[]}
+            selectedGymId=""
+            gyms={[]}
+            routineSelectReturnView={null}
+            handleDirectLoadRoutine={handleOpenPreviewRoutine}
+            showCancel={false}
+            sections={['shared']}
+            readOnly={true}
+          />
         ) : (
-          profRoutines.map((r, i) => (
-            <IOSListRow
-              key={r.key}
-              isLast={i === profRoutines.length - 1}
-              colors={colors}
-              onClick={() => handleOpenPreviewRoutine(r, 'session')}
-            >
-              <span style={{ fontSize: '15px', fontWeight: 800, textTransform: 'uppercase' }}>{r.label}</span>
-              <span style={{ fontSize: '13px', fontWeight: 800, color: 'var(--dp-color-accent)' }}>LOAD →</span>
-            </IOSListRow>
-          ))
-        )}
-      </IOSListSection>
+          <RoutinesView colors={colors} showCancel={false} {...routinesProps} />
+        ))}
 
-      {isFriend && (
+      {profileTab === 'friends' && !isFriend && (
+        <IOSListSection header={`FRIENDS (${(friendsList || []).length})`} colors={colors}>
+          {(friendsList || []).length === 0 ? (
+            <IOSListRow isLast={true} colors={colors}>
+              <span style={{ fontSize: '12px', fontWeight: 700, color: '#A0A0A0', textTransform: 'uppercase' }}>NO FRIENDS YET</span>
+            </IOSListRow>
+          ) : (
+            friendsList.map((friend, i) => (
+              <IOSListRow
+                key={friend.id}
+                isLast={i === friendsList.length - 1}
+                colors={colors}
+                onClick={() => {
+                  setViewingFriendProfile?.(friend);
+                  setCurrentView('friend_profile');
+                }}
+              >
+                <span style={{ fontSize: '15px', fontWeight: 800, textTransform: 'uppercase' }}>@{friend.username}</span>
+                <span style={{ fontSize: '13px', fontWeight: 800, color: 'var(--dp-color-accent)', flexShrink: 0 }}>VIEW PROFILE →</span>
+              </IOSListRow>
+            ))
+          )}
+        </IOSListSection>
+      )}
+
+      {profileTab === 'friends' && isFriend && (
         <IOSListSection
           header={`@${profUser.username}'S FRIENDS`}
           colors={colors}

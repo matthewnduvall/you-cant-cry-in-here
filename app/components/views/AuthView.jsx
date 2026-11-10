@@ -107,7 +107,7 @@ export function AuthView({
           hasOnboarded = true;
         }
       }
-      setCurrentView(hasOnboarded ? 'home' : 'onboarding');
+      setCurrentView(hasOnboarded ? 'home' : 'configuration');
     } catch (err) {
       setLoginError(err?.message || 'SIGN IN FAILED. CHECK YOUR USERNAME/EMAIL AND PASSWORD.');
     } finally {
@@ -154,7 +154,7 @@ export function AuthView({
           // ignore
         }
       }
-      setCurrentView('onboarding');
+      setCurrentView('configuration');
     } catch (err) {
       setSignupError(err?.message || 'Account creation failed. Check every field and the beta code.');
     } finally {

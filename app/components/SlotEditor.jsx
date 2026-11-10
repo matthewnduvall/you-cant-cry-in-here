@@ -3,7 +3,7 @@
 // ============================================================================
 // SHARED EXERCISE SLOT EDITOR
 // One exercise slot (or superset) with its set rows, used by the session/routine editor, the
-// History 1RM calculator, and Onboarding. Set values are edited through the shared pop-ups
+// History 1RM calculator. Set values are edited through the shared pop-ups
 // (SetValueEditorModal + PlateCalculatorModal) via callbacks, so each host decides where the
 // edits are written.
 // ============================================================================
@@ -55,7 +55,8 @@ export const headerSelectStyle = {
   fontSize: '12px',
   fontWeight: 800,
   padding: '0 4px 0 6px',
-  backgroundColor: '#161618',
+  // Filter surface (see .kinetic-filter-select): lighter than the set rows below
+  backgroundColor: '#26262B',
   color: '#FFFFFF',
   ...SHARED_CELL_BORDER,
   textTransform: 'uppercase',
@@ -68,7 +69,7 @@ const exerciseSelectStyle = {
   minWidth: 0,
   height: '100%',
   boxSizing: 'border-box',
-  backgroundColor: '#141416',
+  backgroundColor: '#26262B',
   color: '#FFFFFF',
   border: 'none',
   padding: '0 8px',
@@ -336,9 +337,10 @@ export function SlotEditor({
             gridRow: 1,
             display: 'flex',
             alignItems: 'center',
+            justifyContent: 'center',
             gap: '6px',
             color: '#A0A0A0',
-            textAlign: 'left',
+            textAlign: 'center',
             whiteSpace: 'nowrap',
             overflow: 'hidden'
           }}
@@ -505,7 +507,8 @@ export function SlotEditor({
           gridAutoRows: '40px',
           gap: 0,
           minWidth: 0,
-          ...(half === 1 ? { borderTop: '2px solid var(--dp-color-rule)' } : {})
+          ...(half === 1 ? { borderTop: '2px solid var(--dp-color-rule)' } : {}),
+          ...(half === supIds.length - 1 ? { borderBottom: '2px solid var(--dp-color-rule)' } : {})
         }}
       >
         {renderSearchCell(half)}
@@ -520,13 +523,8 @@ export function SlotEditor({
             }
             sendHeaderChange(half, { category: e.target.value });
           }}
-          style={{
-            ...headerSelectStyle,
-            gridColumn: '3 / 5',
-            gridRow: 1,
-            backgroundColor: 'var(--dp-color-accent)',
-            color: '#101010'
-          }}
+          className="kinetic-filter-select"
+          style={{ ...headerSelectStyle, gridColumn: '3 / 5', gridRow: 1 }}
         >
           {typeOptions.map(cat => (
             <option key={cat} value={cat}>
@@ -540,6 +538,7 @@ export function SlotEditor({
           aria-label={`${tag}Muscle Group Filter`.trim()}
           value={muscle}
           onChange={e => sendHeaderChange(half, { muscleGroupFilter: e.target.value })}
+          className="kinetic-filter-select"
           style={{ ...headerSelectStyle, gridColumn: '5 / 6', gridRow: 1 }}
         >
           {availMuscles.map(mg => (
@@ -553,6 +552,7 @@ export function SlotEditor({
           aria-label={isSuperset ? `Superset Exercise ${half + 1} Equipment` : 'Exercise Equipment'}
           value={equipment}
           onChange={e => handleEquipmentChange(e.target.value)}
+          className="kinetic-filter-select"
           style={{ ...headerSelectStyle, gridColumn: '2 / 4', gridRow: 2 }}
         >
           {equipmentOptions.map(eq => (
@@ -570,13 +570,14 @@ export function SlotEditor({
             minWidth: 0,
             height: '40px',
             boxSizing: 'border-box',
-            backgroundColor: '#141416',
+            backgroundColor: '#26262B',
             ...SHARED_CELL_BORDER,
             display: 'flex',
             alignItems: 'center'
           }}
         >
           <select
+            className="kinetic-filter-select"
             aria-label={isSuperset ? `Superset Exercise ${half + 1}` : 'Select Exercise'}
             value={exId}
             onChange={e => sendHeaderChange(half, { exerciseId: e.target.value })}
@@ -595,6 +596,7 @@ export function SlotEditor({
           aria-label={`${tag}Set and Rep Scheme`.trim()}
           value={scheme}
           onChange={e => sendHeaderChange(half, { scheme: e.target.value })}
+          className="kinetic-filter-select"
           style={{ ...headerSelectStyle, gridColumn: '1 / 2', gridRow: 2 }}
         >
           {SCHEME_OPTIONS.map(scm => (

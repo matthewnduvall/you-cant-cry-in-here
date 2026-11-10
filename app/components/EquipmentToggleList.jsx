@@ -1,7 +1,7 @@
 'use client';
 
 // ============================================================================
-// EQUIPMENT page list (also Onboarding page 4 and the saved-setup editor's AVAILABLE EQUIPMENT)
+// Configuration → EQUIPMENT list (also the saved-setup editor's AVAILABLE EQUIPMENT)
 // One ON/OFF row per GYM_EQUIPMENT_OPTIONS item. The list drives the defaults when exercises are picked
 // for them (+ ADD EXERCISE, AUTO SESSION, changing an exercise's type or muscle group); the per-exercise
 // filters and search always show the whole library.
@@ -21,7 +21,7 @@ export function EquipmentToggleList({
   onChange,
   header = 'EQUIPMENT',
   footer = EQUIPMENT_SETTINGS_FOOTER,
-  // Onboarding places the list inside its own padded section with its own heading
+  // Optional style override for the surrounding section
   sectionStyle
 }) {
   const selected = new Set(Array.isArray(value) ? value : GYM_EQUIPMENT_OPTIONS);

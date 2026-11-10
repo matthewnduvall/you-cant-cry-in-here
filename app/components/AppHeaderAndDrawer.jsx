@@ -235,12 +235,9 @@ export function AppHeaderAndDrawer({
                 </Button>
 
                 {[
-                  { id: 'routines', label: '01 / ROUTINES', clearReturn: true },
-                  { id: 'gyms', label: '02 / EQUIPMENT' },
-                  { id: 'goals', label: '03 / GOALS' },
-                  { id: 'onboarding', label: '04 / ONBOARDING' },
-                  { id: 'info', label: '05 / INFO' },
-                  { id: 'settings', label: '06 / SETTINGS' }
+                  { id: 'configuration', label: '01 / CONFIGURATION', clearReturn: true },
+                  { id: 'info', label: '02 / INFO' },
+                  { id: 'settings', label: '03 / DATA' }
                 ].map(nav => (
                   <Button
                     variant="drawer"

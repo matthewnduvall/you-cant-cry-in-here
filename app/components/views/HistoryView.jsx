@@ -14,7 +14,8 @@ import {
   getDefaultSessionName,
   getExRxTargetForLift,
   formatDateYMD,
-  parseYMDToISO
+  parseYMDToISO,
+  stripEquipmentFromExerciseName
 } from '../../data/exerciseLibrary';
 import {
   getBestHistory1RMInfo,
@@ -28,7 +29,8 @@ import {
   EMPTY_HISTORY_FILTER,
   isHistoryFilterActive,
   workoutMatchesHistoryFilter,
-  getWorkoutSetsForExercise
+  getWorkoutSetsForExercise,
+  getWorkoutExerciseIds
 } from '../HistoryExerciseFilter';
 import { OneRepMaxCalculatorModal } from '../OneRepMaxCalculatorModal';
 
@@ -36,6 +38,8 @@ import { OneRepMaxCalculatorModal } from '../OneRepMaxCalculatorModal';
 export function HistoryView({
   // PROGRESS page tab this renders: 'records' (Personal Records) or 'history' (logged sessions)
   section = 'history',
+  // A friend's profile: their records and sessions, view only (no adding, editing, importing or deleting)
+  readOnly = false,
   colors,
   history,
   setHistory,
@@ -408,6 +412,13 @@ export function HistoryView({
     const t = Date.parse(w?.startedAt || '') || 0;
     return t > (Date.parse(latest || '') || 0) ? w.startedAt : latest;
   }, null);
+  // View-only rows list the exercises, e.g. "BENCH PRESS · SQUAT"
+  const getWorkoutExerciseNames = workout =>
+    getWorkoutExerciseIds(workout)
+      .map(id => EXERCISE_MAP[id]?.name)
+      .filter(Boolean)
+      .map(name => stripEquipmentFromExerciseName(name))
+      .join(' · ');
   // With one exercise picked, each row also shows what was done for it, e.g. "3 SETS • TOP 225 LB × 5"
   const describeExerciseInWorkout = workout => {
     if (!historyFilter.exerciseId) return '';
@@ -444,7 +455,11 @@ export function HistoryView({
   const displayedPrExerciseIds = Array.from(
     new Set([
       ...CORE_PR_EXERCISE_IDS,
-      ...(Array.isArray(customPrExerciseIds) ? customPrExerciseIds : [])
+      ...(readOnly
+        ? Object.keys(oneRepMaxes || {}).filter(id => Number(oneRepMaxes[id]) > 0)
+        : Array.isArray(customPrExerciseIds)
+          ? customPrExerciseIds
+          : [])
     ])
   );
   const displayedPrExercises = displayedPrExerciseIds
@@ -529,7 +544,7 @@ export function HistoryView({
   return (
     <div style={{ paddingTop: '16px', paddingBottom: '36px' }}>
       {/* =================================================================== */}
-      {/* PERSONAL RECORDS TAB (STANDARDIZED WITH ONBOARDING PAGE 3) */}
+      {/* PERSONAL RECORDS TAB */}
       {/* =================================================================== */}
       {section === 'records' && (
       <section style={{ marginBottom: '20px', padding: '0 var(--dp-spacing-gutter)' }}>
@@ -543,7 +558,7 @@ export function HistoryView({
           }}
         >
           {/* + ADD WORKOUT / EXERCISE TO PERSONAL RECORDS (TOP OF STACK, MATCHING + LOG PAST WORKOUT) */}
-          {!showAddPrExercisePanel ? (
+          {readOnly ? null : !showAddPrExercisePanel ? (
             <button
               type="button"
               onClick={() => setShowAddPrExercisePanel(true)}
@@ -769,7 +784,7 @@ export function HistoryView({
                 key={ex.id}
                 style={{
                   display: 'grid',
-                  gridTemplateColumns: 'minmax(0, 1fr) 96px 96px',
+                  gridTemplateColumns: readOnly ? 'minmax(0, 1fr) 110px' : 'minmax(0, 1fr) 96px 96px',
                   gap: 0,
                   alignItems: 'stretch',
                   backgroundColor: '#141416'
@@ -808,7 +823,13 @@ export function HistoryView({
                       marginTop: '1px'
                     }}
                   >
-                    {isTBD
+                    {readOnly
+                      ? isTBD
+                        ? 'Not logged yet'
+                        : loggedDateLabel
+                          ? `Logged ${loggedDateLabel}`
+                          : 'Logged'
+                      : isTBD
                       ? `${targetStandardClass} goal: ${goal1RM}\u00A0lb`
                       : diffFromGoal > 0
                         ? `${targetStandardClass} goal: ${goal1RM}\u00A0lb (${diffFromGoal}\u00A0lb to go)`
@@ -816,6 +837,22 @@ export function HistoryView({
                   </div>
                 </div>
 
+                {readOnly ? (
+                  <div
+                    style={{
+                      ...stdActionBtnStyle,
+                      width: 'auto',
+                      height: '100%',
+                      minHeight: '48px',
+                      cursor: 'default',
+                      backgroundColor: isTBD ? '#2A2A2E' : 'var(--dp-color-accent)',
+                      color: isTBD ? '#FFFFFF' : '#000000'
+                    }}
+                  >
+                    {isTBD ? 'TBD' : `${current1RM}\u00A0LB`}
+                  </div>
+                ) : (
+                <>
                 <button
                   type="button"
                   onClick={() => open1RMConverterModal(ex.id)}
@@ -861,6 +898,8 @@ export function HistoryView({
                     </span>
                   )}
                 </button>
+                </>
+                )}
               </div>
             );
           })}
@@ -939,6 +978,7 @@ export function HistoryView({
           }}
         >
           {/* + LOG PAST WORKOUT & IMPORT BUTTONS (SPLIT INTO 2 COLUMNS) */}
+          {!readOnly && (
           <div
             style={{
               display: 'grid',
@@ -1011,6 +1051,7 @@ export function HistoryView({
               <span>↑</span>
             </button>
           </div>
+          )}
 
           {totalSessions === 0 ? (
             <div
@@ -1040,17 +1081,17 @@ export function HistoryView({
                     <div
                       style={{
                         display: 'grid',
-                        gridTemplateColumns: 'minmax(0, 1fr) 48px 48px',
+                        gridTemplateColumns: readOnly ? 'minmax(0, 1fr)' : 'minmax(0, 1fr) 48px 48px',
                         gap: 0,
                         alignItems: 'stretch',
                         backgroundColor: isExp ? '#1C1C20' : '#141416'
                       }}
                     >
                       <div
-                        role="button"
-                        tabIndex={0}
-                        onClick={() => setExpandedHistoryWorkoutId(isExp ? null : w.id)}
-                        onKeyDown={e => {
+                        role={readOnly ? undefined : 'button'}
+                        tabIndex={readOnly ? undefined : 0}
+                        onClick={readOnly ? undefined : () => setExpandedHistoryWorkoutId(isExp ? null : w.id)}
+                        onKeyDown={readOnly ? undefined : e => {
                           if (e.key === 'Enter' || e.key === ' ') {
                             e.preventDefault();
                             setExpandedHistoryWorkoutId(isExp ? null : w.id);
@@ -1064,7 +1105,7 @@ export function HistoryView({
                           display: 'flex',
                           flexDirection: 'column',
                           justifyContent: 'center',
-                          cursor: 'pointer',
+                          cursor: readOnly ? 'default' : 'pointer',
                           ...SHARED_CELL_BORDER
                         }}
                       >
@@ -1117,6 +1158,11 @@ export function HistoryView({
                         >
                           {formatDateYMD(w.startedAt)} • {(w.slots || []).length} EXERCISES
                         </div>
+                        {readOnly && !historyFilter.exerciseId && (
+                          <div style={{ fontSize: '11px', fontWeight: 700, color: '#FFFFFF', marginTop: '1px', textTransform: 'uppercase' }}>
+                            {getWorkoutExerciseNames(w)}
+                          </div>
+                        )}
                         {historyFilter.exerciseId && describeExerciseInWorkout(w) && (
                           <div style={{ fontSize: '11px', fontWeight: 800, color: '#FFFFFF', marginTop: '1px' }}>
                             {describeExerciseInWorkout(w)}
@@ -1124,6 +1170,8 @@ export function HistoryView({
                         )}
                       </div>
 
+                      {!readOnly && (
+                      <>
                       <button
                         type="button"
                         aria-label={isExp ? `Collapse ${w.title}` : `Expand ${w.title}`}
@@ -1159,9 +1207,11 @@ export function HistoryView({
                           })
                         }
                       />
+                      </>
+                      )}
                     </div>
 
-                    {isExp && editorProps && (
+                    {!readOnly && isExp && editorProps && (
                       <div
                         style={{
                           paddingBottom: '12px',

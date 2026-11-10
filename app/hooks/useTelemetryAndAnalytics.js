@@ -15,6 +15,93 @@ import { getPersonalRecord1RM } from '../utils/workoutEngine';
 // Muscle groups with no logged training: neutral grey, so a new account isn't shown as all "overdue"
 export const UNLOGGED_STIMULUS_COLOR = '#4A4A50';
 
+/** Per exercise: one point per day with the best estimated 1RM and total volume (PROGRESS chart; also friends' profiles). */
+export function buildProgressionSeriesByLift(history) {
+  const normalizedWorkouts = (history || []).map((w, rawIdx) => {
+    const dateLabel = formatDateYMD(w?.workoutDate || w?.startedAt);
+    const iso = parseYMDToISO(dateLabel);
+    const parsedMs = new Date(iso).getTime();
+    const fallbackMs = new Date(w?.startedAt || 0).getTime();
+    const timestampMs = Number.isFinite(parsedMs)
+      ? parsedMs
+      : Number.isFinite(fallbackMs)
+        ? fallbackMs
+        : 0;
+    return {
+      workout: w,
+      rawIdx,
+      dateLabel,
+      timestampMs
+    };
+  });
+
+  normalizedWorkouts.sort(
+    (a, b) => a.timestampMs - b.timestampMs || a.dateLabel.localeCompare(b.dateLabel)
+  );
+
+  const map = {};
+  EXERCISE_LIBRARY.forEach(ex => {
+    const liftId = ex.id;
+    const byDateMap = new Map();
+
+    normalizedWorkouts.forEach(({ workout: w, rawIdx, dateLabel, timestampMs }) => {
+      let top1RM = 0;
+      let totalVol = 0;
+
+      const accumulateSetsForExercise = setsList => {
+        const arr = Array.isArray(setsList) ? setsList : [];
+        const hasCompleted = arr.some(s => s && s.completed && Number(s.weight) > 0);
+        arr.forEach(s => {
+          if (!s || Number(s.weight) <= 0) return;
+          if (hasCompleted && !s.completed) return;
+          const wVal = Number(s.weight) || 0;
+          const rVal = Math.max(1, Number(s.reps) || 1);
+          const est1RM = rVal === 1 ? wVal : Math.round(wVal * (1 + rVal / 30));
+          if (est1RM > top1RM) top1RM = est1RM;
+          totalVol += wVal * rVal;
+        });
+      };
+
+      (w.slots || []).forEach(slot => {
+        if (isSupersetCategory(slot.category) && Array.isArray(slot.supersetSetsByExercise)) {
+          const ids =
+            slot.supersetExerciseIds || [slot.exerciseId, slot.secondaryExerciseId].filter(Boolean);
+          ids.forEach((id, idx) => {
+            if (id === liftId) {
+              accumulateSetsForExercise(slot.supersetSetsByExercise[idx]);
+            }
+          });
+        } else if (slot.exerciseId === liftId) {
+          accumulateSetsForExercise(slot.sets);
+        }
+      });
+
+      if (top1RM > 0 || totalVol > 0) {
+        const roundedVol = Math.round(totalVol);
+        const existing = byDateMap.get(dateLabel);
+        if (!existing) {
+          byDateMap.set(dateLabel, {
+            workoutId: w.id || `workout_${rawIdx}`,
+            dateLabel,
+            timestampMs,
+            weight: top1RM,
+            volume: roundedVol
+          });
+        } else {
+          if (top1RM > existing.weight) existing.weight = top1RM;
+          existing.volume += roundedVol;
+        }
+      }
+    });
+
+    const points = Array.from(byDateMap.values()).sort(
+      (a, b) => a.timestampMs - b.timestampMs || a.dateLabel.localeCompare(b.dateLabel)
+    );
+    map[liftId] = points;
+  });
+  return map;
+}
+
 export function useTelemetryAndAnalytics({
   history,
   oneRepMaxes,
@@ -89,91 +176,7 @@ export function useTelemetryAndAnalytics({
     return result;
   }, [history, stimulusGreenDays, stimulusYellowDays, stimulusNowMs]);
 
-  const progressionSeriesByLift = useMemo(() => {
-    const normalizedWorkouts = (history || []).map((w, rawIdx) => {
-      const dateLabel = formatDateYMD(w?.workoutDate || w?.startedAt);
-      const iso = parseYMDToISO(dateLabel);
-      const parsedMs = new Date(iso).getTime();
-      const fallbackMs = new Date(w?.startedAt || 0).getTime();
-      const timestampMs = Number.isFinite(parsedMs)
-        ? parsedMs
-        : Number.isFinite(fallbackMs)
-          ? fallbackMs
-          : 0;
-      return {
-        workout: w,
-        rawIdx,
-        dateLabel,
-        timestampMs
-      };
-    });
-
-    normalizedWorkouts.sort(
-      (a, b) => a.timestampMs - b.timestampMs || a.dateLabel.localeCompare(b.dateLabel)
-    );
-
-    const map = {};
-    EXERCISE_LIBRARY.forEach(ex => {
-      const liftId = ex.id;
-      const byDateMap = new Map();
-
-      normalizedWorkouts.forEach(({ workout: w, rawIdx, dateLabel, timestampMs }) => {
-        let top1RM = 0;
-        let totalVol = 0;
-
-        const accumulateSetsForExercise = setsList => {
-          const arr = Array.isArray(setsList) ? setsList : [];
-          const hasCompleted = arr.some(s => s && s.completed && Number(s.weight) > 0);
-          arr.forEach(s => {
-            if (!s || Number(s.weight) <= 0) return;
-            if (hasCompleted && !s.completed) return;
-            const wVal = Number(s.weight) || 0;
-            const rVal = Math.max(1, Number(s.reps) || 1);
-            const est1RM = rVal === 1 ? wVal : Math.round(wVal * (1 + rVal / 30));
-            if (est1RM > top1RM) top1RM = est1RM;
-            totalVol += wVal * rVal;
-          });
-        };
-
-        (w.slots || []).forEach(slot => {
-          if (isSupersetCategory(slot.category) && Array.isArray(slot.supersetSetsByExercise)) {
-            const ids =
-              slot.supersetExerciseIds || [slot.exerciseId, slot.secondaryExerciseId].filter(Boolean);
-            ids.forEach((id, idx) => {
-              if (id === liftId) {
-                accumulateSetsForExercise(slot.supersetSetsByExercise[idx]);
-              }
-            });
-          } else if (slot.exerciseId === liftId) {
-            accumulateSetsForExercise(slot.sets);
-          }
-        });
-
-        if (top1RM > 0 || totalVol > 0) {
-          const roundedVol = Math.round(totalVol);
-          const existing = byDateMap.get(dateLabel);
-          if (!existing) {
-            byDateMap.set(dateLabel, {
-              workoutId: w.id || `workout_${rawIdx}`,
-              dateLabel,
-              timestampMs,
-              weight: top1RM,
-              volume: roundedVol
-            });
-          } else {
-            if (top1RM > existing.weight) existing.weight = top1RM;
-            existing.volume += roundedVol;
-          }
-        }
-      });
-
-      const points = Array.from(byDateMap.values()).sort(
-        (a, b) => a.timestampMs - b.timestampMs || a.dateLabel.localeCompare(b.dateLabel)
-      );
-      map[liftId] = points;
-    });
-    return map;
-  }, [history]);
+  const progressionSeriesByLift = useMemo(() => buildProgressionSeriesByLift(history), [history]);
 
   return {
     effectiveOneRepMaxes,

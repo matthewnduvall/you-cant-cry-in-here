@@ -48,6 +48,23 @@ export const KINETIC_CSS = `
     color: #FFFFFF !important;
   }
 
+  /* Exercise filters (slot editor header, History filters): own lighter surface so they read apart from the
+     set rows, centred text and an orange ▾ caret (orange = something you can act on) */
+  .kinetic-app select.kinetic-filter-select {
+    -webkit-appearance: none;
+    appearance: none;
+    background-color: #26262B !important;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M0 0h10L5 6z' fill='%23FF6B00'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 6px center;
+    background-size: 9px 6px;
+    text-align: center;
+    text-align-last: center;
+    padding-left: 4px !important;
+    padding-right: 18px !important;
+    text-overflow: ellipsis;
+  }
+
   .kinetic-btn {
     transition: transform 0.08s ease, background-color 0.12s ease, color 0.12s ease;
   }
