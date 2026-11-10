@@ -42,7 +42,12 @@ export const KINETIC_CSS = `
     box-sizing: border-box;
   }
 
-  .kinetic-app select,
+  /* Fallback colours for dropdowns; each dropdown uses .kinetic-filter-select (below) or its own inline style.
+     Options keep a dark list on every platform. */
+  .kinetic-app select {
+    background-color: #101010;
+    color: #FFFFFF;
+  }
   .kinetic-app select option {
     background-color: #101010 !important;
     color: #FFFFFF !important;

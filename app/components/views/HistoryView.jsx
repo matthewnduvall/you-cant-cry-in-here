@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { UI, SHARED_CELL_BORDER, SHARED_GROUP_OUTER } from '../../styles/kineticTokens';
+import { SHARED_CELL_BORDER, SHARED_GROUP_OUTER } from '../../styles/kineticTokens';
 import { RoutineEditorView } from './RoutineEditorView';
 import {
   BIG_FOUR_IDS,
@@ -9,8 +9,6 @@ import {
   EXERCISE_LIBRARY,
   EXERCISE_MAP,
   normalizeSlotCategory,
-  filterAddSlotExercises,
-  getAvailableMuscleGroupsForCategory,
   getDefaultSessionName,
   getExRxTargetForLift,
   formatDateYMD,
@@ -23,7 +21,8 @@ import {
   buildPersonalRecordHistoryEntry,
   insertHistoryEntrySorted
 } from '../../utils/workoutEngine';
-import { CloseButton, DeleteButton, GymSelect } from '../Controls';
+import { CloseButton, DeleteButton } from '../Controls';
+import { ExercisePicker, resolvePickerExerciseId } from '../ExercisePicker';
 import {
   HistoryExerciseFilter,
   EMPTY_HISTORY_FILTER,
@@ -74,9 +73,6 @@ export function HistoryView({
   const customPrExerciseIds = externalCustomPrIds || localCustomPrIds;
   const setCustomPrExerciseIds = setExternalCustomPrIds || setLocalCustomPrIds;
   const [showAddPrExercisePanel, setShowAddPrExercisePanel] = useState(false);
-  const [addPrGymFilter, setAddPrGymFilter] = useState(selectedGymId || '');
-  const [addPrCategory, setAddPrCategory] = useState('Compound');
-  const [addPrMuscleGroup, setAddPrMuscleGroup] = useState('All Muscles');
   const [addPrSelectedExId, setAddPrSelectedExId] = useState('barbell_row');
 
   // --- 1RM Converter Popup Slot State (Matches New/Current Session Exercise Editor) ---
@@ -462,27 +458,12 @@ export function HistoryView({
           : [])
     ])
   );
+  // + ADD panel: always a real exercise that isn't already listed
+  const addPrExerciseId = resolvePickerExerciseId(addPrSelectedExId, displayedPrExerciseIds);
   const displayedPrExercises = displayedPrExerciseIds
     .map(id => EXERCISE_MAP[id])
     .filter(Boolean);
 
-  const availAddPrMuscleGroups = getAvailableMuscleGroupsForCategory(
-    addPrCategory,
-    addPrGymFilter,
-    gyms
-  );
-  const activeAddPrMuscle = availAddPrMuscleGroups.includes(addPrMuscleGroup)
-    ? addPrMuscleGroup
-    : 'All Muscles';
-  const filteredAddPrExercises = filterAddSlotExercises(
-    addPrGymFilter,
-    addPrCategory,
-    gyms,
-    activeAddPrMuscle
-  );
-  const resolvedAddPrExId = filteredAddPrExercises.some(e => e.id === addPrSelectedExId)
-    ? addPrSelectedExId
-    : filteredAddPrExercises[0]?.id || 'incline_bench_press';
 
   const open1RMConverterModal = exerciseId => {
     setCalcExerciseId(exerciseId || BIG_FOUR_IDS[0] || 'barbell_bench_press');
@@ -591,7 +572,7 @@ export function HistoryView({
                   display: 'grid',
                   gridTemplateColumns: 'minmax(0, 1fr) 40px',
                   gap: 0,
-                  height: '38px'
+                  height: '40px'
                 }}
               >
                 <div
@@ -618,149 +599,36 @@ export function HistoryView({
                 />
               </div>
 
-              {/* Row 1 Filters: Equipment, Workout Type, Muscle Group */}
-              <div
+              {/* The standard exercise picker (same as the session editor header) */}
+              <ExercisePicker
+                exerciseId={addPrExerciseId}
+                onChange={setAddPrSelectedExId}
+                excludeIds={displayedPrExerciseIds}
+              />
+
+              <button
+                type="button"
+                onClick={() => {
+                  if (addPrExerciseId && !displayedPrExerciseIds.includes(addPrExerciseId)) {
+                    setCustomPrExerciseIds(prev => (prev.includes(addPrExerciseId) ? prev : [...prev, addPrExerciseId]));
+                  }
+                  setShowAddPrExercisePanel(false);
+                }}
+                className="kinetic-btn"
                 style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
-                  gap: 0,
-                  height: '40px'
+                  height: '44px',
+                  padding: '0 12px',
+                  backgroundColor: 'var(--dp-color-accent)',
+                  color: '#101010',
+                  ...SHARED_CELL_BORDER,
+                  fontSize: '12px',
+                  fontWeight: 800,
+                  textTransform: 'uppercase',
+                  cursor: 'pointer'
                 }}
               >
-                <GymSelect
-                  variant="cell"
-                  ariaLabel="Filter by equipment"
-                  value={addPrGymFilter}
-                  onChange={nextGym => {
-                    setAddPrGymFilter(nextGym);
-                    const nextAvailMgs = getAvailableMuscleGroupsForCategory(addPrCategory, nextGym, gyms);
-                    const nextMg = nextAvailMgs.includes(activeAddPrMuscle) ? activeAddPrMuscle : 'All Muscles';
-                    setAddPrMuscleGroup(nextMg);
-                    const nextAvail = filterAddSlotExercises(nextGym, addPrCategory, gyms, nextMg);
-                    if (nextAvail.length > 0) setAddPrSelectedExId(nextAvail[0].id);
-                  }}
-                  gyms={gyms}
-                />
-
-                <select
-                  aria-label="Filter by Workout Type"
-                  value={addPrCategory}
-                  onChange={e => {
-                    const nextCat = e.target.value;
-                    setAddPrCategory(nextCat);
-                    const nextAvailMgs = getAvailableMuscleGroupsForCategory(nextCat, addPrGymFilter, gyms);
-                    const nextMg = nextAvailMgs.includes(activeAddPrMuscle) ? activeAddPrMuscle : 'All Muscles';
-                    setAddPrMuscleGroup(nextMg);
-                    const nextAvail = filterAddSlotExercises(addPrGymFilter, nextCat, gyms, nextMg);
-                    if (nextAvail.length > 0) setAddPrSelectedExId(nextAvail[0].id);
-                  }}
-                  style={{
-                    width: '100%',
-                    height: '40px',
-                    backgroundColor: '#141416',
-                    color: '#FFFFFF',
-                    ...SHARED_CELL_BORDER,
-                    fontSize: '12px',
-                    fontWeight: 800,
-                    textTransform: 'uppercase',
-                    padding: '0 8px'
-                  }}
-                >
-                  {['Compound', 'Accessory'].map(cat => (
-                    <option key={cat} value={cat}>
-                      {cat.toUpperCase()}
-                    </option>
-                  ))}
-                </select>
-
-                <select
-                  aria-label="Filter by Muscle Group"
-                  value={activeAddPrMuscle}
-                  onChange={e => {
-                    const nextMg = e.target.value;
-                    setAddPrMuscleGroup(nextMg);
-                    const nextAvail = filterAddSlotExercises(addPrGymFilter, addPrCategory, gyms, nextMg);
-                    if (nextAvail.length > 0) setAddPrSelectedExId(nextAvail[0].id);
-                  }}
-                  style={{
-                    width: '100%',
-                    height: '40px',
-                    backgroundColor: '#141416',
-                    color: '#FFFFFF',
-                    ...SHARED_CELL_BORDER,
-                    fontSize: '12px',
-                    fontWeight: 800,
-                    textTransform: 'uppercase',
-                    padding: '0 8px'
-                  }}
-                >
-                  {availAddPrMuscleGroups.map(mg => (
-                    <option key={mg} value={mg}>
-                      {mg.toUpperCase()}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Row 2: Exercise Selector + Add Button */}
-              <div
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'minmax(0, 1fr) 96px',
-                  gap: 0,
-                  height: '42px'
-                }}
-              >
-                <select
-                  aria-label="Select Exercise"
-                  value={resolvedAddPrExId}
-                  onChange={e => setAddPrSelectedExId(e.target.value)}
-                  style={{
-                    width: '100%',
-                    height: '42px',
-                    backgroundColor: '#141416',
-                    color: '#FFFFFF',
-                    ...SHARED_CELL_BORDER,
-                    fontSize: '13px',
-                    fontWeight: 800,
-                    textTransform: 'uppercase',
-                    padding: '0 8px'
-                  }}
-                >
-                  {filteredAddPrExercises.map(ex => (
-                    <option key={ex.id} value={ex.id}>
-                      {ex.name.toUpperCase()} ({ex.equipment.toUpperCase()})
-                    </option>
-                  ))}
-                </select>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (resolvedAddPrExId) {
-                      setCustomPrExerciseIds(prev =>
-                        prev.includes(resolvedAddPrExId)
-                          ? prev
-                          : [...prev, resolvedAddPrExId]
-                      );
-                      setShowAddPrExercisePanel(false);
-                    }
-                  }}
-                  style={{
-                    height: '42px',
-                    padding: '0 12px',
-                    backgroundColor: 'var(--dp-color-accent)',
-                    color: '#000000',
-                    ...SHARED_CELL_BORDER,
-                    fontSize: '12px',
-                    fontWeight: 800,
-                    textTransform: 'uppercase',
-                    cursor: 'pointer'
-                  }}
-                >
-                  + ADD
-                </button>
-              </div>
+                + ADD TO PERSONAL RECORDS
+              </button>
             </div>
           )}
 
