@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { UI } from '../styles/kineticTokens';
 import { formatTimerSeconds } from '../utils/workoutEngine';
 
 // ============================================================================
@@ -50,14 +51,7 @@ export function IOSListSection({ header, headerRight, footer, children, style })
           }}
         >
           {header && (
-            <div
-              style={{
-                fontSize: '20px', fontWeight: 800, letterSpacing: '-0.04em',
-                textTransform: 'uppercase', color: '#FFFFFF', lineHeight: 1.05
-              }}
-            >
-              {header}
-            </div>
+            <div style={UI.sectionTitle}>{header}</div>
           )}
           {headerRight}
         </div>
@@ -164,7 +158,7 @@ export function SessionTitleBar({ title = '', onChangeTitle, onSave, onReset, sh
   };
   const actionStyle = (bg, color) => ({
     width: '100%',
-    height: '45px',
+    height: '40px',
     boxSizing: 'border-box',
     backgroundColor: bg,
     color,
@@ -178,7 +172,7 @@ export function SessionTitleBar({ title = '', onChangeTitle, onSave, onReset, sh
   return (
     <div
       style={{
-        marginTop: '10px',
+        marginTop: '8px',
         display: 'grid',
         gridTemplateColumns: ['minmax(0, 1fr)', sync ? '58px' : null, showActions ? '58px 58px' : null]
           .filter(Boolean)
@@ -192,7 +186,7 @@ export function SessionTitleBar({ title = '', onChangeTitle, onSave, onReset, sh
       <label
         style={{
           minWidth: 0,
-          height: '45px',
+          height: '40px',
           boxSizing: 'border-box',
           backgroundColor: '#141416',
           ...cellBorder,
@@ -291,7 +285,7 @@ export const SessionRestTimerBar = React.memo(function SessionRestTimerBar({
         gridTemplateColumns: onMarkDone ? '120px minmax(0, 1fr) 52px' : '120px minmax(0, 1fr)',
         alignItems: 'stretch',
         gap: 0,
-        height: flushTop ? '45px' : '46px',
+        height: flushTop ? '40px' : '41px',
         boxSizing: 'border-box',
         borderTop: flushTop ? 'none' : '1px solid var(--dp-color-rule)',
         borderLeft: '1px solid var(--dp-color-rule)'
@@ -305,9 +299,9 @@ export const SessionRestTimerBar = React.memo(function SessionRestTimerBar({
           className="kinetic-btn"
           style={{
             width: '100%',
-            height: '45px',
-            minHeight: '45px',
-            maxHeight: '45px',
+            height: '40px',
+            minHeight: '40px',
+            maxHeight: '40px',
             boxSizing: 'border-box',
             backgroundColor: '#FF3B30',
             color: '#FFFFFF',
@@ -335,9 +329,9 @@ export const SessionRestTimerBar = React.memo(function SessionRestTimerBar({
         <div
           style={{
             width: '100%',
-            height: '45px',
-            minHeight: '45px',
-            maxHeight: '45px',
+            height: '40px',
+            minHeight: '40px',
+            maxHeight: '40px',
             boxSizing: 'border-box',
             display: 'flex',
             alignItems: 'center',
@@ -357,6 +351,10 @@ export const SessionRestTimerBar = React.memo(function SessionRestTimerBar({
             value={defaultRestSeconds}
             onChange={e => onChangeDefaultRest(Number(e.target.value))}
             style={{
+              // Fills the whole timer cell so the full 40 px box is the tap target
+              flex: 1,
+              alignSelf: 'stretch',
+              minWidth: 0,
               backgroundColor: 'transparent',
               color: '#FFFFFF',
               border: 'none',
@@ -379,9 +377,9 @@ export const SessionRestTimerBar = React.memo(function SessionRestTimerBar({
         style={{
           minWidth: 0,
           width: '100%',
-          height: '45px',
-          minHeight: '45px',
-          maxHeight: '45px',
+          height: '40px',
+          minHeight: '40px',
+          maxHeight: '40px',
           boxSizing: 'border-box',
           display: 'flex',
           flexDirection: 'column',
@@ -438,7 +436,7 @@ export const SessionRestTimerBar = React.memo(function SessionRestTimerBar({
           className="kinetic-btn"
           style={{
             width: '100%',
-            height: '45px',
+            height: '40px',
             boxSizing: 'border-box',
             backgroundColor: markDoneActive ? '#30D158' : '#242428',
             color: markDoneActive ? '#101010' : '#9A9A9A',

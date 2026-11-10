@@ -504,7 +504,6 @@ export function OnboardingView({
               {[1.25, 2.5, 5, 10].map(inc => (
                 <SegmentButton
                   active={goalIncrement === inc}
-                  activeColor="ink"
                   key={inc}
                   onClick={() => setGoalIncrement(inc)}
                   style={{ height: '44px', padding: '0 4px', fontSize: '13px' }}

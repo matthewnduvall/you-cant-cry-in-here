@@ -96,6 +96,7 @@ To keep agent edits fast and focused, views and state hooks are split into dedic
 * **Readability & colour rules (from the UX review):**
   * Minimum text size **11 px** (labels included); SVG text is sized so it renders at ≥ 11 px after the chart scales down (e.g. chart text 12.5 in a 360-wide viewBox).
   * Text must meet WCAG contrast (4.5:1, or 3:1 for bold ≥ 14 px): dark text on orange, never white on orange or white on red.
+  * Tap targets at least 40 × 40 px (selects fill their whole cell). Section headings all use `UI.sectionTitle` (20 px white). Every segmented toggle shows "selected" the same way: orange fill (`SegmentButton` default; chart lift toggles add a colour square for the legend). The session header (nav + `SessionTitleBar` + `SessionRestTimerBar`, 40 px rows) is ≈ 146 px at phone width.
   * One meaning per colour: orange = action / selected / you; red = destructive or warning (delete, reset, overdue); green = done / success / recovering; grey = empty or not logged yet. Empty states say so in words (e.g. `LOG A SESSION TO SEE PROGRESS`, `NOT LOGGED YET`) instead of showing zeros.
 * **Typography & Geometry:**
   * Font Family: `"Host Grotesk"`, uppercase headers, `fontWeight: 800`, tight tracking (`-0.03em` to `-0.045em`).
@@ -117,6 +118,7 @@ To keep agent edits fast and focused, views and state hooks are split into dedic
 * **Locked interface:** no pinch/double-tap zoom or text reflow (`viewport` export in `app/layout.js`, `touch-action`/`text-size-adjust` in `globals.css`, and an iOS `gesturestart` blocker in `page.js`).
 * **Top Header (`AppHeaderAndDrawer`):**
   * Left: Hamburger Menu button (`☰`). Center: `You Can't Cry in Here` home link (when not on Home). Right: **`FEEDBACK`** button (`FeedbackModal`).
+* **Set rows:** the ✓ is 52 px wide; the per-set delete ✕ beside it is grey (it still asks before deleting) so it doesn't compete with the ✓. In supersets every set row has its exercise name strip above it (shortened name, orange for A, grey for B) so the interleaved sets are easy to tell apart.
 * **Sticky Rest Timer Bar (`SessionRestTimerBar`):**
   * Left box: `REST 1:00 / 1:30 / 2:00 / 3:00` selector; turns into a live **Red Countdown Timer (`#FF3B30`)** when any set is marked complete.
   * Right orange box (`var(--dp-color-accent)`): Fixed height (`56px`) across blank and populated sessions so layout never jumps.

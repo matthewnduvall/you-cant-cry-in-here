@@ -147,7 +147,7 @@ export const UI = {
   },
   numInput: (width = '58px', color = '#FFFFFF') => ({
     width, backgroundColor: '#101010', color, border: '2px solid var(--dp-color-rule)',
-    padding: '6px', textAlign: 'center', fontSize: '13px', fontWeight: 800
+    padding: '6px', textAlign: 'center', fontSize: '13px', fontWeight: 800, minHeight: '40px', boxSizing: 'border-box'
   }),
   modalBackdrop: {
     position: 'fixed', inset: 0, zIndex: 70, backgroundColor: 'rgba(0,0,0,0.85)',
@@ -172,6 +172,11 @@ export const UI = {
   },
   fieldLabel: {
     fontSize: '11px', fontWeight: 800, color: 'var(--dp-color-accent)', textTransform: 'uppercase'
+  },
+  // Every page section heading (STATS, EXERCISES, PERSONAL RECORDS, SOCIAL, ...): one size and colour
+  sectionTitle: {
+    fontSize: '20px', fontWeight: 800, letterSpacing: '-0.04em', textTransform: 'uppercase',
+    color: '#FFFFFF', lineHeight: 1.05
   },
   rowTitle: { fontSize: '15px', fontWeight: 800, textTransform: 'uppercase' },
   rowSub: { fontSize: '11px', color: '#A0A0A0', fontWeight: 600 },

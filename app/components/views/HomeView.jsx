@@ -255,7 +255,7 @@ export function HomeView({
           onClick={() => setMarqueePaused(p => !p)}
           style={{
             backgroundColor: '#101010', color: '#FFFFFF', border: 'none',
-            borderLeft: '2px solid var(--dp-color-rule)', padding: '8px 10px',
+            borderLeft: '2px solid var(--dp-color-rule)', padding: '0 12px', minHeight: '40px',
             fontSize: '11px', fontWeight: 800, cursor: 'pointer'
           }}
         >
