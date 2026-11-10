@@ -350,12 +350,19 @@ export const getIncrementInLbs = (goalIncrement = 1.25, goalUnit = 'lb', goalTyp
   return goalUnit === 'kg' ? roundToIncrement(inc * 2.20462) : roundToIncrement(inc);
 };
 
+// The progression increment is added once to the total weight lifted (not per side of a barbell)
 export const getEffectiveIncrementForExercise = (exerciseId, baseIncrementLbs = 0) => {
   const inc = Number(baseIncrementLbs) || 0;
-  if (inc <= 0) return 0;
-  const exObj = EXERCISE_MAP[exerciseId];
-  const isBarbell = exObj?.equipment === 'Barbell';
-  return isBarbell ? roundToIncrement(inc * 2) : roundToIncrement(inc);
+  return inc > 0 ? roundToIncrement(inc) : 0;
+};
+
+// Exercise Set Preferences (Configuration → ROUTINES): the type of each set, by position, for new exercises on the
+// uniform rep schemes (5x5, 5x8, 5x10, 8x8). Sets beyond the list are Working.
+export const DEFAULT_SET_PREFERENCES = ['Warmup', 'Warmup', 'Working', 'Working', 'Working'];
+export const SET_PREFERENCE_TYPES = ['Warmup', 'Working', 'Top Out', 'Burn Out'];
+const typesFromSetPreferences = (count, setPreferences) => {
+  const prefs = Array.isArray(setPreferences) && setPreferences.length > 0 ? setPreferences : DEFAULT_SET_PREFERENCES;
+  return Array.from({ length: count }, (_, i) => (SET_PREFERENCE_TYPES.includes(prefs[i]) ? prefs[i] : 'Working'));
 };
 
 export const generateSetsForScheme = (
@@ -364,7 +371,8 @@ export const generateSetsForScheme = (
   category = 'Compound',
   exerciseId = '',
   incrementLbs = 0,
-  userBodyweightLbs = 220
+  userBodyweightLbs = 220,
+  setPreferences = DEFAULT_SET_PREFERENCES
 ) => {
   const isBw = isBodyweightExercise(exerciseId);
   const bwDefault = Math.max(0, Number(userBodyweightLbs) || 220);
@@ -418,11 +426,11 @@ export const generateSetsForScheme = (
         }))
       );
     case '5x5':
-      return buildWithLastAndTarget(Array.from({ length: 5 }, () => ({ type: 'Working', reps: 5 })));
+      return buildWithLastAndTarget(typesFromSetPreferences(5, setPreferences).map(type => ({ type, reps: 5 })));
     case '5x10':
-      return buildWithLastAndTarget(Array.from({ length: 5 }, () => ({ type: 'Working', reps: 10 })));
+      return buildWithLastAndTarget(typesFromSetPreferences(5, setPreferences).map(type => ({ type, reps: 10 })));
     case '8x8':
-      return buildWithLastAndTarget(Array.from({ length: 8 }, () => ({ type: 'Working', reps: 8 })));
+      return buildWithLastAndTarget(typesFromSetPreferences(8, setPreferences).map(type => ({ type, reps: 8 })));
     case 'Pyramid':
       return buildWithLastAndTarget([
         { reps: 8, type: 'Warmup' },
@@ -480,8 +488,150 @@ export const generateSetsForScheme = (
       ]);
     case '5x8':
     default:
-      return buildWithLastAndTarget(Array.from({ length: 5 }, () => ({ type: 'Working', reps: 8 })));
+      return buildWithLastAndTarget(typesFromSetPreferences(5, setPreferences).map(type => ({ type, reps: 8 })));
   }
+};
+
+// ============================================================================
+// GOAL PROGRESS — set weights for RECALCULATE, + ADD EXERCISE and AUTO SESSION, all through ONE calculated 1RM
+// for the whole exercise (the common value that converts between schemes, reps and set types).
+// A set's 1RM factor = rep % × set-type effort × fatigue for the number of sets (the same estimate as the 1RM
+// calculator, estimate1RMFromSet, unrounded); an exercise's calculated 1RM = the highest weight ÷ factor over its sets.
+// Working sets (every set that isn't a Warm-up) each get the LOWER of:
+//   A) last session: if that set's reps (and type) match last time, last weight + increment; otherwise last
+//      session's calculated 1RM converted to this set, + increment
+//   B) the stored 1RM + increment, converted to this set
+// The increment is added once to the total weight. Warm-up sets are converted from the 1RM the working weight
+// implies; on RECALCULATE, once the first set's weight is entered, the sets before the working sets ramp up from it.
+// Weights round to the nearest min(2.5, increment) lb. Applies to rep schemes (not Pyramid 1RM / Timer) and
+// weighted exercises (not bodyweight). Nothing known yet (no 1RM, no previous session) → the scheme defaults.
+// ============================================================================
+
+export const GOAL_PROGRESS_SCHEMES = ['5x5', '5x8', '5x10', '8x8', 'Pyramid', 'Reverse Pyramid'];
+
+const roundToStep = (val, step) => Math.round(val / step) * step;
+
+/** 1RM factor of one set within an exercise of `totalSetsCount` sets (weight = 1RM × factor). */
+export const getSetOneRepMaxFactor = (setItem, totalSetsCount = 1) => {
+  const reps = Math.max(1, Number(setItem?.reps) || 1);
+  const sType = normalizeSetType(setItem?.type);
+  if (sType === '1 Rep Max' || (reps === 1 && totalSetsCount <= 1)) return 1;
+  const repPct = 1 / (1 + Math.max(0, reps - 1) / 30);
+  const typeMultiplier = SET_TYPE_MULTIPLIER_MAP[sType] || 0.98;
+  const setStressFactor = 1 / (1 + Math.max(0, totalSetsCount - 1) * 0.035);
+  return Math.min(1, repPct * typeMultiplier * setStressFactor);
+};
+
+/**
+ * Calculated 1RM of a whole exercise from its sets (completed ones if any were completed); 0 = no weights.
+ * Warm-ups only count when the exercise has no other sets: they're deliberately easy, so with their 0.74 effort
+ * factor a warm-up close to the working weight would otherwise imply a higher 1RM than the working sets.
+ */
+export const getExerciseCalculated1RM = sets => {
+  const weighted = (Array.isArray(sets) ? sets : []).filter(st => st && Number(st.weight) > 0);
+  if (weighted.length === 0) return 0;
+  const completed = weighted.filter(st => st.completed);
+  const pool = completed.length > 0 ? completed : weighted;
+  const nonWarmup = pool.filter(st => normalizeSetType(st.type) !== 'Warmup');
+  const used = nonWarmup.length > 0 ? nonWarmup : pool;
+  const total = (Array.isArray(sets) ? sets : []).length || used.length;
+  return Math.max(...used.map(st => Number(st.weight) / getSetOneRepMaxFactor(st, total)));
+};
+
+/** Every logged session of an exercise, newest first: [{ workoutId, startedAt, sets }] (PR entries included). */
+const getLoggedSessionsForExercise = (exerciseId, history = [], excludeWorkoutId = null) =>
+  (history || [])
+    .filter(w => w && w.id !== excludeWorkoutId)
+    .sort((a, b) => (Date.parse(b.startedAt || '') || 0) - (Date.parse(a.startedAt || '') || 0))
+    .map(w => {
+      const sets = [];
+      (w.slots || []).forEach(slot => {
+        if (isSupersetCategory(slot.category) && Array.isArray(slot.supersetSetsByExercise)) {
+          const ids = slot.supersetExerciseIds || [slot.exerciseId, slot.secondaryExerciseId];
+          ids.forEach((id, idx) => {
+            if (id === exerciseId) sets.push(...(slot.supersetSetsByExercise[idx] || []));
+          });
+        } else if (slot.exerciseId === exerciseId) {
+          sets.push(...(slot.sets || []));
+        }
+      });
+      return { workoutId: w.id, isPersonalRecord: w.loadedRoutineTitle === 'PERSONAL RECORD', sets };
+    })
+    .filter(s => s.sets.some(st => st && Number(st.weight) > 0));
+
+/** Sets of the most recent real session (not a PERSONAL RECORD entry) that logged the exercise. */
+export const getLastLoggedSetsForExercise = (exerciseId, history = [], excludeWorkoutId = null) =>
+  getLoggedSessionsForExercise(exerciseId, history, excludeWorkoutId).find(s => !s.isPersonalRecord)?.sets || [];
+
+/** Stored 1RM: the highest calculated 1RM over all logged sessions (PR entries included) or a saved 1RM. */
+export const getStored1RM = (exerciseId, history = [], oneRepMaxes = {}, excludeWorkoutId = null) =>
+  Math.max(
+    Number(oneRepMaxes?.[exerciseId]) || 0,
+    ...getLoggedSessionsForExercise(exerciseId, history, excludeWorkoutId).map(s => getExerciseCalculated1RM(s.sets))
+  );
+
+/**
+ * Applies goal progress to an exercise's sets. `lockedIndexes` (completed sets, weights the athlete typed) and
+ * set 0 when `startWeight` is given keep their weight.
+ */
+export const applyGoalProgressToSets = (
+  sets,
+  { exerciseId, scheme, history = [], oneRepMaxes = {}, incrementLbs = 0, excludeWorkoutId = null, lockedIndexes = [], startWeight = null }
+) => {
+  const list = Array.isArray(sets) ? sets : [];
+  if (list.length === 0 || !GOAL_PROGRESS_SCHEMES.includes(scheme) || isBodyweightExercise(exerciseId)) return list;
+  const inc = getEffectiveIncrementForExercise(exerciseId, incrementLbs);
+  const step = inc > 0 ? Math.min(2.5, inc) : 2.5;
+  const total = list.length;
+  const stored1RM = getStored1RM(exerciseId, history, oneRepMaxes, excludeWorkoutId);
+  const lastSets = getLastLoggedSetsForExercise(exerciseId, history, excludeWorkoutId);
+  const last1RM = getExerciseCalculated1RM(lastSets);
+  if (stored1RM <= 0 && last1RM <= 0) return list;
+
+  const isWarmup = st => normalizeSetType(st?.type) === 'Warmup';
+  let workingIdx = list.map((st, i) => (isWarmup(st) ? -1 : i)).filter(i => i >= 0);
+  if (workingIdx.length === 0) workingIdx = list.map((_, i) => i);
+  const firstWorking = workingIdx[0];
+  // Last session matches when it had the same number of sets; then set i is compared with set i
+  const sameShape = lastSets.length === total;
+
+  const targetFor = (st, idx) => {
+    const factor = getSetOneRepMaxFactor(st, total);
+    const options = [];
+    if (last1RM > 0) {
+      const prev = sameShape ? lastSets[idx] : null;
+      const repsMatch =
+        prev && Number(prev.reps) === Number(st.reps) && normalizeSetType(prev.type) === normalizeSetType(st.type);
+      options.push(repsMatch ? Number(prev.weight) + inc : last1RM * factor + inc);
+    }
+    if (stored1RM > 0) options.push((stored1RM + inc) * factor);
+    return Math.max(0, roundToStep(Math.min(...options), step));
+  };
+
+  const targets = {};
+  workingIdx.forEach(i => {
+    targets[i] = targetFor(list[i], i);
+  });
+  // The 1RM the first working set implies (warm-ups are converted from it)
+  const implied1RM = targets[firstWorking] / getSetOneRepMaxFactor(list[firstWorking], total);
+
+  const locked = new Set(lockedIndexes);
+  const hasStart = Number(startWeight) > 0;
+  if (hasStart) locked.add(0);
+  const withIncrement = (st, weight) => {
+    const lastWeight = Number(st.lastWeight) > 0 ? Number(st.lastWeight) : weight;
+    return { ...st, weight, lastWeight, increment: Math.round((weight - lastWeight) * 100) / 100 };
+  };
+  return list.map((st, idx) => {
+    if (locked.has(idx)) return st;
+    if (targets[idx] !== undefined) return withIncrement(st, targets[idx]);
+    // Sets before the first working set: ramp from the entered first weight on RECALCULATE, else convert
+    if (hasStart && idx < firstWorking) {
+      const ramp = Number(startWeight) + ((targets[firstWorking] - Number(startWeight)) * idx) / firstWorking;
+      return withIncrement(st, Math.max(0, roundToStep(ramp, step)));
+    }
+    return withIncrement(st, Math.max(0, roundToStep(implied1RM * getSetOneRepMaxFactor(st, total), step)));
+  });
 };
 
 /** [schemeA, schemeB] for a superset (each exercise may run its own scheme); falls back to slot.scheme. */
@@ -506,7 +656,9 @@ export const createWorkoutSlot = ({
   userBodyweightLbs = 220,
   // Optional { [exerciseId]: estimated1RM } used only when the exercise has no logged history
   // (e.g. converting a barbell lift's 1RM to a dumbbell equivalent after an equipment swap).
-  base1RMOverrides = null
+  base1RMOverrides = null,
+  // Exercise Set Preferences (types of each set on the uniform rep schemes)
+  setPreferences = DEFAULT_SET_PREFERENCES
 }) => {
   const uid = `slot_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
   const normCat = normalizeSlotCategory(category);
@@ -528,7 +680,11 @@ export const createWorkoutSlot = ({
 
     const setsByExercise = cleanIds.map((id, idx) => {
       const calcMax = resolveBase1RM(id);
-      return generateSetsForScheme(schemes[idx], calcMax, 'Superset', id, incrementLbs, userBodyweightLbs);
+      // Working sets follow goal progress (last weight + increment, or stored 1RM + increment, whichever is lower)
+      return applyGoalProgressToSets(
+        generateSetsForScheme(schemes[idx], calcMax, 'Superset', id, incrementLbs, userBodyweightLbs, setPreferences),
+        { exerciseId: id, scheme: schemes[idx], history, oneRepMaxes, incrementLbs }
+      );
     });
     return {
       id: uid,
@@ -549,7 +705,11 @@ export const createWorkoutSlot = ({
 
   const ex1 = EXERCISE_MAP[exerciseId] || EXERCISE_LIBRARY[0];
   const calcMax1 = resolveBase1RM(ex1.id);
-  const sets1 = generateSetsForScheme(scheme, calcMax1, normCat, ex1.id, incrementLbs, userBodyweightLbs);
+  // Working sets follow goal progress (last weight + increment, or stored 1RM + increment, whichever is lower)
+  const sets1 = applyGoalProgressToSets(
+    generateSetsForScheme(scheme, calcMax1, normCat, ex1.id, incrementLbs, userBodyweightLbs, setPreferences),
+    { exerciseId: ex1.id, scheme, history, oneRepMaxes, incrementLbs }
+  );
 
   return {
     id: uid,

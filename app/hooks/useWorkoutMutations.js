@@ -37,7 +37,9 @@ import {
   checkIsWorkoutComplete,
   cloneSlots,
   parseTimerDurationSeconds,
-  formatSecondsToMMSS
+  formatSecondsToMMSS,
+  applyGoalProgressToSets,
+  GOAL_PROGRESS_SCHEMES
 } from '../utils/workoutEngine';
 import { deleteCloudRoutineByKey, deleteCloudWorkoutsByIds } from '../utils/supabaseAuth';
 import { markWorkoutIdDeleted, clearDeletedWorkoutIds } from '../utils/cloudSyncLedger';
@@ -97,6 +99,8 @@ export function useWorkoutMutations({
   setSelectedGymId,
   gyms,
   routinePreferences,
+  // Exercise Set Preferences: set types by position for new exercises (uniform rep schemes)
+  setPreferences,
   currentIncrementLbs,
   userBodyweightLbs = 220,
   shareRoutinesWithFriends,
@@ -283,6 +287,7 @@ export function useWorkoutMutations({
           oneRepMaxes,
           history,
           incrementLbs: currentIncrementLbs,
+          setPreferences,
           userBodyweightLbs
         });
       }
@@ -297,6 +302,7 @@ export function useWorkoutMutations({
           oneRepMaxes,
           history,
           incrementLbs: currentIncrementLbs,
+          setPreferences,
           userBodyweightLbs
         });
       }
@@ -309,6 +315,7 @@ export function useWorkoutMutations({
         oneRepMaxes,
         history,
         incrementLbs: currentIncrementLbs,
+          setPreferences,
         userBodyweightLbs
       });
     };
@@ -926,6 +933,7 @@ export function useWorkoutMutations({
         oneRepMaxes,
         history,
         incrementLbs: currentIncrementLbs,
+          setPreferences,
         restSeconds: slot.restSeconds || 90,
         userBodyweightLbs,
         base1RMOverrides
@@ -1010,13 +1018,17 @@ export function useWorkoutMutations({
     }
 
     if (rebuildHalf) {
-      matrix[half] = generateSetsForScheme(
-        schemes[half],
-        getHistoricalCalculated1RM(ids[half], history, oneRepMaxes),
-        'Superset',
-        ids[half],
-        currentIncrementLbs,
-        userBodyweightLbs
+      matrix[half] = applyGoalProgressToSets(
+        generateSetsForScheme(
+          schemes[half],
+          getHistoricalCalculated1RM(ids[half], history, oneRepMaxes),
+          'Superset',
+          ids[half],
+          currentIncrementLbs,
+          userBodyweightLbs,
+          setPreferences
+        ),
+        { exerciseId: ids[half], scheme: schemes[half], history, oneRepMaxes, incrementLbs: currentIncrementLbs }
       );
     }
 
@@ -1050,6 +1062,7 @@ export function useWorkoutMutations({
       oneRepMaxes,
       history,
       incrementLbs: currentIncrementLbs,
+          setPreferences,
       restSeconds: slot.restSeconds || 90,
       userBodyweightLbs
     });
@@ -1205,6 +1218,7 @@ export function useWorkoutMutations({
           oneRepMaxes,
           history,
           incrementLbs: currentIncrementLbs,
+          setPreferences,
           restSeconds: slot.restSeconds || 90,
           userBodyweightLbs
         });
@@ -1729,11 +1743,24 @@ export function useWorkoutMutations({
             });
           }
 
-          // Case C: Standard per-set recalculation (last set was not edited)
-          return currentList.map((st, idx) => {
+          // Case C: Standard per-set recalculation (last set was not edited), then goal progress for rep schemes:
+          // working sets (last 3) = last weight + increment or stored 1RM + increment, whichever is lower; once the
+          // first set's weight is entered (or the set is done) the sets before the working sets ramp up from it.
+          // Completed sets and weights the athlete typed keep their weight.
+          const firstSet = currentList[0];
+          const firstStarted = Boolean(firstSet) && Number(firstSet.weight) > 0 && (firstSet.completed || firstSet.lastEditedField === 'weight');
+          const lockedIndexes = currentList
+            .map((st, idx) => (st.completed || st.lastEditedField === 'weight' ? idx : -1))
+            .filter(idx => idx >= 0);
+          // Rep schemes: the first set the athlete started stays exactly as entered (weight and reps)
+          const goalScheme = GOAL_PROGRESS_SCHEMES.includes(listScheme);
+          const standardList = currentList.map((st, idx) => {
             // Ignore sets already marked done
             if (st.completed) {
               return { ...st, setNumber: idx + 1 };
+            }
+            if (idx === 0 && firstStarted && goalScheme) {
+              return { ...st, setNumber: 1, lastEditedField: undefined };
             }
 
             const isPyramid1RMWarmup =
@@ -1815,6 +1842,16 @@ export function useWorkoutMutations({
               weight: targetW,
               lastEditedField: undefined
             };
+          });
+          return applyGoalProgressToSets(standardList, {
+            exerciseId: exId,
+            scheme: listScheme,
+            history,
+            oneRepMaxes,
+            incrementLbs: currentIncrementLbs,
+            excludeWorkoutId: prev.id,
+            lockedIndexes,
+            startWeight: firstStarted ? Number(firstSet.weight) : null
           });
         };
 

@@ -120,7 +120,7 @@ export function GoalsView({
                 textTransform: 'uppercase'
               }}
             >
-              PROGRESSION INCREMENT (BARBELL LIFTS AUTOMATICALLY × 2)
+              PROGRESSION INCREMENT (ADDED TO THE TOTAL WEIGHT)
             </div>
             <div
               style={{

@@ -91,6 +91,8 @@ export function useCloudAndStorageSync({
   setStimulusYellowDays,
   routinePreferences,
   setRoutinePreferences,
+  setPreferences,
+  setSetPreferences,
   shareStatsWithFriends,
   setShareStatsWithFriends,
   shareRoutinesWithFriends,
@@ -154,6 +156,9 @@ export function useCloudAndStorageSync({
         }
         if (hydrated.settings.routinePreferences) {
           setRoutinePreferences(hydrated.settings.routinePreferences);
+        }
+        if (Array.isArray(hydrated.settings.setPreferences) && hydrated.settings.setPreferences.length > 0) {
+          setSetPreferences?.(hydrated.settings.setPreferences);
         }
         if (hydrated.settings.social) {
           setShareStatsWithFriends(hydrated.settings.social.shareStatsWithFriends ?? true);
@@ -423,6 +428,13 @@ export function useCloudAndStorageSync({
             if (Array.isArray(cloud.settings.routinePreferences) && cloud.settings.routinePreferences.length > 0) {
               setRoutinePreferences(cloud.settings.routinePreferences.map(p => normalizeSlotCategory(p)));
             }
+            if (
+              Array.isArray(cloud.settings.setPreferences) &&
+              cloud.settings.setPreferences.length > 0 &&
+              cloud.settings.setPreferences.every(t => ['Warmup', 'Working', 'Top Out', 'Burn Out'].includes(t))
+            ) {
+              setSetPreferences?.(cloud.settings.setPreferences);
+            }
             if (cloud.settings.social) {
               if (cloud.settings.social.shareStatsWithFriends !== undefined) {
                 setShareStatsWithFriends(cloud.settings.social.shareStatsWithFriends);
@@ -542,6 +554,7 @@ export function useCloudAndStorageSync({
             },
             stimulus: { greenDays: stimulusGreenDays, yellowDays: stimulusYellowDays },
             routinePreferences,
+            setPreferences,
             social: { shareStatsWithFriends, shareRoutinesWithFriends, profileIsPublic },
             selectedGymId,
             availableEquipment
@@ -609,6 +622,7 @@ export function useCloudAndStorageSync({
     stimulusGreenDays,
     stimulusYellowDays,
     routinePreferences,
+    setPreferences,
     shareStatsWithFriends,
     shareRoutinesWithFriends,
     profileIsPublic,
@@ -665,6 +679,7 @@ export function useCloudAndStorageSync({
           setStimulusGreenDays(rehydrated.settings.stimulus.greenDays);
           setStimulusYellowDays(rehydrated.settings.stimulus.yellowDays);
           setRoutinePreferences(rehydrated.settings.routinePreferences);
+          if (Array.isArray(rehydrated.settings.setPreferences)) setSetPreferences?.(rehydrated.settings.setPreferences);
           setShareStatsWithFriends(rehydrated.settings.social.shareStatsWithFriends);
           setShareRoutinesWithFriends(rehydrated.settings.social.shareRoutinesWithFriends);
           setProfileIsPublic(rehydrated.settings.social.profileIsPublic ?? true);
@@ -707,6 +722,7 @@ export function useCloudAndStorageSync({
     setStimulusGreenDays(2);
     setStimulusYellowDays(4);
     setRoutinePreferences(['Compound', 'Compound', 'Superset', 'Superset', 'Abs']);
+    setSetPreferences?.(['Warmup', 'Warmup', 'Working', 'Working', 'Working']);
     setShareStatsWithFriends(true);
     setShareRoutinesWithFriends(true);
     setSelectedGymId('');

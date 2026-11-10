@@ -5,6 +5,7 @@ import { UI } from '../../styles/kineticTokens';
 import { IOSListSection, IOSListRow } from '../Primitives';
 import { Button, CollapseToggle, DragNumberBadge } from '../Controls';
 import { usePointerReorder } from '../../hooks/usePointerReorder';
+import { DEFAULT_SET_PREFERENCES, SET_PREFERENCE_TYPES } from '../../utils/workoutEngine';
 
 /** BODY METRICS: bodyweight row + height row (Settings and the Configuration page's BODY METRICS tab). */
 export function BodyMetricsSection({
@@ -175,6 +176,124 @@ export function RoutinePreferencesSection({ colors, routinePreferences, setRouti
               + {type}
             </Button>
           ))}
+        </div>
+      </IOSListRow>
+    </IOSListSection>
+  );
+}
+
+/**
+ * EXERCISE SET PREFERENCES (Configuration → ROUTINES, under ROUTINE PREFERENCES): the type of each set, by position,
+ * for new exercises on the uniform rep schemes (5x5, 5x8, 5x10, 8x8). Working sets get the goal-progress weight;
+ * warm-ups are converted from the same calculated 1RM. Default: Warm-up, Warm-up, Working, Working, Working.
+ */
+export function SetPreferencesSection({ colors, setPreferences, setSetPreferences }) {
+  const prefs = Array.isArray(setPreferences) && setPreferences.length > 0 ? setPreferences : DEFAULT_SET_PREFERENCES;
+  const { handleProps, rowDragStyle } = usePointerReorder((from, to) =>
+    setSetPreferences(prev => {
+      const copy = [...(Array.isArray(prev) && prev.length > 0 ? prev : DEFAULT_SET_PREFERENCES)];
+      const [moved] = copy.splice(from, 1);
+      copy.splice(to, 0, moved);
+      return copy;
+    }),
+    { attribute: 'data-set-pref-index' }
+  );
+  const isDefault = prefs.length === DEFAULT_SET_PREFERENCES.length && prefs.every((t, i) => t === DEFAULT_SET_PREFERENCES[i]);
+  const labelFor = t => (t === 'Warmup' ? 'WARM-UP' : t.toUpperCase());
+  return (
+    <IOSListSection
+      header="EXERCISE SET PREFERENCES"
+      footer="The type of each set in new exercises. The scheme sets how many sets there are: 5×5, 5×8 and 5×10 use the first 5 rows, 8×8 uses 8 (sets past the end of this list are Working). Working sets get your goal weight; warm-ups are lighter. Drag a handle to reorder."
+      colors={colors}
+    >
+      {prefs.map((type, idx) => (
+        <div
+          key={`set_pref_${idx}`}
+          data-set-pref-index={idx}
+          style={{
+            display: 'grid',
+            gridTemplateColumns: '34px minmax(0, 1fr) 44px',
+            alignItems: 'stretch',
+            minHeight: '48px',
+            borderBottom: '1px solid var(--dp-color-rule)',
+            backgroundColor: '#141414',
+            ...rowDragStyle(idx)
+          }}
+        >
+          <DragNumberBadge
+            label={idx + 1}
+            height="48px"
+            title="Drag to reorder"
+            aria-label={`Drag to reorder set ${idx + 1}`}
+            {...handleProps(idx)}
+          />
+          <select
+            className="kinetic-filter-select"
+            aria-label={`Set ${idx + 1} type`}
+            value={type}
+            onChange={e => {
+              const next = e.target.value;
+              setSetPreferences(prev => {
+                const copy = [...(Array.isArray(prev) && prev.length > 0 ? prev : DEFAULT_SET_PREFERENCES)];
+                copy[idx] = next;
+                return copy;
+              });
+            }}
+            style={{
+              width: '100%',
+              height: '100%',
+              minHeight: '48px',
+              border: 'none',
+              borderLeft: '1px solid var(--dp-color-rule)',
+              fontSize: '14px',
+              fontWeight: 800,
+              textTransform: 'uppercase',
+              color: '#FFFFFF',
+              cursor: 'pointer'
+            }}
+          >
+            {SET_PREFERENCE_TYPES.map(t => (
+              <option key={t} value={t}>
+                {labelFor(t)}
+              </option>
+            ))}
+          </select>
+          <button
+            type="button"
+            aria-label={`Remove set ${idx + 1}`}
+            disabled={prefs.length <= 1}
+            onClick={() => setSetPreferences(prev => (Array.isArray(prev) && prev.length > 1 ? prev.filter((_, i) => i !== idx) : prev))}
+            className="kinetic-btn"
+            style={{
+              background: 'none',
+              border: 'none',
+              borderLeft: '1px solid var(--dp-color-rule)',
+              color: '#8E8E93',
+              fontSize: '16px',
+              fontWeight: 800,
+              cursor: prefs.length <= 1 ? 'default' : 'pointer',
+              opacity: prefs.length <= 1 ? 0.4 : 1
+            }}
+          >
+            ✕
+          </button>
+        </div>
+      ))}
+
+      <IOSListRow isLast={true} colors={colors}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', width: '100%' }}>
+          <Button
+            variant="toggle"
+            onClick={() => setSetPreferences(prev => [...(Array.isArray(prev) && prev.length > 0 ? prev : DEFAULT_SET_PREFERENCES), 'Working'])}
+            style={{ color: 'var(--dp-color-accent)', minHeight: '40px' }}
+          >
+            + ADD SET
+          </Button>
+          {!isDefault && (
+            <Button variant="toggle" onClick={() => setSetPreferences([...DEFAULT_SET_PREFERENCES])} style={{ minHeight: '40px' }}>
+              RESET TO DEFAULT
+            </Button>
+          )}
         </div>
       </IOSListRow>
     </IOSListSection>
