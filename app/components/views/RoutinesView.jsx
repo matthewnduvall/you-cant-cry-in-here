@@ -54,10 +54,10 @@ export function RoutinesView({
           borderLeft: '1px solid var(--dp-color-rule)'
         }}
       >
-        {/* GYMS/EQUIPMENT DROPDOWN AT TOP OF ROUTINES SELECTION */}
+        {/* EQUIPMENT DROPDOWN AT TOP OF ROUTINES SELECTION */}
 <GymSelect
           variant="tile"
-          ariaLabel="Filter Routines by Gyms/Equipment"
+          ariaLabel="Filter routines by equipment"
           value={selectedGymId}
           onChange={id => setSelectedGymId?.(id)}
           gyms={gyms}
@@ -75,7 +75,7 @@ export function RoutinesView({
       <IOSListSection header={`DEFAULT ROUTINES (${filteredDefaultRoutines.length})`} colors={colors}>
         {filteredDefaultRoutines.length === 0 ? (
           <IOSListRow isLast={true} colors={colors}>
-            <span style={UI.rowSub}>No default routines match this gym/equipment filter.</span>
+            <span style={UI.rowSub}>No default routines match this equipment filter.</span>
           </IOSListRow>
         ) : (
           filteredDefaultRoutines.map((r, i) => {
@@ -89,7 +89,7 @@ export function RoutinesView({
               >
                 <div>
                   <div style={UI.rowTitle}>{r.label}</div>
-                  <div className="kinetic-sub" style={UI.rowSub}>GYM: {gymCat}</div>
+                  <div className="kinetic-sub" style={UI.rowSub}>EQUIPMENT: {gymCat}</div>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
                   <Button
@@ -112,7 +112,7 @@ export function RoutinesView({
       <IOSListSection header={`SAVED ROUTINES (${filteredSavedRoutines.length})`} colors={colors}>
         {filteredSavedRoutines.length === 0 ? (
           <IOSListRow isLast={true} colors={colors}>
-            <span style={UI.rowSub}>No saved routines match this gym/equipment filter.</span>
+            <span style={UI.rowSub}>No saved routines match this equipment filter.</span>
           </IOSListRow>
         ) : (
           filteredSavedRoutines.map((r, i) => {
@@ -127,7 +127,7 @@ export function RoutinesView({
               >
                 <div>
                   <div style={UI.rowTitle}>{r.label}</div>
-                  <div className="kinetic-sub" style={UI.rowSub}>BY @{authorHandle} • GYM: {gymCat}</div>
+                  <div className="kinetic-sub" style={UI.rowSub}>BY @{authorHandle} • EQUIPMENT: {gymCat}</div>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
                   <Button
@@ -161,7 +161,7 @@ export function RoutinesView({
       <IOSListSection header={`SHARED ROUTINES (${filteredSharedRoutines.length})`} colors={colors}>
         {filteredSharedRoutines.length === 0 ? (
           <IOSListRow isLast={true} colors={colors}>
-            <span style={UI.rowSub}>No shared routines match this gym/equipment filter.</span>
+            <span style={UI.rowSub}>No shared routines match this equipment filter.</span>
           </IOSListRow>
         ) : (
           filteredSharedRoutines.map((r, i) => {
@@ -176,7 +176,7 @@ export function RoutinesView({
               >
                 <div>
                   <div style={UI.rowTitle}>{r.label}</div>
-                  <div className="kinetic-sub" style={UI.rowSub}>BY @{authorHandle} • GYM: {gymCat}</div>
+                  <div className="kinetic-sub" style={UI.rowSub}>BY @{authorHandle} • EQUIPMENT: {gymCat}</div>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
                   <Button
@@ -210,7 +210,7 @@ export function RoutinesView({
       <IOSListSection header={`FRIENDS' ROUTINES (${filteredFriendRoutines.length})`} colors={colors}>
         {filteredFriendRoutines.length === 0 ? (
           <IOSListRow isLast={true} colors={colors}>
-            <span style={UI.rowSub}>No friend routines match this gym/equipment filter.</span>
+            <span style={UI.rowSub}>No friend routines match this equipment filter.</span>
           </IOSListRow>
         ) : (
           filteredFriendRoutines.map((r, i, arr) => {
@@ -224,7 +224,7 @@ export function RoutinesView({
               >
                 <div>
                   <div style={UI.rowTitle}>{r.label}</div>
-                  <div className="kinetic-sub" style={UI.rowSub}>BY @{r.friendName} • GYM: {gymCat}</div>
+                  <div className="kinetic-sub" style={UI.rowSub}>BY @{r.friendName} • EQUIPMENT: {gymCat}</div>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
                   <Button

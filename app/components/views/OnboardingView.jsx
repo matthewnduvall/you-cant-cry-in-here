@@ -784,7 +784,7 @@ export function OnboardingView({
                   />
                 </div>
 
-                {/* Row 1 Filters: Gym/Equipment, Workout Type, Muscle Group */}
+                {/* Row 1 Filters: Equipment, Workout Type, Muscle Group */}
                 <div
                   style={{
                     display: 'grid',
@@ -795,7 +795,7 @@ export function OnboardingView({
                 >
                   <GymSelect
                     variant="cell"
-                    ariaLabel="Filter by Gyms/Equipment"
+                    ariaLabel="Filter by equipment"
                     value={addPrGymFilter}
                     onChange={nextGym => {
                       setAddPrGymFilter(nextGym);
@@ -934,14 +934,14 @@ export function OnboardingView({
       )}
 
       {/* ===================================================================== */}
-      {/* PAGE 4 OF 6: GYMS, EQUIPMENT & ROUTINES (SHARED BORDERS, DRAG SLOTS) */}
+      {/* PAGE 4 OF 6: EQUIPMENT & ROUTINES (SHARED BORDERS, DRAG SLOTS) */}
       {/* ===================================================================== */}
       {step === 4 && (
         <section style={{ marginBottom: '20px', padding: '0 var(--dp-spacing-gutter)' }}>
           <div style={ONBOARDING_INTRO}>
             Turn on the equipment you have, then set the order of exercise types the app fills in for you.
           </div>
-          {/* 1. EQUIPMENT (same list as Settings → Equipment) */}
+          {/* 1. EQUIPMENT (same list as the EQUIPMENT page) */}
           <div style={ONBOARDING_SECTION_TITLE}>1. EQUIPMENT</div>
           <EquipmentToggleList
             colors={colors}
@@ -949,7 +949,7 @@ export function OnboardingView({
             onChange={setAvailableEquipment}
             header={null}
             sectionStyle={{ padding: 0 }}
-            footer="Turn on the equipment you have. Exercises picked for you will only use it; you can change this any time in Settings."
+            footer="Turn on the equipment you have. Exercises picked for you will only use it; you can change this any time on the Equipment page."
           />
 
           {/* DEFAULT ROUTINE STRUCTURE WITH GRIPPY DRAG HANDLES */}

@@ -236,7 +236,7 @@ export function AppHeaderAndDrawer({
 
                 {[
                   { id: 'routines', label: '01 / ROUTINES', clearReturn: true },
-                  { id: 'gyms', label: '02 / GYMS/EQUIPMENT' },
+                  { id: 'gyms', label: '02 / EQUIPMENT' },
                   { id: 'goals', label: '03 / GOALS' },
                   { id: 'onboarding', label: '04 / ONBOARDING' },
                   { id: 'info', label: '05 / INFO' },

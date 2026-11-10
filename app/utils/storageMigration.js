@@ -78,7 +78,7 @@ export const DEFAULT_SETTINGS_V2 = {
   routinePreferences: ['Compound', 'Compound', 'Superset', 'Superset', 'Accessory'],
   social: { shareStatsWithFriends: true, shareRoutinesWithFriends: true, profileIsPublic: true },
   selectedGymId: '',
-  // Settings → Equipment (GYM_EQUIPMENT_OPTIONS the athlete has); null = not chosen yet (derived from selectedGymId)
+  // the Equipment page list (GYM_EQUIPMENT_OPTIONS the athlete has); null = not chosen yet (derived from selectedGymId)
   availableEquipment: null
 };
 

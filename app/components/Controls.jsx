@@ -259,10 +259,10 @@ function GymOptions({ gyms = [] }) {
 }
 
 /**
- * Gym/equipment selector (presets + the user's saved gyms).
+ * Equipment selector (presets + the user's saved equipment setups).
  * - variant "field": a plain bordered select (forms, modals).
  * - variant "cell": a select sitting in a shared-border grid (filter rows).
- * - variant "tile": the two-line "GYMS/EQUIPMENT ▾ / <SELECTION>" cell with an invisible
+ * - variant "tile": the two-line "EQUIPMENT ▾ / <SELECTION>" cell with an invisible
  *   select over it (session editor, routines). `style` applies to the tile container.
  */
 export function GymSelect({
@@ -270,8 +270,8 @@ export function GymSelect({
   onChange,
   gyms = [],
   variant = 'field',
-  tileLabel = 'GYMS/EQUIPMENT ▾',
-  ariaLabel = 'Select Gyms/Equipment',
+  tileLabel = 'EQUIPMENT ▾',
+  ariaLabel = 'Select equipment',
   style
 }) {
   const select = (extraStyle = {}) => (

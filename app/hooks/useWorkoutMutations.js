@@ -114,7 +114,7 @@ export function useWorkoutMutations({
   appendSessionLog,
   // { [muscleGroup]: { daysAgo } } from useTelemetryAndAnalytics — drives which muscles are "behind"
   muscleStimulusStatus = {},
-  // Settings → Equipment (null = everything); drives every exercise picked for the athlete
+  // the Equipment page list (null = everything); drives every exercise picked for the athlete
   availableEquipment = null,
   // Training goal: sets the default scheme of new exercises (Strength 5x5, Hypertrophy 5x10, Maintain 5x8)
   goalType = 'Strength'
@@ -879,7 +879,7 @@ export function useWorkoutMutations({
   };
 
   /**
-   * Changes the gym/equipment selection and swaps every untouched exercise in the open editor for
+   * Changes the equipment selection and swaps every untouched exercise in the open editor for
    * its closest equivalent with that equipment (e.g. Barbell Bench Press → Dumbbell Bench Press).
    * Slots with any set marked done are left alone. New weights come from the swapped exercise's own
    * history (+ increment), or else a conversion of the old exercise's 1RM (dumbbells ≈ 35% lower).

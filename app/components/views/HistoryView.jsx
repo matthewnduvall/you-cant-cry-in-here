@@ -603,7 +603,7 @@ export function HistoryView({
                 />
               </div>
 
-              {/* Row 1 Filters: Gym/Equipment, Workout Type, Muscle Group */}
+              {/* Row 1 Filters: Equipment, Workout Type, Muscle Group */}
               <div
                 style={{
                   display: 'grid',
@@ -614,7 +614,7 @@ export function HistoryView({
               >
                 <GymSelect
                   variant="cell"
-                  ariaLabel="Filter by Gyms/Equipment"
+                  ariaLabel="Filter by equipment"
                   value={addPrGymFilter}
                   onChange={nextGym => {
                     setAddPrGymFilter(nextGym);

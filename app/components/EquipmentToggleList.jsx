@@ -1,8 +1,8 @@
 'use client';
 
 // ============================================================================
-// SETTINGS → EQUIPMENT (also Onboarding page 4)
-// One ON/OFF row per equipment type the athlete has. The list drives the defaults when exercises are picked
+// EQUIPMENT page list (also Onboarding page 4 and the saved-setup editor's AVAILABLE EQUIPMENT)
+// One ON/OFF row per GYM_EQUIPMENT_OPTIONS item. The list drives the defaults when exercises are picked
 // for them (+ ADD EXERCISE, AUTO SESSION, changing an exercise's type or muscle group); the per-exercise
 // filters and search always show the whole library.
 // ============================================================================

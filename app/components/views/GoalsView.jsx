@@ -377,7 +377,7 @@ export function GoalsView({
             </div>
 
             <div style={{ marginBottom: '12px' }}>
-              <div style={UI.stepLabel}>1. GYMS/EQUIPMENT</div>
+              <div style={UI.stepLabel}>1. EQUIPMENT</div>
               <GymSelect
                 value={addGoalGymFilter}
                 onChange={nextFilter => {
