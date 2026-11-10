@@ -21,6 +21,33 @@ export const GYM_EQUIPMENT_OPTIONS = [
   'Kettlebells'
 ];
 
+// Settings → Equipment starting lists for the old single-choice gym presets (used once to migrate)
+const PRESET_EQUIPMENT_LISTS = {
+  preset_barbells_only: ['Barbell', 'Weight Plates', 'EZ Bar', 'Landmine', 'Flat / Incline Bench', 'Squat Rack'],
+  preset_dumbbells_only: ['Dumbbell', 'Flat / Incline Bench'],
+  preset_kettlebells_only: ['Kettlebells'],
+  preset_bodyweight_only: ['Pull-Up Bar']
+};
+
+/** The equipment a gym selection stands for (Full Gym = everything). */
+export const getEquipmentListForGymSelection = (gymSelectionId, customGyms = []) => {
+  if (!gymSelectionId) return [...GYM_EQUIPMENT_OPTIONS];
+  if (PRESET_EQUIPMENT_LISTS[gymSelectionId]) return [...PRESET_EQUIPMENT_LISTS[gymSelectionId]];
+  const gym = (customGyms || []).find(g => g.id === gymSelectionId);
+  return Array.isArray(gym?.equipment) ? [...gym.equipment] : [...GYM_EQUIPMENT_OPTIONS];
+};
+
+/**
+ * Settings → Equipment: does the athlete have everything this exercise needs? Exercises that need no equipment
+ * (bodyweight) always fit; a missing list (not set yet) means everything is available.
+ */
+export const isExerciseAvailableWithEquipment = (ex, availableEquipment) => {
+  if (!ex) return false;
+  if (!Array.isArray(availableEquipment)) return true;
+  const have = new Set(availableEquipment);
+  return (ex.requiredEquipment || []).filter(req => req && req !== 'Bodyweight').every(req => have.has(req));
+};
+
 export const DEFAULT_GYM_EQUIPMENT_PRESETS = [
   { id: '', name: 'Full Gym (All)' },
   { id: 'preset_barbells_only', name: 'Barbells Only' },
@@ -587,10 +614,21 @@ const overlapScore = (a, b) => {
  * Returns the id of the exercise most similar to `exerciseId` that fits the gym selection,
  * the original id if it already fits, or null when nothing compatible targets the same muscles.
  */
-export const findEquivalentExerciseForGym = (exerciseId, gymSelectionId, customGyms = [], excludeIds = []) => {
+export const findEquivalentExerciseForGym = (exerciseId, gymSelectionId, customGyms = [], excludeIds = []) =>
+  findEquivalentExerciseWhere(
+    exerciseId,
+    ex => isExerciseCompatibleWithGymSelection(ex, gymSelectionId, customGyms),
+    excludeIds
+  );
+
+/** Like findEquivalentExerciseForGym, for the Settings → Equipment list (e.g. Bench Press → Dumbbell Bench Press). */
+export const findEquivalentExerciseForEquipment = (exerciseId, availableEquipment, excludeIds = []) =>
+  findEquivalentExerciseWhere(exerciseId, ex => isExerciseAvailableWithEquipment(ex, availableEquipment), excludeIds);
+
+const findEquivalentExerciseWhere = (exerciseId, isAllowed, excludeIds = []) => {
   const source = EXERCISE_MAP[exerciseId];
   if (!source) return null;
-  if (isExerciseCompatibleWithGymSelection(source, gymSelectionId, customGyms)) return source.id;
+  if (isAllowed(source)) return source.id;
 
   const sourceTokens = movementTokens(source.name);
   const sourceMuscles = new Set(source.specificMuscles || []);
@@ -599,7 +637,7 @@ export const findEquivalentExerciseForGym = (exerciseId, gymSelectionId, customG
 
   EXERCISE_LIBRARY.forEach(cand => {
     if (cand.id === source.id || excludeIds.includes(cand.id)) return;
-    if (!isExerciseCompatibleWithGymSelection(cand, gymSelectionId, customGyms)) return;
+    if (!isAllowed(cand)) return;
     const nameScore = overlapScore(sourceTokens, movementTokens(cand.name));
     const sameGroup = cand.muscleGroup === source.muscleGroup;
     // Cross-muscle-group matches must share a movement word (e.g. Deadlift → Romanian Deadlift).
@@ -680,28 +718,15 @@ export const getUniqueShortExerciseNames = (exercises = [], currentEquipment = '
 const EQUIPMENT_KEPT_WHOLE = new Set(['lever / machine']);
 const EQUIPMENT_OPTION_ALIASES = { 'weight plates': 'Plate' };
 
-// Equipment-only gym presets: which equipment options they allow (custom gyms and Full Gym allow all)
-const PRESET_EQUIPMENT_OPTION_WORDS = {
-  preset_barbells_only: ['barbell', 'ez bar', 'landmine'],
-  barbell: ['barbell', 'ez bar', 'landmine'],
-  preset_dumbbells_only: ['dumbbell'],
-  dumbbell: ['dumbbell'],
-  preset_kettlebells_only: ['kettlebell'],
-  kettlebell: ['kettlebell'],
-  preset_bodyweight_only: ['bodyweight', 'body weight', 'isometric', 'stretch', 'plyometric', 'self-assisted'],
-  bodyweight: ['bodyweight', 'body weight', 'isometric', 'stretch', 'plyometric', 'self-assisted']
-};
-
-/**
- * Equipment options of an exercise that the gym selection allows, e.g. "Dumbbell / Barbell" under Barbells Only
- * → ["Barbell"]. Falls back to all of the exercise's options when none match.
- */
-export const getExerciseEquipmentOptionsForGym = (ex, gymSelectionId) => {
-  const options = getExerciseEquipmentOptions(ex);
-  const words = PRESET_EQUIPMENT_OPTION_WORDS[gymSelectionId || ''];
-  if (!words) return options;
-  const allowed = options.filter(option => words.some(word => option.toLowerCase().includes(word)));
-  return allowed.length > 0 ? allowed : options;
+let allEquipmentFilterOptions = null;
+/** Every equipment option in the library, for the per-exercise equipment filter (always all of them). */
+export const getAllEquipmentFilterOptions = () => {
+  if (!allEquipmentFilterOptions) {
+    allEquipmentFilterOptions = [...new Set(EXERCISE_LIBRARY.flatMap(getExerciseEquipmentOptions))].sort((a, b) =>
+      a.localeCompare(b)
+    );
+  }
+  return allEquipmentFilterOptions;
 };
 
 /** Equipment filter options an exercise belongs to, e.g. "Landmine / Barbell" → ["Landmine", "Barbell"]. */

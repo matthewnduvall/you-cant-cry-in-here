@@ -30,7 +30,7 @@ import {
   workoutSyncSignature
 } from '../utils/cloudSyncLedger';
 import { getInitial1RMs, getBestHistory1RM } from '../utils/workoutEngine';
-import { EXERCISE_LIBRARY, normalizeSlotCategory } from '../data/exerciseLibrary';
+import { getEquipmentListForGymSelection, EXERCISE_LIBRARY, normalizeSlotCategory } from '../data/exerciseLibrary';
 
 export function useCloudAndStorageSync({
   isStorageHydrated,
@@ -65,6 +65,8 @@ export function useCloudAndStorageSync({
   setPendingInviter,
   selectedGymId,
   setSelectedGymId,
+  availableEquipment,
+  setAvailableEquipment,
   goalType,
   setGoalType,
   goalIncrement,
@@ -128,6 +130,11 @@ export function useCloudAndStorageSync({
       if (hydrated.outgoingInvites) setOutgoingInvites(hydrated.outgoingInvites);
       if (hydrated.settings) {
         setSelectedGymId(hydrated.settings.selectedGymId || '');
+        setAvailableEquipment(
+          Array.isArray(hydrated.settings.availableEquipment)
+            ? hydrated.settings.availableEquipment
+            : getEquipmentListForGymSelection(hydrated.settings.selectedGymId, hydrated.gyms || [])
+        );
         if (hydrated.settings.goals) {
           setGoalType(hydrated.settings.goals.goalType || 'Strength');
           setGoalIncrement(hydrated.settings.goals.goalIncrement ?? 1.25);
@@ -389,6 +396,9 @@ export function useCloudAndStorageSync({
             if (cloud.settings.selectedGymId !== undefined) {
               setSelectedGymId(prev => prev || cloud.settings.selectedGymId || '');
             }
+            if (Array.isArray(cloud.settings.availableEquipment)) {
+              setAvailableEquipment(cloud.settings.availableEquipment);
+            }
             if (cloud.settings.bodyMetrics) {
               if (cloud.settings.bodyMetrics.bodyweightLbs) setUserBodyweightLbs(cloud.settings.bodyMetrics.bodyweightLbs);
               if (cloud.settings.bodyMetrics.heightFeet !== undefined) setUserHeightFeet(cloud.settings.bodyMetrics.heightFeet);
@@ -530,7 +540,8 @@ export function useCloudAndStorageSync({
             stimulus: { greenDays: stimulusGreenDays, yellowDays: stimulusYellowDays },
             routinePreferences,
             social: { shareStatsWithFriends, shareRoutinesWithFriends, profileIsPublic },
-            selectedGymId
+            selectedGymId,
+            availableEquipment
           }
         };
         window.localStorage.setItem(PERSISTENCE_KEY, JSON.stringify(payload));
@@ -599,6 +610,7 @@ export function useCloudAndStorageSync({
     shareRoutinesWithFriends,
     profileIsPublic,
     selectedGymId,
+    availableEquipment,
     cloudPullReadyTick
   ]);
 
@@ -654,6 +666,11 @@ export function useCloudAndStorageSync({
           setShareRoutinesWithFriends(rehydrated.settings.social.shareRoutinesWithFriends);
           setProfileIsPublic(rehydrated.settings.social.profileIsPublic ?? true);
           setSelectedGymId(rehydrated.settings.selectedGymId);
+          setAvailableEquipment(
+            Array.isArray(rehydrated.settings.availableEquipment)
+              ? rehydrated.settings.availableEquipment
+              : getEquipmentListForGymSelection(rehydrated.settings.selectedGymId, rehydrated.gyms || [])
+          );
         }
       } catch {
         // ignore

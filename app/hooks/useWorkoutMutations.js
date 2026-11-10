@@ -12,7 +12,6 @@ import {
   formatTitleWithDate,
   parseYMDToISO,
   formatTodayYMD,
-  isExerciseCompatibleWithGymSelection,
   findEquivalentExerciseForGym,
   convertEquivalent1RM,
   filterAddSlotExercises,
@@ -20,7 +19,9 @@ import {
   getAvailableMuscleGroupsForCategory,
   roundTo5,
   roundToIncrement,
-  CORE_PR_EXERCISE_IDS
+  CORE_PR_EXERCISE_IDS,
+  isExerciseAvailableWithEquipment,
+  findEquivalentExerciseForEquipment
 } from '../data/exerciseLibrary';
 import {
   getBestHistory1RM,
@@ -30,6 +31,7 @@ import {
   getEffectiveIncrementForExercise,
   createWorkoutSlot,
   generateSetsForScheme,
+  getDefaultSchemeForGoal,
   getSupersetSchemes,
   normalizeSlotLabels,
   buildPresetSlots,
@@ -111,8 +113,20 @@ export function useWorkoutMutations({
   setShowAddSlotModal,
   appendSessionLog,
   // { [muscleGroup]: { daysAgo } } from useTelemetryAndAnalytics — drives which muscles are "behind"
-  muscleStimulusStatus = {}
+  muscleStimulusStatus = {},
+  // Settings → Equipment (null = everything); drives every exercise picked for the athlete
+  availableEquipment = null,
+  // Training goal: sets the default scheme of new exercises (Strength 5x5, Hypertrophy 5x10, Maintain 5x8)
+  goalType = 'Strength'
 }) {
+  const defaultScheme = getDefaultSchemeForGoal(goalType);
+  const isAvailable = ex => isExerciseAvailableWithEquipment(ex, availableEquipment);
+  // Default picks prefer exercises the athlete has the equipment for; the full list is the fallback
+  const preferAvailable = pool => {
+    const available = pool.filter(isAvailable);
+    return available.length > 0 ? available : pool;
+  };
+
   const getCurrentEditorWorkout = () => {
     if (currentView === 'historical_entry') return historicalDraft;
     if (currentView === 'routine_editor') return routineDraft;
@@ -213,15 +227,12 @@ export function useWorkoutMutations({
       }
     });
 
-    const compatiblePool = EXERCISE_LIBRARY.filter(ex =>
-      isExerciseCompatibleWithGymSelection(ex, selectedGymId, gyms)
-    );
-    const fallbackPool = compatiblePool.length > 0 ? compatiblePool : EXERCISE_LIBRARY;
+    const fallbackPool = preferAvailable(EXERCISE_LIBRARY);
     const isTrainingExercise = ex =>
       !NON_TRAINING_EQUIPMENT.some(word => String(ex.equipment || '').toLowerCase().includes(word));
 
-    // Big 3 + OHP, or each one's closest equivalent for the active gyms/equipment filter
-    const big4Order = CORE_PR_EXERCISE_IDS.map(id => findEquivalentExerciseForGym(id, selectedGymId, gyms)).filter(
+    // Big 3 + OHP, or each one's closest equivalent for the athlete's equipment
+    const big4Order = CORE_PR_EXERCISE_IDS.map(id => findEquivalentExerciseForEquipment(id, availableEquipment)).filter(
       Boolean
     );
     const big4Rank = id => {
@@ -276,7 +287,7 @@ export function useWorkoutMutations({
           category: 'Compound',
           slotLabel: 'Compound',
           exerciseId: pick.id,
-          scheme: '5x8',
+          scheme: defaultScheme,
           oneRepMaxes,
           history,
           incrementLbs: currentIncrementLbs,
@@ -290,7 +301,7 @@ export function useWorkoutMutations({
           category: 'Superset',
           slotLabel: 'Superset',
           supersetExerciseIds: [a1.id, a2.id],
-          scheme: '5x8',
+          scheme: defaultScheme,
           oneRepMaxes,
           history,
           incrementLbs: currentIncrementLbs,
@@ -302,7 +313,7 @@ export function useWorkoutMutations({
         category: 'Accessory',
         slotLabel: 'Accessory',
         exerciseId: pick.id,
-        scheme: '5x8',
+        scheme: defaultScheme,
         oneRepMaxes,
         history,
         incrementLbs: currentIncrementLbs,
@@ -987,14 +998,13 @@ export function useWorkoutMutations({
       }
     }
 
-    const availMuscles = getAvailableMuscleGroupsForCategory(cats[half], selectedGymId, gyms);
+    // Filters cover the whole library; only the default exercise picked below prefers the athlete's equipment
+    const availMuscles = getAvailableMuscleGroupsForCategory(cats[half], '', []);
     if (!availMuscles.includes(muscles[half])) muscles[half] = 'All Muscles';
 
     if (!changes.exerciseId && (changes.category || changes.muscleGroupFilter !== undefined)) {
-      const pool = getFilteredExercisesForSlotInline(
-        { category: cats[half], muscleGroupFilter: muscles[half] },
-        selectedGymId,
-        gyms
+      const pool = preferAvailable(
+        getFilteredExercisesForSlotInline({ category: cats[half], muscleGroupFilter: muscles[half] }, '', [])
       ).filter(ex => ex.id !== ids[1 - half]);
       if (pool.length > 0 && !pool.some(ex => ex.id === ids[half])) {
         ids[half] = pool[0].id;
@@ -1081,7 +1091,8 @@ export function useWorkoutMutations({
             : slot.familyMuscleGroup || currentEx.muscleGroup || 'Chest';
 
         let nextCategory = normalizeSlotCategory(changes.category ?? slot.category);
-        const availMuscleGroups = getAvailableMuscleGroupsForCategory(nextCategory, selectedGymId, gyms);
+        // Filters cover the whole library; only default exercise picks prefer the athlete's equipment
+        const availMuscleGroups = getAvailableMuscleGroupsForCategory(nextCategory, '', []);
         let rawNextMuscleFilter;
         if (changes.muscleGroupFilter !== undefined) {
           rawNextMuscleFilter = changes.muscleGroupFilter;
@@ -1107,10 +1118,8 @@ export function useWorkoutMutations({
           slot.supersetExerciseIds ??
           [nextExId, slot.secondaryExerciseId].filter(Boolean);
 
-        const candidatePool = getFilteredExercisesForSlotInline(
-          { ...slot, category: nextCategory, muscleGroupFilter: nextMuscleFilter },
-          selectedGymId,
-          gyms
+        const candidatePool = preferAvailable(
+          getFilteredExercisesForSlotInline({ ...slot, category: nextCategory, muscleGroupFilter: nextMuscleFilter }, '', [])
         );
 
         if (

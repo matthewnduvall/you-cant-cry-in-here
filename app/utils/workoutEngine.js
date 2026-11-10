@@ -102,9 +102,14 @@ export const insertHistoryEntrySorted = (history, entry) =>
     (a, b) => new Date(b.startedAt || 0).getTime() - new Date(a.startedAt || 0).getTime()
   );
 
+/** Default scheme for new exercises from the training goal: Strength 5x5, Hypertrophy 5x10, Maintain 5x8. */
+export const getDefaultSchemeForGoal = goalType =>
+  goalType === 'Hypertrophy' ? '5x10' : goalType === 'Maintain' ? '5x8' : '5x5';
+
 export const SCHEME_OPTIONS = [
   '5x5',
   '5x8',
+  '5x10',
   '8x8',
   'Pyramid',
   'Pyramid 1RM',
@@ -410,6 +415,8 @@ export const generateSetsForScheme = (
       );
     case '5x5':
       return buildWithLastAndTarget(Array.from({ length: 5 }, () => ({ type: 'Working', reps: 5 })));
+    case '5x10':
+      return buildWithLastAndTarget(Array.from({ length: 5 }, () => ({ type: 'Working', reps: 10 })));
     case '8x8':
       return buildWithLastAndTarget(Array.from({ length: 8 }, () => ({ type: 'Working', reps: 8 })));
     case 'Pyramid':

@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { SFSymbol, SessionRestTimerBar } from './Primitives';
+import { SFSymbol, SessionRestTimerBar, SessionTitleBar } from './Primitives';
 import { getNextIncompleteSetInfo } from '../utils/workoutEngine';
 import { Button } from './Controls';
 
@@ -15,6 +15,8 @@ export function AppHeaderAndDrawer({
   isRoutineEditorView,
   currentEditorWorkout,
   onFinishSession,
+  // RESET in the locked session header
+  onResetSession,
   // true while the save confirmation opened by the ✓ is showing (the ✓ turns green)
   finishSessionPending = false,
   timerTrigger,
@@ -130,7 +132,17 @@ export function AppHeaderAndDrawer({
         </div>
 
         {isRoutineEditorView && currentEditorWorkout && (
+          <SessionTitleBar
+            title={currentEditorWorkout.title || ''}
+            onChangeTitle={value => updateCurrentWorkoutState(prev => ({ ...prev, title: value }))}
+            onSave={onFinishSession}
+            onReset={onResetSession}
+            showActions={(currentEditorWorkout.slots || []).length > 0 && Boolean(onFinishSession)}
+          />
+        )}
+        {isRoutineEditorView && currentEditorWorkout && (
           <SessionRestTimerBar
+            flushTop
             defaultRestSeconds={currentEditorWorkout.defaultRestSeconds || 90}
             timerTrigger={timerTrigger}
             nextLiftInfo={getNextIncompleteSetInfo(currentEditorWorkout.slots)}
