@@ -643,7 +643,8 @@ export function HistoryView({
               targetStandardClass,
               userBodyweightLbs,
               totalHeightInches,
-              customGoalWeights
+              customGoalWeights,
+              oneRepMaxes
             );
             const diffFromGoal = !isTBD && goal1RM ? goal1RM - current1RM : null;
 

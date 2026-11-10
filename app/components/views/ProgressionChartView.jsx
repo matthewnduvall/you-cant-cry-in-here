@@ -460,7 +460,8 @@ export function ProgressionChartView({
               targetStandardClass,
               userBodyweightLbs,
               totalHeightInches,
-              customGoalWeights
+              customGoalWeights,
+              oneRepMaxes
             );
             const distance = Math.max(0, goalWeight - cur1RM);
             const series = filteredSeriesByLift[liftId] || [];
