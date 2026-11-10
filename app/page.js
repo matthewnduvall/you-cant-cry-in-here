@@ -136,6 +136,8 @@ export default function App() {
     'Superset',
     'Abs'
   ]);
+  // Exercise Set Preferences (Configuration → ROUTINES): set types by position for new exercises
+  const [setPreferences, setSetPreferences] = useState(['Warmup', 'Warmup', 'Working', 'Working', 'Working']);
   const [shareStatsWithFriends, setShareStatsWithFriends] = useState(true);
   const [shareRoutinesWithFriends, setShareRoutinesWithFriends] = useState(true);
   // Public profiles let friends-of-friends see you in their friend lists (Profile → FRIENDS)
@@ -274,6 +276,8 @@ export default function App() {
     setStimulusYellowDays,
     routinePreferences,
     setRoutinePreferences,
+    setPreferences,
+    setSetPreferences,
     shareStatsWithFriends,
     setShareStatsWithFriends,
     shareRoutinesWithFriends,
@@ -359,6 +363,7 @@ export default function App() {
     setSelectedGymId,
     gyms,
     routinePreferences,
+    setPreferences,
     currentIncrementLbs,
     userBodyweightLbs,
     shareRoutinesWithFriends,
@@ -829,6 +834,7 @@ export default function App() {
                 setDeleteConfirmTarget
               }}
               routinePreferencesProps={{ routinePreferences, setRoutinePreferences }}
+              setPreferencesProps={{ setPreferences, setSetPreferences }}
             />
           )}
 

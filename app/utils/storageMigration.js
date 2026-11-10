@@ -76,6 +76,8 @@ export const DEFAULT_SETTINGS_V2 = {
   },
   stimulus: { greenDays: 2, yellowDays: 4 },
   routinePreferences: ['Compound', 'Compound', 'Superset', 'Superset', 'Accessory'],
+  // Exercise Set Preferences: the type of each set (by position) for new exercises on the uniform rep schemes
+  setPreferences: ['Warmup', 'Warmup', 'Working', 'Working', 'Working'],
   social: { shareStatsWithFriends: true, shareRoutinesWithFriends: true, profileIsPublic: true },
   selectedGymId: '',
   // the Equipment page list (GYM_EQUIPMENT_OPTIONS the athlete has); null = not chosen yet (derived from selectedGymId)
@@ -190,7 +192,13 @@ export const loadHydratedAppState = () => {
       },
       stimulus: { ...DEFAULT_SETTINGS_V2.stimulus, ...(parsed.settings?.stimulus || {}) },
       social: { ...DEFAULT_SETTINGS_V2.social, ...(parsed.settings?.social || {}) },
-      routinePreferences: cleanedRoutinePrefs.length > 0 ? cleanedRoutinePrefs : DEFAULT_SETTINGS_V2.routinePreferences
+      routinePreferences: cleanedRoutinePrefs.length > 0 ? cleanedRoutinePrefs : DEFAULT_SETTINGS_V2.routinePreferences,
+      setPreferences:
+        Array.isArray(parsed.settings?.setPreferences) &&
+        parsed.settings.setPreferences.length > 0 &&
+        parsed.settings.setPreferences.every(t => ['Warmup', 'Working', 'Top Out', 'Burn Out'].includes(t))
+          ? parsed.settings.setPreferences
+          : DEFAULT_SETTINGS_V2.setPreferences
     };
 
     const hydratedHistory = Array.isArray(parsed.history)

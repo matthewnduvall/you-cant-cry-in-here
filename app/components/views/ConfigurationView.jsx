@@ -9,7 +9,7 @@
 
 import React from 'react';
 import { TabBar, Button } from '../Controls';
-import { BodyMetricsSection, RoutinePreferencesSection } from './SettingsView';
+import { BodyMetricsSection, RoutinePreferencesSection, SetPreferencesSection } from './SettingsView';
 import { GoalsView } from './GoalsView';
 import { GymsView } from './GymsView';
 import { RoutinesView } from './RoutinesView';
@@ -30,7 +30,8 @@ export function ConfigurationView({
   goalsProps,
   equipmentProps,
   routinesProps,
-  routinePreferencesProps
+  routinePreferencesProps,
+  setPreferencesProps
 }) {
   const tabIndex = Math.max(
     0,
@@ -58,6 +59,7 @@ export function ConfigurationView({
         <>
           <div style={{ paddingTop: '16px' }}>
             <RoutinePreferencesSection colors={colors} {...routinePreferencesProps} />
+            <SetPreferencesSection colors={colors} {...setPreferencesProps} />
           </div>
           <RoutinesView colors={colors} showCancel={false} {...routinesProps} />
         </>
