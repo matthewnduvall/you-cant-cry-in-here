@@ -673,6 +673,7 @@ export function SlotEditor({
         />
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 0, minWidth: 0 }}>
+          {/* Superset: every set is labelled with its exercise (shortened name) so A and B sets are easy to tell apart */}
           {isSuperset && (
             <div
               style={{
@@ -690,7 +691,7 @@ export function SlotEditor({
               }}
             >
               {exIdx === 0 ? 'A: ' : 'B: '}
-              {exObj.name}
+              {stripEquipmentFromExerciseName(exObj.name)}
             </div>
           )}
 
@@ -698,7 +699,7 @@ export function SlotEditor({
           <div
             style={{
               display: 'grid',
-              gridTemplateColumns: '96px minmax(0, 1fr) minmax(0, 1fr) 44px',
+              gridTemplateColumns: '96px minmax(0, 1fr) minmax(0, 1fr) 52px',
               gap: 0,
               alignItems: 'stretch'
             }}
@@ -790,7 +791,7 @@ export function SlotEditor({
               aria-pressed={Boolean(st.completed)}
               onClick={() => onToggleDone?.({ exIdx, set: st })}
               style={{
-                width: '44px',
+                width: '52px',
                 height: '44px',
                 boxSizing: 'border-box',
                 padding: 0,
@@ -814,6 +815,7 @@ export function SlotEditor({
           label="Delete set"
           variant="outline"
           fill
+          style={{ color: '#8E8E93' }}
           onClick={() => onDeleteSet?.({ exIdx, set: st, exercise: exObj })}
         />
       </div>

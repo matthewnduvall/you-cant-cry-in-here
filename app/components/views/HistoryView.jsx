@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { SHARED_CELL_BORDER, SHARED_GROUP_OUTER } from '../../styles/kineticTokens';
+import { UI, SHARED_CELL_BORDER, SHARED_GROUP_OUTER } from '../../styles/kineticTokens';
 import { RoutineEditorView } from './RoutineEditorView';
 import {
   BIG_FOUR_IDS,
@@ -496,17 +496,7 @@ export function HistoryView({
       {/* 1. PERSONAL RECORDS SECTION (STANDARDIZED WITH ONBOARDING PAGE 3) */}
       {/* =================================================================== */}
       <section style={{ marginBottom: '20px', padding: '0 var(--dp-spacing-gutter)' }}>
-        <div
-          style={{
-            fontSize: '11px',
-            fontWeight: 800,
-            color: colors?.secondaryLabel || '#A0A0A0',
-            marginBottom: '6px',
-            textTransform: 'uppercase'
-          }}
-        >
-          PERSONAL RECORDS
-        </div>
+        <div style={{ ...UI.sectionTitle, marginBottom: '8px' }}>PERSONAL RECORDS</div>
 
         <div
           style={{
@@ -845,17 +835,7 @@ export function HistoryView({
       {/* 2. HISTORY SECTION (STANDARDIZED SIZE, FONT & SHARED BORDERS) */}
       {/* =================================================================== */}
       <section style={{ marginBottom: '20px', padding: '0 var(--dp-spacing-gutter)' }}>
-        <div
-          style={{
-            fontSize: '11px',
-            fontWeight: 800,
-            color: colors?.secondaryLabel || '#A0A0A0',
-            marginBottom: '6px',
-            textTransform: 'uppercase'
-          }}
-        >
-          HISTORY ({totalSessions})
-        </div>
+        <div style={{ ...UI.sectionTitle, marginBottom: '8px' }}>HISTORY ({totalSessions})</div>
 
         <div
           style={{

@@ -118,6 +118,7 @@ export function SettingsView({
             <div style={{ display: 'flex', gap: '6px' }}>
               <Button
                 variant="toggle"
+                style={{ width: '40px', height: '40px', padding: 0 }}
                 disabled={idx === 0}
                 onClick={() =>
                   setRoutinePreferences(prev => {
@@ -133,6 +134,7 @@ export function SettingsView({
               </Button>
               <Button
                 variant="toggle"
+                style={{ width: '40px', height: '40px', padding: 0 }}
                 disabled={idx === routinePreferences.length - 1}
                 onClick={() =>
                   setRoutinePreferences(prev => {
@@ -149,7 +151,7 @@ export function SettingsView({
               <Button
                 variant="toggle"
                 onClick={() => setRoutinePreferences(prev => prev.filter((_, i) => i !== idx))}
-                style={{ color: '#FF3B30' }}
+                style={{ width: '40px', height: '40px', padding: 0, color: '#FF3B30' }}
               >
                 ✕
               </Button>
@@ -164,7 +166,7 @@ export function SettingsView({
                 variant="toggle"
                 key={type}
                 onClick={() => setRoutinePreferences(prev => [...prev, type])}
-                style={{ color: 'var(--dp-color-accent)' }}
+                style={{ color: 'var(--dp-color-accent)', minHeight: '40px' }}
               >
                 + {type}
               </Button>

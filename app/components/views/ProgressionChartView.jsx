@@ -7,7 +7,7 @@ import {
   getExRxTargetForLift,
   parseYMDToISO
 } from '../../data/exerciseLibrary';
-import { SHARED_CELL_BORDER, SHARED_GROUP_OUTER } from '../../styles/kineticTokens';
+import { UI, SHARED_CELL_BORDER, SHARED_GROUP_OUTER } from '../../styles/kineticTokens';
 import { SegmentButton } from '../Controls';
 
 // Big 3 + OHP: each has its own toggle and is shown by default
@@ -186,17 +186,7 @@ export function ProgressionChartView({
   return (
     <div style={{ paddingTop: '12px', paddingBottom: '36px' }}>
       <section style={{ padding: '0 var(--dp-spacing-gutter)' }}>
-        <div
-          style={{
-            fontSize: '11px',
-            fontWeight: 800,
-            color: colors?.secondaryLabel || '#A0A0A0',
-            marginBottom: '6px',
-            textTransform: 'uppercase'
-          }}
-        >
-          PROGRESS
-        </div>
+        <div style={{ ...UI.sectionTitle, marginBottom: '8px' }}>PROGRESS</div>
 
         <div
           style={{
@@ -243,7 +233,6 @@ export function ProgressionChartView({
               return (
                 <SegmentButton
                   active={isActive}
-                  activeColor="ink"
                   inactiveColor="#A0A0A0"
                   key={tf.id}
                   onClick={() => setTimeFrame(tf.id)}
@@ -275,7 +264,6 @@ export function ProgressionChartView({
               return (
                 <SegmentButton
                   active={active}
-                  activeColor="ink"
                   inactiveColor="#A0A0A0"
                   key={f.isCustom ? 'CUSTOM' : f.id}
                   onClick={() => toggleLift(f.id)}
@@ -283,10 +271,23 @@ export function ProgressionChartView({
                     height: '42px',
                     padding: '0 4px',
                     fontSize: '11px',
-                    // Lift colour under each toggle so the buttons double as the chart legend
-                    boxShadow: `inset 0 -3px 0 ${active ? color : 'transparent'}`
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '4px'
                   }}
                 >
+                  {/* The lift's line colour, so the toggles double as the chart legend */}
+                  <span
+                    aria-hidden="true"
+                    style={{
+                      width: '8px',
+                      height: '8px',
+                      flexShrink: 0,
+                      backgroundColor: color,
+                      outline: active ? '1px solid #101010' : 'none'
+                    }}
+                  />
                   {f.label}
                 </SegmentButton>
               );
