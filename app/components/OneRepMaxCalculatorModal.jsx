@@ -293,8 +293,15 @@ export function OneRepMaxCalculatorModal({
               onApply: value => updateSet(set.id, mode, value)
             })
           }
-          onEditWeight={({ set, exercise }) =>
-            openPlateCalculatorForSet?.(slot.id, 0, set, exercise.name, weight => updateSet(set.id, 'weight', weight))
+          onEditWeight={({ set, exercise, exIdx: _exIdx, ...setInfo }) =>
+            openPlateCalculatorForSet?.(
+              slot.id,
+              0,
+              set,
+              exercise.name,
+              weight => updateSet(set.id, 'weight', weight),
+              setInfo
+            )
           }
           onToggleDone={({ set }) => updateSet(set.id, 'completed', !set.completed)}
           onDeleteSet={({ set }) => deleteSet(set.id)}

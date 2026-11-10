@@ -130,7 +130,8 @@ function PrBadge({ marginRight = '6px' }) {
  * - onHeaderChange(changes): { category | muscleGroupFilter | scheme | exerciseId | supersetExerciseIds }
  * - onRemove / removeLabel: the full-height ✕ on the header
  * - onEditSetValue({ mode, exIdx, set, exercise, currentValue }): mode = type | increment | reps | timer
- * - onEditWeight({ exIdx, set, exercise }): CURRENT weight pop-up
+ * - onEditWeight({ exIdx, set, exercise, lastDisplay, incrementDisplay, onEditIncrement }): CURRENT weight
+ *   pop-up; LAST / INC are shown there (not as row columns), INC is null for Timer sets
  * - onToggleDone({ exIdx, set }), onDeleteSet({ exIdx, set, exercise })
  * - onReorderSets(exIdx, fromIdx, toIdx), onInsertSet('top' | 'bottom')
  * - actionLabel / onAction / actionTone ('recalculate' | 'calculate'): third bottom button
@@ -292,13 +293,11 @@ export function SlotEditor({
             </div>
           )}
 
-          {/* Set Type, LAST, [INC unless Timer], CURRENT, REPS/TIMER, ✓ */}
+          {/* Set Type, CURRENT, REPS/TIMER, ✓ (LAST / INC live in the CURRENT weight pop-up) */}
           <div
             style={{
               display: 'grid',
-              gridTemplateColumns: isTimerScheme
-                ? '78px minmax(0, 1fr) 74px minmax(0, 1fr) 44px'
-                : '78px minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.15fr) 50px 44px',
+              gridTemplateColumns: '96px minmax(0, 1fr) minmax(0, 1fr) 44px',
               gap: 0,
               alignItems: 'stretch'
             }}
@@ -309,44 +308,42 @@ export function SlotEditor({
               onClick={() => editValue('type', curType)}
               style={{
                 ...setCellStyle(cellBg),
-                display: 'block',
                 padding: '0 4px',
                 color: '#FFFFFF',
                 fontSize: '12px',
                 fontWeight: 800,
                 textTransform: 'uppercase',
-                cursor: 'pointer',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                textAlign: 'center'
+                cursor: 'pointer'
               }}
             >
-              {curType.toUpperCase()}
-            </button>
-
-            <div style={{ ...setCellStyle(cellBg), padding: 0, userSelect: 'none', pointerEvents: 'none' }}>
-              <span style={cellLabelStyle}>LAST</span>
-              <span style={cellValueStyle('#C8C8C8', isTimerScheme ? '13px' : '15px')}>
-                {isTimerScheme ? lastTimerDisplay : lastW}
-              </span>
-            </div>
-
-            {!isTimerScheme && (
-              <button
-                type="button"
-                aria-label="Weight Increment"
-                onClick={() => editValue('increment', setIncValue)}
-                style={{ ...setCellStyle(cellBg), cursor: 'pointer' }}
+              <span
+                style={{
+                  display: 'block',
+                  maxWidth: '100%',
+                  lineHeight: 1,
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  textAlign: 'center'
+                }}
               >
-                <span style={cellLabelStyle}>INC</span>
-                <span style={cellValueStyle()}>{displayIncValue}</span>
-              </button>
-            )}
+                {curType.toUpperCase()}
+              </span>
+            </button>
 
             <button
               type="button"
               aria-label="Current Weight"
-              onClick={() => onEditWeight?.({ exIdx, set: st, exercise: exObj })}
+              onClick={() =>
+                onEditWeight?.({
+                  exIdx,
+                  set: st,
+                  exercise: exObj,
+                  exerciseId: exObj.id,
+                  lastDisplay: isTimerScheme ? lastTimerDisplay : lastW,
+                  incrementDisplay: isTimerScheme ? null : displayIncValue,
+                  onEditIncrement: isTimerScheme ? null : () => editValue('increment', setIncValue)
+                })
+              }
               style={{ ...setCellStyle(cellBg), cursor: 'pointer', overflow: 'hidden' }}
             >
               <span style={cellLabelStyle}>CURRENT</span>
