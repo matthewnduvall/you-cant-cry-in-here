@@ -40,6 +40,7 @@ import {
   getSupersetSchemes
 } from '../utils/workoutEngine';
 import { DeleteButton, DragNumberBadge } from './Controls';
+import { usePointerReorder } from '../hooks/usePointerReorder';
 
 // Header grid: at phone width ≈ SEARCH 95 / TYPE 102 / MUSCLE 108 px on row 1 and
 // SCHEME 80 / EQUIPMENT 100 / EXERCISE 125 px on row 2, so the usual labels fit without being cut off
@@ -210,7 +211,9 @@ function PrBadge({ marginRight = '6px' }) {
 export function SlotEditor({
   slot,
   number = 1,
-  headerTitle = 'Click and drag to rearrange exercise',
+  headerTitle = 'Drag to rearrange exercise',
+  // Pointer-drag props for the exercise's numbered handle (from the host's usePointerReorder)
+  dragHandleProps,
   categories = SLOT_CATEGORIES,
   history = [],
   oneRepMaxes = {},
@@ -231,7 +234,20 @@ export function SlotEditor({
   actionTone = 'recalculate',
   footer = null
 }) {
-  const [draggedSet, setDraggedSet] = useState(null);
+  // Drag a set's numbered handle to reorder sets (pointer events: works with touch). Keys are 'exIdx:setIdx';
+  // superset sets only move within their own exercise.
+  const {
+    dragKey: draggedSetKey,
+    overKey: overSetKey,
+    handleProps: setHandleProps
+  } = usePointerReorder(
+    (from, to) => {
+      const [fromEx, fromIdx] = String(from).split(':').map(Number);
+      const [toEx, toIdx] = String(to).split(':').map(Number);
+      if (fromEx === toEx && fromIdx !== toIdx) onReorderSets?.(fromEx, fromIdx, toIdx);
+    },
+    { attribute: 'data-set-reorder', canDrop: (from, to) => from.split(':')[0] === to.split(':')[0], edgeTop: 190 }
+  );
   // null = search closed; { half, query } = the search box of that exercise (0 = A / single, 1 = B) is open
   const [search, setSearch] = useState(null);
 
@@ -614,8 +630,9 @@ export function SlotEditor({
     );
   };
 
-  const isDragging = (exIdx, setIdx) =>
-    draggedSet && draggedSet.exIdx === exIdx && (setIdx === undefined || draggedSet.setIdx === setIdx);
+  const isDragging = (exIdx, setIdx) => draggedSetKey === `${exIdx}:${setIdx}`;
+  const isDropTarget = (exIdx, setIdx) =>
+    draggedSetKey !== null && overSetKey === `${exIdx}:${setIdx}` && draggedSetKey !== overSetKey;
 
   const renderSetRow = ({ exIdx, exId, set: st, setIdx, total }) => {
     const rowScheme = schemes[exIdx] || schemes[0];
@@ -641,31 +658,15 @@ export function SlotEditor({
     return (
       <div
         key={`${exIdx}_${st.id}`}
-        draggable={true}
-        onDragStart={e => {
-          e.stopPropagation();
-          setDraggedSet({ exIdx, setIdx });
-        }}
-        onDragOver={e => {
-          if (isDragging(exIdx)) {
-            e.preventDefault();
-            e.stopPropagation();
-          }
-        }}
-        onDrop={e => {
-          e.stopPropagation();
-          if (isDragging(exIdx) && draggedSet.setIdx !== setIdx) {
-            onReorderSets?.(exIdx, draggedSet.setIdx, setIdx);
-          }
-          setDraggedSet(null);
-        }}
-        onDragEnd={() => setDraggedSet(null)}
+        data-set-reorder={`${exIdx}:${setIdx}`}
         style={{
           display: 'grid',
           gridTemplateColumns: '34px minmax(0, 1fr) 34px',
           gap: 0,
           alignItems: 'stretch',
-          opacity: isDragging(exIdx, setIdx) ? 0.55 : 1
+          opacity: isDragging(exIdx, setIdx) ? 0.55 : 1,
+          // Where the dragged set will land
+          boxShadow: isDropTarget(exIdx, setIdx) ? 'inset 0 0 0 2px var(--dp-color-accent)' : 'none'
         }}
       >
         <DragNumberBadge
@@ -673,7 +674,9 @@ export function SlotEditor({
           color={isSuperset && exIdx === 0 ? 'var(--dp-color-accent)' : '#FFFFFF'}
           height="100%"
           bg={cellBg}
-          title="Click and drag to rearrange set"
+          title="Drag to rearrange set"
+          aria-label={`Drag to reorder set ${setNumText}`}
+          {...setHandleProps(`${exIdx}:${setIdx}`)}
         />
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 0, minWidth: 0 }}>
@@ -830,7 +833,15 @@ export function SlotEditor({
     <div style={SHARED_GROUP_OUTER}>
       {/* Header: drag handle + exercise picker(s), full width */}
       <div style={{ display: 'grid', gridTemplateColumns: '34px minmax(0, 1fr)', gap: 0, alignItems: 'stretch' }}>
-        <DragNumberBadge label={number} color="var(--dp-color-accent)" height="100%" bg="#18181B" title={headerTitle} />
+        <DragNumberBadge
+          label={number}
+          color="var(--dp-color-accent)"
+          height="100%"
+          bg="#18181B"
+          title={headerTitle}
+          aria-label={`Drag to reorder exercise ${number}`}
+          {...(dragHandleProps || {})}
+        />
         <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>{halves.map(renderHeaderBlock)}</div>
       </div>
 

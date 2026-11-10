@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState } from 'react';
+import React from 'react';
+import { usePointerReorder } from '../../hooks/usePointerReorder';
 import { SHARED_CELL_BORDER, SHARED_GROUP_OUTER } from '../../styles/kineticTokens';
 import {
   normalizeSlotCategory,
@@ -50,7 +51,13 @@ export function RoutineEditorView({
   setRoutineSelectReturnView,
   isEmbeddedHistorySession = false
 }) {
-  const [draggedSlotIndex, setDraggedSlotIndex] = useState(null);
+  // Drag an exercise's numbered grippy handle to reorder (pointer events: works with touch). The page scrolls when
+  // the finger rests below the sticky session header (~146 px) or near the bottom edge.
+  const {
+    dragIndex: draggedSlotIndex,
+    overIndex: overSlotIndex,
+    handleProps: slotHandleProps
+  } = usePointerReorder((from, to) => handleReorderExercises?.(from, to), { attribute: 'data-slot-reorder', edgeTop: 190 });
 
   if (!currentEditorWorkout) return null;
 
@@ -248,30 +255,22 @@ export function RoutineEditorView({
               return (
                 <div
                   key={slot.id}
-                  draggable={true}
-                  onDragStart={() => setDraggedSlotIndex(sIdx)}
-                  onDragOver={e => {
-                    if (draggedSlotIndex !== null) {
-                      e.preventDefault();
-                    }
-                  }}
-                  onDrop={e => {
-                    e.preventDefault();
-                    if (draggedSlotIndex !== null && draggedSlotIndex !== sIdx) {
-                      handleReorderExercises?.(draggedSlotIndex, sIdx);
-                    }
-                    setDraggedSlotIndex(null);
-                  }}
-                  onDragEnd={() => setDraggedSlotIndex(null)}
+                  data-slot-reorder={sIdx}
                   style={{
                     borderBottom: '2px solid var(--dp-color-rule)',
                     padding: '12px 0',
-                    opacity: draggedSlotIndex === sIdx ? 0.55 : 1
+                    opacity: draggedSlotIndex === sIdx ? 0.55 : 1,
+                    // Where the dragged exercise will land
+                    boxShadow:
+                      draggedSlotIndex !== null && overSlotIndex === sIdx && draggedSlotIndex !== sIdx
+                        ? 'inset 0 0 0 2px var(--dp-color-accent)'
+                        : 'none'
                   }}
                 >
                   <SlotEditor
                     slot={slot}
                     number={sIdx + 1}
+                    dragHandleProps={slotHandleProps(sIdx)}
                     selectedGymId={selectedGymId}
                     gyms={gyms}
                     history={history}
