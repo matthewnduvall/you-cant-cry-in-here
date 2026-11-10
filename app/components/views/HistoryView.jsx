@@ -1025,7 +1025,9 @@ export function HistoryView({
                             marginTop: '1px'
                           }}
                         >
-                          {formatDateYMD(w.startedAt)} • {(w.slots || []).length} EXERCISES
+                          {/* The date only when the title doesn't already show it */}
+                          {String(w.title || '').includes(formatDateYMD(w.startedAt)) ? '' : `${formatDateYMD(w.startedAt)} • `}
+                          {(w.slots || []).length} {(w.slots || []).length === 1 ? 'EXERCISE' : 'EXERCISES'}
                         </div>
                         {readOnly && !historyFilter.exerciseId && (
                           <div style={{ fontSize: '11px', fontWeight: 700, color: '#FFFFFF', marginTop: '1px', textTransform: 'uppercase' }}>
@@ -1065,6 +1067,7 @@ export function HistoryView({
 
                       <DeleteButton
                         label={`Delete ${w.title}`}
+                        variant="outline"
                         fill
                         minHeight="48px"
                         style={{ width: '48px', height: 'auto' }}
@@ -1095,7 +1098,7 @@ export function HistoryView({
                 );
               })}
 
-              {!showAllHistory && totalSessions > 0 && (
+              {!showAllHistory && totalSessions > INITIAL_LIMIT && (
                 <button
                   type="button"
                   onClick={() => {

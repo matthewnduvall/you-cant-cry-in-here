@@ -390,17 +390,16 @@ export function HomeView({
         </div>
       </section>
 
-      {/* STATS SECTION ON HOME SCREEN */}
-      <IOSListSection header="STATS" colors={colors}>
+      {/* YOUR TRAINING: the main pages (no numbers, like the menu) */}
+      <IOSListSection header="YOUR TRAINING" colors={colors}>
         {[
           // PROGRESS is one page with the chart, Personal Records and logged History (view id 'history')
-          { id: 'history', idx: '01', title: 'PERFORMANCE', sub: 'Trends, Personal Records & Workout History', num: '01' },
-          { id: 'stimulus_map', idx: '02', title: 'STIMULUS', sub: 'Recovery Windows & Muscle Readiness', num: '02' },
-          { id: 'social', idx: '03', title: 'SOCIAL', sub: `${friendsList.length} ${friendsList.length === 1 ? 'Friend' : 'Friends'} • ${pendingIncomingRequests.length} Pending ${pendingIncomingRequests.length === 1 ? 'Request' : 'Requests'} • Leaderboards`, num: '03' }
+          { id: 'history', title: 'PERFORMANCE', sub: 'Trends, Personal Records & Workout History' },
+          { id: 'stimulus_map', title: 'STIMULUS', sub: 'Recovery Windows & Muscle Readiness' },
+          { id: 'social', title: 'SOCIAL', sub: `${friendsList.length} ${friendsList.length === 1 ? 'Friend' : 'Friends'} • ${pendingIncomingRequests.length} Pending ${pendingIncomingRequests.length === 1 ? 'Request' : 'Requests'} • Leaderboards` }
         ].map((item, i, arr) => (
           <IOSListRow
             key={item.id}
-            indexLabel={item.idx}
             isLast={i === arr.length - 1}
             colors={colors}
             onClick={() => {

@@ -5,6 +5,23 @@ import { SFSymbol, SessionRestTimerBar, SessionTitleBar } from './Primitives';
 import { getNextIncompleteSetInfo } from '../utils/workoutEngine';
 import { Button } from './Controls';
 
+// Header centre title per view (tapping it returns Home)
+const PAGE_TITLES = {
+  history: 'PERFORMANCE',
+  stimulus_map: 'STIMULUS',
+  social: 'SOCIAL',
+  configuration: 'CONFIGURATION',
+  info: 'INFO',
+  auth: 'SIGN IN',
+  profile: 'PROFILE',
+  friend_profile: 'PROFILE',
+  routines: 'ROUTINES',
+  gym_editor: 'EQUIPMENT SETUP',
+  session: 'SESSION',
+  routine_editor: 'ROUTINE',
+  historical_entry: 'PAST WORKOUT'
+};
+
 export function AppHeaderAndDrawer({
   currentView,
   setCurrentView,
@@ -77,7 +94,7 @@ export function AppHeaderAndDrawer({
           {currentView !== 'home' ? (
             <button
               type="button"
-              aria-label="Return to Home screen"
+              aria-label={`${PAGE_TITLES[currentView] || 'Page'}. Tap to return to the Home screen`}
               onClick={() => {
                 setRoutineSelectReturnView(null);
                 setCurrentView('home');
@@ -100,7 +117,7 @@ export function AppHeaderAndDrawer({
                 justifySelf: 'center'
               }}
             >
-              You Can&apos;t Cry in Here
+              {PAGE_TITLES[currentView] || 'YOU CAN\'T CRY IN HERE'}
             </button>
           ) : (
             <div />
@@ -235,6 +252,7 @@ export function AppHeaderAndDrawer({
                 </Button>
 
                 {[
+                  { id: 'home', label: 'HOME', clearReturn: true },
                   { id: 'configuration', label: 'CONFIGURATION', clearReturn: true },
                   { id: 'info', label: 'INFO' }
                 ].map(nav => (
@@ -270,69 +288,52 @@ export function AppHeaderAndDrawer({
         </div>
       )}
 
-      {/* PERSISTENT LOGGED-OUT ORANGE NOTIFICATION BAR */}
-      {isStorageHydrated && !user && (
+      {/* SIGNED-OUT NOTICE: one slim grey line under the header. Hidden in the session / routine editor (it would
+          sit between the locked header and the exercises) and on the sign-in page itself. */}
+      {isStorageHydrated && !user && !isRoutineEditorView && currentView !== 'auth' && (
         <div
           style={{
-            margin: '12px var(--dp-spacing-gutter) 0',
-            padding: '12px 14px',
-            backgroundColor: 'var(--dp-color-accent)',
-            color: '#101010',
-            border: '2px solid #FFFFFF',
-            fontWeight: 800,
-            fontSize: '12px',
-            textTransform: 'uppercase',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            gap: '10px',
-            flexWrap: 'wrap'
+            gap: '8px',
+            minHeight: '44px',
+            padding: '0 var(--dp-spacing-gutter)',
+            backgroundColor: '#141416',
+            borderBottom: '2px solid var(--dp-color-rule)'
           }}
         >
-          <span>NOT SIGNED IN</span>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <button
-              type="button"
-              onClick={() => {
-                setAuthMode('login');
-                setCurrentView('auth');
-              }}
-              className="kinetic-btn"
-              style={{
-                background: '#101010',
-                color: '#FFFFFF',
-                border: '2px solid #101010',
-                padding: '0 12px',
-                minHeight: '40px',
-                fontSize: '11px',
-                fontWeight: 800,
-                textTransform: 'uppercase',
-                cursor: 'pointer'
-              }}
-            >
-              SIGN IN
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setAuthMode('signup');
-                setCurrentView('auth');
-              }}
-              className="kinetic-btn"
-              style={{
-                background: '#FFFFFF',
-                color: '#101010',
-                border: '2px solid #101010',
-                padding: '0 12px',
-                minHeight: '40px',
-                fontSize: '11px',
-                fontWeight: 800,
-                textTransform: 'uppercase',
-                cursor: 'pointer'
-              }}
-            >
-              CREATE ACCOUNT
-            </button>
+          <span style={{ fontSize: '12px', fontWeight: 700, color: '#A0A0A0', minWidth: 0 }}>
+            Not signed in: saved on this device only.
+          </span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 0, flexShrink: 0 }}>
+            {[
+              { mode: 'login', label: 'SIGN IN', color: 'var(--dp-color-accent)' },
+              { mode: 'signup', label: 'JOIN', color: '#FFFFFF' }
+            ].map(item => (
+              <button
+                key={item.mode}
+                type="button"
+                onClick={() => {
+                  setAuthMode(item.mode);
+                  setCurrentView('auth');
+                }}
+                className="kinetic-btn"
+                style={{
+                  minHeight: '40px',
+                  padding: '0 10px',
+                  background: 'none',
+                  border: 'none',
+                  color: item.color,
+                  fontSize: '12px',
+                  fontWeight: 800,
+                  textTransform: 'uppercase',
+                  cursor: 'pointer'
+                }}
+              >
+                {item.label}
+              </button>
+            ))}
           </div>
         </div>
       )}
