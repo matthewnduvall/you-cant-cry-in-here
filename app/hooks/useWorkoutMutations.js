@@ -164,7 +164,8 @@ export function useWorkoutMutations({
     if (typeof fn === 'function') fn();
   };
 
-  const buildGeneratedAutoSlots = (existingSlots = []) => {
+  // addOne: return the existing slots plus just the next guessed slot (+ ADD EXERCISE)
+  const buildGeneratedAutoSlots = (existingSlots = [], { addOne = false } = {}) => {
     const cleanExisting = Array.isArray(existingSlots) ? cloneSlots(existingSlots) : [];
     const usedIds = new Set();
     const remainingCategoryCounts = {
@@ -280,6 +281,16 @@ export function useWorkoutMutations({
       for (let i = cleanExisting.length; i < activePrefs.length; i++) {
         prefsToFill.push(normalizeSlotCategory(activePrefs[i]));
       }
+    }
+
+    if (addOne) {
+      // Next unfilled routine-preference category; once the routine is full, keep cycling through it
+      const nextPref =
+        prefsToFill[0] ||
+        (activePrefs.length > 0
+          ? normalizeSlotCategory(activePrefs[cleanExisting.length % activePrefs.length])
+          : 'Compound');
+      return [...cleanExisting, createSlotForPref(nextPref)];
     }
 
     const generatedSlots = prefsToFill.map(pref => createSlotForPref(pref));
@@ -477,6 +488,23 @@ export function useWorkoutMutations({
       setRoutineSelectReturnView(null);
       setCurrentView('session');
     }
+  };
+
+  // + ADD EXERCISE: append one auto-guessed exercise (next routine-preference category, not already in the
+  // workout, fits the gym selection) that the athlete can then change in the slot editor.
+  const handleAddAutoSlot = () => {
+    const existingSlots = getCurrentEditorWorkout()?.slots || [];
+    const withNext = buildGeneratedAutoSlots(existingSlots, { addOne: true });
+    const newSlot = withNext[withNext.length - 1];
+    if (!newSlot) return;
+    appendSessionLog?.(
+      'AUTO_ADD_SLOT',
+      `Added auto-picked ${newSlot.category} slot: ${(newSlot.supersetExerciseIds || [newSlot.exerciseId]).join(' + ')}`
+    );
+    updateCurrentWorkoutState(prev => ({
+      ...(prev || { id: `session_${Date.now()}`, title: getDefaultSessionName(), slots: [] }),
+      slots: [...(prev?.slots || []), newSlot]
+    }));
   };
 
   const handleSaveCurrentEditor = () => {
@@ -1724,6 +1752,7 @@ export function useWorkoutMutations({
     handleCancelRoutineSelection,
     handleApplyPreviewRoutine,
     handleAutoBuildWorkout,
+    handleAddAutoSlot,
     handleSaveCurrentEditor,
     handleConfirmSaveWorkout,
     handleShareCurrentEditor,

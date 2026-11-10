@@ -187,29 +187,55 @@ export function OneRepMaxCalculatorModal({
     onClose?.();
   };
 
-  const dateCell = (
-    <input
-      type="text"
-      aria-label="Personal Record Date (YYYY/MM/DD)"
-      placeholder="YYYY/MM/DD"
-      value={prDate}
-      onChange={e => setPrDate(e.target.value.replace(/-/g, '/'))}
+  const dateRow = (
+    <div
       style={{
-        width: '100%',
-        minWidth: 0,
-        height: '40px',
-        boxSizing: 'border-box',
+        display: 'grid',
+        gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)',
+        alignItems: 'stretch',
         backgroundColor: '#18181B',
-        ...SHARED_CELL_BORDER,
-        textAlign: 'center',
-        fontSize: '12px',
-        fontWeight: 800,
-        color: 'var(--dp-color-accent)',
-        textTransform: 'uppercase',
-        outline: 'none',
-        padding: '0 4px'
+        ...SHARED_CELL_BORDER
       }}
-    />
+    >
+      <span
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          padding: '0 12px',
+          fontSize: '11px',
+          fontWeight: 800,
+          color: '#A0A0A0',
+          textTransform: 'uppercase'
+        }}
+      >
+        PR DATE
+      </span>
+      <input
+        type="text"
+        aria-label="Personal Record Date (YYYY/MM/DD)"
+        placeholder="YYYY/MM/DD"
+        value={prDate}
+        onChange={e => setPrDate(e.target.value.replace(/-/g, '/'))}
+        style={{
+          width: '100%',
+          minWidth: 0,
+          height: '40px',
+          boxSizing: 'border-box',
+          backgroundColor: '#18181B',
+          ...SHARED_CELL_BORDER,
+          textAlign: 'center',
+          fontSize: '12px',
+          fontWeight: 800,
+          color: 'var(--dp-color-accent)',
+          textTransform: 'uppercase',
+          outline: 'none',
+          padding: '0 4px',
+          borderRight: 'none',
+          borderBottom: 'none',
+          borderLeft: '1px solid var(--dp-color-rule)'
+        }}
+      />
+    </div>
   );
 
   const estimateRow = (
@@ -276,7 +302,6 @@ export function OneRepMaxCalculatorModal({
           oneRepMaxes={oneRepMaxes}
           currentIncrementLbs={currentIncrementLbs}
           getBase1RM={base1RMFor}
-          infoCell={dateCell}
           onHeaderChange={handleHeaderChange}
           onRemove={() => onClose?.()}
           removeLabel="Close calculator"
@@ -307,7 +332,12 @@ export function OneRepMaxCalculatorModal({
           onDeleteSet={({ set }) => deleteSet(set.id)}
           onReorderSets={(_, fromIdx, toIdx) => reorderSets(fromIdx, toIdx)}
           onInsertSet={insertSet}
-          footer={estimateRow}
+          footer={
+            <>
+              {dateRow}
+              {estimateRow}
+            </>
+          }
           actionLabel="CALCULATE 1RM"
           actionTone="calculate"
           onAction={handleCalculate}

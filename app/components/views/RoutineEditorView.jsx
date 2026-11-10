@@ -7,16 +7,14 @@ import {
   isSupersetCategory,
   EXERCISE_LIBRARY,
   EXERCISE_MAP,
-  filterAddSlotExercises,
   formatDateYMD,
   parseYMDToISO
 } from '../../data/exerciseLibrary';
 import {
-  getPersonalRecord1RM,
   getBestHistory1RMInfo
 } from '../../utils/workoutEngine';
-import { Button, GymSelect } from '../Controls';
-import { SlotEditor, SlotInfoCell } from '../SlotEditor';
+import { Button } from '../Controls';
+import { SlotEditor } from '../SlotEditor';
 
 // ============================================================================
 // VIEW: WORKOUT SESSION / ROUTINE / HISTORICAL ENTRY
@@ -26,25 +24,16 @@ export function RoutineEditorView({
   colors,
   currentView,
   currentEditorWorkout,
-  setRoutineSelectReturnView,
-  setCurrentView,
   selectedGymId,
-  setSelectedGymId,
   gyms,
   history,
   oneRepMaxes,
   currentIncrementLbs = 1.25,
-  newSlotCategory,
-  newSlotMuscleGroup = 'All Muscles',
-  setAddSlotGymFilter,
-  setNewSlotEx1,
-  setNewSlotSupersetIds,
-  setShowAddSlotModal,
   setHistoricalDraft,
   setDeleteConfirmTarget,
   isCurrentEditorShared,
   updateCurrentWorkoutState,
-  handleAutoBuildWorkout,
+  handleAddAutoSlot,
   handleSaveCurrentEditor,
   handleShareCurrentEditor,
   handleResetCurrentEditor,
@@ -58,8 +47,7 @@ export function RoutineEditorView({
   setSetValueTarget,
   openedFromRoutines = false,
   setOpenedFromRoutines,
-  isEmbeddedHistorySession = false,
-  onAddExerciseCustom
+  isEmbeddedHistorySession = false
 }) {
   const [draggedSlotIndex, setDraggedSlotIndex] = useState(null);
 
@@ -226,81 +214,6 @@ export function RoutineEditorView({
             </div>
           )}
 
-          {/* Row 2: Top Action Row (Gyms/Equipment & Load — Shared Border, Larger Text) */}
-          {!isEmbeddedHistorySession && (
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
-                gap: 0,
-                width: '100%',
-                alignItems: 'stretch'
-              }}
-            >
-              {/* Column 1: Gyms/Equipment */}
-<GymSelect
-                variant="tile"
-                value={selectedGymId}
-                onChange={setSelectedGymId}
-                gyms={gyms}
-              />
-
-              {/* Column 2: Routines / Load */}
-              <button
-                type="button"
-                onClick={() => {
-                  setRoutineSelectReturnView(currentView);
-                  setCurrentView('routines');
-                }}
-                className="kinetic-btn"
-                style={{
-                  width: '100%',
-                  height: '48px',
-                  boxSizing: 'border-box',
-                  padding: '0 8px',
-                  backgroundColor: '#161618',
-                  ...SHARED_CELL_BORDER,
-                  cursor: 'pointer',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  justifyContent: 'center',
-                  alignItems: 'center',
-                  textAlign: 'center',
-                  minWidth: 0
-                }}
-              >
-                <div
-                  style={{
-                    fontSize: '10px',
-                    fontWeight: 800,
-                    color: 'var(--dp-color-accent)',
-                    textTransform: 'uppercase',
-                    lineHeight: 1.15
-                  }}
-                >
-                  ROUTINES
-                </div>
-                <div
-                  style={{
-                    fontSize: '13px',
-                    fontWeight: 800,
-                    color: '#FFFFFF',
-                    textTransform: 'uppercase',
-                    whiteSpace: 'nowrap',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    width: '100%',
-                    lineHeight: 1.25,
-                    marginTop: '1px',
-                    textAlign: 'center'
-                  }}
-                >
-                  LOAD
-                </div>
-              </button>
-            </div>
-          )}
-
           {/* Row 3: Save / Share / Reset Row (Shared Borders, hidden when session is empty or embedded in History) */}
           {!isEmbeddedHistorySession && hasExercises && renderSaveShareResetRow()}
         </div>
@@ -356,13 +269,6 @@ export function RoutineEditorView({
                 );
               };
               const prFlags = isSuperset ? [isPrFor(supIds[0]), isPrFor(supIds[1])] : [isPrFor(supIds[0]), false];
-              const prValA = getPersonalRecord1RM(supIds[0], history, oneRepMaxes);
-              const prValB = isSuperset ? getPersonalRecord1RM(supIds[1], history, oneRepMaxes) : 0;
-              const slot1RMText = isSuperset
-                ? `1RM: ${prValA > 0 ? prValA : 'TBD'}/${prValB > 0 ? prValB : 'TBD'}`
-                : prValA > 0
-                  ? `1RM: ${prValA} LB`
-                  : '1RM: TBD';
 
               return (
                 <div
@@ -397,7 +303,6 @@ export function RoutineEditorView({
                     oneRepMaxes={oneRepMaxes}
                     currentIncrementLbs={currentIncrementLbs}
                     prFlags={prFlags}
-                    infoCell={<SlotInfoCell>{slot1RMText}</SlotInfoCell>}
                     onHeaderChange={changes => handleUpdateSlotCategoryOrExercise(slot.id, changes)}
                     onRemove={() =>
                       setDeleteConfirmTarget({
@@ -445,43 +350,15 @@ export function RoutineEditorView({
         </div>
       </section>
 
-      {/* ADD EXERCISE + AUTO ROUTINE / AUTO COMPLETE BUTTONS AT BOTTOM */}
+      {/* + ADD EXERCISE: appends an auto-guessed exercise the athlete can then edit */}
       <div style={{ padding: '0 var(--dp-spacing-gutter)' }}>
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
-            gap: 0,
-            width: '100%',
-            ...SHARED_GROUP_OUTER
-          }}
-        >
+        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 0, width: '100%', ...SHARED_GROUP_OUTER }}>
           <Button
             variant="dashed"
-            onClick={() => {
-              if (onAddExerciseCustom) {
-                onAddExerciseCustom();
-                return;
-              }
-              setAddSlotGymFilter(selectedGymId);
-              const avail = filterAddSlotExercises(selectedGymId, newSlotCategory, gyms, newSlotMuscleGroup);
-              if (avail.length > 0) {
-                setNewSlotEx1(avail[0].id);
-                setNewSlotSupersetIds([avail[0].id, (avail[1] || avail[0]).id]);
-              }
-              setShowAddSlotModal(true);
-            }}
+            onClick={() => handleAddAutoSlot?.()}
             style={{ height: '48px', fontSize: '13px', fontWeight: 800, ...SHARED_CELL_BORDER, backgroundColor: '#161618', color: '#FFFFFF', whiteSpace: 'nowrap', boxSizing: 'border-box' }}
           >
             + ADD EXERCISE
-          </Button>
-
-          <Button
-            variant="primary"
-            onClick={handleAutoBuildWorkout}
-            style={{ height: '48px', fontSize: '13px', fontWeight: 800, ...SHARED_CELL_BORDER, backgroundColor: 'var(--dp-color-accent)', color: '#101010', whiteSpace: 'nowrap', boxSizing: 'border-box' }}
-          >
-            {hasExercises ? '+ AUTO COMPLETE' : '+ AUTO ROUTINE'}
           </Button>
         </div>
 

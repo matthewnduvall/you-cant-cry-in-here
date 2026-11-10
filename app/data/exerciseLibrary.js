@@ -620,6 +620,39 @@ export const findEquivalentExerciseForGym = (exerciseId, gymSelectionId, customG
   return best ? best.id : null;
 };
 
+/** Exercise name for pickers that already show the equipment: drops "Barbell" / "Dumbbell(s)". */
+export const stripEquipmentFromExerciseName = name => {
+  const stripped = String(name || '')
+    .replace(/\b(barbell|dumbbells?)\b/gi, ' ')
+    .replace(/\s{2,}/g, ' ')
+    .replace(/^[\s-]+|[\s-]+$/g, '')
+    .trim();
+  return stripped || String(name || '');
+};
+
+/** The exercise in `pool` most similar to `exerciseId` (same movement, then same muscles), or pool[0]. */
+export const findClosestExerciseInPool = (exerciseId, pool = []) => {
+  const source = EXERCISE_MAP[exerciseId];
+  if (!source || pool.length === 0) return pool[0]?.id || null;
+  const sourceTokens = movementTokens(source.name);
+  const sourceMuscles = new Set(source.specificMuscles || []);
+  let best = pool[0];
+  let bestScore = -1;
+  pool.forEach(cand => {
+    let score = overlapScore(sourceTokens, movementTokens(cand.name)) * 3;
+    if (cand.muscleGroup === source.muscleGroup) score += 1;
+    score += overlapScore(sourceMuscles, new Set(cand.specificMuscles || []));
+    if (cand.category === source.category) score += 0.5;
+    if ((source.alternatives || []).includes(cand.id) || (cand.alternatives || []).includes(source.id)) score += 1;
+    if (cand.isPriority) score += 0.1;
+    if (score > bestScore) {
+      bestScore = score;
+      best = cand;
+    }
+  });
+  return best.id;
+};
+
 // Relative loading vs. a barbell for the same movement (dumbbells ≈ 35% lower total load).
 const EQUIPMENT_LOAD_FACTORS = [
   ['smith', 0.9],
