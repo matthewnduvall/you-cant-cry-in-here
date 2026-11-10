@@ -1424,9 +1424,39 @@ export async function fetchAthleteProfileSnapshot(athlete, currentUser = null) {
  * - incomingRequests / outgoingRequests: pending requests ({ id, username, friendshipId })
  * When ok is false (offline, signed out), callers should keep what they already have.
  */
+const PENDING_INVITER_KEY = 'yccih_pending_inviter_v1';
+
+/**
+ * Joined through an invite link (?invite_id=...): becomes friends with the inviter whatever email was
+ * used to sign up (claim_invite_link). The stored invite is cleared once the server has answered.
+ */
+async function claimPendingInviteLink(user) {
+  if (typeof window === 'undefined') return;
+  let pending = null;
+  try {
+    pending = JSON.parse(window.localStorage.getItem(PENDING_INVITER_KEY) || 'null');
+  } catch {
+    pending = null;
+  }
+  if (!isUuid(pending?.inviteId)) return;
+  const res = await authedRequest(user, '/rest/v1/rpc/claim_invite_link', {
+    method: 'POST',
+    body: { invite: pending.inviteId }
+  });
+  // 404 = the database function isn't installed yet: keep the invite and try again on the next sync
+  if (res.status === 404 || res.status === 0 || res.status === 401) return;
+  try {
+    window.localStorage.removeItem(PENDING_INVITER_KEY);
+  } catch {
+    // ignore storage error
+  }
+}
+
 export async function syncFriendshipsForUser(user) {
   const empty = { ok: false, friends: [], incomingRequests: [], outgoingRequests: [], profilesLoaded: false };
   if (!user || !isUuid(user.id)) return empty;
+  // Invite link first (any email), then invites addressed to this account's email
+  await claimPendingInviteLink(user);
   // Accept any email invites addressed to this account before reading friendships
   await authedRequest(user, '/rest/v1/rpc/claim_my_invites', { method: 'POST', body: {} });
   const res = await authedRequest(user, '/rest/v1/rpc/my_friendships', { method: 'POST', body: {} });

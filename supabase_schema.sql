@@ -412,36 +412,52 @@ CREATE POLICY "Inviters can view their invites"
   ON public.friend_invites FOR SELECT
   USING (auth.uid() = inviter_user_id);
 
--- 11. New-athlete friendships: every new profile becomes friends with @matt (the default friend) and
--- with anyone who emailed them an invite. Runs inside the database so it can't be skipped or forged.
+-- The default friend every new account starts with: @matt. Looked up by the sign-in account's email
+-- (auth.users, always set), falling back to the username, so a profile row without an email can't
+-- silently skip it.
+CREATE OR REPLACE FUNCTION public.default_friend_id()
+RETURNS UUID
+LANGUAGE sql
+STABLE
+SECURITY DEFINER SET search_path = public
+AS $$
+  SELECT COALESCE(
+    (SELECT id FROM auth.users WHERE lower(email) = 'matthew.n.duvall@gmail.com' LIMIT 1),
+    (SELECT id FROM public.user_profiles WHERE lower(username) = 'matt' LIMIT 1)
+  );
+$$;
+
+REVOKE ALL ON FUNCTION public.default_friend_id() FROM PUBLIC, anon, authenticated;
+
+-- New profile: friends with @matt and with everyone who emailed an invite to this address.
 CREATE OR REPLACE FUNCTION public.handle_new_profile_friendships()
 RETURNS TRIGGER
 LANGUAGE plpgsql
 SECURITY DEFINER SET search_path = public
 AS $$
 DECLARE
-  default_friend_id UUID;
+  default_friend UUID := public.default_friend_id();
+  my_email TEXT;
   inv RECORD;
 BEGIN
-  SELECT id INTO default_friend_id
-  FROM public.user_profiles
-  WHERE lower(email) = 'matthew.n.duvall@gmail.com'
-  LIMIT 1;
-
-  IF default_friend_id IS NOT NULL AND default_friend_id <> NEW.id THEN
+  IF default_friend IS NOT NULL AND default_friend <> NEW.id THEN
     INSERT INTO public.friendships (requester_id, addressee_id, status)
-    SELECT default_friend_id, NEW.id, 'accepted'
+    SELECT default_friend, NEW.id, 'accepted'
     WHERE NOT EXISTS (
       SELECT 1 FROM public.friendships f
-      WHERE (f.requester_id = default_friend_id AND f.addressee_id = NEW.id)
-         OR (f.requester_id = NEW.id AND f.addressee_id = default_friend_id)
+      WHERE (f.requester_id = default_friend AND f.addressee_id = NEW.id)
+         OR (f.requester_id = NEW.id AND f.addressee_id = default_friend)
     );
   END IF;
 
-  IF NEW.email IS NOT NULL THEN
+  -- The verified sign-in email (falls back to the profile's copy)
+  SELECT lower(email) INTO my_email FROM auth.users WHERE id = NEW.id;
+  my_email := COALESCE(my_email, lower(NEW.email));
+
+  IF my_email IS NOT NULL THEN
     FOR inv IN
       SELECT DISTINCT inviter_user_id FROM public.friend_invites
-      WHERE lower(invited_email) = lower(NEW.email)
+      WHERE lower(invited_email) = my_email
         AND inviter_user_id IS NOT NULL
         AND inviter_user_id <> NEW.id
     LOOP
@@ -454,7 +470,7 @@ BEGIN
       );
     END LOOP;
     UPDATE public.friend_invites SET status = 'accepted'
-    WHERE lower(invited_email) = lower(NEW.email) AND status <> 'accepted';
+    WHERE lower(invited_email) = my_email AND status <> 'accepted';
   END IF;
 
   RETURN NEW;
@@ -507,6 +523,59 @@ $$;
 
 REVOKE ALL ON FUNCTION public.claim_my_invites() FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.claim_my_invites() TO authenticated;
+
+-- Invite links carry the invite's id. Whoever signs up or signs in through the link becomes friends with
+-- the inviter, whatever email they use. Each unused invite can be claimed once (so a forwarded email
+-- can't be reused); claiming it again is fine for the athlete who already did. Returns true when the two
+-- athletes are friends afterwards.
+CREATE OR REPLACE FUNCTION public.claim_invite_link(invite UUID)
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+SECURITY DEFINER SET search_path = public
+AS $
+DECLARE
+  me UUID := auth.uid();
+  inv RECORD;
+BEGIN
+  IF me IS NULL THEN
+    RAISE EXCEPTION 'Not signed in';
+  END IF;
+
+  SELECT id, inviter_user_id, status INTO inv FROM public.friend_invites WHERE id = invite;
+  IF inv.id IS NULL OR inv.inviter_user_id IS NULL OR inv.inviter_user_id = me THEN
+    RETURN FALSE;
+  END IF;
+
+  IF EXISTS (
+    SELECT 1 FROM public.friendships f
+    WHERE ((f.requester_id = inv.inviter_user_id AND f.addressee_id = me)
+        OR (f.requester_id = me AND f.addressee_id = inv.inviter_user_id))
+      AND f.status = 'accepted'
+  ) THEN
+    UPDATE public.friend_invites SET status = 'accepted' WHERE id = inv.id AND status <> 'accepted';
+    RETURN TRUE;
+  END IF;
+
+  IF inv.status = 'accepted' THEN
+    RETURN FALSE; -- already used by someone else
+  END IF;
+
+  -- A pending request between the two (either direction) becomes the friendship
+  UPDATE public.friendships SET status = 'accepted'
+  WHERE (requester_id = inv.inviter_user_id AND addressee_id = me)
+     OR (requester_id = me AND addressee_id = inv.inviter_user_id);
+  IF NOT FOUND THEN
+    INSERT INTO public.friendships (requester_id, addressee_id, status)
+    VALUES (inv.inviter_user_id, me, 'accepted');
+  END IF;
+
+  UPDATE public.friend_invites SET status = 'accepted' WHERE id = inv.id;
+  RETURN TRUE;
+END;
+$;
+
+REVOKE ALL ON FUNCTION public.claim_invite_link(UUID) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.claim_invite_link(UUID) TO authenticated;
 
 DROP TRIGGER IF EXISTS on_user_profile_created_friendships ON public.user_profiles;
 CREATE TRIGGER on_user_profile_created_friendships

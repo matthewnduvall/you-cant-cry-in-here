@@ -227,16 +227,31 @@ export function HomeView({
         </div>
       </section>
 
-      {/* REPEATED-TEXT MARQUEE BAND (BETWEEN TITLE & PRIMARY ACTION BUTTONS) */}
-      <div
+      {/* REPEATED-TEXT MARQUEE BAND (BETWEEN TITLE & PRIMARY ACTION BUTTONS) — tap anywhere on it to pause / play */}
+      <button
+        type="button"
+        aria-pressed={marqueePaused}
+        aria-label={marqueePaused ? 'Friends ticker paused. Tap to play' : 'Friends ticker. Tap to pause'}
+        onClick={() => setMarqueePaused(p => !p)}
         className={marqueePaused ? 'kinetic-marquee-paused' : ''}
         style={{
-          borderBottom: '2px solid var(--dp-color-rule)', backgroundColor: '#141414',
-          display: 'flex', alignItems: 'center', overflow: 'hidden'
+          width: '100%',
+          minHeight: '40px',
+          padding: 0,
+          border: 'none',
+          borderBottom: '2px solid var(--dp-color-rule)',
+          backgroundColor: '#141414',
+          color: '#FFFFFF',
+          display: 'flex',
+          alignItems: 'center',
+          overflow: 'hidden',
+          cursor: 'pointer',
+          textAlign: 'left',
+          fontFamily: 'inherit'
         }}
       >
-        <div style={{ flex: 1, overflow: 'hidden', padding: '8px 0' }}>
-          <div
+        <span style={{ display: 'block', flex: 1, overflow: 'hidden', padding: '8px 0' }}>
+          <span
             className="kinetic-marquee-track"
             style={{
               '--dp-marquee-duration': `${marqueeDurationSec}s`,
@@ -248,20 +263,9 @@ export function HomeView({
           >
             <span style={{ paddingRight: '32px' }}>{friendsTickerText}</span>
             <span aria-hidden="true" style={{ paddingRight: '32px' }}>{friendsTickerText}</span>
-          </div>
-        </div>
-        <button
-          type="button"
-          onClick={() => setMarqueePaused(p => !p)}
-          style={{
-            backgroundColor: '#101010', color: '#FFFFFF', border: 'none',
-            borderLeft: '2px solid var(--dp-color-rule)', padding: '0 12px', minHeight: '40px',
-            fontSize: '11px', fontWeight: 800, cursor: 'pointer'
-          }}
-        >
-          {marqueePaused ? 'PLAY' : 'PAUSE'}
-        </button>
-      </div>
+          </span>
+        </span>
+      </button>
 
       {/* PRIMARY ACTIONS: NEW SESSION, AUTO SESSION (History lives on the PROGRESS page) */}
       <section
