@@ -1304,10 +1304,10 @@ export function OnboardingView({
                 }}
               >
                 Color-codes Anterior and Posterior muscle recovery:{' '}
-                <strong style={{ color: '#30D158' }}>GREEN</strong> (recently
-                trained), <strong style={{ color: '#FFD60A' }}>YELLOW</strong>{' '}
-                (recovering), and <strong style={{ color: '#FF3B30' }}>RED</strong>{' '}
-                (fresh &amp; prioritized by <strong style={{ color: '#FFFFFF' }}>AUTO</strong>).
+                <strong style={{ color: '#30D158' }}>GREEN</strong> (recovering),{' '}
+                <strong style={{ color: '#FFD60A' }}>YELLOW</strong>{' '}
+                (recovered), and <strong style={{ color: '#FF3B30' }}>RED</strong>{' '}
+                (overdue &amp; prioritized by <strong style={{ color: '#FFFFFF' }}>AUTO</strong>).
               </div>
 
               <div

@@ -69,12 +69,12 @@ export function useTelemetryAndAnalytics({
       let statusLabel = `${yellowMax + 1}+ DAYS`;
       if (minDays <= greenMax) {
         statusColor = '#30D158';
-        statusLabel = `${minDays}D AGO (FRESH)`;
+        statusLabel = `${minDays}D AGO (RECOVERING)`;
       } else if (minDays <= yellowMax) {
         statusColor = '#FFD60A';
-        statusLabel = `${minDays}D AGO (READY)`;
+        statusLabel = `${minDays}D AGO (RECOVERED)`;
       } else if (minDays < 99) {
-        statusLabel = `${minDays}D AGO (DUE)`;
+        statusLabel = `${minDays}D AGO (OVERDUE)`;
       } else {
         statusLabel = 'UNLOGGED';
       }

@@ -289,10 +289,19 @@ export function SlotEditor({
     if (!ex) return;
     const current = pickerState(half);
     const exEquipment = equipmentOptionsOf(ex);
-    // Equipment named in the search ("landmine row") wins, then the current choice, then the exercise's first
+    // Equipment named in the search ("landmine row", "ez curl") wins, then the current choice, then the
+    // exercise's first. A typed word counts when it is the whole equipment name or its first word ("ez").
     const lettersOnly = text => String(text || '').toLowerCase().replace(/[^a-z]/g, '');
     const typed = lettersOnly(search?.query);
-    const namedInSearch = exEquipment.find(eq => typed && typed.includes(lettersOnly(eq)));
+    const typedWords = String(search?.query || '')
+      .toLowerCase()
+      .split(/[^a-z]+/)
+      .filter(word => word.length >= 2);
+    const namedInSearch = exEquipment.find(
+      eq =>
+        (typed && typed.includes(lettersOnly(eq))) ||
+        typedWords.includes(lettersOnly(String(eq).split(/[\s/-]+/)[0]))
+    );
     const changes = {
       exerciseId: ex.id,
       muscleGroupFilter: ex.muscleGroup || 'All Muscles',

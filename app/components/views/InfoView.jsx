@@ -62,7 +62,7 @@ export function InfoView({
               <strong style={{ color: 'var(--dp-color-accent)' }}>1.4 MUSCLE GROUP FILTERS &amp; STIMULUS:</strong> Every exercise slot can be filtered by target muscle group (
               <em>Legs</em>, <em>Chest</em>, <em>Back</em>, <em>Shoulders</em>, <em>Thighs</em>, <em>Hips</em>, <em>Calves</em>,{' '}
               <em>Upper Arms</em>, <em>Forearms</em>, <em>Waist</em>, or <em>Neck</em>) to isolate or swap movements on the fly. Completed sessions automatically update your Anterior/Posterior{' '}
-              <strong>Stimulus</strong> view so you can see which muscle groups are fresh (Green), ready (Yellow), or due for training (Red).
+              <strong>Stimulus</strong> view so you can see which muscle groups are recovering (Green), recovered (Yellow), or overdue for training (Red).
             </p>
           </div>
         </IOSListRow>
