@@ -5,7 +5,7 @@ import { SFSymbol, SessionRestTimerBar, SessionTitleBar } from './Primitives';
 import { getNextIncompleteSetInfo } from '../utils/workoutEngine';
 import { Button } from './Controls';
 
-// Header centre title per view (tapping it returns Home)
+// Header centre title per view (shown with a ← back button beside it)
 const PAGE_TITLES = {
   history: 'PERFORMANCE',
   stimulus_map: 'STIMULUS',
@@ -43,7 +43,9 @@ export function AppHeaderAndDrawer({
   updateCurrentWorkoutState,
   user,
   isStorageHydrated,
-  setAuthMode
+  setAuthMode,
+  // ← next to the page title: back to the previous page (page.js keeps the history)
+  onBack
 }) {
   return (
     <>
@@ -92,33 +94,47 @@ export function AppHeaderAndDrawer({
           </div>
 
           {currentView !== 'home' ? (
-            <button
-              type="button"
-              aria-label={`${PAGE_TITLES[currentView] || 'Page'}. Tap to return to the Home screen`}
-              onClick={() => {
-                setRoutineSelectReturnView(null);
-                setCurrentView('home');
-              }}
-              className="kinetic-btn"
-              style={{
-                fontSize: '14px',
-                fontWeight: 800,
-                letterSpacing: '-0.03em',
-                textTransform: 'uppercase',
-                color: '#FFFFFF',
-                textAlign: 'center',
-                whiteSpace: 'nowrap',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                background: 'none',
-                border: 'none',
-                padding: '8px 4px',
-                cursor: 'pointer',
-                justifySelf: 'center'
-              }}
-            >
-              {PAGE_TITLES[currentView] || 'YOU CAN\'T CRY IN HERE'}
-            </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0, justifySelf: 'center' }}>
+              <button
+                type="button"
+                aria-label="Back to the previous page"
+                onClick={() => onBack?.()}
+                className="kinetic-btn"
+                style={{
+                  width: '40px',
+                  height: '40px',
+                  flexShrink: 0,
+                  backgroundColor: '#161616',
+                  border: '2px solid var(--dp-color-rule)',
+                  color: 'var(--dp-color-accent)',
+                  fontSize: '18px',
+                  fontWeight: 800,
+                  lineHeight: 1,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer'
+                }}
+              >
+                ←
+              </button>
+              {/* Page name (no longer a hidden Home link: HOME is in the menu, ← goes back) */}
+              <h1
+                style={{
+                  margin: 0,
+                  fontSize: '14px',
+                  fontWeight: 800,
+                  letterSpacing: '-0.03em',
+                  textTransform: 'uppercase',
+                  color: '#FFFFFF',
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis'
+                }}
+              >
+                {PAGE_TITLES[currentView] || "YOU CAN'T CRY IN HERE"}
+              </h1>
+            </div>
           ) : (
             <div />
           )}

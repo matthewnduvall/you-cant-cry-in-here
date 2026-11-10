@@ -106,7 +106,7 @@ export function StimulusSettingsSection({ colors, stimulusGreenDays, setStimulus
 /** ROUTINE PREFERENCES: the order of exercise types AUTO SESSION / + ADD EXERCISE fill. Configuration → ROUTINES. */
 export function RoutinePreferencesSection({ colors, routinePreferences, setRoutinePreferences }) {
   // Drag a row's grippy handle to reorder (same handle as exercises and sets; works with touch)
-  const { dragIndex, overIndex, handleProps } = usePointerReorder((from, to) =>
+  const { handleProps, rowDragStyle } = usePointerReorder((from, to) =>
     setRoutinePreferences(prev => {
       const copy = [...prev];
       const [moved] = copy.splice(from, 1);
@@ -130,8 +130,9 @@ export function RoutinePreferencesSection({ colors, routinePreferences, setRouti
             alignItems: 'stretch',
             minHeight: '48px',
             borderBottom: '1px solid var(--dp-color-rule)',
-            backgroundColor: overIndex === idx && dragIndex !== null && dragIndex !== idx ? '#1E1E22' : 'transparent',
-            opacity: dragIndex === idx ? 0.55 : 1
+            backgroundColor: '#141414',
+            // Held row lifts and follows the finger; the landing row is outlined
+            ...rowDragStyle(idx)
           }}
         >
           <DragNumberBadge
