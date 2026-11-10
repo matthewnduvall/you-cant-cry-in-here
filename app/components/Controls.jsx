@@ -7,7 +7,7 @@
 // ============================================================================
 
 import React from 'react';
-import { UI, SHARED_CELL_BORDER } from '../styles/kineticTokens';
+import { UI, SHARED_CELL_BORDER, SHARED_GROUP_OUTER } from '../styles/kineticTokens';
 import { DEFAULT_GYM_EQUIPMENT_PRESETS, getGymSelectionLabel } from '../data/exerciseLibrary';
 
 const RED = '#FF3B30';
@@ -83,6 +83,39 @@ export function SegmentButton({
     >
       {children}
     </button>
+  );
+}
+
+/**
+ * Page tabs: one row of SegmentButtons (selected = orange fill). `tabs` is [{ id, label }].
+ * Labels may wrap to two lines on narrow screens; every tab keeps a 44 px tap target.
+ */
+export function TabBar({ tabs = [], value, onChange, ariaLabel = 'Tabs', style }) {
+  return (
+    <div
+      role="tablist"
+      aria-label={ariaLabel}
+      style={{
+        display: 'grid',
+        gridTemplateColumns: `repeat(${Math.max(1, tabs.length)}, minmax(0, 1fr))`,
+        gap: 0,
+        ...SHARED_GROUP_OUTER,
+        ...style
+      }}
+    >
+      {tabs.map(tab => (
+        <SegmentButton
+          key={tab.id}
+          role="tab"
+          aria-selected={value === tab.id}
+          active={value === tab.id}
+          onClick={() => onChange?.(tab.id)}
+          style={{ minHeight: '44px', padding: '6px 4px', lineHeight: 1.15, textAlign: 'center' }}
+        >
+          {tab.label}
+        </SegmentButton>
+      ))}
+    </div>
   );
 }
 

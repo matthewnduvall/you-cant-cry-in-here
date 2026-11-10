@@ -23,10 +23,19 @@ import {
   insertHistoryEntrySorted
 } from '../../utils/workoutEngine';
 import { CloseButton, DeleteButton, GymSelect } from '../Controls';
+import {
+  HistoryExerciseFilter,
+  EMPTY_HISTORY_FILTER,
+  isHistoryFilterActive,
+  workoutMatchesHistoryFilter,
+  getWorkoutSetsForExercise
+} from '../HistoryExerciseFilter';
 import { OneRepMaxCalculatorModal } from '../OneRepMaxCalculatorModal';
 
 
 export function HistoryView({
+  // PROGRESS page tab this renders: 'records' (Personal Records) or 'history' (logged sessions)
+  section = 'history',
   colors,
   history,
   setHistory,
@@ -52,6 +61,8 @@ export function HistoryView({
   buildHistoryWorkoutEditorProps
 }) {
   const [showAllHistory, setShowAllHistory] = useState(false);
+  // HISTORY tab search & filters (type / muscle / equipment / exercise)
+  const [historyFilter, setHistoryFilter] = useState(EMPTY_HISTORY_FILTER);
   const [historyPage, setHistoryPage] = useState(0);
 
   // --- Shared / Local Custom PR Exercise List & Add Exercise Filter State ---
@@ -387,22 +398,47 @@ export function HistoryView({
 
   const PAGE_SIZE = 100;
   const INITIAL_LIMIT = 10;
-  const totalSessions = (history || []).length;
+  const filterActive = isHistoryFilterActive(historyFilter);
+  const filteredHistory = filterActive
+    ? (history || []).filter(w => workoutMatchesHistoryFilter(w, historyFilter))
+    : history || [];
+  const allSessionsCount = (history || []).length;
+  // Most recent matching session (History is newest first, but don't rely on it)
+  const lastMatchStartedAt = filteredHistory.reduce((latest, w) => {
+    const t = Date.parse(w?.startedAt || '') || 0;
+    return t > (Date.parse(latest || '') || 0) ? w.startedAt : latest;
+  }, null);
+  // With one exercise picked, each row also shows what was done for it, e.g. "3 SETS • TOP 225 LB × 5"
+  const describeExerciseInWorkout = workout => {
+    if (!historyFilter.exerciseId) return '';
+    const sets = getWorkoutSetsForExercise(workout, historyFilter.exerciseId);
+    if (sets.length === 0) return '';
+    const top = sets.reduce((best, st) => {
+      const w = Number(st?.weight) || 0;
+      const r = Number(st?.reps) || 0;
+      if (!best || w > best.w || (w === best.w && r > best.r)) return { w, r };
+      return best;
+    }, null);
+    const topText = top && top.w > 0 ? ` • TOP ${top.w} LB × ${top.r}` : top && top.r > 0 ? ` • TOP ${top.r} REPS` : '';
+    return `${sets.length} SET${sets.length === 1 ? '' : 'S'}${topText}`;
+  };
+  const totalSessions = filteredHistory.length;
   const totalPages = Math.max(1, Math.ceil(totalSessions / PAGE_SIZE));
 
   // If a linked workout is beyond the initial 10, automatically switch to See All and its 100-item page
   useEffect(() => {
     if (!expandedHistoryWorkoutId) return;
-    const idx = (history || []).findIndex(w => w?.id === expandedHistoryWorkoutId);
+    const idx = filteredHistory.findIndex(w => w?.id === expandedHistoryWorkoutId);
     if (idx >= INITIAL_LIMIT) {
       setShowAllHistory(true);
       setHistoryPage(Math.floor(idx / PAGE_SIZE));
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [expandedHistoryWorkoutId, history]);
 
   const visibleHistory = showAllHistory
-    ? (history || []).slice(historyPage * PAGE_SIZE, (historyPage + 1) * PAGE_SIZE)
-    : (history || []).slice(0, INITIAL_LIMIT);
+    ? filteredHistory.slice(historyPage * PAGE_SIZE, (historyPage + 1) * PAGE_SIZE)
+    : filteredHistory.slice(0, INITIAL_LIMIT);
 
   // Strictly display the 5 Core PR exercises + any explicitly user-added custom exercises
   const displayedPrExerciseIds = Array.from(
@@ -491,12 +527,12 @@ export function HistoryView({
   };
 
   return (
-    <div style={{ paddingTop: '12px', paddingBottom: '36px' }}>
+    <div style={{ paddingTop: '16px', paddingBottom: '36px' }}>
       {/* =================================================================== */}
-      {/* 1. PERSONAL RECORDS SECTION (STANDARDIZED WITH ONBOARDING PAGE 3) */}
+      {/* PERSONAL RECORDS TAB (STANDARDIZED WITH ONBOARDING PAGE 3) */}
       {/* =================================================================== */}
+      {section === 'records' && (
       <section style={{ marginBottom: '20px', padding: '0 var(--dp-spacing-gutter)' }}>
-        <div style={{ ...UI.sectionTitle, marginBottom: '8px' }}>PERSONAL RECORDS</div>
 
         <div
           style={{
@@ -830,12 +866,69 @@ export function HistoryView({
           })}
         </div>
       </section>
+      )}
 
       {/* =================================================================== */}
-      {/* 2. HISTORY SECTION (STANDARDIZED SIZE, FONT & SHARED BORDERS) */}
+      {/* HISTORY TAB: SEARCH & FILTERS, THEN LOGGED SESSIONS */}
       {/* =================================================================== */}
+      {section === 'history' && (
       <section style={{ marginBottom: '20px', padding: '0 var(--dp-spacing-gutter)' }}>
-        <div style={{ ...UI.sectionTitle, marginBottom: '8px' }}>HISTORY ({totalSessions})</div>
+        {allSessionsCount > 0 && (
+          <div style={{ marginBottom: '12px' }}>
+            <div style={SHARED_GROUP_OUTER}>
+              <HistoryExerciseFilter
+                history={history}
+                filter={historyFilter}
+                onChange={next => {
+                  setHistoryFilter(next);
+                  setShowAllHistory(false);
+                  setHistoryPage(0);
+                }}
+              />
+            </div>
+            {filterActive && (
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'minmax(0, 1fr) auto',
+                  alignItems: 'center',
+                  gap: '8px',
+                  marginTop: '8px'
+                }}
+              >
+                <div style={{ fontSize: '12px', fontWeight: 800, color: '#A0A0A0', textTransform: 'uppercase', minWidth: 0 }}>
+                  {totalSessions === 0
+                    ? 'NO SESSIONS MATCH'
+                    : historyFilter.exerciseId
+                      ? <>LAST DONE: <span style={{ color: '#FFFFFF' }}>{formatDateYMD(lastMatchStartedAt)}</span> • {totalSessions} OF {allSessionsCount} SESSIONS</>
+                      : `${totalSessions} OF ${allSessionsCount} SESSIONS`}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setHistoryFilter(EMPTY_HISTORY_FILTER);
+                    setShowAllHistory(false);
+                    setHistoryPage(0);
+                  }}
+                  className="kinetic-btn"
+                  style={{
+                    height: '40px',
+                    padding: '0 14px',
+                    backgroundColor: '#161618',
+                    color: '#FFFFFF',
+                    border: '1px solid var(--dp-color-rule)',
+                    fontSize: '12px',
+                    fontWeight: 800,
+                    textTransform: 'uppercase',
+                    cursor: 'pointer'
+                  }}
+                >
+                  CLEAR
+                </button>
+              </div>
+            )}
+          </div>
+        )}
 
         <div
           style={{
@@ -931,7 +1024,7 @@ export function HistoryView({
                 textTransform: 'uppercase'
               }}
             >
-              NO SESSIONS LOGGED YET.
+              {filterActive ? 'NO SESSIONS MATCH THESE FILTERS.' : 'NO SESSIONS LOGGED YET.'}
             </div>
           ) : (
             <>
@@ -1024,6 +1117,11 @@ export function HistoryView({
                         >
                           {formatDateYMD(w.startedAt)} • {(w.slots || []).length} EXERCISES
                         </div>
+                        {historyFilter.exerciseId && describeExerciseInWorkout(w) && (
+                          <div style={{ fontSize: '11px', fontWeight: 800, color: '#FFFFFF', marginTop: '1px' }}>
+                            {describeExerciseInWorkout(w)}
+                          </div>
+                        )}
                       </div>
 
                       <button
@@ -1165,6 +1263,7 @@ export function HistoryView({
           )}
         </div>
       </section>
+      )}
 
       {/* =================================================================== */}
       {/* 1RM CONVERTER POPUP MODAL (NEW/CURRENT SESSION EXERCISE INTERFACE) */}

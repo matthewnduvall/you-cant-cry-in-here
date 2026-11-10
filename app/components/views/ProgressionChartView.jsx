@@ -184,9 +184,8 @@ export function ProgressionChartView({
   });
 
   return (
-    <div style={{ paddingTop: '12px', paddingBottom: '36px' }}>
+    <div style={{ paddingTop: '16px', paddingBottom: '36px' }}>
       <section style={{ padding: '0 var(--dp-spacing-gutter)' }}>
-        <div style={{ ...UI.sectionTitle, marginBottom: '8px' }}>PROGRESS</div>
 
         <div
           style={{

@@ -47,7 +47,7 @@ const HEADER_GRID_COLUMNS = '80px minmax(0, 15fr) minmax(0, 85fr) minmax(0, 17fr
 // Long scheme names shortened to fit the narrow SCHEME box
 const SCHEME_SHORT_LABELS = { 'Pyramid 1RM': 'PYR 1RM', 'Reverse Pyramid': 'REV PYR' };
 
-const headerSelectStyle = {
+export const headerSelectStyle = {
   width: '100%',
   minWidth: 0,
   height: '40px',
@@ -127,10 +127,9 @@ const END_SUPERSET = '__end_superset__';
  * Exercises whose name / equipment / muscle group contain every word typed, best name matches first.
  * Searches the whole library (Settings → Equipment only drives the exercises picked automatically).
  */
-const searchExercises = query => {
+export const searchExercises = (query, pool = EXERCISE_LIBRARY) => {
   const words = String(query || '').toLowerCase().trim().split(' ').filter(Boolean);
   if (words.length === 0) return [];
-  const pool = EXERCISE_LIBRARY;
   const phrase = words.join(' ');
   const rank = ex => {
     const name = ex.name.toLowerCase();
@@ -152,7 +151,7 @@ const searchExercises = query => {
     .slice(0, SEARCH_RESULT_LIMIT);
 };
 
-function SearchGlyph() {
+export function SearchGlyph() {
   return (
     <svg width="13" height="13" viewBox="0 0 16 16" aria-hidden="true" style={{ flexShrink: 0 }}>
       <circle cx="6.5" cy="6.5" r="5" fill="none" stroke="currentColor" strokeWidth="2" />
