@@ -18,8 +18,6 @@ import { RoutinesView } from './components/views/RoutinesView';
 import { GymEditorView } from './components/views/GymsView';
 import { HistoryView } from './components/views/HistoryView';
 import { ProgressionChartView, DEFAULT_CHART_LIFTS } from './components/views/ProgressionChartView';
-import { StimulusMapView } from './components/views/StimulusMapView';
-import { LeaderboardView } from './components/views/LeaderboardView';
 import { SocialView } from './components/views/SocialView';
 import { ProfileView } from './components/views/ProfileView';
 import { SettingsView } from './components/views/SettingsView';
@@ -53,6 +51,8 @@ export default function App() {
   const [currentView, setCurrentView] = useState('home');
   const [showHamburgerDrawer, setShowHamburgerDrawer] = useState(false);
   const [marqueePaused, setMarqueePaused] = useState(false);
+  // Home page STIMULUS section: starts expanded, can be collapsed
+  const [homeStimulusCollapsed, setHomeStimulusCollapsed] = useState(false);
   const importBackupInputRef = useRef(null);
 
   // --- User & Auth State ---
@@ -667,6 +667,13 @@ export default function App() {
               setMarqueePaused={setMarqueePaused}
               friendsList={friendsList}
               pendingIncomingRequests={pendingIncomingRequests}
+              muscleStimulusStatus={muscleStimulusStatus}
+              stimulusGreenDays={stimulusGreenDays}
+              stimulusYellowDays={stimulusYellowDays}
+              setStimulusGreenDays={setStimulusGreenDays}
+              setStimulusYellowDays={setStimulusYellowDays}
+              stimulusCollapsed={homeStimulusCollapsed}
+              setStimulusCollapsed={setHomeStimulusCollapsed}
             />
           )}
 
@@ -803,29 +810,6 @@ export default function App() {
             />
           )}
 
-          {currentView === 'stimulus_map' && (
-            <StimulusMapView
-              colors={colors}
-              stimulusGreenDays={stimulusGreenDays}
-              stimulusYellowDays={stimulusYellowDays}
-              setStimulusGreenDays={setStimulusGreenDays}
-              setStimulusYellowDays={setStimulusYellowDays}
-              muscleStimulusStatus={muscleStimulusStatus}
-            />
-          )}
-
-          {currentView === 'leaderboard' && (
-            <LeaderboardView
-              colors={colors}
-              user={user}
-              oneRepMaxes={effectiveOneRepMaxes}
-              friendsList={friendsList}
-              userBodyweightLbs={userBodyweightLbs}
-              totalHeightInches={totalHeightInches}
-              history={history}
-            />
-          )}
-
           {currentView === 'social' && (
             <SocialView
               colors={colors}
@@ -843,6 +827,12 @@ export default function App() {
               appendSessionLog={appendSessionLog}
               setViewingFriendProfile={setViewingFriendProfile}
               setCurrentView={setCurrentView}
+              leaderboardProps={{
+                oneRepMaxes: effectiveOneRepMaxes,
+                userBodyweightLbs,
+                totalHeightInches,
+                history
+              }}
               socialSettingsProps={{
                 profileIsPublic,
                 setProfileIsPublic,

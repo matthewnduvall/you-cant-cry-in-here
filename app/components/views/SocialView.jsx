@@ -14,6 +14,7 @@ import { isSameFriend, applyFriendshipSync, applyOutgoingInvitesSync } from '../
 import { DeleteButton } from '../Controls';
 import { UI } from '../../styles/kineticTokens';
 import { SocialSettingsSection } from './SettingsView';
+import { LeaderboardView } from './LeaderboardView';
 
 const isEmailAddress = value => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || '').trim());
 
@@ -34,7 +35,9 @@ export function SocialView({
   setViewingFriendProfile,
   setCurrentView,
   // PRIVACY & SHARING settings (moved here from Settings)
-  socialSettingsProps
+  socialSettingsProps,
+  // LEADERBOARDS (moved here from their own page)
+  leaderboardProps
 }) {
   const [searchedAthletes, setSearchedAthletes] = useState([]);
   const [hasSearched, setHasSearched] = useState(false);
@@ -469,6 +472,8 @@ export function SocialView({
             </IOSListRow>
           ))}
       </IOSListSection>
+
+      <LeaderboardView colors={colors} user={user} friendsList={friendsList} title="LEADERBOARDS" {...leaderboardProps} />
 
       <SocialSettingsSection colors={colors} {...socialSettingsProps} />
     </div>
