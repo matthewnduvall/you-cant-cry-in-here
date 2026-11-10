@@ -5,7 +5,10 @@ import { UI, SHARED_CELL_BORDER, SHARED_GROUP_OUTER } from '../../styles/kinetic
 import {
   CORE_PR_EXERCISE_IDS,
   EXERCISE_MAP,
-  EXRX_CLASSES,
+  STRENGTH_GOAL_CLASSES,
+  THOUSAND_LB_CLUB,
+  THOUSAND_LB_CLUB_TOTAL,
+  getThousandLbClubGoals,
   getExRxTargetForLift
 } from '../../data/exerciseLibrary';
 import { Button, CloseButton, SegmentButton } from '../Controls';
@@ -61,7 +64,8 @@ export function GoalsView({
         targetStandardClass,
         userBodyweightLbs,
         totalHeightInches,
-        customGoalWeights
+        customGoalWeights,
+        oneRepMaxes
       );
       openPlateCalculatorForGoal(selectedExId, ex.name, initialGoal);
     }
@@ -228,7 +232,7 @@ export function GoalsView({
                 cursor: 'pointer'
               }}
             >
-              {EXRX_CLASSES.map(c => (
+              {STRENGTH_GOAL_CLASSES.map(c => (
                 <option key={c} value={c}>
                   {c.toUpperCase()}
                 </option>
@@ -236,6 +240,37 @@ export function GoalsView({
               <option value="Custom">CUSTOM</option>
             </select>
           </div>
+
+          {/* 1000 LB CLUB: Big 3 total so far; the rest is split evenly across the bench / squat / deadlift goals */}
+          {targetStandardClass === THOUSAND_LB_CLUB &&
+            (() => {
+              const club = getThousandLbClubGoals(oneRepMaxes);
+              return (
+                <div
+                  style={{
+                    padding: '0 12px',
+                    minHeight: '44px',
+                    boxSizing: 'border-box',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: '8px',
+                    backgroundColor: '#141416',
+                    fontSize: '12px',
+                    fontWeight: 800,
+                    textTransform: 'uppercase',
+                    ...SHARED_CELL_BORDER
+                  }}
+                >
+                  <span style={{ color: '#FFFFFF' }}>
+                    BIG 3 TOTAL: {club.total} / {THOUSAND_LB_CLUB_TOTAL} LB
+                  </span>
+                  <span style={{ color: club.remaining > 0 ? '#A0A0A0' : '#30D158', whiteSpace: 'nowrap' }}>
+                    {club.remaining > 0 ? `${club.remaining} LB TO GO` : 'REACHED ✓'}
+                  </span>
+                </div>
+              );
+            })()}
 
           {/* EXERCISE GOAL ROWS: EXERCISE TITLE | X FROM GOAL | GOAL WEIGHT */}
           {displayedGoalIds.map(liftId => {
@@ -249,7 +284,8 @@ export function GoalsView({
               targetStandardClass,
               userBodyweightLbs,
               totalHeightInches,
-              customGoalWeights
+              customGoalWeights,
+              oneRepMaxes
             );
             const distance = Math.max(0, goalWeight - cur1RM);
 
@@ -296,13 +332,13 @@ export function GoalsView({
                     style={{
                       fontSize: '11px',
                       fontWeight: 800,
-                      color: '#30D158',
+                      color: isTBD ? '#8E8E93' : '#30D158',
                       textTransform: 'uppercase',
                       whiteSpace: 'nowrap',
                       flexShrink: 0
                     }}
                   >
-                    {distance} LB FROM GOAL
+                    {isTBD ? 'NOT LOGGED YET' : distance === 0 ? 'GOAL REACHED ✓' : `${distance} LB FROM GOAL`}
                   </span>
                 </div>
 

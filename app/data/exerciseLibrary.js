@@ -525,7 +525,48 @@ const interpolateExRxTable = (table, targetClass, bw) => {
   return table[220][cls];
 };
 
-export const getExRxTargetForLift = (liftId, targetClass, bodyweightLbs = 220, heightInches = 70, customGoals = {}) => {
+// ---------------------------------------------------------------------------
+// 1000 LB CLUB: a strength class goal of a 1000 lb Big 3 total (bench + squat + deadlift 1RMs). The lb still
+// missing from 1000 is split evenly across the three lifts on top of each current 1RM (whole pounds; the
+// leftover 1–2 lb go to bench, then squat), so the three goals always add up to exactly 1000. Once the
+// total reaches 1000, each goal is the current 1RM (reached).
+// ---------------------------------------------------------------------------
+export const THOUSAND_LB_CLUB = '1000 LB Club';
+export const THOUSAND_LB_CLUB_TOTAL = 1000;
+export const THOUSAND_LB_CLUB_LIFT_IDS = ['barbell_bench_press', 'barbell_back_squat', 'barbell_deadlift'];
+// Strength class goals offered in Goals (plus CUSTOM)
+export const STRENGTH_GOAL_CLASSES = [...EXRX_CLASSES, THOUSAND_LB_CLUB];
+
+/** { total, remaining, goals: { [liftId]: goal } } for the 1000 lb club from current 1RMs (unlogged = 0). */
+export const getThousandLbClubGoals = (current1RMs = {}) => {
+  const currents = THOUSAND_LB_CLUB_LIFT_IDS.map(id => Math.max(0, Math.round(Number(current1RMs?.[id]) || 0)));
+  const total = currents.reduce((sum, v) => sum + v, 0);
+  const remaining = Math.max(0, THOUSAND_LB_CLUB_TOTAL - total);
+  const share = Math.floor(remaining / THOUSAND_LB_CLUB_LIFT_IDS.length);
+  const leftover = remaining - share * THOUSAND_LB_CLUB_LIFT_IDS.length;
+  const goals = {};
+  THOUSAND_LB_CLUB_LIFT_IDS.forEach((id, i) => {
+    goals[id] = currents[i] + share + (i < leftover ? 1 : 0);
+  });
+  return { total, remaining, goals };
+};
+
+/**
+ * Goal 1RM for a lift under a strength class goal. `current1RMs` is only needed for the 1000 LB Club,
+ * whose Big 3 goals depend on what has been lifted; its other lifts use a custom goal if set, else Intermediate.
+ */
+export const getExRxTargetForLift = (
+  liftId,
+  targetClass,
+  bodyweightLbs = 220,
+  heightInches = 70,
+  customGoals = {},
+  current1RMs = {}
+) => {
+  if (targetClass === THOUSAND_LB_CLUB) {
+    if (THOUSAND_LB_CLUB_LIFT_IDS.includes(liftId)) return getThousandLbClubGoals(current1RMs).goals[liftId];
+    if (customGoals && customGoals[liftId]) return Number(customGoals[liftId]);
+  }
   if (targetClass === 'Custom' && customGoals && customGoals[liftId]) {
     return Number(customGoals[liftId]);
   }
