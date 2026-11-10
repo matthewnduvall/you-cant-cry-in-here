@@ -41,14 +41,20 @@ import {
 } from '../utils/workoutEngine';
 import { DeleteButton, DragNumberBadge } from './Controls';
 
+// Header grid: at phone width ≈ SEARCH 95 / TYPE 102 / MUSCLE 108 px on row 1 and
+// SCHEME 80 / EQUIPMENT 100 / EXERCISE 125 px on row 2, so the usual labels fit without being cut off
+const HEADER_GRID_COLUMNS = '80px minmax(0, 15fr) minmax(0, 85fr) minmax(0, 17fr) minmax(0, 108fr)';
+// Long scheme names shortened to fit the narrow SCHEME box
+const SCHEME_SHORT_LABELS = { 'Pyramid 1RM': 'PYR 1RM', 'Reverse Pyramid': 'REV PYR' };
+
 const headerSelectStyle = {
   width: '100%',
   minWidth: 0,
   height: '40px',
   boxSizing: 'border-box',
-  fontSize: '13px',
+  fontSize: '12px',
   fontWeight: 800,
-  padding: '0 8px',
+  padding: '0 4px 0 6px',
   backgroundColor: '#161618',
   color: '#FFFFFF',
   ...SHARED_CELL_BORDER,
@@ -66,7 +72,7 @@ const exerciseSelectStyle = {
   color: '#FFFFFF',
   border: 'none',
   padding: '0 8px',
-  fontSize: '13px',
+  fontSize: '12px',
   fontWeight: 800,
   textTransform: 'uppercase',
   cursor: 'pointer'
@@ -87,7 +93,7 @@ const setCellStyle = cellBg => ({
   whiteSpace: 'nowrap'
 });
 
-const cellLabelStyle = { fontSize: '9px', fontWeight: 800, color: '#9A9A9A', lineHeight: 1 };
+const cellLabelStyle = { fontSize: '11px', fontWeight: 800, color: '#9A9A9A', lineHeight: 1 };
 const cellValueStyle = (color = '#FFFFFF', size = '15px') => ({
   fontSize: size,
   fontWeight: 800,
@@ -161,7 +167,7 @@ function PrBadge({ marginRight = '6px' }) {
       style={{
         backgroundColor: '#30D158',
         color: '#101010',
-        fontSize: '10px',
+        fontSize: '11px',
         fontWeight: 900,
         padding: '1px 5px',
         lineHeight: 1.2,
@@ -327,7 +333,7 @@ export function SlotEditor({
           onClick={() => setSearch({ half, query: '' })}
           style={{
             ...headerSelectStyle,
-            gridColumn: 1,
+            gridColumn: '1 / 3',
             gridRow: 1,
             display: 'flex',
             alignItems: 'center',
@@ -359,7 +365,7 @@ export function SlotEditor({
         }}
         style={{
           ...headerSelectStyle,
-          gridColumn: 1,
+          gridColumn: '1 / 3',
           gridRow: 1,
           cursor: 'text',
           outline: 'none',
@@ -423,7 +429,7 @@ export function SlotEditor({
               <span
                 style={{
                   display: 'block',
-                  fontSize: '10px',
+                  fontSize: '11px',
                   fontWeight: 800,
                   color: '#A0A0A0',
                   textTransform: 'uppercase',
@@ -495,7 +501,8 @@ export function SlotEditor({
         style={{
           position: 'relative',
           display: 'grid',
-          gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+          // Five shared columns sized to their content: row 1 = SEARCH | TYPE | MUSCLE, row 2 = SCHEME | EQUIPMENT | EXERCISE
+          gridTemplateColumns: HEADER_GRID_COLUMNS,
           gridAutoRows: '40px',
           gap: 0,
           minWidth: 0,
@@ -516,7 +523,7 @@ export function SlotEditor({
           }}
           style={{
             ...headerSelectStyle,
-            gridColumn: 2,
+            gridColumn: '3 / 5',
             gridRow: 1,
             backgroundColor: 'var(--dp-color-accent)',
             color: '#101010'
@@ -534,7 +541,7 @@ export function SlotEditor({
           aria-label={`${tag}Muscle Group Filter`.trim()}
           value={muscle}
           onChange={e => sendHeaderChange(half, { muscleGroupFilter: e.target.value })}
-          style={{ ...headerSelectStyle, gridColumn: 3, gridRow: 1 }}
+          style={{ ...headerSelectStyle, gridColumn: '5 / 6', gridRow: 1 }}
         >
           {availMuscles.map(mg => (
             <option key={mg} value={mg}>
@@ -547,7 +554,7 @@ export function SlotEditor({
           aria-label={isSuperset ? `Superset Exercise ${half + 1} Equipment` : 'Exercise Equipment'}
           value={equipment}
           onChange={e => handleEquipmentChange(e.target.value)}
-          style={{ ...headerSelectStyle, gridColumn: 2, gridRow: 2 }}
+          style={{ ...headerSelectStyle, gridColumn: '2 / 4', gridRow: 2 }}
         >
           {equipmentOptions.map(eq => (
             <option key={eq} value={eq}>
@@ -558,7 +565,7 @@ export function SlotEditor({
 
         <div
           style={{
-            gridColumn: 3,
+            gridColumn: '4 / 6',
             gridRow: 2,
             width: '100%',
             minWidth: 0,
@@ -589,11 +596,11 @@ export function SlotEditor({
           aria-label={`${tag}Set and Rep Scheme`.trim()}
           value={scheme}
           onChange={e => sendHeaderChange(half, { scheme: e.target.value })}
-          style={{ ...headerSelectStyle, gridColumn: 1, gridRow: 2 }}
+          style={{ ...headerSelectStyle, gridColumn: '1 / 2', gridRow: 2 }}
         >
           {SCHEME_OPTIONS.map(scm => (
             <option key={scm} value={scm}>
-              {scm.toUpperCase()}
+              {SCHEME_SHORT_LABELS[scm] || scm.toUpperCase()}
             </option>
           ))}
         </select>
@@ -669,7 +676,7 @@ export function SlotEditor({
           {isSuperset && (
             <div
               style={{
-                fontSize: '10px',
+                fontSize: '11px',
                 fontWeight: 800,
                 color: exIdx === 0 ? 'var(--dp-color-accent)' : '#C0C0C0',
                 backgroundColor: cellBg,

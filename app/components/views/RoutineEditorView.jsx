@@ -101,7 +101,7 @@ export function RoutineEditorView({
           >
             <div
               style={{
-                fontSize: '10px',
+                fontSize: '11px',
                 fontWeight: 800,
                 color: 'var(--dp-color-accent)',
                 textTransform: 'uppercase',

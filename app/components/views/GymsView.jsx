@@ -19,7 +19,7 @@ const GYM_STATUS_BTN_STYLE = isSelected => ({
   alignItems: 'center',
   justifyContent: 'center',
   textAlign: 'center',
-  fontSize: '10px',
+  fontSize: '11px',
   fontWeight: 800,
   flexShrink: 0
 });
@@ -127,7 +127,7 @@ export function GymsView({
                       backgroundColor: '#1C1C1E',
                       color: '#FFFFFF',
                       border: '2px solid var(--dp-color-rule)',
-                      fontSize: '10px',
+                      fontSize: '11px',
                       fontWeight: 800,
                       textTransform: 'uppercase',
                       cursor: 'pointer'

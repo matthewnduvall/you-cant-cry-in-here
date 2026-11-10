@@ -202,7 +202,7 @@ export function SessionTitleBar({ title = '', onChangeTitle, onSave, onReset, sh
           justifyContent: 'center'
         }}
       >
-        <span style={{ fontSize: '9px', fontWeight: 800, color: 'var(--dp-color-accent)', lineHeight: 1.1 }}>
+        <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--dp-color-accent)', lineHeight: 1.1 }}>
           SESSION NAME
         </span>
         <input
@@ -412,7 +412,7 @@ export const SessionRestTimerBar = React.memo(function SessionRestTimerBar({
         {nextLiftInfo.bottomLine ? (
           <div
             style={{
-              fontSize: '10.5px',
+              fontSize: '11px',
               fontWeight: 800,
               lineHeight: 1.15,
               opacity: 0.9,

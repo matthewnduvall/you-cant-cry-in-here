@@ -64,7 +64,7 @@ export function AuthView({
     backgroundColor: isShown ? 'var(--dp-color-accent)' : '#101010',
     color: isShown ? '#101010' : '#FFFFFF',
     border: '2px solid var(--dp-color-rule)',
-    fontSize: '10px',
+    fontSize: '11px',
     fontWeight: 800,
     textTransform: 'uppercase',
     cursor: 'pointer',

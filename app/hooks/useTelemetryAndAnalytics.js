@@ -12,6 +12,9 @@ import {
 } from '../data/exerciseLibrary';
 import { getPersonalRecord1RM } from '../utils/workoutEngine';
 
+// Muscle groups with no logged training: neutral grey, so a new account isn't shown as all "overdue"
+export const UNLOGGED_STIMULUS_COLOR = '#4A4A50';
+
 export function useTelemetryAndAnalytics({
   history,
   oneRepMaxes,
@@ -76,6 +79,7 @@ export function useTelemetryAndAnalytics({
       } else if (minDays < 99) {
         statusLabel = `${minDays}D AGO (OVERDUE)`;
       } else {
+        statusColor = UNLOGGED_STIMULUS_COLOR;
         statusLabel = 'UNLOGGED';
       }
 
