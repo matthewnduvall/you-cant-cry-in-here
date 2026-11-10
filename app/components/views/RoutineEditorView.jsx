@@ -46,6 +46,8 @@ export function RoutineEditorView({
   setSetValueTarget,
   openedFromRoutines = false,
   setOpenedFromRoutines,
+  setCurrentView,
+  setRoutineSelectReturnView,
   isEmbeddedHistorySession = false
 }) {
   const [draggedSlotIndex, setDraggedSlotIndex] = useState(null);
@@ -326,17 +328,33 @@ export function RoutineEditorView({
         </div>
       </section>
 
-      {/* + ADD EXERCISE: appends an auto-guessed exercise the athlete can then edit */}
+      {/* + ADD EXERCISE: appends an auto-guessed exercise the athlete can then edit.
+          A blank live session also offers LOAD ROUTINE (opens the routine browser, which loads back here). */}
       <div style={{ padding: '0 var(--dp-spacing-gutter)' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 0, width: '100%', ...SHARED_GROUP_OUTER }}>
-          <Button
-            variant="dashed"
-            onClick={() => handleAddAutoSlot?.()}
-            style={{ height: '48px', fontSize: '13px', fontWeight: 800, ...SHARED_CELL_BORDER, backgroundColor: '#161618', color: '#FFFFFF', whiteSpace: 'nowrap', boxSizing: 'border-box' }}
-          >
-            + ADD EXERCISE
-          </Button>
-        </div>
+        {(() => {
+          const showLoadRoutine =
+            !hasExercises && currentView === 'session' && !isEmbeddedHistorySession && setCurrentView && setRoutineSelectReturnView;
+          const bottomButtonStyle = { height: '48px', fontSize: '13px', fontWeight: 800, ...SHARED_CELL_BORDER, backgroundColor: '#161618', color: '#FFFFFF', whiteSpace: 'nowrap', boxSizing: 'border-box' };
+          return (
+            <div style={{ display: 'grid', gridTemplateColumns: showLoadRoutine ? 'minmax(0, 1fr) minmax(0, 1fr)' : 'minmax(0, 1fr)', gap: 0, width: '100%', ...SHARED_GROUP_OUTER }}>
+              <Button variant="dashed" onClick={() => handleAddAutoSlot?.()} style={bottomButtonStyle}>
+                + ADD EXERCISE
+              </Button>
+              {showLoadRoutine && (
+                <Button
+                  variant="dashed"
+                  onClick={() => {
+                    setRoutineSelectReturnView(currentView);
+                    setCurrentView('routines');
+                  }}
+                  style={bottomButtonStyle}
+                >
+                  LOAD ROUTINE
+                </Button>
+              )}
+            </div>
+          );
+        })()}
 
       </div>
     </div>
