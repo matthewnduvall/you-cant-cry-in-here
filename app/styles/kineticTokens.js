@@ -171,7 +171,7 @@ export const UI = {
     fontSize: '11px', fontWeight: 800, color: 'var(--dp-color-accent)', marginBottom: '6px', textTransform: 'uppercase'
   },
   fieldLabel: {
-    fontSize: '10px', fontWeight: 800, color: 'var(--dp-color-accent)', textTransform: 'uppercase'
+    fontSize: '11px', fontWeight: 800, color: 'var(--dp-color-accent)', textTransform: 'uppercase'
   },
   rowTitle: { fontSize: '15px', fontWeight: 800, textTransform: 'uppercase' },
   rowSub: { fontSize: '11px', color: '#A0A0A0', fontWeight: 600 },

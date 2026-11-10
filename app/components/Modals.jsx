@@ -275,7 +275,7 @@ function EditableTotalWeight({ value, unit, onCommit }) {
   const bigText = { fontSize: '30px', fontWeight: 800, color: 'var(--dp-color-accent)', whiteSpace: 'nowrap', lineHeight: 1.2 };
   return (
     <div style={{ textAlign: 'center', minWidth: 0 }}>
-      <div style={{ fontSize: '10px', fontWeight: 800, color: '#A0A0A0' }}>TOTAL WEIGHT ✎</div>
+      <div style={{ fontSize: '11px', fontWeight: 800, color: '#A0A0A0' }}>TOTAL WEIGHT ✎</div>
       {draft === null ? (
         <button
           type="button"
@@ -356,7 +356,7 @@ export function PlateCalculatorModal({
         {(() => {
           const hasLast = plateCalcTarget.mode === 'set' && plateCalcTarget.lastDisplay !== undefined;
           const hasOneRepMax = plateCalcTarget.mode === 'set' && Boolean(plateCalcTarget.showOneRepMax);
-          const sideLabel = { fontSize: '10px', fontWeight: 800, color: '#A0A0A0', lineHeight: 1 };
+          const sideLabel = { fontSize: '11px', fontWeight: 800, color: '#A0A0A0', lineHeight: 1 };
           const sideValue = color => ({ fontSize: '16px', fontWeight: 800, color, marginTop: '4px', lineHeight: 1.1 });
           // 1RM box: PR = best 1RM logged in History; CURRENT = best 1RM across this exercise's sets in the
           // session, with this set at the weight being picked. Same estimate History uses to find PRs, so
@@ -377,7 +377,7 @@ export function PlateCalculatorModal({
               .filter(st => st && st.id !== plateCalcTarget.setId)
               .map(st => estimate1RM(st.weight, st.reps))
           );
-          const oneRepMaxLabel = color => ({ fontSize: '10px', fontWeight: 800, color, lineHeight: 1, whiteSpace: 'nowrap' });
+          const oneRepMaxLabel = color => ({ fontSize: '11px', fontWeight: 800, color, lineHeight: 1, whiteSpace: 'nowrap' });
           const oneRepMaxValue = {
             fontSize: '14px',
             fontWeight: 800,
@@ -536,7 +536,7 @@ export function PlateCalculatorModal({
                 marginBottom: '6px'
               }}
             >
-              <span style={{ fontSize: '10px', fontWeight: 800, color: '#A0A0A0', textTransform: 'uppercase' }}>
+              <span style={{ fontSize: '11px', fontWeight: 800, color: '#A0A0A0', textTransform: 'uppercase' }}>
                 RECORD DATE (LOGS HISTORY ENTRY)
               </span>
               <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
@@ -547,7 +547,7 @@ export function PlateCalculatorModal({
                     background: 'none',
                     border: 'none',
                     color: 'var(--dp-color-accent)',
-                    fontSize: '10px',
+                    fontSize: '11px',
                     fontWeight: 800,
                     textTransform: 'uppercase',
                     cursor: 'pointer',
@@ -564,7 +564,7 @@ export function PlateCalculatorModal({
                       background: 'none',
                       border: 'none',
                       color: '#FF3B30',
-                      fontSize: '10px',
+                      fontSize: '11px',
                       fontWeight: 800,
                       textTransform: 'uppercase',
                       cursor: 'pointer',
@@ -680,7 +680,7 @@ export function SetValueEditorModal({
                 marginBottom: '12px'
               }}
             >
-              <div style={{ fontSize: '10px', fontWeight: 800, color: '#A0A0A0' }}>
+              <div style={{ fontSize: '11px', fontWeight: 800, color: '#A0A0A0' }}>
                 {mode === 'increment'
                   ? 'INCREMENT FROM LAST'
                   : mode === 'timer'
@@ -826,7 +826,7 @@ export function SaveConfirmModal({
           <div
             style={{
               marginTop: '6px',
-              fontSize: '10px',
+              fontSize: '11px',
               fontWeight: 800,
               color: '#A0A0A0',
               textTransform: 'uppercase',
@@ -1158,7 +1158,7 @@ export function FeedbackModal({
           >
             <div>FEEDBACK & SESSION LOGS SENT ✓</div>
             {deliveryNote && (
-              <div style={{ fontSize: '10px', color: '#E0E0E0', marginTop: '6px', lineHeight: 1.35 }}>
+              <div style={{ fontSize: '11px', color: '#E0E0E0', marginTop: '6px', lineHeight: 1.35 }}>
                 {deliveryNote}
               </div>
             )}

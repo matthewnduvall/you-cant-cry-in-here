@@ -765,26 +765,28 @@ export function HistoryView({
                       fontWeight: 800,
                       color: '#FFFFFF',
                       textTransform: 'uppercase',
-                      whiteSpace: 'nowrap',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis'
+                      lineHeight: 1.15,
+                      display: '-webkit-box',
+                      WebkitLineClamp: 2,
+                      WebkitBoxOrient: 'vertical',
+                      overflow: 'hidden'
                     }}
                   >
                     {ex.name}
                   </div>
                   <div
                     style={{
-                      fontSize: '10px',
+                      fontSize: '11px',
                       fontWeight: 700,
                       color: colors?.secondaryLabel || '#A0A0A0',
                       marginTop: '1px'
                     }}
                   >
                     {isTBD
-                      ? `${targetStandardClass.toUpperCase()} GOAL: ${goal1RM} LB`
+                      ? `${targetStandardClass.toUpperCase()} GOAL: ${goal1RM}\u00A0LB`
                       : diffFromGoal > 0
-                        ? `${targetStandardClass.toUpperCase()} GOAL: ${goal1RM} LB (${diffFromGoal} LB TO GOAL)`
-                        : `${targetStandardClass.toUpperCase()} GOAL: ${goal1RM} LB (ACHIEVED +${Math.abs(diffFromGoal)} LB)`}
+                        ? `${targetStandardClass.toUpperCase()} GOAL: ${goal1RM}\u00A0LB (${diffFromGoal}\u00A0LB TO GOAL)`
+                        : `${targetStandardClass.toUpperCase()} GOAL: ${goal1RM}\u00A0LB (ACHIEVED +${Math.abs(diffFromGoal)}\u00A0LB)`}
                   </div>
                 </div>
 
@@ -811,7 +813,7 @@ export function HistoryView({
                     minHeight: '48px',
                     flexDirection: 'column',
                     backgroundColor: isTBD
-                      ? '#FF3B30'
+                      ? '#2A2A2E'
                       : 'var(--dp-color-accent)',
                     color: isTBD ? '#FFFFFF' : '#000000'
                   }}
@@ -822,7 +824,7 @@ export function HistoryView({
                   {!isTBD && loggedDateLabel && (
                     <span
                       style={{
-                        fontSize: '9px',
+                        fontSize: '11px',
                         fontWeight: 800,
                         lineHeight: 1.1,
                         marginTop: '2px',
@@ -1020,7 +1022,7 @@ export function HistoryView({
                               style={{
                                 backgroundColor: '#30D158',
                                 color: '#101010',
-                                fontSize: '10px',
+                                fontSize: '11px',
                                 fontWeight: 900,
                                 padding: '1px 5px',
                                 lineHeight: 1.2,
@@ -1034,7 +1036,7 @@ export function HistoryView({
                         </div>
                         <div
                           style={{
-                            fontSize: '10px',
+                            fontSize: '11px',
                             fontWeight: 700,
                             color: colors?.secondaryLabel || '#A0A0A0',
                             marginTop: '1px'
@@ -1152,7 +1154,7 @@ export function HistoryView({
                       alignItems: 'center',
                       justifyContent: 'center',
                       padding: '0 6px',
-                      fontSize: '10px',
+                      fontSize: '11px',
                       fontWeight: 800,
                       color: '#A0A0A0',
                       textTransform: 'uppercase',
@@ -1243,7 +1245,7 @@ export function HistoryView({
               <div>
                 <div
                   style={{
-                    fontSize: '10px',
+                    fontSize: '11px',
                     fontWeight: 800,
                     color: 'var(--dp-color-accent)',
                     textTransform: 'uppercase'
@@ -1342,7 +1344,7 @@ export function HistoryView({
             {/* CSV Preview / Direct Paste Area */}
             <div
               style={{
-                fontSize: '10px',
+                fontSize: '11px',
                 fontWeight: 800,
                 color: '#A0A0A0',
                 marginBottom: '4px',

@@ -173,8 +173,8 @@ export function ProgressionChartView({
   const yTicks = [0, 0.25, 0.5, 0.75, 1].map(t => Math.round(minVal + t * (maxVal - minVal)));
 
   // Always generate 10 evenly spaced date ticks along the bottom X-axis for the active timeframe
-  const xDateTicks = Array.from({ length: 10 }, (_, idx) => {
-    const ratio = idx / 9;
+  const xDateTicks = Array.from({ length: 6 }, (_, idx) => {
+    const ratio = idx / 5;
     const tickMs = Math.round(domainMinMs + ratio * (domainMaxMs - domainMinMs));
     return {
       key: `xtick_${idx}`,
@@ -405,7 +405,7 @@ export function ProgressionChartView({
                       strokeWidth="1"
                       strokeDasharray="3 3"
                     />
-                    <text x={padL - 6} y={y + 3} textAnchor="end" fill="#888888" fontSize="9" fontWeight="700">
+                    <text x={padL - 6} y={y + 3} textAnchor="end" fill="#A0A0A0" fontSize="12.5" fontWeight="700">
                       {tickVal >= 1000 && chartMetric === 'volume' ? `${(tickVal / 1000).toFixed(1)}k` : tickVal}
                     </text>
                   </g>
@@ -420,7 +420,7 @@ export function ProgressionChartView({
                     y={svgH - 9}
                     textAnchor="middle"
                     fill="#A0A0A0"
-                    fontSize="8"
+                    fontSize="12.5"
                     fontWeight="800"
                   >
                     {tick.label}
@@ -464,7 +464,7 @@ export function ProgressionChartView({
                           strokeWidth="2.2"
                         />
                         {(singleLift || cIdx === coords.length - 1) && (
-                          <text x={c.x} y={c.y - 8} textAnchor="middle" fill={color} fontSize="9" fontWeight="800">
+                          <text x={c.x} y={c.y - 8} textAnchor="middle" fill={color} fontSize="12.5" fontWeight="800">
                             {c.rawVal}
                           </text>
                         )}
@@ -473,6 +473,18 @@ export function ProgressionChartView({
                   </g>
                 );
               })}
+              {activeLifts.every(id => (filteredSeriesByLift[id] || []).length === 0) && (
+                <text
+                  x={padL + plotW / 2}
+                  y={padT + plotH / 2}
+                  textAnchor="middle"
+                  fill="#A0A0A0"
+                  fontSize="14"
+                  fontWeight="800"
+                >
+                  {activeLifts.length === 0 ? 'TURN ON A LIFT ABOVE' : 'LOG A SESSION TO SEE PROGRESS'}
+                </text>
+              )}
             </svg>
           </div>
 
@@ -520,12 +532,12 @@ export function ProgressionChartView({
                     style={{
                       fontSize: '11px',
                       fontWeight: 800,
-                      color: 'var(--dp-color-accent)',
+                      color: isTBD ? '#8E8E93' : 'var(--dp-color-accent)',
                       textTransform: 'uppercase',
                       whiteSpace: 'nowrap'
                     }}
                   >
-                    {distance} LB FROM GOAL
+                    {isTBD ? 'NOT LOGGED YET' : `${distance} LB FROM GOAL`}
                   </span>
                 </div>
                 <div
@@ -539,12 +551,18 @@ export function ProgressionChartView({
                     justifyContent: 'space-between'
                   }}
                 >
-                  <span>
-                    START: {firstVal} LB → LATEST: {latestVal} LB
-                  </span>
-                  <span style={{ color: delta >= 0 ? '#30D158' : '#FF3B30' }}>
-                    {delta >= 0 ? `+${delta}` : delta} LB
-                  </span>
+                  {series.length === 0 ? (
+                    <span>NO SESSIONS IN THIS TIME FRAME</span>
+                  ) : (
+                    <>
+                      <span>
+                        START: {firstVal} LB → LATEST: {latestVal} LB
+                      </span>
+                      <span style={{ color: delta >= 0 ? '#30D158' : '#FF3B30' }}>
+                        {delta >= 0 ? `+${delta}` : delta} LB
+                      </span>
+                    </>
+                  )}
                 </div>
               </div>
             );

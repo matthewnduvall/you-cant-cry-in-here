@@ -256,7 +256,7 @@ export function HomeView({
           style={{
             backgroundColor: '#101010', color: '#FFFFFF', border: 'none',
             borderLeft: '2px solid var(--dp-color-rule)', padding: '8px 10px',
-            fontSize: '10px', fontWeight: 800, cursor: 'pointer'
+            fontSize: '11px', fontWeight: 800, cursor: 'pointer'
           }}
         >
           {marqueePaused ? 'PLAY' : 'PAUSE'}
@@ -322,7 +322,7 @@ export function HomeView({
               boxSizing: 'border-box',
               padding: '0 6px',
               backgroundColor: 'var(--dp-color-accent)',
-              color: '#FFFFFF',
+              color: '#101010',
               borderTop: 'none',
               borderLeft: 'none',
               borderRight: '1px solid var(--dp-color-rule)',

@@ -206,7 +206,7 @@ export function OnboardingView({
             >
               <div
                 style={{
-                  fontSize: '10px',
+                  fontSize: '11px',
                   fontWeight: 800,
                   color: 'var(--dp-color-accent)',
                   textTransform: 'uppercase',
@@ -318,7 +318,7 @@ export function OnboardingView({
             >
               <div
                 style={{
-                  fontSize: '10px',
+                  fontSize: '11px',
                   fontWeight: 800,
                   color: 'var(--dp-color-accent)',
                   marginBottom: '6px'
@@ -356,7 +356,7 @@ export function OnboardingView({
             >
               <div
                 style={{
-                  fontSize: '10px',
+                  fontSize: '11px',
                   fontWeight: 800,
                   color: 'var(--dp-color-accent)',
                   marginBottom: '6px'
@@ -396,7 +396,7 @@ export function OnboardingView({
             >
               <div
                 style={{
-                  fontSize: '10px',
+                  fontSize: '11px',
                   fontWeight: 800,
                   color: 'var(--dp-color-accent)',
                   marginBottom: '6px'
@@ -604,7 +604,7 @@ export function OnboardingView({
                           display: 'inline-flex',
                           alignItems: 'center',
                           justifyContent: 'center',
-                          fontSize: '10px',
+                          fontSize: '11px',
                           fontWeight: 800,
                           backgroundColor: isSelected
                             ? 'var(--dp-color-accent)'
@@ -700,26 +700,28 @@ export function OnboardingView({
                         fontWeight: 800,
                         color: '#FFFFFF',
                         textTransform: 'uppercase',
-                        whiteSpace: 'nowrap',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis'
+                        lineHeight: 1.15,
+                        display: '-webkit-box',
+                        WebkitLineClamp: 2,
+                        WebkitBoxOrient: 'vertical',
+                        overflow: 'hidden'
                       }}
                     >
                       {ex.name}
                     </div>
                     <div
                       style={{
-                        fontSize: '10px',
+                        fontSize: '11px',
                         fontWeight: 700,
                         color: colors.secondaryLabel,
                         marginTop: '1px'
                       }}
                     >
                       {isTBD
-                        ? `${targetStandardClass.toUpperCase()} GOAL: ${goal1RM} LB`
+                        ? `${targetStandardClass.toUpperCase()} GOAL: ${goal1RM}\u00A0LB`
                         : diffFromGoal > 0
-                          ? `${targetStandardClass.toUpperCase()} GOAL: ${goal1RM} LB (${diffFromGoal} LB TO GOAL)`
-                          : `${targetStandardClass.toUpperCase()} GOAL: ${goal1RM} LB (ACHIEVED +${Math.abs(diffFromGoal)} LB)`}
+                          ? `${targetStandardClass.toUpperCase()} GOAL: ${goal1RM}\u00A0LB (${diffFromGoal}\u00A0LB TO GOAL)`
+                          : `${targetStandardClass.toUpperCase()} GOAL: ${goal1RM}\u00A0LB (ACHIEVED +${Math.abs(diffFromGoal)}\u00A0LB)`}
                     </div>
                   </div>
 
@@ -745,7 +747,7 @@ export function OnboardingView({
                       height: '100%',
                       minHeight: '48px',
                       backgroundColor: isTBD
-                        ? '#FF3B30'
+                        ? '#2A2A2E'
                         : 'var(--dp-color-accent)',
                       color: isTBD ? '#FFFFFF' : '#000000'
                     }}
@@ -1166,7 +1168,7 @@ export function OnboardingView({
                           display: 'inline-flex',
                           alignItems: 'center',
                           gap: '4px',
-                          fontSize: '10px',
+                          fontSize: '11px',
                           fontWeight: 800,
                           color: '#FFFFFF'
                         }}
@@ -1185,7 +1187,7 @@ export function OnboardingView({
                   </div>
                   <span
                     style={{
-                      fontSize: '9px',
+                      fontSize: '11px',
                       fontWeight: 800,
                       color: '#888888'
                     }}
@@ -1330,7 +1332,7 @@ export function OnboardingView({
                 >
                   <div
                     style={{
-                      fontSize: '10px',
+                      fontSize: '11px',
                       fontWeight: 800,
                       color: 'var(--dp-color-accent)',
                       marginBottom: '6px'
@@ -1372,7 +1374,7 @@ export function OnboardingView({
                 >
                   <div
                     style={{
-                      fontSize: '10px',
+                      fontSize: '11px',
                       fontWeight: 800,
                       color: 'var(--dp-color-accent)',
                       marginBottom: '6px'

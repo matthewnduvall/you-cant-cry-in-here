@@ -266,12 +266,12 @@ export function LeaderboardView({
                   fontSize: '16px',
                   fontWeight: 800,
                   textTransform: 'uppercase',
-                  color: entry.isSelf ? '#30D158' : '#FFFFFF'
+                  color: entry.isSelf ? 'var(--dp-color-accent)' : '#FFFFFF'
                 }}
               >
                 @{entry.name}
               </span>
-              <span style={{ fontSize: '10px', fontWeight: 700, color: '#888888', textTransform: 'uppercase' }}>
+              <span style={{ fontSize: '11px', fontWeight: 700, color: '#888888', textTransform: 'uppercase' }}>
                 <span style={{ color: '#FFFFFF' }}>BENCH + SQUAT + DEADLIFT</span> • STANDING:{' '}
                 <strong style={{ color: 'var(--dp-color-accent)' }}>{entry.standing.toUpperCase()}</strong>
               </span>
@@ -297,12 +297,12 @@ export function LeaderboardView({
                   fontSize: '16px',
                   fontWeight: 800,
                   textTransform: 'uppercase',
-                  color: entry.isSelf ? '#30D158' : '#FFFFFF'
+                  color: entry.isSelf ? 'var(--dp-color-accent)' : '#FFFFFF'
                 }}
               >
                 @{entry.name}
               </span>
-              <span style={{ fontSize: '10px', fontWeight: 700, color: '#888888', textTransform: 'uppercase' }}>
+              <span style={{ fontSize: '11px', fontWeight: 700, color: '#888888', textTransform: 'uppercase' }}>
                 {entry.total} LB ÷ {entry.bw} LB BW • STANDING:{' '}
                 <strong style={{ color: 'var(--dp-color-accent)' }}>{entry.standing.toUpperCase()}</strong>
               </span>
@@ -328,12 +328,12 @@ export function LeaderboardView({
                   fontSize: '16px',
                   fontWeight: 800,
                   textTransform: 'uppercase',
-                  color: entry.isSelf ? '#30D158' : '#FFFFFF'
+                  color: entry.isSelf ? 'var(--dp-color-accent)' : '#FFFFFF'
                 }}
               >
                 @{entry.name}
               </span>
-              <span style={{ fontSize: '10px', fontWeight: 700, color: '#888888', textTransform: 'uppercase' }}>
+              <span style={{ fontSize: '11px', fontWeight: 700, color: '#888888', textTransform: 'uppercase' }}>
                 {entry.ohp} LB <span style={{ color: '#FFFFFF' }}>OHP</span> ÷ {entry.bw} LB BW • STANDING:{' '}
                 <strong style={{ color: 'var(--dp-color-accent)' }}>{entry.ohpStanding.toUpperCase()}</strong>
               </span>
@@ -366,7 +366,7 @@ export function LeaderboardView({
                     fontSize: '14px',
                     fontWeight: 800,
                     textTransform: 'uppercase',
-                    color: entry.isSelf ? '#30D158' : 'var(--dp-color-accent)',
+                    color: entry.isSelf ? 'var(--dp-color-accent)' : '#FFFFFF',
                     whiteSpace: 'nowrap',
                     overflow: 'hidden',
                     textOverflow: 'ellipsis'
@@ -375,7 +375,7 @@ export function LeaderboardView({
                   @{entry.name} <span style={{ color: '#888888' }}>•</span>{' '}
                   <span style={{ color: '#FFFFFF' }}>{entry.exerciseName}</span>
                 </span>
-                <span style={{ fontSize: '10px', fontWeight: 700, color: '#888888', textTransform: 'uppercase' }}>
+                <span style={{ fontSize: '11px', fontWeight: 700, color: '#888888', textTransform: 'uppercase' }}>
                   {entry.startWeight} LB → {entry.peakWeight} LB ({entry.normalizedGain.toFixed(2)}x BW GAIN)
                 </span>
               </div>
