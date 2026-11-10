@@ -3,6 +3,9 @@
 // ============================================================================
 
 import {
+  getSlotEquipmentChoice,
+  isBandEquipment,
+  getSetBandColor,
   EXERCISE_LIBRARY,
   EXERCISE_MAP,
   normalizeSlotCategory,
@@ -688,9 +691,12 @@ export const getNextIncompleteSetInfo = slots => {
           if (st && !st.completed) {
             const exName = EXERCISE_MAP[ids[exIdx]]?.name || ids[exIdx] || 'Lift';
             const repOrTime = isTimer ? getSetTimerMMSS(st, true) : `${st.reps} REPS`;
+            const load = isBandEquipment(getSlotEquipmentChoice(slot, exIdx))
+              ? `${getSetBandColor(st).toUpperCase()} BAND`
+              : `${st.weight} LB`;
             return {
               topLine: `NEXT: ${exName.toUpperCase()}`,
-              bottomLine: `SET #${st.setNumber} • ${st.weight} LB × ${repOrTime}`
+              bottomLine: `SET #${st.setNumber} • ${load} × ${repOrTime}`
             };
           }
         }
@@ -700,7 +706,10 @@ export const getNextIncompleteSetInfo = slots => {
         if (st && !st.completed) {
           const exName = EXERCISE_MAP[slot.exerciseId]?.name || slot.exerciseId || 'Lift';
           const repOrTime = isTimer ? getSetTimerMMSS(st, true) : `${st.reps} REPS`;
-          const loadStr = `${st.weight} LB × ${repOrTime}`;
+          const load = isBandEquipment(getSlotEquipmentChoice(slot, 0))
+            ? `${getSetBandColor(st).toUpperCase()} BAND`
+            : `${st.weight} LB`;
+          const loadStr = `${load} × ${repOrTime}`;
           return {
             topLine: `NEXT: ${exName.toUpperCase()}`,
             bottomLine: `SET #${st.setNumber} • ${loadStr}`

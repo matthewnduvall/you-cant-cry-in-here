@@ -718,6 +718,28 @@ export const getUniqueShortExerciseNames = (exercises = [], currentEquipment = '
 const EQUIPMENT_KEPT_WHOLE = new Set(['lever / machine']);
 const EQUIPMENT_OPTION_ALIASES = { 'weight plates': 'Plate' };
 
+// Band exercises are loaded by band colour instead of weight
+export const BAND_COLORS = ['Red', 'Purple'];
+export const BAND_COLOR_HEX = { Red: '#FF3B30', Purple: '#BF5AF2' };
+export const isBandEquipment = equipment => /band/i.test(String(equipment || ''));
+export const getSetBandColor = set => (BAND_COLORS.includes(set?.bandColor) ? set.bandColor : BAND_COLORS[0]);
+
+/**
+ * The equipment option a slot's exercise (half 0 = A / single, 1 = B) is set to: the athlete's choice when
+ * the exercise allows it, otherwise the exercise's first option.
+ */
+export const getSlotEquipmentChoice = (slot, half = 0) => {
+  const isSuperset = isSupersetCategory(slot?.category);
+  const exId = isSuperset
+    ? half === 1
+      ? slot?.supersetExerciseIds?.[1] || slot?.secondaryExerciseId
+      : slot?.supersetExerciseIds?.[0] || slot?.exerciseId
+    : slot?.exerciseId;
+  const options = getExerciseEquipmentOptions(EXERCISE_MAP[exId]);
+  const saved = isSuperset ? slot?.supersetEquipmentFilters?.[half] : slot?.equipmentFilter;
+  return options.includes(saved) ? saved : options[0];
+};
+
 let allEquipmentFilterOptions = null;
 /** Every equipment option in the library, for the per-exercise equipment filter (always all of them). */
 export const getAllEquipmentFilterOptions = () => {
