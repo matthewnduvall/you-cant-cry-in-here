@@ -34,9 +34,7 @@ export function RoutineEditorView({
   isCurrentEditorShared,
   updateCurrentWorkoutState,
   handleAddAutoSlot,
-  handleSaveCurrentEditor,
   handleShareCurrentEditor,
-  handleResetCurrentEditor,
   handleUpdateSlotCategoryOrExercise,
   handleInsertSetAtPosition,
   handleRecalculateSlotWeights,
@@ -55,38 +53,11 @@ export function RoutineEditorView({
 
   const hasExercises = (currentEditorWorkout.slots || []).length > 0;
 
-  const renderSaveShareResetRow = (extraStyle = {}) => (
-    <div
-      style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
-        gap: 0,
-        width: '100%',
-        alignItems: 'stretch',
-        ...extraStyle
-      }}
-    >
-      <Button
-        variant="success"
-        onClick={handleSaveCurrentEditor}
-        style={{ height: '44px', padding: '0 10px', fontSize: '14px', ...SHARED_CELL_BORDER, boxSizing: 'border-box' }}
-      >
-        SAVE
-      </Button>
-
-      <Button
-        variant="secondary"
-        onClick={handleResetCurrentEditor}
-        style={{ height: '44px', padding: '0 10px', fontSize: '14px', ...SHARED_CELL_BORDER, boxSizing: 'border-box', backgroundColor: '#141416', color: '#FF3B30' }}
-      >
-        RESET
-      </Button>
-    </div>
-  );
-
   return (
     <div style={{ paddingTop: isEmbeddedHistorySession ? '8px' : '14px' }}>
-      {/* TOP SESSION HEADER BLOCK — SHARED BORDERS, LARGER TEXT, ZERO GAPS */}
+      {/* Session name, SAVE and RESET sit in the locked header (SessionTitleBar). This block only holds the
+          past-workout title / date, and the name for the History inline editor (which has no locked header). */}
+      {(currentView === 'historical_entry' || isEmbeddedHistorySession) && (
       <section style={{ marginBottom: '20px', padding: '0 var(--dp-spacing-gutter)' }}>
         {currentView === 'historical_entry' && (
           <div
@@ -113,7 +84,8 @@ export function RoutineEditorView({
             ...SHARED_GROUP_OUTER
           }}
         >
-          {/* Row 1: Session Name */}
+          {/* Session Name (History inline editor only) */}
+          {isEmbeddedHistorySession && (
           <div
             style={{
               width: '100%',
@@ -157,6 +129,7 @@ export function RoutineEditorView({
               }}
             />
           </div>
+          )}
 
           {/* Optional Row: Historical Date Row if logging past workout or editing in History */}
           {(currentView === 'historical_entry' || isEmbeddedHistorySession) && (
@@ -214,10 +187,9 @@ export function RoutineEditorView({
             </div>
           )}
 
-          {/* Row 3: Save / Share / Reset Row (Shared Borders, hidden when session is empty or embedded in History) */}
-          {!isEmbeddedHistorySession && hasExercises && renderSaveShareResetRow()}
         </div>
       </section>
+      )}
 
       {/* ALWAYS-EXPANDED EXERCISES — SHARED BORDERS, LARGER CONTROLS & TEXT */}
       <section style={{ marginBottom: '20px', padding: '0 var(--dp-spacing-gutter)' }}>
@@ -362,8 +334,6 @@ export function RoutineEditorView({
           </Button>
         </div>
 
-        {/* Duplicate SAVE / RESET row so a long session can be saved without scrolling back up */}
-        {!isEmbeddedHistorySession && hasExercises && renderSaveShareResetRow({ ...SHARED_GROUP_OUTER, marginTop: '12px' })}
       </div>
     </div>
   );

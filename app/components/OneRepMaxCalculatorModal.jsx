@@ -33,7 +33,7 @@ const renumber = sets => sets.map((s, i) => ({ ...s, setNumber: i + 1 }));
 
 /**
  * Props: exerciseId (starting exercise), onClose, onSave({ exerciseId, oneRepMax, dateYMD, scheme }),
- * oneRepMaxes, history, currentIncrementLbs, userBodyweightLbs, selectedGymId, gyms,
+ * oneRepMaxes, history, currentIncrementLbs, userBodyweightLbs,
  * setSetValueTarget, openPlateCalculatorForSet.
  * Mount with `key={exerciseId}` so reopening starts fresh.
  */
@@ -45,8 +45,6 @@ export function OneRepMaxCalculatorModal({
   history = [],
   currentIncrementLbs = 0,
   userBodyweightLbs = 220,
-  selectedGymId,
-  gyms = [],
   setSetValueTarget,
   openPlateCalculatorForSet
 }) {
@@ -83,11 +81,11 @@ export function OneRepMaxCalculatorModal({
       next.category = normalizeSlotCategory(next.category);
 
       if (changes.category && !changes.exerciseId && !changes.muscleGroupFilter) {
-        const pool = getFilteredExercisesForSlotInline({ ...next, muscleGroupFilter: 'All Muscles' }, selectedGymId, gyms);
+        const pool = getFilteredExercisesForSlotInline({ ...next, muscleGroupFilter: 'All Muscles' }, '', []);
         if (pool.length > 0 && !pool.some(e => e.id === next.exerciseId)) next.exerciseId = pool[0].id;
         next.muscleGroupFilter = EXERCISE_MAP[next.exerciseId]?.muscleGroup || 'All Muscles';
       } else if (changes.muscleGroupFilter !== undefined && !changes.exerciseId) {
-        const pool = getFilteredExercisesForSlotInline(next, selectedGymId, gyms);
+        const pool = getFilteredExercisesForSlotInline(next, '', []);
         if (pool.length > 0 && !pool.some(e => e.id === next.exerciseId)) next.exerciseId = pool[0].id;
         if (EXERCISE_MAP[next.exerciseId]?.category) {
           next.category = normalizeSlotCategory(EXERCISE_MAP[next.exerciseId].category);
@@ -304,8 +302,6 @@ export function OneRepMaxCalculatorModal({
           number={1}
           headerTitle="Exercise 1RM Calculator"
           categories={CALC_CATEGORIES}
-          selectedGymId={selectedGymId}
-          gyms={gyms}
           history={history}
           oneRepMaxes={oneRepMaxes}
           currentIncrementLbs={currentIncrementLbs}

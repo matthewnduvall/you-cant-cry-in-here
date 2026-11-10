@@ -108,6 +108,8 @@ export default function App() {
   const [sharedRoutines, setSharedRoutines] = useState([]);
   const [gyms, setGyms] = useState([]);
   const [selectedGymId, setSelectedGymId] = useState('');
+  // Settings → Equipment: equipment types the athlete has (drives the default exercise picks)
+  const [availableEquipment, setAvailableEquipment] = useState(null);
   const [gymDraft, setGymDraft] = useState(null);
 
   // --- Goals, Standards & Settings State ---
@@ -239,6 +241,8 @@ export default function App() {
     setPendingInviter,
     selectedGymId,
     setSelectedGymId,
+    availableEquipment,
+    setAvailableEquipment,
     goalType,
     setGoalType,
     goalIncrement,
@@ -363,7 +367,9 @@ export default function App() {
     newSlotScheme,
     setShowAddSlotModal,
     appendSessionLog,
-    muscleStimulusStatus
+    muscleStimulusStatus,
+    availableEquipment,
+    goalType
   });
 
   // --- 4. Plate & Weight Calculator Hook ---
@@ -499,6 +505,7 @@ export default function App() {
           isRoutineEditorView={isRoutineEditorView}
           currentEditorWorkout={currentEditorWorkout}
           onFinishSession={handleSaveCurrentEditor}
+          onResetSession={handleResetCurrentEditor}
           finishSessionPending={Boolean(saveConfirmTarget)}
           timerTrigger={timerTrigger}
           setTimerTrigger={setTimerTrigger}
@@ -771,9 +778,8 @@ export default function App() {
               setStimulusYellowDays={setStimulusYellowDays}
               routinePreferences={routinePreferences}
               setRoutinePreferences={setRoutinePreferences}
-              selectedGymId={selectedGymId}
-              setSelectedGymId={setSelectedGymId}
-              gyms={gyms}
+              availableEquipment={availableEquipment}
+              setAvailableEquipment={setAvailableEquipment}
               shareStatsWithFriends={shareStatsWithFriends}
               setShareStatsWithFriends={setShareStatsWithFriends}
               shareRoutinesWithFriends={shareRoutinesWithFriends}
@@ -818,8 +824,9 @@ export default function App() {
               openPlateCalculatorForSet={openPlateCalculatorForSet}
               setSetValueTarget={setSetValueTarget}
               selectedGymId={selectedGymId}
-              setSelectedGymId={setSelectedGymId}
               gyms={gyms}
+              availableEquipment={availableEquipment}
+              setAvailableEquipment={setAvailableEquipment}
               routinePreferences={routinePreferences}
               setRoutinePreferences={setRoutinePreferences}
             />

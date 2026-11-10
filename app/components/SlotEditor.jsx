@@ -19,10 +19,10 @@ import {
   getFilteredExercisesForSlotInline,
   getAvailableMuscleGroupsForCategory,
   stripEquipmentFromExerciseName,
-  getExerciseEquipmentOptionsForGym,
+  getExerciseEquipmentOptions,
+  getAllEquipmentFilterOptions,
   getUniqueShortExerciseNames,
-  findClosestExerciseInPool,
-  isExerciseCompatibleWithGymSelection
+  findClosestExerciseInPool
 } from '../data/exerciseLibrary';
 import {
   SCHEME_OPTIONS,
@@ -112,12 +112,14 @@ const SEARCH_RESULT_LIMIT = 12;
 const SUPERSET_HALF_CATEGORIES = ['Compound', 'Accessory'];
 const END_SUPERSET = '__end_superset__';
 
-/** Exercises whose name / equipment / muscle group contain every word typed, best name matches first. */
-const searchExercises = (query, selectedGymId, gyms) => {
+/**
+ * Exercises whose name / equipment / muscle group contain every word typed, best name matches first.
+ * Searches the whole library (Settings → Equipment only drives the exercises picked automatically).
+ */
+const searchExercises = query => {
   const words = String(query || '').toLowerCase().trim().split(' ').filter(Boolean);
   if (words.length === 0) return [];
-  const inGym = EXERCISE_LIBRARY.filter(ex => isExerciseCompatibleWithGymSelection(ex, selectedGymId, gyms));
-  const pool = inGym.length > 0 ? inGym : EXERCISE_LIBRARY;
+  const pool = EXERCISE_LIBRARY;
   const phrase = words.join(' ');
   const rank = ex => {
     const name = ex.name.toLowerCase();
@@ -172,7 +174,8 @@ function PrBadge({ marginRight = '6px' }) {
  * - slot: the workout slot ({ category, scheme, exerciseId, sets, supersetExerciseIds, ... })
  * - number: label on the header drag handle; headerTitle: its tooltip
  * - categories: category options (default all; the 1RM calculator excludes Superset)
- * - selectedGymId, gyms: filter the exercise pickers
+ * - The pickers, equipment filter and search always cover the whole exercise library; the athlete's
+ *   Settings → Equipment only drives the default picks made by the hosts (see useWorkoutMutations).
  * - history, oneRepMaxes, currentIncrementLbs: used to show LAST / INC values
  * - getBase1RM(exId): optional override of the 1RM used for LAST when a set has no lastWeight
  * - prFlags: [bool, bool] shows PR badges next to the exercise picker(s)
@@ -192,8 +195,6 @@ export function SlotEditor({
   number = 1,
   headerTitle = 'Click and drag to rearrange exercise',
   categories = SLOT_CATEGORIES,
-  selectedGymId,
-  gyms = [],
   history = [],
   oneRepMaxes = {},
   currentIncrementLbs = 0,
@@ -238,11 +239,11 @@ export function SlotEditor({
       const cat = normalizeSlotCategory(slot.supersetCategories?.[half] || exObj.category || 'Accessory');
       category = isSupersetCategory(cat) ? 'Accessory' : cat;
     }
-    const availMuscles = getAvailableMuscleGroupsForCategory(category, selectedGymId, gyms);
+    const availMuscles = getAvailableMuscleGroupsForCategory(category, '', []);
     const rawMuscle =
       (isSuperset ? slot.supersetMuscleFilters?.[half] : slot.muscleGroupFilter) || exObj.muscleGroup || 'All Muscles';
     const muscle = availMuscles.includes(rawMuscle) ? rawMuscle : 'All Muscles';
-    const basePool = getFilteredExercisesForSlotInline({ category, muscleGroupFilter: muscle }, selectedGymId, gyms).filter(
+    const basePool = getFilteredExercisesForSlotInline({ category, muscleGroupFilter: muscle }, '', []).filter(
       ex => !isSuperset || ex.id !== supIds[1 - half]
     );
     const pool = basePool.some(ex => ex.id === exId) ? basePool : [exObj, ...basePool];
@@ -253,8 +254,8 @@ export function SlotEditor({
     return { exId, exObj, category, availMuscles, muscle, pool, equipment, scheme: schemes[half] };
   };
 
-  // Equipment options of an exercise ("A / B" = either), limited to what the gym setting allows
-  const equipmentOptionsOf = ex => getExerciseEquipmentOptionsForGym(ex, selectedGymId);
+  // Equipment options of an exercise ("A / B" = either works)
+  const equipmentOptionsOf = ex => getExerciseEquipmentOptions(ex);
 
   const sendHeaderChange = (half, changes) =>
     onHeaderChange?.(isSuperset ? { ...changes, supersetHalf: half } : changes);
@@ -296,7 +297,7 @@ export function SlotEditor({
     sendHeaderChange(half, changes);
   };
 
-  const searchResults = search?.query ? searchExercises(search.query, selectedGymId, gyms) : [];
+  const searchResults = search?.query ? searchExercises(search.query) : [];
 
   const renderSearchCell = half => {
     const label = isSuperset ? (half === 0 ? 'A · SEARCH' : 'B · SEARCH') : 'SEARCH';
@@ -421,11 +422,43 @@ export function SlotEditor({
     );
   };
 
-  // Row 1: Search, Type, Muscle Group. Row 2: Equipment, Exercise, Scheme. Supersets render this twice (A, B).
+  // Row 1: Search, Type, Muscle Group. Row 2: Scheme, Equipment, Exercise. Supersets render this twice (A, B).
   const renderHeaderBlock = half => {
     const { exId, category, availMuscles, muscle, pool, equipment, scheme } = pickerState(half);
-    const equipmentOptions = [...new Set(pool.flatMap(equipmentOptionsOf))].sort((a, b) => a.localeCompare(b));
+    // Every equipment type is always offered, whatever the type / muscle filters say
+    const equipmentOptions = getAllEquipmentFilterOptions().includes(equipment)
+      ? getAllEquipmentFilterOptions()
+      : [equipment, ...getAllEquipmentFilterOptions()];
     const hasEquipment = (ex, eq) => equipmentOptionsOf(ex).includes(eq);
+    const typeOptionsForPick = isSuperset ? SUPERSET_HALF_CATEGORIES : categories;
+
+    // New equipment → keep the exercise if it allows it; otherwise the most similar exercise that uses it,
+    // looking in this type + muscle group first and then the whole library (type / muscle follow the pick)
+    const handleEquipmentChange = nextEquipment => {
+      if (hasEquipment(EXERCISE_MAP[exId], nextEquipment)) {
+        sendHeaderChange(half, { equipmentFilter: nextEquipment });
+        return;
+      }
+      const otherId = isSuperset ? supIds[1 - half] : null;
+      const inFilters = pool.filter(ex => ex.id !== otherId && hasEquipment(ex, nextEquipment));
+      const anywhere = EXERCISE_LIBRARY.filter(
+        ex =>
+          ex.id !== otherId &&
+          hasEquipment(ex, nextEquipment) &&
+          typeOptionsForPick.includes(normalizeSlotCategory(ex.category))
+      );
+      const nextId = findClosestExerciseInPool(exId, inFilters.length > 0 ? inFilters : anywhere);
+      const next = EXERCISE_MAP[nextId];
+      if (!next) return;
+      const changes = {
+        equipmentFilter: nextEquipment,
+        exerciseId: next.id,
+        muscleGroupFilter: next.muscleGroup || 'All Muscles'
+      };
+      const nextCategory = normalizeSlotCategory(next.category);
+      if (nextCategory !== category && typeOptionsForPick.includes(nextCategory)) changes.category = nextCategory;
+      sendHeaderChange(half, changes);
+    };
     const exercisesForEquipment = pool.filter(ex => hasEquipment(ex, equipment));
     // Short names; where two would read the same, the dropped equipment word is added in brackets
     const shortNames = getUniqueShortExerciseNames(exercisesForEquipment, equipment);
@@ -489,18 +522,8 @@ export function SlotEditor({
         <select
           aria-label={isSuperset ? `Superset Exercise ${half + 1} Equipment` : 'Exercise Equipment'}
           value={equipment}
-          onChange={e => {
-            const nextEquipment = e.target.value;
-            // Keep the exercise when it already allows this equipment; otherwise jump to the closest one that does
-            const nextExerciseId = hasEquipment(EXERCISE_MAP[exId], nextEquipment)
-              ? exId
-              : findClosestExerciseInPool(exId, pool.filter(ex => hasEquipment(ex, nextEquipment)));
-            sendHeaderChange(half, {
-              equipmentFilter: nextEquipment,
-              ...(nextExerciseId && nextExerciseId !== exId ? { exerciseId: nextExerciseId } : {})
-            });
-          }}
-          style={{ ...headerSelectStyle, gridColumn: 1, gridRow: 2 }}
+          onChange={e => handleEquipmentChange(e.target.value)}
+          style={{ ...headerSelectStyle, gridColumn: 2, gridRow: 2 }}
         >
           {equipmentOptions.map(eq => (
             <option key={eq} value={eq}>
@@ -511,7 +534,7 @@ export function SlotEditor({
 
         <div
           style={{
-            gridColumn: 2,
+            gridColumn: 3,
             gridRow: 2,
             width: '100%',
             minWidth: 0,
@@ -542,7 +565,7 @@ export function SlotEditor({
           aria-label={`${tag}Set and Rep Scheme`.trim()}
           value={scheme}
           onChange={e => sendHeaderChange(half, { scheme: e.target.value })}
-          style={{ ...headerSelectStyle, gridColumn: 3, gridRow: 2 }}
+          style={{ ...headerSelectStyle, gridColumn: 1, gridRow: 2 }}
         >
           {SCHEME_OPTIONS.map(scm => (
             <option key={scm} value={scm}>

@@ -150,6 +150,93 @@ export function IOSListRow({ children, onClick, isLast = false, indexLabel, bgNu
   );
 }
 
+/**
+ * Locked header row above the rest timer: editable session name + green SAVE + red RESET.
+ * SAVE / RESET appear only when the workout has exercises (showActions).
+ */
+export function SessionTitleBar({ title = '', onChangeTitle, onSave, onReset, showActions = false }) {
+  const cellBorder = {
+    borderTop: 'none',
+    borderLeft: 'none',
+    borderRight: '1px solid var(--dp-color-rule)',
+    borderBottom: '1px solid var(--dp-color-rule)'
+  };
+  const actionStyle = (bg, color) => ({
+    width: '100%',
+    height: '45px',
+    boxSizing: 'border-box',
+    backgroundColor: bg,
+    color,
+    ...cellBorder,
+    fontSize: '12px',
+    fontWeight: 800,
+    textTransform: 'uppercase',
+    cursor: 'pointer',
+    padding: 0
+  });
+  return (
+    <div
+      style={{
+        marginTop: '10px',
+        display: 'grid',
+        gridTemplateColumns: showActions ? 'minmax(0, 1fr) 64px 64px' : 'minmax(0, 1fr)',
+        alignItems: 'stretch',
+        gap: 0,
+        borderTop: '1px solid var(--dp-color-rule)',
+        borderLeft: '1px solid var(--dp-color-rule)'
+      }}
+    >
+      <label
+        style={{
+          minWidth: 0,
+          height: '45px',
+          boxSizing: 'border-box',
+          backgroundColor: '#141416',
+          ...cellBorder,
+          padding: '0 10px',
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'center'
+        }}
+      >
+        <span style={{ fontSize: '9px', fontWeight: 800, color: 'var(--dp-color-accent)', lineHeight: 1.1 }}>
+          SESSION NAME
+        </span>
+        <input
+          type="text"
+          aria-label="Session name"
+          value={title}
+          onChange={e => onChangeTitle?.(e.target.value)}
+          style={{
+            width: '100%',
+            backgroundColor: 'transparent',
+            border: 'none',
+            color: '#FFFFFF',
+            fontSize: '14px',
+            fontWeight: 800,
+            textTransform: 'uppercase',
+            outline: 'none',
+            padding: 0,
+            marginTop: '2px',
+            lineHeight: 1.2,
+            textOverflow: 'ellipsis'
+          }}
+        />
+      </label>
+      {showActions && (
+        <>
+          <button type="button" className="kinetic-btn" onClick={onSave} style={actionStyle('#30D158', '#101010')}>
+            SAVE
+          </button>
+          <button type="button" className="kinetic-btn" onClick={onReset} style={actionStyle('#141416', '#FF3B30')}>
+            RESET
+          </button>
+        </>
+      )}
+    </div>
+  );
+}
+
 export const SessionRestTimerBar = React.memo(function SessionRestTimerBar({
   defaultRestSeconds = 90,
   timerTrigger,
@@ -159,7 +246,9 @@ export const SessionRestTimerBar = React.memo(function SessionRestTimerBar({
   // Optional: shows a ✓ cell on the right that finishes the session (opens the save confirmation).
   // Grey like an unchecked set until markDoneActive (the athlete tapped it), then green.
   onMarkDone,
-  markDoneActive = false
+  markDoneActive = false,
+  // Sits flush under SessionTitleBar (no gap, shares its bottom border)
+  flushTop = false
 }) {
   const [remaining, setRemaining] = useState(defaultRestSeconds);
 
@@ -180,14 +269,14 @@ export const SessionRestTimerBar = React.memo(function SessionRestTimerBar({
   return (
     <div
       style={{
-        marginTop: '10px',
+        marginTop: flushTop ? 0 : '10px',
         display: 'grid',
         gridTemplateColumns: onMarkDone ? '120px minmax(0, 1fr) 52px' : '120px minmax(0, 1fr)',
         alignItems: 'stretch',
         gap: 0,
-        height: '46px',
+        height: flushTop ? '45px' : '46px',
         boxSizing: 'border-box',
-        borderTop: '1px solid var(--dp-color-rule)',
+        borderTop: flushTop ? 'none' : '1px solid var(--dp-color-rule)',
         borderLeft: '1px solid var(--dp-color-rule)'
       }}
     >

@@ -16,6 +16,7 @@ import {
   insertHistoryEntrySorted
 } from '../../utils/workoutEngine';
 import { DeleteButton, DragNumberBadge, GymSelect, SegmentButton } from '../Controls';
+import { EquipmentToggleList } from '../EquipmentToggleList';
 import { OneRepMaxCalculatorModal } from '../OneRepMaxCalculatorModal';
 
 const STRENGTH_CLASS_DESCRIPTIONS = [
@@ -75,8 +76,9 @@ export function OnboardingView({
   openPlateCalculatorForSet,
   setSetValueTarget,
   selectedGymId,
-  setSelectedGymId,
   gyms = [],
+  availableEquipment,
+  setAvailableEquipment,
   routinePreferences = [],
   setRoutinePreferences
 }) {
@@ -963,29 +965,13 @@ export function OnboardingView({
       {/* ===================================================================== */}
       {step === 4 && (
         <section style={{ marginBottom: '20px', padding: '0 var(--dp-spacing-gutter)' }}>
-          {/* ACTIVE GYM SELECTOR */}
-          <div style={{ marginBottom: '16px' }}>
-            <div
-              style={{
-                fontSize: '11px',
-                fontWeight: 800,
-                color: colors.secondaryLabel,
-                marginBottom: '6px',
-                textTransform: 'uppercase'
-              }}
-            >
-              ACTIVE GYMS / EQUIPMENT FILTER
-            </div>
-            <div style={SHARED_GROUP_OUTER}>
-              <GymSelect
-                variant="cell"
-                value={selectedGymId}
-                onChange={setSelectedGymId}
-                gyms={gyms}
-                style={{ height: '46px', padding: '0 12px', fontSize: '14px' }}
-              />
-            </div>
-          </div>
+          {/* EQUIPMENT (same list as Settings → Equipment) */}
+          <EquipmentToggleList
+            colors={colors}
+            value={availableEquipment}
+            onChange={setAvailableEquipment}
+            footer="Turn on the equipment you have. Exercises picked for you will only use it; you can change this any time in Settings."
+          />
 
           {/* DEFAULT ROUTINE STRUCTURE WITH GRIPPY DRAG HANDLES */}
           <div>
