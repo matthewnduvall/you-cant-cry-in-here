@@ -390,6 +390,17 @@ export default function App() {
     appendSessionLog
   });
 
+  // When a sync connects while its pop-up is open (inviter waiting for an answer), show "SYNCED WITH @x"
+  // for a second, then close it. Opening the pop-up later (e.g. to UNSYNC) doesn't auto-close.
+  const previousSyncIdForModalRef = useRef(sessionSync.syncId);
+  useEffect(() => {
+    const justConnected = Boolean(sessionSync.syncId) && !previousSyncIdForModalRef.current;
+    previousSyncIdForModalRef.current = sessionSync.syncId;
+    if (!justConnected) return undefined;
+    const timer = setTimeout(() => setShowSessionSyncModal(false), 1000);
+    return () => clearTimeout(timer);
+  }, [sessionSync.syncId]);
+
   // RESET while synced would empty the friend's session too, so it ends the sync first
   const handleResetSession = async () => {
     if (sessionSync.syncId) await sessionSync.unsync();

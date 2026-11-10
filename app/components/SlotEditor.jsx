@@ -18,6 +18,7 @@ import {
   isSupersetCategory,
   getFilteredExercisesForSlotInline,
   getAvailableMuscleGroupsForCategory,
+  doesExerciseInteractWithMuscleGroup,
   stripEquipmentFromExerciseName,
   getExerciseEquipmentOptions,
   getAllEquipmentFilterOptions,
@@ -432,29 +433,36 @@ export function SlotEditor({
     const hasEquipment = (ex, eq) => equipmentOptionsOf(ex).includes(eq);
     const typeOptionsForPick = isSuperset ? SUPERSET_HALF_CATEGORIES : categories;
 
-    // New equipment → keep the exercise if it allows it; otherwise the most similar exercise that uses it,
-    // looking in this type + muscle group first and then the whole library (type / muscle follow the pick)
+    // New equipment → keep the exercise if it allows it; otherwise the most similar exercise that uses it.
+    // The muscle group is kept whenever possible: same type + same muscle group, then the same muscle group in
+    // another type, then whatever the filters show, and only if none of those has the equipment, anywhere.
     const handleEquipmentChange = nextEquipment => {
-      if (hasEquipment(EXERCISE_MAP[exId], nextEquipment)) {
+      const current = EXERCISE_MAP[exId];
+      if (hasEquipment(current, nextEquipment)) {
         sendHeaderChange(half, { equipmentFilter: nextEquipment });
         return;
       }
       const otherId = isSuperset ? supIds[1 - half] : null;
-      const inFilters = pool.filter(ex => ex.id !== otherId && hasEquipment(ex, nextEquipment));
-      const anywhere = EXERCISE_LIBRARY.filter(
+      const withEquipment = EXERCISE_LIBRARY.filter(
         ex =>
           ex.id !== otherId &&
           hasEquipment(ex, nextEquipment) &&
           typeOptionsForPick.includes(normalizeSlotCategory(ex.category))
       );
-      const nextId = findClosestExerciseInPool(exId, inFilters.length > 0 ? inFilters : anywhere);
-      const next = EXERCISE_MAP[nextId];
+      const currentGroup = current?.muscleGroup;
+      const tiers = [
+        withEquipment.filter(ex => ex.muscleGroup === currentGroup && normalizeSlotCategory(ex.category) === category),
+        withEquipment.filter(ex => ex.muscleGroup === currentGroup),
+        pool.filter(ex => ex.id !== otherId && hasEquipment(ex, nextEquipment)),
+        withEquipment
+      ];
+      const candidates = tiers.find(tier => tier.length > 0) || [];
+      const next = EXERCISE_MAP[findClosestExerciseInPool(exId, candidates)];
       if (!next) return;
-      const changes = {
-        equipmentFilter: nextEquipment,
-        exerciseId: next.id,
-        muscleGroupFilter: next.muscleGroup || 'All Muscles'
-      };
+      const changes = { equipmentFilter: nextEquipment, exerciseId: next.id };
+      // Keep the muscle filter (incl. umbrellas like Legs / All Muscles) unless the new exercise falls outside it
+      if (!doesExerciseInteractWithMuscleGroup(next, muscle)) changes.muscleGroupFilter = next.muscleGroup || 'All Muscles';
+      else changes.muscleGroupFilter = muscle;
       const nextCategory = normalizeSlotCategory(next.category);
       if (nextCategory !== category && typeOptionsForPick.includes(nextCategory)) changes.category = nextCategory;
       sendHeaderChange(half, changes);
