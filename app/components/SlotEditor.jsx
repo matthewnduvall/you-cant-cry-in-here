@@ -38,7 +38,8 @@ import {
   getSchemeUniformReps,
   getSetTimerMMSS,
   getLastLoggedTimerDisplay,
-  getSupersetSchemes
+  getSupersetSchemes,
+  SET_TYPES_LIST
 } from '../utils/workoutEngine';
 import { DeleteButton, DragNumberBadge } from './Controls';
 import { usePointerReorder } from '../hooks/usePointerReorder';
@@ -102,14 +103,30 @@ const bottomBtnStyle = (bg, color) => ({
 
 const equipmentOf = ex => ex?.equipment || 'Bodyweight';
 
+// Calculated 1RM of a list of sets: the best weight × (1 + reps / 30) (1 rep = the weight), the estimate History
+// uses for Personal Records and the weight pop-up uses for its 1RM box; 0 = no weights
+const best1RM = sets =>
+  (Array.isArray(sets) ? sets : []).reduce((best, st) => {
+    const w = Number(st?.weight) || 0;
+    if (w <= 0) return best;
+    const r = Math.max(1, Number(st.reps) || 1);
+    return Math.max(best, r === 1 ? w : Math.round(w * (1 + r / 30)));
+  }, 0);
+
+// Set type dropdown labels (short enough for the set row's type column)
+const SET_TYPE_LABELS = { Warmup: 'WARMUP', Working: 'WORKING', 'Top Out': 'TOP OUT', 'Burn Out': 'BURN OUT', '1 Rep Max': '1RM' };
+
 const SEARCH_RESULT_LIMIT = 12;
 
 // Each superset exercise is a Compound or Accessory pick; this value in its type menu ends the superset
 const SUPERSET_HALF_CATEGORIES = ['Compound', 'Accessory'];
 
-// Padlock for the WEIGHT / REPS lock buttons (closed shackle = locked)
+// Width of the lock button at the left of a set's type / weight / reps cell (6 px gap before the padlock)
+const LOCK_COL_PX = 20;
+
+// Padlock for the set type / weight / reps lock buttons (closed shackle = locked)
 const LockIcon = ({ locked, color }) => (
-  <svg width="12" height="14" viewBox="0 0 12 14" aria-hidden="true" style={{ flexShrink: 0 }}>
+  <svg width="10" height="12" viewBox="0 0 12 14" aria-hidden="true" style={{ flexShrink: 0 }}>
     <rect x="1" y="6" width="10" height="7.5" fill={color} />
     <path
       d={locked ? 'M3.5 6V4.2a2.5 2.5 0 0 1 5 0V6' : 'M3.5 6V4.2a2.5 2.5 0 0 1 5 0'}
@@ -196,12 +213,13 @@ function PrBadge({ marginRight = '6px' }) {
  *   are shown there; no 1RM box for Timer sets
  * - onSetBandColor({ exIdx, set, color }): band exercises show RED / PURPLE instead of a weight; tapping the
  *   cell switches colour
+ * - onChangeSetType({ exIdx, set, type }): the set row's type dropdown (without it: onEditSetValue mode 'type')
  * - onToggleDone({ exIdx, set }), onDeleteSet({ exIdx, set, exercise })
  * - onReorderSets(exIdx, fromIdx, toIdx), onInsertSet('top' | 'bottom')
  * - actionLabel / onAction / actionTone ('recalculate' | 'calculate'): third bottom button
  * - footer: optional node rendered between the sets and the bottom row
- * - onToggleSetLock({ exIdx, set, field: 'weight' | 'reps' }): a lock beside each set's weight and reps (shown only
- *   with this callback). RECALCULATE changes a set's weight by default, its reps only when its weight is locked
+ * - onToggleSetLock({ exIdx, set, field: 'type' | 'weight' | 'reps' }): a lock at the left of each set's type, weight
+ *   and reps (shown only with this callback). RECALCULATE never changes a locked value
  */
 export function SlotEditor({
   slot,
@@ -227,7 +245,8 @@ export function SlotEditor({
   onAction,
   actionTone = 'recalculate',
   footer = null,
-  onToggleSetLock
+  onToggleSetLock,
+  onChangeSetType
 }) {
   // Drag a set's numbered handle to reorder sets (pointer events: works with touch). Keys are 'exIdx:setIdx';
   // superset sets only move within their own exercise.
@@ -358,31 +377,93 @@ export function SlotEditor({
       fontSize: '14px'
     };
     if (search?.half !== half) {
-      return (
-        <button
-          type="button"
-          aria-label={ariaLabel}
-          onClick={() => setSearch({ half, query: '' })}
+      // 1RM box on the right of the row (same estimate as History's PRs and the weight pop-up's 1RM box):
+      // LAST = last logged session of the exercise; NOW = this exercise's sets here; PR = best ever logged
+      const exSets = (isSuperset ? slot.supersetSetsByExercise?.[half] : slot.sets) || [];
+      const lastSession = getLastLoggedSetsForExercise(exObj.id, history, workoutId);
+      const lastDone = lastSession.filter(st => st && st.completed && Number(st.weight) > 0);
+      const last1RM = best1RM(lastDone.length > 0 ? lastDone : lastSession);
+      // Timer sets count seconds, not reps
+      const now1RM = schemes[half] === 'Timer' ? 0 : best1RM(exSets);
+      const pr1RM = getBestHistory1RMInfo(exObj.id, history).best;
+      const statCell = (label, value, color = '#C8C8C8') => (
+        <div
           style={{
-            ...cellBase,
+            flex: '1 1 0',
+            minWidth: 0,
             display: 'flex',
+            flexDirection: 'column',
             alignItems: 'center',
-            gap: '8px',
-            textAlign: 'left',
-            whiteSpace: 'nowrap',
-            overflow: 'hidden'
+            justifyContent: 'center',
+            borderLeft: '1px solid var(--dp-color-rule)'
           }}
         >
-          {tag && <span style={{ color: half === 0 ? 'var(--dp-color-accent)' : '#C0C0C0', flexShrink: 0 }}>{tag}</span>}
-          <span style={{ flex: '1 1 auto', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>
-            {title.toUpperCase()}
-            {showEquipment && <span style={{ color: '#8E8E93', fontSize: '11px' }}> · {equipment.toUpperCase()}</span>}
+          <span style={{ fontSize: '11px', fontWeight: 800, color: '#8E8E93', lineHeight: 1 }}>{label}</span>
+          <span style={{ fontSize: '13px', fontWeight: 800, color: value > 0 ? color : '#6E6E73', lineHeight: 1.2, marginTop: '2px' }}>
+            {value > 0 ? value : '—'}
           </span>
-          {prFlags[half] && <PrBadge marginRight="0" />}
-          <span style={{ color: '#A0A0A0', display: 'flex', flexShrink: 0 }}>
-            <SearchGlyph />
-          </span>
-        </button>
+        </div>
+      );
+      return (
+        <>
+          <button
+            type="button"
+            aria-label={ariaLabel}
+            onClick={() => setSearch({ half, query: '' })}
+            style={{
+              ...cellBase,
+              gridColumn: '1 / 5',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '0 8px',
+              fontSize: '13px',
+              textAlign: 'left',
+              overflow: 'hidden'
+            }}
+          >
+            {tag && <span style={{ color: half === 0 ? 'var(--dp-color-accent)' : '#C0C0C0', flexShrink: 0 }}>{tag}</span>}
+            {/* Up to two lines, then … */}
+            <span
+              style={{
+                flex: '1 1 auto',
+                minWidth: 0,
+                overflow: 'hidden',
+                display: '-webkit-box',
+                WebkitLineClamp: 2,
+                WebkitBoxOrient: 'vertical',
+                lineHeight: 1.15,
+                wordBreak: 'break-word'
+              }}
+            >
+              {title.toUpperCase()}
+              {showEquipment && <span style={{ color: '#8E8E93', fontSize: '11px' }}> · {equipment.toUpperCase()}</span>}
+            </span>
+            {prFlags[half] && <PrBadge marginRight="0" />}
+            <span style={{ color: '#A0A0A0', display: 'flex', flexShrink: 0 }}>
+              <SearchGlyph />
+            </span>
+          </button>
+          <div
+            role="group"
+            aria-label={`Calculated 1 rep max: last session ${last1RM || 'none'}, now ${now1RM || 'none'}, record ${pr1RM || 'none'}`}
+            style={{
+              gridColumn: '5 / 7',
+              gridRow: 1,
+              height: '44px',
+              boxSizing: 'border-box',
+              backgroundColor: '#1C1C20',
+              ...SHARED_CELL_BORDER,
+              display: 'flex',
+              alignItems: 'stretch'
+            }}
+          >
+            {statCell('LAST', last1RM)}
+            {/* NOW turns green once it beats the record */}
+            {statCell('NOW', now1RM, pr1RM > 0 && now1RM > pr1RM ? '#30D158' : '#FFFFFF')}
+            {statCell('PR', pr1RM, 'var(--dp-color-accent)')}
+          </div>
+        </>
       );
     }
     return (
@@ -704,24 +785,26 @@ export function SlotEditor({
   };
 
 
-  // A set's weight or reps cell with its own lock on the right (set.lockWeight / set.lockReps). RECALCULATE never
-  // changes a locked value; see handleRecalculateSlotWeights. Without onToggleSetLock the cell is just the value.
-  const withSetLock = (exIdx, st, field, cellBg, valueButton) => {
-    if (!onToggleSetLock) return valueButton;
-    const locked = Boolean(field === 'weight' ? st.lockWeight : st.lockReps);
-    const label = field === 'weight' ? 'weight' : 'reps';
-    // One box (the cell's border and background): the value fills it and the padlock sits inside on the right
-    const innerValue = React.cloneElement(valueButton, {
+  // A set's type, weight or reps cell with its own lock on the LEFT (set.lockType / lockWeight / lockReps).
+  // RECALCULATE never changes a locked value; see handleRecalculateSlotWeights. Without onToggleSetLock the cell is
+  // just the value.
+  const withSetLock = (exIdx, st, field, cellBg, valueEl) => {
+    if (!onToggleSetLock) return valueEl;
+    const locked = Boolean({ weight: st.lockWeight, reps: st.lockReps, type: st.lockType }[field]);
+    const label = field === 'weight' ? 'weight' : field === 'reps' ? 'reps' : 'set type';
+    // One box (the cell's border and background): the padlock sits inside on the left, the value fills the rest
+    const innerValue = React.cloneElement(valueEl, {
       style: {
-        ...valueButton.props.style,
+        ...valueEl.props.style,
         borderTop: 'none',
         borderLeft: 'none',
         borderRight: 'none',
         borderBottom: 'none',
         backgroundColor: 'transparent',
         width: 'auto',
+        minWidth: 0,
         flex: '1 1 auto',
-        paddingRight: 0
+        paddingLeft: 0
       }
     });
     return (
@@ -736,7 +819,6 @@ export function SlotEditor({
           ...SHARED_CELL_BORDER
         }}
       >
-        {innerValue}
         <button
           type="button"
           aria-pressed={locked}
@@ -744,20 +826,21 @@ export function SlotEditor({
           title={locked ? `${label} locked: RECALCULATE won't change it` : `Lock ${label}`}
           onClick={() => onToggleSetLock({ exIdx, set: st, field })}
           style={{
-            flex: '0 0 24px',
+            flex: `0 0 ${LOCK_COL_PX}px`,
             height: '100%',
             boxSizing: 'border-box',
-            padding: 0,
+            padding: '0 0 0 6px',
             border: 'none',
             backgroundColor: 'transparent',
             cursor: 'pointer',
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'center'
+            justifyContent: 'flex-start'
           }}
         >
           <LockIcon locked={locked} color={locked ? 'var(--dp-color-accent)' : '#6E6E73'} />
         </button>
+        {innerValue}
       </div>
     );
   };
@@ -836,41 +919,49 @@ export function SlotEditor({
           <div
             style={{
               display: 'grid',
-              // Narrower type and ✓ columns (and 14 px weights) when the weight and reps cells carry their locks
+              // Set type, weight and reps share the width equally; with locks the ✓ is 40 px (13 px weights, 11 px types
+              // so they fit beside their padlocks), else 52 px
               gridTemplateColumns: onToggleSetLock
-                ? '68px minmax(0, 1fr) minmax(0, 1fr) 48px'
-                : '96px minmax(0, 1fr) minmax(0, 1fr) 52px',
+                ? 'repeat(3, minmax(0, 1fr)) 40px'
+                : 'repeat(3, minmax(0, 1fr)) 52px',
               gap: 0,
               alignItems: 'stretch'
             }}
           >
-            <button
-              type="button"
-              aria-label="Set Type"
-              onClick={() => editValue('type', curType)}
+            {/* Set type dropdown (with its lock): picking a type re-works the set's weight and reps
+                (handleUpdateSetType); a locked type is kept by RECALCULATE */}
+            {withSetLock(exIdx, st, 'type', cellBg,
+            <select
+              aria-label={`Set ${setNumText} type`}
+              className={onToggleSetLock ? 'kinetic-set-type-select no-caret' : 'kinetic-set-type-select'}
+              value={curType}
+              onChange={e =>
+                onChangeSetType
+                  ? onChangeSetType({ exIdx, set: st, type: e.target.value })
+                  : editValue('type', e.target.value)
+              }
               style={{
-                ...setCellStyle(cellBg),
-                padding: '0 4px',
+                width: '100%',
+                minWidth: 0,
+                height: '44px',
+                boxSizing: 'border-box',
+                backgroundColor: cellBg,
+                ...SHARED_CELL_BORDER,
                 color: '#FFFFFF',
-                fontSize: '12px',
+                fontSize: onToggleSetLock ? '11px' : '12px',
                 fontWeight: 800,
                 textTransform: 'uppercase',
-                cursor: 'pointer'
+                cursor: 'pointer',
+                fontFamily: 'inherit'
               }}
             >
-              <span
-                style={{
-                  display: 'block',
-                  maxWidth: '100%',
-                  lineHeight: 1,
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  textAlign: 'center'
-                }}
-              >
-                {curType.toUpperCase()}
-              </span>
-            </button>
+              {SET_TYPES_LIST.map(type => (
+                <option key={type} value={type}>
+                  {SET_TYPE_LABELS[type] || type.toUpperCase()}
+                </option>
+              ))}
+            </select>
+            )}
 
             {isBandSet ? (
             <button
@@ -911,7 +1002,7 @@ export function SlotEditor({
               style={{ ...setCellStyle(cellBg), cursor: 'pointer', overflow: 'hidden' }}
             >
               {/* Just the weight, centred in the cell (no CURRENT label) */}
-              <span style={{ ...cellValueStyle('var(--dp-color-accent)', onToggleSetLock ? '14px' : '15px'), marginTop: 0 }}>
+              <span style={{ ...cellValueStyle('var(--dp-color-accent)', onToggleSetLock ? '13px' : '15px'), marginTop: 0 }}>
                 {st.weight}
               </span>
             </button>
