@@ -25,6 +25,8 @@ import { ProfileView } from './components/views/ProfileView';
 import { InfoView } from './components/views/InfoView';
 import { ConfigurationView } from './components/views/ConfigurationView';
 import { CloudSyncBanner } from './components/CloudSyncBanner';
+import { UpdateBanner } from './components/UpdateBanner';
+import { useAppUpdateCheck } from './hooks/useAppUpdateCheck';
 import { AuthView } from './components/views/AuthView';
 import { useCloudAndStorageSync } from './hooks/useCloudAndStorageSync';
 import { useTelemetryAndAnalytics } from './hooks/useTelemetryAndAnalytics';
@@ -715,6 +717,9 @@ export default function App() {
     isEmbeddedHistorySession: true
   });
 
+  // Newer deployment live: reload on returning to the app, or offer RELOAD (both synced phones run the same version)
+  const appUpdate = useAppUpdateCheck();
+
   // 15 minutes without a touch: a live session with completed sets is saved to History and closed
   const [idleFinishNotice, setIdleFinishNotice] = useState('');
   useIdleAutoFinish({
@@ -774,6 +779,7 @@ export default function App() {
         />
 
         {user && <CloudSyncBanner status={cloudSyncStatus} onRetry={retryCloudSync} />}
+        <UpdateBanner show={appUpdate.updateAvailable} onReload={appUpdate.reloadNow} />
 
         {/* MAIN VIEWPORT CONTENT */}
         <div style={{ flex: 1, paddingBottom: '48px' }}>
@@ -839,7 +845,8 @@ export default function App() {
                       active: showingPartnerSession ? 'partner' : 'me',
                       onChange: setSessionTab,
                       partnerName: sessionSync.syncPartnerName,
-                      partnerNumbersLoaded: Boolean(friendNumbers)
+                      partnerNumbersLoaded: Boolean(friendNumbers),
+                      partnerAppOutdated: sessionSync.partnerAppOutdated
                     }
                   : null
               }

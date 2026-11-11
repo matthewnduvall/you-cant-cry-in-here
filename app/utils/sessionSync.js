@@ -33,7 +33,12 @@ const slotSetLists = slot =>
     : [slot?.sets || []];
 
 /** The shareable structure of a session (no weights, no checkmarks; reps only as defaults for new sets). */
+// Version of what an app writes to the shared row. 2 = carries each athlete's numbers (values) for the
+// YOU / @FRIEND tabs. A friend's row without it comes from an older app that drops those numbers.
+export const SESSION_SYNC_PROTOCOL = 2;
+
 export const buildSessionSyncStructure = session => ({
+  protocol: SESSION_SYNC_PROTOCOL,
   title: session?.title || '',
   slots: (session?.slots || []).map(slot => {
     const isSuperset = isSupersetCategory(slot.category);

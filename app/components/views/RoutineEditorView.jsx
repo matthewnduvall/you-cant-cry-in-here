@@ -77,6 +77,12 @@ export function RoutineEditorView({
             value={sessionTabs.active}
             onChange={sessionTabs.onChange}
           />
+          {sessionTabs.partnerAppOutdated && (
+            <div role="alert" style={{ marginTop: '8px', fontSize: '12px', fontWeight: 700, color: '#FF3B30', lineHeight: 1.4 }}>
+              @{sessionTabs.partnerName || 'Your friend'} is on an older version of the app, so they can’t see these tabs
+              and their numbers don’t reach you. Ask them to close the app and open it again.
+            </div>
+          )}
           {sessionTabs.active === 'partner' && (
             <div style={{ marginTop: '8px', fontSize: '12px', fontWeight: 700, color: '#A0A0A0', lineHeight: 1.4 }}>
               You’re editing @{sessionTabs.partnerName || 'your friend'}’s session. Changes show up on their phone.
