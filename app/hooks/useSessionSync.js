@@ -28,7 +28,8 @@ import {
   collectSetValues,
   sameSetValues,
   mergeValueMaps,
-  overlaySetValues
+  overlaySetValues,
+  SESSION_SYNC_PROTOCOL
 } from '../utils/sessionSync';
 import { getDefaultSessionName } from '../data/exerciseLibrary';
 
@@ -87,6 +88,13 @@ export function useSessionSync({
   const [partnerEditTick, setPartnerEditTick] = useState(0);
   const pushingRef = useRef(false);
   const pushAgainRef = useRef(false);
+  // Sync whose friend wrote with an older app (no numbers, no tabs on their side): { syncId } or null
+  const [outdatedPartner, setOutdatedPartner] = useState(null);
+  const notePartnerProtocol = row => {
+    if (!row?.id || !row.updated_by || row.updated_by === myId) return;
+    const outdated = !(Number(row.structure?.protocol) >= SESSION_SYNC_PROTOCOL);
+    setOutdatedPartner(prev => (outdated ? (prev?.syncId === row.id ? prev : { syncId: row.id }) : prev?.syncId === row.id ? null : prev));
+  };
 
   // Last structure this device sent or applied, and the server time of the last row it has seen
   const lastSignatureRef = useRef('');
@@ -192,6 +200,7 @@ export function useSessionSync({
       const serverRow = fetched.ok ? fetched.row : null;
       if (!serverRow || serverRow.status === 'ended' || serverRow.status === 'declined') return;
       if (serverRow.updated_by !== myId && timeOf(serverRow.updated_at) > lastSeenUpdatedAtRef.current) {
+        notePartnerProtocol(serverRow);
         applyRemoteStructure(serverRow);
         applyRowValues(serverRow);
       }
@@ -208,7 +217,7 @@ export function useSessionSync({
       if (partnerId) values[partnerId] = mergeValueMaps(values[partnerId], partnerSent);
       const base = structureChanged || !Array.isArray(serverStructure.slots) ? localStructure : serverStructure;
       const res = await updateSessionSync(user, id, {
-        structure: { ...base, values },
+        structure: { ...base, values, protocol: SESSION_SYNC_PROTOCOL },
         structure_version: versionRef.current + 1
       });
       if (res.ok) {
@@ -288,6 +297,7 @@ export function useSessionSync({
       syncPartnerName: partnerName
     };
     lastSignatureRef.current = sessionSyncSignature(buildSessionSyncStructure(session));
+    notePartnerProtocol(shared);
     rememberRow(shared);
     previousSyncIdRef.current = shared.id;
     setActiveSession(session);
@@ -378,6 +388,7 @@ export function useSessionSync({
       const rowTime = timeOf(row.updated_at);
       if (row.updated_by === myId || rowTime <= lastSeenUpdatedAtRef.current) return;
       // My own unsent structural change wins (the push overwrites it); numbers are merged either way
+      notePartnerProtocol(row);
       applyRemoteStructure(row);
       applyRowValues(row);
       rememberRow(row);
@@ -447,6 +458,8 @@ export function useSessionSync({
     // The friend's numbers (setId → entry) for their tab, and edits made there ({ setId: values })
     partnerValues: syncId ? partnerValues : {},
     editPartnerValues,
+    // The friend's app is an older version (their saves carry no numbers): ask them to reopen the app
+    partnerAppOutdated: Boolean(syncId && outdatedPartner?.syncId === syncId),
     outgoingInvite,
     incomingInvite,
     incomingInviteFromName: incomingInvite ? friendNameFor(incomingInvite.owner_id, incomingInvite.owner_username) : '',
