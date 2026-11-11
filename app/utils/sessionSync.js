@@ -151,3 +151,90 @@ export const mergeSessionSyncStructure = (localSlots, structure, ctx = {}) => {
     return merged;
   });
 };
+
+// ---------------------------------------------------------------------------------------------------------------
+// Per-athlete set values (YOU / @FRIEND tabs). Besides the shared structure, the row's structure JSON carries
+// values: { [accountId]: { [setId]: { weight, reps, completed, bandColor, durationSeconds, timerStr,
+// lastEditedField, lockWeight, lockReps, at, by } } } — each athlete's own numbers, so either athlete can see and edit the other's
+// session. Entries are merged per set: the newer `at` wins.
+// ---------------------------------------------------------------------------------------------------------------
+
+const VALUE_FIELDS = [
+  'weight',
+  'reps',
+  'completed',
+  'bandColor',
+  'durationSeconds',
+  'timerStr',
+  'lastEditedField',
+  'lockWeight',
+  'lockReps'
+];
+// On/off fields: missing counts as false
+const FLAG_FIELDS = ['completed', 'lockWeight', 'lockReps'];
+
+const pickValues = st => {
+  const out = {};
+  VALUE_FIELDS.forEach(field => {
+    out[field] = st?.[field] === undefined ? null : st[field];
+  });
+  FLAG_FIELDS.forEach(field => {
+    out[field] = Boolean(st?.[field]);
+  });
+  return out;
+};
+
+const allSets = session =>
+  (session?.slots || []).flatMap(slot => slotSetLists(slot).flatMap(list => list || []));
+
+/** setId → this session's value fields */
+export const collectSetValues = session => {
+  const map = {};
+  allSets(session).forEach(st => {
+    if (st?.id) map[st.id] = pickValues(st);
+  });
+  return map;
+};
+
+/** True when two value records (or a record and a set) hold the same numbers */
+export const sameSetValues = (a, b) =>
+  VALUE_FIELDS.every(field =>
+    FLAG_FIELDS.includes(field) ? Boolean(a?.[field]) === Boolean(b?.[field]) : (a?.[field] ?? null) === (b?.[field] ?? null)
+  );
+
+/** Merge two { setId: entry } maps; the entry with the newer `at` wins */
+export const mergeValueMaps = (base = {}, incoming = {}) => {
+  const out = { ...(base || {}) };
+  Object.entries(incoming || {}).forEach(([id, entry]) => {
+    if (!entry) return;
+    if (!out[id] || (Number(entry.at) || 0) >= (Number(out[id].at) || 0)) out[id] = entry;
+  });
+  return out;
+};
+
+const applyEntry = (st, entry) => {
+  if (!entry) return st;
+  const next = { ...st };
+  VALUE_FIELDS.forEach(field => {
+    if (entry[field] === null || entry[field] === undefined) delete next[field];
+    else next[field] = entry[field];
+  });
+  FLAG_FIELDS.forEach(field => {
+    next[field] = Boolean(entry[field]);
+  });
+  return next;
+};
+
+/** The session with each set's numbers replaced by values[setId] (sets without an entry are left as they are) */
+export const overlaySetValues = (session, values = {}) => {
+  if (!session) return session;
+  return {
+    ...session,
+    slots: (session.slots || []).map(slot => {
+      const lists = slotSetLists(slot).map(list => (list || []).map(st => applyEntry(st, values[st.id])));
+      return isSupersetCategory(slot.category)
+        ? { ...slot, supersetSetsByExercise: lists, sets: lists[0] || [], secondarySets: lists[1] || [] }
+        : { ...slot, sets: lists[0] || [], supersetSetsByExercise: [lists[0] || []] };
+    })
+  };
+};

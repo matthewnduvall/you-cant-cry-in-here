@@ -31,3 +31,18 @@ html {
   text-size-adjust: 100%;
   touch-action: manipulation;
 }
+
+/* Locked interface, sideways: the page only ever scrolls up and down. Nothing scrolls horizontally, so a stray
+   wide element (or a sideways swipe) can't pan the page. overflow-x: clip on body keeps the sticky header working
+   (hidden would turn body into its own scroll container). */
+html {
+  overflow-x: hidden;
+  overscroll-behavior-x: none;
+  touch-action: pan-y;
+}
+
+body {
+  overflow-x: clip;
+  overscroll-behavior-x: none;
+  max-width: 100%;
+}

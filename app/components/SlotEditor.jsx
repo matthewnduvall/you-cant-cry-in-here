@@ -126,7 +126,19 @@ const SEARCH_RESULT_LIMIT = 12;
 
 // Each superset exercise is a Compound or Accessory pick; this value in its type menu ends the superset
 const SUPERSET_HALF_CATEGORIES = ['Compound', 'Accessory'];
-const END_SUPERSET = '__end_superset__';
+
+// Padlock for the WEIGHT / REPS lock buttons (closed shackle = locked)
+const LockIcon = ({ locked, color }) => (
+  <svg width="12" height="14" viewBox="0 0 12 14" aria-hidden="true" style={{ flexShrink: 0 }}>
+    <rect x="1" y="6" width="10" height="7.5" fill={color} />
+    <path
+      d={locked ? 'M3.5 6V4.2a2.5 2.5 0 0 1 5 0V6' : 'M3.5 6V4.2a2.5 2.5 0 0 1 5 0'}
+      fill="none"
+      stroke={color}
+      strokeWidth="1.6"
+    />
+  </svg>
+);
 
 /**
  * Exercises whose name / equipment / muscle group contain every word typed, best name matches first.
@@ -195,7 +207,8 @@ function PrBadge({ marginRight = '6px' }) {
  * - getBase1RM(exId): optional override of the 1RM used for LAST when a set has no lastWeight
  * - prFlags: [bool, bool] shows PR badges next to the exercise picker(s)
  * - onHeaderChange(changes): { category | muscleGroupFilter | scheme | exerciseId }. Supersets add
- *   supersetHalf (0 = A, 1 = B) to say which exercise changed, or send { endSuperset: half } to drop one.
+ *   supersetHalf (0 = A, 1 = B) to say which exercise changed. A half's type menu reads SUPERSET; picking another
+ *   type sends { endSuperset: otherHalf, category } (that exercise stays, as that type; the other is removed).
  * - onRemove / removeLabel: red DELETE button at the end of the bottom row (omit to hide it)
  * - onEditSetValue({ mode, exIdx, set, exercise, currentValue }): mode = type | increment | reps | timer
  * - onEditWeight({ exIdx, set, exercise, exerciseId, equipment, lastDisplay, showOneRepMax, setReps, prValue,
@@ -207,6 +220,8 @@ function PrBadge({ marginRight = '6px' }) {
  * - onReorderSets(exIdx, fromIdx, toIdx), onInsertSet('top' | 'bottom')
  * - actionLabel / onAction / actionTone ('recalculate' | 'calculate'): third bottom button
  * - footer: optional node rendered between the sets and the bottom row
+ * - onToggleSetLock({ exIdx, set, field: 'weight' | 'reps' }): a lock beside each set's weight and reps (shown only
+ *   with this callback). RECALCULATE changes a set's weight by default, its reps only when its weight is locked
  */
 export function SlotEditor({
   slot,
@@ -232,7 +247,8 @@ export function SlotEditor({
   actionLabel = 'RECALCULATE',
   onAction,
   actionTone = 'recalculate',
-  footer = null
+  footer = null,
+  onToggleSetLock
 }) {
   // Drag a set's numbered handle to reorder sets (pointer events: works with touch). Keys are 'exIdx:setIdx';
   // superset sets only move within their own exercise.
@@ -510,7 +526,9 @@ export function SlotEditor({
     const shortNames = getUniqueShortExerciseNames(exercisesForEquipment, equipment);
     const displayName = ex => shortNames[ex.id] || stripEquipmentFromExerciseName(ex.name);
     const tag = isSuperset ? (half === 0 ? 'A ' : 'B ') : '';
-    const typeOptions = isSuperset ? SUPERSET_HALF_CATEGORIES : categories;
+    // A superset's type menus read SUPERSET; picking any other type ends the superset: this exercise stays as a
+    // normal exercise of that type and the other one is removed
+    const typeOptions = isSuperset ? ['Superset', ...SUPERSET_HALF_CATEGORIES] : categories;
     return (
       <div
         key={half}
@@ -530,10 +548,10 @@ export function SlotEditor({
 
         <select
           aria-label={`${tag}Exercise Category`.trim()}
-          value={category}
+          value={isSuperset ? 'Superset' : category}
           onChange={e => {
-            if (e.target.value === END_SUPERSET) {
-              onHeaderChange?.({ endSuperset: half });
+            if (isSuperset) {
+              if (!isSupersetCategory(e.target.value)) onHeaderChange?.({ endSuperset: 1 - half, category: e.target.value });
               return;
             }
             sendHeaderChange(half, { category: e.target.value });
@@ -546,7 +564,6 @@ export function SlotEditor({
               {cat.toUpperCase()}
             </option>
           ))}
-          {isSuperset && <option value={END_SUPERSET}>✕ REMOVE FROM SUPERSET</option>}
         </select>
 
         <select
@@ -627,6 +644,64 @@ export function SlotEditor({
   };
 
 
+  // A set's weight or reps cell with its own lock on the right (set.lockWeight / set.lockReps). RECALCULATE never
+  // changes a locked value; see handleRecalculateSlotWeights. Without onToggleSetLock the cell is just the value.
+  const withSetLock = (exIdx, st, field, cellBg, valueButton) => {
+    if (!onToggleSetLock) return valueButton;
+    const locked = Boolean(field === 'weight' ? st.lockWeight : st.lockReps);
+    const label = field === 'weight' ? 'weight' : 'reps';
+    // One box (the cell's border and background): the value fills it and the padlock sits inside on the right
+    const innerValue = React.cloneElement(valueButton, {
+      style: {
+        ...valueButton.props.style,
+        borderTop: 'none',
+        borderLeft: 'none',
+        borderRight: 'none',
+        borderBottom: 'none',
+        backgroundColor: 'transparent',
+        width: 'auto',
+        flex: '1 1 auto',
+        paddingRight: 0
+      }
+    });
+    return (
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'stretch',
+          minWidth: 0,
+          height: '44px',
+          boxSizing: 'border-box',
+          backgroundColor: cellBg,
+          ...SHARED_CELL_BORDER
+        }}
+      >
+        {innerValue}
+        <button
+          type="button"
+          aria-pressed={locked}
+          aria-label={`${locked ? 'Unlock' : 'Lock'} ${label} of set ${st.setNumber}`}
+          title={locked ? `${label} locked: RECALCULATE won't change it` : `Lock ${label}`}
+          onClick={() => onToggleSetLock({ exIdx, set: st, field })}
+          style={{
+            flex: '0 0 24px',
+            height: '100%',
+            boxSizing: 'border-box',
+            padding: 0,
+            border: 'none',
+            backgroundColor: 'transparent',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center'
+          }}
+        >
+          <LockIcon locked={locked} color={locked ? 'var(--dp-color-accent)' : '#6E6E73'} />
+        </button>
+      </div>
+    );
+  };
+
   const renderSetRow = ({ exIdx, exId, set: st, setIdx, total }) => {
     const rowScheme = schemes[exIdx] || schemes[0];
     const isTimerScheme = rowScheme === 'Timer';
@@ -699,7 +774,10 @@ export function SlotEditor({
           <div
             style={{
               display: 'grid',
-              gridTemplateColumns: '96px minmax(0, 1fr) minmax(0, 1fr) 52px',
+              // Narrower type and ✓ columns (and 14 px weights) when the weight and reps cells carry their locks
+              gridTemplateColumns: onToggleSetLock
+                ? '68px minmax(0, 1fr) minmax(0, 1fr) 48px'
+                : '96px minmax(0, 1fr) minmax(0, 1fr) 52px',
               gap: 0,
               alignItems: 'stretch'
             }}
@@ -748,7 +826,7 @@ export function SlotEditor({
               <span style={cellLabelStyle}>BAND</span>
               <span style={cellValueStyle(BAND_COLOR_HEX[bandColor])}>{bandColor.toUpperCase()}</span>
             </button>
-            ) : (
+            ) : withSetLock(exIdx, st, 'weight', cellBg,
             <button
               type="button"
               aria-label={`Weight ${st.weight} lb. Tap to change`}
@@ -771,19 +849,27 @@ export function SlotEditor({
               style={{ ...setCellStyle(cellBg), cursor: 'pointer', overflow: 'hidden' }}
             >
               {/* Just the weight, centred in the cell (no CURRENT label) */}
-              <span style={{ ...cellValueStyle('var(--dp-color-accent)'), marginTop: 0 }}>{st.weight}</span>
+              <span style={{ ...cellValueStyle('var(--dp-color-accent)', onToggleSetLock ? '14px' : '15px'), marginTop: 0 }}>
+                {st.weight}
+              </span>
             </button>
             )}
 
-            <button
-              type="button"
-              aria-label={isTimerScheme ? 'Timer' : 'Reps'}
-              onClick={() => editValue(isTimerScheme ? 'timer' : 'reps', isTimerScheme ? timerMMSS : st.reps)}
-              style={{ ...setCellStyle(cellBg), color: '#FFFFFF', cursor: 'pointer' }}
-            >
-              <span style={cellLabelStyle}>{isTimerScheme ? 'TIMER' : 'REPS'}</span>
-              <span style={cellValueStyle()}>{isTimerScheme ? timerMMSS : st.reps}</span>
-            </button>
+            {(() => {
+              const repsButton = (
+                <button
+                  type="button"
+                  aria-label={isTimerScheme ? 'Timer' : 'Reps'}
+                  onClick={() => editValue(isTimerScheme ? 'timer' : 'reps', isTimerScheme ? timerMMSS : st.reps)}
+                  style={{ ...setCellStyle(cellBg), color: '#FFFFFF', cursor: 'pointer' }}
+                >
+                  <span style={cellLabelStyle}>{isTimerScheme ? 'TIMER' : 'REPS'}</span>
+                  <span style={cellValueStyle()}>{isTimerScheme ? timerMMSS : st.reps}</span>
+                </button>
+              );
+              // Timers aren't recalculated, so they get no lock
+              return isTimerScheme ? repsButton : withSetLock(exIdx, st, 'reps', cellBg, repsButton);
+            })()}
 
             <button
               type="button"
@@ -791,7 +877,7 @@ export function SlotEditor({
               aria-pressed={Boolean(st.completed)}
               onClick={() => onToggleDone?.({ exIdx, set: st })}
               style={{
-                width: '52px',
+                width: '100%',
                 height: '44px',
                 boxSizing: 'border-box',
                 padding: 0,

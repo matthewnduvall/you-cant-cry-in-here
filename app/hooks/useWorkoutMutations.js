@@ -113,7 +113,11 @@ export function useWorkoutMutations({
   // the Equipment page list (null = everything); drives every exercise picked for the athlete
   availableEquipment = null,
   // Training goal: sets the default scheme of new exercises (Strength 5x5, Balanced 5x8, Hypertrophy 5x10, Maintain 5x8)
-  goalType = 'Balanced'
+  goalType = 'Balanced',
+  // Synced session, friend's tab open: the friend's session (your structure + their numbers). The editor shows and
+  // edits it; every change goes to onEditPartnerSession(nextSession) instead of your own session.
+  partnerSession = null,
+  onEditPartnerSession
 }) {
   const defaultScheme = getDefaultSchemeForGoal(goalType);
   const isAvailable = ex => isExerciseAvailableWithEquipment(ex, availableEquipment);
@@ -130,6 +134,7 @@ export function useWorkoutMutations({
     if (currentView === 'history' && expandedHistoryWorkoutId) {
       return history.find(w => w.id === expandedHistoryWorkoutId) || null;
     }
+    if (currentView === 'session' && partnerSession) return partnerSession;
     return activeSession;
   };
 
@@ -185,6 +190,9 @@ export function useWorkoutMutations({
         const next = updater(prev);
         return next ? { ...next, slots: normalizeSlotLabels(next.slots) } : next;
       });
+    } else if (currentView === 'session' && partnerSession && onEditPartnerSession) {
+      const next = updater(partnerSession);
+      if (next) onEditPartnerSession({ ...next, slots: normalizeSlotLabels(next.slots) });
     } else {
       setActiveSession(prev => {
         const next = updater(prev);
@@ -691,6 +699,37 @@ export function useWorkoutMutations({
     setCurrentView('home');
   };
 
+  // Idle auto-finish (useIdleAutoFinish): saves the live session to History as it is (private, not a routine)
+  // and clears it. Only a session with at least one completed set is saved; returns whether it was.
+  const handleAutoFinishActiveSession = () => {
+    const session = activeSession;
+    const slots = session?.slots || [];
+    const anyDone = slots.some(slot =>
+      (slot.supersetSetsByExercise || [slot.sets || []]).some(list => (list || []).some(st => st.completed))
+    );
+    if (!anyDone) return false;
+    const normalizedSlots = normalizeSlotLabels(cloneSlots(slots));
+    const entry = {
+      ...session,
+      title: (session.title || '').trim() || getDefaultSessionName(),
+      gymType: inferRoutineGymCategory(normalizedSlots),
+      updatedAt: new Date().toISOString(),
+      isComplete: checkIsWorkoutComplete(normalizedSlots),
+      verifiedByUser: true,
+      autoFinished: true,
+      slots: normalizedSlots
+    };
+    setHistory(prev => {
+      const exists = prev.some(w => w.id === entry.id);
+      return exists ? prev.map(w => (w.id === entry.id ? entry : w)) : [entry, ...prev];
+    });
+    appendSessionLog?.('AUTO_FINISH_SESSION', `Saved "${entry.title}" after 15 minutes idle`);
+    setSaveConfirmTarget(null);
+    setActiveSession(null);
+    if (currentView === 'session') setCurrentView('home');
+    return true;
+  };
+
   const handleShareCurrentEditor = () => {
     const currentWorkout = getCurrentEditorWorkout();
     if (!currentWorkout || !currentWorkout.slots || currentWorkout.slots.length === 0) return;
@@ -1085,7 +1124,39 @@ export function useWorkoutMutations({
       const nextSlots = prev.slots.map(slot => {
         if (slot.id !== slotId) return slot;
         if (isSupersetCategory(slot.category) && changes.endSuperset !== undefined) {
-          return endSuperset(slot, changes.endSuperset);
+          const single = endSuperset(slot, changes.endSuperset);
+          const wanted = changes.category ? normalizeSlotCategory(changes.category) : null;
+          if (!wanted || isSupersetCategory(wanted) || wanted === single.category) return single;
+          // Ended by picking another type: keep the exercise if it is that type, else that type's best default
+          const keptEx = EXERCISE_MAP[single.exerciseId];
+          if (keptEx && normalizeSlotCategory(keptEx.category) === wanted) return { ...single, category: wanted, slotLabel: wanted };
+          const muscle = single.muscleGroupFilter || keptEx?.muscleGroup || 'All Muscles';
+          const typePool = preferAvailable(
+            getFilteredExercisesForSlotInline({ category: wanted, muscleGroupFilter: muscle }, '', [])
+          );
+          const pool = typePool.length > 0
+            ? typePool
+            : preferAvailable(getFilteredExercisesForSlotInline({ category: wanted, muscleGroupFilter: 'All Muscles' }, '', []));
+          const nextEx = pool[0];
+          if (!nextEx) return { ...single, category: wanted, slotLabel: wanted };
+          const rebuilt = createWorkoutSlot({
+            category: wanted,
+            slotLabel: wanted,
+            exerciseId: nextEx.id,
+            scheme: single.scheme,
+            oneRepMaxes,
+            history,
+            incrementLbs: currentIncrementLbs,
+            setPreferences,
+            restSeconds: single.restSeconds || 90,
+            userBodyweightLbs
+          });
+          return {
+            ...rebuilt,
+            id: slot.id,
+            familyMuscleGroup: slot.familyMuscleGroup,
+            muscleGroupFilter: typePool.length > 0 ? muscle : nextEx.muscleGroup || 'All Muscles'
+          };
         }
         if (isSupersetCategory(slot.category) && changes.supersetHalf !== undefined) {
           return applySupersetHalfChange(slot, changes);
@@ -1463,7 +1534,7 @@ export function useWorkoutMutations({
         const baseSchemes = isSupersetCategory(slot.category) ? getSupersetSchemes(slot) : [slot.scheme];
         const nextSchemes = [...baseSchemes];
 
-        const recalcList = (list, exId, half = 0) => {
+        const recalcListRaw = (list, exId, half = 0) => {
           const listScheme = baseSchemes[half];
           const currentList = Array.isArray(list) ? list : [];
           const totalCount = currentList.length;
@@ -1855,6 +1926,58 @@ export function useWorkoutMutations({
           });
         };
 
+        // Per-set WEIGHT / REPS locks (set.lockWeight / set.lockReps, off by default). RECALCULATE changes only one
+        // of a set's two numbers: its weight by default (and when its reps are locked); its reps only when its
+        // weight is locked; nothing when both are. Completed sets are never touched. Set types the recalculation
+        // picks are kept. A locked weight counts as one the athlete typed, so the other sets work around it.
+        const recalcList = (list, exId, half = 0) => {
+          const original = Array.isArray(list) ? list : [];
+          const computed = recalcListRaw(
+            original.map(st => (st.lockWeight && !st.completed ? { ...st, lastEditedField: 'weight' } : st)),
+            exId,
+            half
+          );
+          const listScheme = nextSchemes[half];
+          if (listScheme === 'Timer') return computed;
+          const total = computed.length;
+          const calc1RM = getHistoricalCalculated1RM(exId, history, oneRepMaxes);
+          const effInc = getEffectiveIncrementForExercise(exId, currentIncrementLbs);
+          return computed.map((st, idx) => {
+            const orig = original[idx];
+            if (!orig || orig.completed) return st;
+            if (orig.lockWeight && orig.lockReps) return { ...orig, setNumber: idx + 1, lastEditedField: undefined };
+            if (orig.lockWeight) {
+              // Weights stay; reps become what that weight allows for this set (needs a known 1RM)
+              const weight = Number(orig.weight) || 0;
+              const reps =
+                orig.type === '1 Rep Max'
+                  ? 1
+                  : calc1RM > 0 && weight > 0
+                    ? calculateEquivalentRepsForWeight(calc1RM, weight, orig, total, slot.category, effInc)
+                    : orig.reps;
+              return {
+                ...orig,
+                setNumber: idx + 1,
+                reps,
+                lastEditedField: undefined
+              };
+            }
+            // Weights only: keep the athlete's reps and work out the weight for them
+            if (Number(st.reps) === Number(orig.reps) || st.type === '1 Rep Max') return st;
+            if (orig.lastEditedField === 'weight') return { ...st, reps: orig.reps, weight: orig.weight };
+            const base = calculateLastEquivalentWeightForSet(
+              calc1RM,
+              { ...st, reps: orig.reps, lastEditedField: 'reps' },
+              total,
+              slot.category,
+              idx,
+              listScheme
+            );
+            const inc = Number(st.increment) || 0;
+            return { ...st, reps: orig.reps, lastWeight: base, weight: Math.max(0, roundToIncrement(base + inc)) };
+          });
+        };
+
         if (isSupersetCategory(slot.category) && Array.isArray(slot.supersetSetsByExercise)) {
           const supIds = slot.supersetExerciseIds || [slot.exerciseId, slot.secondaryExerciseId];
           const nextMatrix = slot.supersetSetsByExercise.map((list, idx) =>
@@ -1874,6 +1997,28 @@ export function useWorkoutMutations({
         return { ...slot, scheme: nextSchemes[0], sets: nextSets, supersetSetsByExercise: [nextSets] };
       });
       return { ...prev, slots: nextSlots };
+    });
+  };
+
+  // Lock beside a set's weight or reps (see recalcList in handleRecalculateSlotWeights). exIdx = superset half.
+  const handleToggleSetLock = (slotId, exIdx, setId, field) => {
+    const key = field === 'weight' ? 'lockWeight' : field === 'reps' ? 'lockReps' : null;
+    if (!key) return;
+    const toggle = list => (list || []).map(st => (st.id === setId ? { ...st, [key]: !st[key] } : st));
+    updateCurrentWorkoutState(prev => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        slots: prev.slots.map(slot => {
+          if (slot.id !== slotId) return slot;
+          if (isSupersetCategory(slot.category) && Array.isArray(slot.supersetSetsByExercise)) {
+            const matrix = slot.supersetSetsByExercise.map((list, i) => (i === exIdx ? toggle(list) : list));
+            return { ...slot, supersetSetsByExercise: matrix, sets: matrix[0] || [], secondarySets: matrix[1] || [] };
+          }
+          const sets = toggle(slot.sets);
+          return { ...slot, sets, supersetSetsByExercise: [sets] };
+        })
+      };
     });
   };
 
@@ -1935,6 +2080,7 @@ export function useWorkoutMutations({
     handleAddAutoSlot,
     handleSaveCurrentEditor,
     handleConfirmSaveWorkout,
+    handleAutoFinishActiveSession,
     handleShareCurrentEditor,
     handleResetCurrentEditor,
     handleConfirmDeleteAction,
@@ -1945,6 +2091,7 @@ export function useWorkoutMutations({
     handleUpdateSetType,
     handleInsertSetAtPosition,
     handleRecalculateSlotWeights,
+    handleToggleSetLock,
     handleToggleSetDone,
     handleChangeGymSelection
   };

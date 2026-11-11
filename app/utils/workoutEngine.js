@@ -112,6 +112,7 @@ export const getDefaultSchemeForGoal = goalType =>
 
 export const SCHEME_OPTIONS = [
   '5x5',
+  '5x6',
   '5x8',
   '5x10',
   '8x8',
@@ -357,7 +358,7 @@ export const getEffectiveIncrementForExercise = (exerciseId, baseIncrementLbs = 
 };
 
 // Exercise Set Preferences (Configuration → ROUTINES): the type of each set, by position, for new exercises on the
-// uniform rep schemes (5x5, 5x8, 5x10, 8x8). Sets beyond the list are Working.
+// uniform rep schemes (5x5, 5x6, 5x8, 5x10, 8x8). Sets beyond the list are Working.
 export const DEFAULT_SET_PREFERENCES = ['Warmup', 'Warmup', 'Working', 'Working', 'Working'];
 export const SET_PREFERENCE_TYPES = ['Warmup', 'Working', 'Top Out', 'Burn Out'];
 const typesFromSetPreferences = (count, setPreferences) => {
@@ -427,6 +428,8 @@ export const generateSetsForScheme = (
       );
     case '5x5':
       return buildWithLastAndTarget(typesFromSetPreferences(5, setPreferences).map(type => ({ type, reps: 5 })));
+    case '5x6':
+      return buildWithLastAndTarget(typesFromSetPreferences(5, setPreferences).map(type => ({ type, reps: 6 })));
     case '5x10':
       return buildWithLastAndTarget(typesFromSetPreferences(5, setPreferences).map(type => ({ type, reps: 10 })));
     case '8x8':
@@ -507,7 +510,7 @@ export const generateSetsForScheme = (
 // weighted exercises (not bodyweight). Nothing known yet (no 1RM, no previous session) → the scheme defaults.
 // ============================================================================
 
-export const GOAL_PROGRESS_SCHEMES = ['5x5', '5x8', '5x10', '8x8', 'Pyramid', 'Reverse Pyramid'];
+export const GOAL_PROGRESS_SCHEMES = ['5x5', '5x6', '5x8', '5x10', '8x8', 'Pyramid', 'Reverse Pyramid'];
 
 const roundToStep = (val, step) => Math.round(val / step) * step;
 

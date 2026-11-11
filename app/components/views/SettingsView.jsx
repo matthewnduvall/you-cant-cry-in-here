@@ -184,7 +184,7 @@ export function RoutinePreferencesSection({ colors, routinePreferences, setRouti
 
 /**
  * EXERCISE SET PREFERENCES (Configuration → ROUTINES, under ROUTINE PREFERENCES): the type of each set, by position,
- * for new exercises on the uniform rep schemes (5x5, 5x8, 5x10, 8x8). Working sets get the goal-progress weight;
+ * for new exercises on the uniform rep schemes (5x5, 5x6, 5x8, 5x10, 8x8). Working sets get the goal-progress weight;
  * warm-ups are converted from the same calculated 1RM. Default: Warm-up, Warm-up, Working, Working, Working.
  */
 export function SetPreferencesSection({ colors, setPreferences, setSetPreferences }) {

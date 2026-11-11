@@ -5,7 +5,10 @@
 // One athlete invites a friend; once the friend accepts, both apps share the session's exercise structure
 // through public.shared_sessions. Each app polls the row (every 3 s while synced, 10 s otherwise for
 // invites) and pushes its own structural edits a moment after they happen. The latest edit wins.
-// Weights, reps and checkmarks are never shared. Saving, RESET or UNSYNC ends the sync.
+// Each athlete's own numbers (weights, reps, checkmarks) also travel in the row, per account, so the session
+// page can show a tab for the friend's session that this athlete can view and edit (coaching). Numbers are
+// merged per set (newest edit wins) and never replace the other athlete's numbers. Saving, RESET or UNSYNC
+// ends the sync.
 // ============================================================================
 
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -18,7 +21,15 @@ import {
   respondToSessionSync,
   endSessionSync
 } from '../utils/supabaseAuth';
-import { buildSessionSyncStructure, sessionSyncSignature, mergeSessionSyncStructure } from '../utils/sessionSync';
+import {
+  buildSessionSyncStructure,
+  sessionSyncSignature,
+  mergeSessionSyncStructure,
+  collectSetValues,
+  sameSetValues,
+  mergeValueMaps,
+  overlaySetValues
+} from '../utils/sessionSync';
 import { getDefaultSessionName } from '../data/exerciseLibrary';
 
 const INVITE_POLL_MS = 10000;
@@ -60,6 +71,22 @@ export function useSessionSync({
   // One-line message for the athlete (declined / ended / errors)
   const [syncNotice, setSyncNotice] = useState('');
   const [isSyncBusy, setIsSyncBusy] = useState(false);
+
+  // The friend's numbers (setId → entry), for the friend's tab; includes my unsent edits to them
+  const [partnerValues, setPartnerValuesState] = useState({});
+  const partnerValuesRef = useRef({});
+  const setPartnerValues = value => {
+    partnerValuesRef.current = value;
+    setPartnerValuesState(value);
+  };
+  // My numbers as last sent or applied (setId → entry with `at`), my edits not yet on the server, and edits I
+  // made to my friend's numbers not yet on the server
+  const ownValuesRef = useRef({});
+  const pendingOwnRef = useRef({});
+  const pendingPartnerRef = useRef({});
+  const [partnerEditTick, setPartnerEditTick] = useState(0);
+  const pushingRef = useRef(false);
+  const pushAgainRef = useRef(false);
 
   // Last structure this device sent or applied, and the server time of the last row it has seen
   const lastSignatureRef = useRef('');
@@ -103,6 +130,106 @@ export function useSessionSync({
     },
     [setActiveSession]
   );
+
+  // Partner structure from a row (unless I have an unsent structural change: mine wins and is pushed next)
+  const applyRemoteStructure = row => {
+    const local = latestRef.current.activeSession;
+    if (sessionSyncSignature(buildSessionSyncStructure(local)) !== lastSignatureRef.current) return;
+    const merged = mergeSessionSyncStructure(local?.slots || [], row.structure, mergeCtx());
+    // Signature of what this device now holds, so applying the partner's change never pushes it back
+    lastSignatureRef.current = sessionSyncSignature(buildSessionSyncStructure({ slots: merged }));
+    setActiveSession(prev => (prev && prev.syncId === row.id ? { ...prev, slots: merged } : prev));
+  };
+
+  // Numbers from a row: the friend's (for their tab) and any of mine the friend edited more recently
+  const applyRowValues = row => {
+    const values = row?.structure?.values || {};
+    const partnerId = latestRef.current.activeSession?.syncPartnerId;
+    if (partnerId) {
+      setPartnerValues(
+        mergeValueMaps(mergeValueMaps(partnerValuesRef.current, values[partnerId] || {}), pendingPartnerRef.current)
+      );
+    }
+    const updates = {};
+    Object.entries(values[myId] || {}).forEach(([id, entry]) => {
+      if (!entry || entry.by === myId) return;
+      const at = Number(entry.at) || 0;
+      if (at <= (Number(ownValuesRef.current[id]?.at) || 0)) return;
+      if (pendingOwnRef.current[id] && (Number(pendingOwnRef.current[id].at) || 0) >= at) return;
+      updates[id] = entry;
+    });
+    if (Object.keys(updates).length > 0) {
+      ownValuesRef.current = { ...ownValuesRef.current, ...updates };
+      setActiveSession(prev => (prev && prev.syncId === row.id ? overlaySetValues(prev, updates) : prev));
+    }
+  };
+
+  // Edits made on the friend's tab: { setId: values }
+  const editPartnerValues = changes => {
+    const now = Date.now();
+    const entries = {};
+    Object.entries(changes || {}).forEach(([id, vals]) => {
+      entries[id] = { ...vals, at: now, by: myId };
+    });
+    if (Object.keys(entries).length === 0) return;
+    pendingPartnerRef.current = { ...pendingPartnerRef.current, ...entries };
+    setPartnerValues(mergeValueMaps(partnerValuesRef.current, entries));
+    setPartnerEditTick(t => t + 1);
+  };
+
+  // Write my structure (when it changed) and both athletes' unsent numbers. Reads the row first so the friend's
+  // latest numbers and structure are kept.
+  const pushNow = async () => {
+    if (pushingRef.current) {
+      pushAgainRef.current = true;
+      return;
+    }
+    pushingRef.current = true;
+    try {
+      const id = latestRef.current.activeSession?.syncId;
+      if (!id) return;
+      const fetched = await fetchSessionSync(user, id);
+      const serverRow = fetched.ok ? fetched.row : null;
+      if (!serverRow || serverRow.status === 'ended' || serverRow.status === 'declined') return;
+      if (serverRow.updated_by !== myId && timeOf(serverRow.updated_at) > lastSeenUpdatedAtRef.current) {
+        applyRemoteStructure(serverRow);
+        applyRowValues(serverRow);
+      }
+      const local = latestRef.current.activeSession;
+      const localStructure = buildSessionSyncStructure(local);
+      const localSignature = sessionSyncSignature(localStructure);
+      const structureChanged = localSignature !== lastSignatureRef.current;
+      const serverStructure = serverRow.structure || {};
+      const ownSent = { ...pendingOwnRef.current };
+      const partnerSent = { ...pendingPartnerRef.current };
+      const values = { ...(serverStructure.values || {}) };
+      values[myId] = mergeValueMaps(values[myId], ownSent);
+      const partnerId = local?.syncPartnerId;
+      if (partnerId) values[partnerId] = mergeValueMaps(values[partnerId], partnerSent);
+      const base = structureChanged || !Array.isArray(serverStructure.slots) ? localStructure : serverStructure;
+      const res = await updateSessionSync(user, id, {
+        structure: { ...base, values },
+        structure_version: versionRef.current + 1
+      });
+      if (res.ok) {
+        rememberRow(res.row);
+        if (structureChanged) lastSignatureRef.current = localSignature;
+        Object.keys(ownSent).forEach(k => {
+          if (pendingOwnRef.current[k] === ownSent[k]) delete pendingOwnRef.current[k];
+        });
+        Object.keys(partnerSent).forEach(k => {
+          if (pendingPartnerRef.current[k] === partnerSent[k]) delete pendingPartnerRef.current[k];
+        });
+        if (partnerId) setPartnerValues(mergeValueMaps(values[partnerId], pendingPartnerRef.current));
+      }
+    } finally {
+      pushingRef.current = false;
+      if (pushAgainRef.current) {
+        pushAgainRef.current = false;
+        setPartnerEditTick(t => t + 1);
+      }
+    }
+  };
 
   // ---- Invite a friend ---------------------------------------------------
   const inviteFriendToSync = async friend => {
@@ -250,14 +377,10 @@ export function useSessionSync({
       }
       const rowTime = timeOf(row.updated_at);
       if (row.updated_by === myId || rowTime <= lastSeenUpdatedAtRef.current) return;
-      // My own unsent change wins: skip this round, the push below overwrites it
-      const local = latestRef.current.activeSession;
-      if (sessionSyncSignature(buildSessionSyncStructure(local)) !== lastSignatureRef.current) return;
-      const merged = mergeSessionSyncStructure(local?.slots || [], row.structure, mergeCtx());
+      // My own unsent structural change wins (the push overwrites it); numbers are merged either way
+      applyRemoteStructure(row);
+      applyRowValues(row);
       rememberRow(row);
-      // Signature of what this device now holds, so applying the partner's change never pushes it back
-      lastSignatureRef.current = sessionSyncSignature(buildSessionSyncStructure({ slots: merged }));
-      setActiveSession(prev => (prev && prev.syncId === row.id ? { ...prev, slots: merged } : prev));
     };
     poll();
     const id = setInterval(poll, SYNC_POLL_MS);
@@ -268,25 +391,26 @@ export function useSessionSync({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canSync, syncId, myId]);
 
-  // ---- While synced: push my structural edits ---------------------------
+  // ---- While synced: push my structural edits and both athletes' changed numbers ----
   useEffect(() => {
     if (!canSync || !syncId || !activeSession) return undefined;
-    const structure = buildSessionSyncStructure(activeSession);
-    const signature = sessionSyncSignature(structure);
-    if (signature === lastSignatureRef.current) return undefined;
-    const timer = setTimeout(async () => {
-      const res = await updateSessionSync(user, syncId, {
-        structure,
-        structure_version: versionRef.current + 1
-      });
-      if (res.ok) {
-        rememberRow(res.row);
-        lastSignatureRef.current = signature;
-      }
-    }, PUSH_DELAY_MS);
+    const signature = sessionSyncSignature(buildSessionSyncStructure(activeSession));
+    // My numbers that changed since they were last sent or applied (stamped now, so the newest edit wins)
+    const now = Date.now();
+    Object.entries(collectSetValues(activeSession)).forEach(([id, vals]) => {
+      const known = ownValuesRef.current[id];
+      if (known && sameSetValues(known, vals)) return;
+      const entry = { ...vals, at: now, by: myId };
+      ownValuesRef.current = { ...ownValuesRef.current, [id]: entry };
+      pendingOwnRef.current = { ...pendingOwnRef.current, [id]: entry };
+    });
+    const hasPending =
+      Object.keys(pendingOwnRef.current).length > 0 || Object.keys(pendingPartnerRef.current).length > 0;
+    if (signature === lastSignatureRef.current && !hasPending) return undefined;
+    const timer = setTimeout(() => pushNow(), PUSH_DELAY_MS);
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [canSync, syncId, activeSession]);
+  }, [canSync, syncId, activeSession, partnerEditTick]);
 
   // ---- Session saved, reset or replaced while synced: end the sync ------
   useEffect(() => {
@@ -296,6 +420,11 @@ export function useSessionSync({
       log('SYNC_END', 'Session saved or replaced; sync ended');
     }
     previousSyncIdRef.current = syncId;
+    // Numbers belong to one sync: start clean (the first push after linking sends all of mine)
+    ownValuesRef.current = {};
+    pendingOwnRef.current = {};
+    pendingPartnerRef.current = {};
+    partnerValuesRef.current = {};
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [syncId]);
 
@@ -314,6 +443,10 @@ export function useSessionSync({
     canSync,
     syncId,
     syncPartnerName: activeSession?.syncPartnerName || null,
+    syncPartnerId: activeSession?.syncPartnerId || null,
+    // The friend's numbers (setId → entry) for their tab, and edits made there ({ setId: values })
+    partnerValues: syncId ? partnerValues : {},
+    editPartnerValues,
     outgoingInvite,
     incomingInvite,
     incomingInviteFromName: incomingInvite ? friendNameFor(incomingInvite.owner_id, incomingInvite.owner_username) : '',
