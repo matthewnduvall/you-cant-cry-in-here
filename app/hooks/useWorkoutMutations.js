@@ -42,7 +42,8 @@ import {
   GOAL_PROGRESS_SCHEMES,
   SUPERSET_SET_COUNT,
   getTargetRepsForSet,
-  trimSetsTo
+  trimSetsTo,
+  normalizeSetType
 } from '../utils/workoutEngine';
 import { deleteCloudRoutineByKey, deleteCloudWorkoutsByIds } from '../utils/supabaseAuth';
 import { markWorkoutIdDeleted, clearDeletedWorkoutIds } from '../utils/cloudSyncLedger';
@@ -51,6 +52,17 @@ import { markWorkoutIdDeleted, clearDeletedWorkoutIds } from '../utils/cloudSync
 // Auto-pick scoring (+ ADD EXERCISE and AUTO SESSION). Score ≈ "days this muscle group is behind",
 // weighted by how much the group matters, plus a bonus for the Big 3 + OHP on compound picks.
 // ---------------------------------------------------------------------------
+// A set type's weight and reps from the exercise's working set (weight, reps): used by the set type dropdown and by
+// RECALCULATE for type-locked sets. Warm-up = same reps, lighter (warm-up effort 0.74 vs working 0.98);
+// Top Out = same reps, heavier (1.04 vs 0.98); Burn Out = the working weight, 2 more reps.
+const setTypeTarget = (type, refWeight, refReps) =>
+  ({
+    Working: [refWeight, refReps],
+    Warmup: [refWeight * (0.74 / 0.98), refReps],
+    'Top Out': [refWeight * (1.04 / 0.98), refReps],
+    'Burn Out': [refWeight, refReps + 2]
+  })[type] || [refWeight, refReps];
+
 const STIMULUS_DAYS_CAP = 14; // unlogged / very stale groups count as this many days behind
 const BIG4_BONUS_DAYS = 6; // Big 3 + OHP win unless their muscles were trained much more recently
 const SAME_WORKOUT_PENALTY_DAYS = 10; // avoid hitting the same muscle group twice in one workout
@@ -1398,51 +1410,77 @@ export function useWorkoutMutations({
     });
   };
 
+  // Set type change (the set row's dropdown) re-works that set's weight and reps from the exercise's working set
+  // (another Working set of the exercise, else the scheme's working set for this position):
+  //   Working = the working weight and reps; Warm-up = same reps, lighter (× 0.74 / 0.98, the warm-up effort);
+  //   Top Out = same reps, heavier (× 1.04 / 0.98); Burn Out = the working weight, 2 more reps;
+  //   1 Rep Max = the calculated 1RM from History, 1 rep (+ the increment on the last set).
+  // A locked weight or reps value stays; Timer sets keep their time; bodyweight exercises keep their weight.
   const handleUpdateSetType = (slotId, exIndex, setId, newType) => {
     updateCurrentWorkoutState(prev => {
       if (!prev) return prev;
       const nextSlots = prev.slots.map(slot => {
         if (slot.id !== slotId) return slot;
+        const isSup = isSupersetCategory(slot.category) && Array.isArray(slot.supersetSetsByExercise);
 
-        const updateSingleSet = (st, exId, totalCount, sIdx, listScheme = slot.scheme) => {
-          if (st.id !== setId) return st;
+        const retypeList = (list, exId, listScheme, targetReps) => {
+          const sets = Array.isArray(list) ? list : [];
+          const idx = sets.findIndex(st => st.id === setId);
+          if (idx < 0) return sets;
+          const st = sets[idx];
+          const total = sets.length;
+          const isBw = isBodyweightExercise(exId);
+          const isTimer = listScheme === 'Timer';
           const calc1RM = getHistoricalCalculated1RM(exId, history, oneRepMaxes);
           const effInc = getEffectiveIncrementForExercise(exId, currentIncrementLbs);
+          const step = effInc > 0 ? Math.min(2.5, effInc) : 2.5;
+          const roundW = w => Math.max(0, Math.round(w / step) * step);
+          let weight;
+          let reps;
           if (newType === '1 Rep Max') {
-            const isLastSet = sIdx === totalCount - 1;
             const maxW = roundTo5(calc1RM);
-            const incFor1RM = isLastSet ? effInc : 0;
-            return {
-              ...st,
-              type: newType,
-              reps: 1,
-              lastWeight: maxW,
-              increment: incFor1RM,
-              weight: roundToIncrement(maxW + incFor1RM),
-              lastEditedField: 'type'
-            };
+            weight = roundToIncrement(maxW + (idx === total - 1 ? effInc : 0));
+            reps = 1;
+          } else {
+            const ref = sets.find(o => o.id !== setId && normalizeSetType(o.type) === 'Working' && Number(o.weight) > 0);
+            const refReps = ref
+              ? Math.max(1, Number(ref.reps) || 1)
+              : getTargetRepsForSet(listScheme, idx, total, targetReps) || Math.max(1, Number(st.reps) || 8);
+            const refWeight = ref
+              ? Number(ref.weight)
+              : roundToIncrement(
+                  calculateLastEquivalentWeightForSet(
+                    calc1RM,
+                    { type: 'Working', reps: refReps },
+                    total,
+                    slot.category,
+                    idx,
+                    listScheme
+                  ) + effInc
+                );
+            const [w, r] = setTypeTarget(newType, refWeight, refReps);
+            weight = roundW(w);
+            reps = r;
           }
-          const updatedSet = { ...st, type: newType, lastEditedField: 'type' };
-          const lastW = calculateLastEquivalentWeightForSet(calc1RM, updatedSet, totalCount, slot.category, sIdx, listScheme);
-          const setInc =
-            st.increment !== undefined && st.increment !== '' && !Number.isNaN(Number(st.increment))
-              ? Number(st.increment)
-              : effInc;
-          return {
-            ...updatedSet,
-            lastWeight: lastW,
-            increment: setInc,
-            weight: Math.max(0, roundToIncrement(lastW + setInc))
+          if (isBw || st.lockWeight) weight = st.weight;
+          if (isTimer || st.lockReps) reps = st.reps;
+          const lastW = Number(st.lastWeight);
+          const next = {
+            ...st,
+            type: newType,
+            weight,
+            reps,
+            increment: Number.isFinite(lastW) && lastW > 0 ? Math.round((Number(weight) - lastW) * 100) / 100 : st.increment,
+            lastEditedField: 'type'
           };
+          return sets.map((o, i) => (i === idx ? next : o));
         };
 
-        if (isSupersetCategory(slot.category) && Array.isArray(slot.supersetSetsByExercise)) {
+        if (isSup) {
           const supIds = slot.supersetExerciseIds || [slot.exerciseId, slot.secondaryExerciseId];
           const nextMatrix = slot.supersetSetsByExercise.map((list, idx) =>
             idx === exIndex
-              ? list.map((st, sIdx) =>
-                  updateSingleSet(st, supIds[idx] || slot.exerciseId, list.length, sIdx, getSupersetSchemes(slot)[idx])
-                )
+              ? retypeList(list, supIds[idx] || slot.exerciseId, getSupersetSchemes(slot)[idx], slot.supersetTargetReps?.[idx])
               : list
           );
           return {
@@ -1452,9 +1490,8 @@ export function useWorkoutMutations({
             secondarySets: nextMatrix[1] || []
           };
         }
-        const totalLen = (slot.sets || []).length;
-        const nextSets = (slot.sets || []).map((st, sIdx) => updateSingleSet(st, slot.exerciseId, totalLen, sIdx));
-        return { ...slot, sets: nextSets };
+        const nextSets = retypeList(slot.sets || [], slot.exerciseId, slot.scheme, slot.targetReps);
+        return { ...slot, sets: nextSets, supersetSetsByExercise: [nextSets] };
       });
       return { ...prev, slots: nextSlots };
     });
@@ -1535,477 +1572,128 @@ export function useWorkoutMutations({
     });
   };
 
-  // RECALCULATE for one slot (workoutId = the workout it belongs to, left out of "last session")
+  // RECALCULATE for one slot (workoutId = the workout it belongs to, left out of "last session").
+  // Each exercise is rebuilt from its selections, as if it had just been picked: the exercise (from the filters),
+  // its scheme's set types and reps (Exercise Set Preferences on the uniform schemes; the REPS box), the SETS count
+  // (the current number of sets: the scheme's last sets, extra sets copy its last one) and weights from goal progress
+  // (calculated 1RM, last session + increment). Then every LOCKED value is put back (set.lockType / lockWeight /
+  // lockReps) and the numbers it depends on are worked out around it: a locked weight → the reps it allows; locked
+  // reps or type → the weight for them. Completed sets are never changed. Nothing else (e.g. which field was edited
+  // last) is kept. Type-locked sets then follow their type's rule (setTypeTarget). Timer sets keep their times; band
+  // sets keep their colour.
   const recalculateSlot = (slot, workoutId) => {
-        const baseSchemes = isSupersetCategory(slot.category) ? getSupersetSchemes(slot) : [slot.scheme];
-        const nextSchemes = [...baseSchemes];
+    const isSup = isSupersetCategory(slot.category) && Array.isArray(slot.supersetSetsByExercise);
+    const schemes = isSup ? getSupersetSchemes(slot) : [slot.scheme || defaultScheme];
 
-        const recalcListRaw = (list, exId, half = 0) => {
-          const listScheme = baseSchemes[half];
-          const currentList = Array.isArray(list) ? list : [];
-          const totalCount = currentList.length;
-          if (totalCount === 0) return [];
-          const calc1RM = getHistoricalCalculated1RM(exId, history, oneRepMaxes);
-          const effInc = getEffectiveIncrementForExercise(exId, currentIncrementLbs);
+    const recalcList = (list, exId, half = 0) => {
+      const original = Array.isArray(list) ? list : [];
+      const total = original.length;
+      if (total === 0) return [];
+      const scheme = schemes[half];
+      const category = isSup ? 'Superset' : normalizeSlotCategory(slot.category);
+      const targetReps = isSup ? slot.supersetTargetReps?.[half] : slot.targetReps;
+      const isBw = isBodyweightExercise(exId);
+      const isTimer = scheme === 'Timer';
+      const calc1RM = getHistoricalCalculated1RM(exId, history, oneRepMaxes);
+      const effInc = isBw ? 0 : getEffectiveIncrementForExercise(exId, currentIncrementLbs);
+      const weightFor = (st, idx) => {
+        if (normalizeSetType(st.type) === '1 Rep Max') return roundToIncrement(roundTo5(calc1RM) + (idx === total - 1 ? effInc : 0));
+        const base = calculateLastEquivalentWeightForSet(calc1RM, { ...st, lastEditedField: 'reps' }, total, category, idx, scheme);
+        const isRampWarmup = scheme === 'Pyramid 1RM' && normalizeSetType(st.type) === 'Warmup';
+        return Math.max(0, roundToIncrement(base + (isRampWarmup ? 0 : effInc)));
+      };
 
-          if (slot.category === 'Abs') {
-            return currentList.map((st, idx) =>
-              st.completed
-                ? { ...st, setNumber: idx + 1 }
-                : {
-                    ...st,
-                    setNumber: idx + 1,
-                    lastWeight: 0,
-                    increment: 0,
-                    weight: 0,
-                    lastEditedField: undefined
-                  }
-            );
-          }
+      // 1. The scheme's sets, sized to the current count
+      let fresh = generateSetsForScheme(scheme, calc1RM, category, exId, currentIncrementLbs, userBodyweightLbs, setPreferences);
+      const sameShape = fresh.length === total;
+      if (fresh.length > total) fresh = trimSetsTo(fresh, total);
+      while (fresh.length < total) {
+        const last = fresh[fresh.length - 1] || { type: 'Working', reps: 8 };
+        fresh = [...fresh, { ...last, type: normalizeSetType(last.type) === '1 Rep Max' ? 'Working' : last.type }];
+      }
+      // 2. The slot's REPS box (uniform schemes), then weights for this count (pyramids as generated when unchanged)
+      const repsChanged = Number(targetReps) > 0 && getTargetRepsForSet(scheme, 0, total, targetReps) !== null;
+      fresh = fresh.map((st, idx) => {
+        const reps =
+          isTimer || normalizeSetType(st.type) === '1 Rep Max' ? st.reps : getTargetRepsForSet(scheme, idx, total, targetReps) ?? st.reps;
+        const next = { ...st, reps };
+        if (isBw || isTimer || (sameShape && !repsChanged)) return next;
+        return { ...next, weight: weightFor(next, idx) };
+      });
 
-          const standardPyramidReps = [8, 5, 3, 2, 1];
-          const warmupCount = Math.max(1, totalCount - 1);
-          const getPyramidWarmupReps = setIdx => {
-            if (totalCount === 5) return standardPyramidReps[setIdx] || 2;
-            if (warmupCount <= 1) return 5;
-            return Math.max(2, Math.round(8 - (setIdx / (warmupCount - 1)) * 6));
-          };
+      // 3. Completed sets stay; locked values come back; the rest is the rebuilt set
+      const merged = original.map((orig, idx) => {
+        if (orig.completed) return { ...orig, setNumber: idx + 1 };
+        const f = fresh[idx];
+        let next = {
+          ...orig,
+          setNumber: idx + 1,
+          type: orig.lockType ? orig.type : f.type,
+          reps: isTimer ? orig.reps : orig.lockReps ? orig.reps : f.reps,
+          weight: orig.lockWeight ? orig.weight : f.weight,
+          lastWeight: f.lastWeight,
+          increment: f.increment,
+          lastEditedField: undefined
+        };
+        if (isBw || isTimer) return next;
+        if (orig.lockWeight && !orig.lockReps) {
+          const weight = Number(orig.weight) || 0;
+          next.reps =
+            normalizeSetType(next.type) === '1 Rep Max'
+              ? 1
+              : calc1RM > 0 && weight > 0
+                ? calculateEquivalentRepsForWeight(calc1RM, weight, next, total, category, effInc)
+                : next.reps;
+        } else if (!orig.lockWeight && (orig.lockReps || (orig.lockType && orig.type !== f.type))) {
+          if (normalizeSetType(next.type) === '1 Rep Max' && !orig.lockReps) next.reps = 1;
+          next.weight = weightFor(next, idx);
+        }
+        return next;
+      });
 
-          const lastSet = currentList[totalCount - 1];
-          const isLastSet1RM = lastSet?.type === '1 Rep Max';
-          const lastSetWasEdited = Boolean(lastSet?.lastEditedField);
-
-          // Case A: Last set is '1 Rep Max' (either via 'Pyramid 1RM' or user changing the last set to '1 Rep Max')
-          if (isLastSet1RM) {
-            if (listScheme === 'Pyramid') {
-              nextSchemes[half] = 'Pyramid 1RM';
-            }
-            const rampBase1RM =
-              lastSet?.lastEditedField === 'weight'
-                ? Math.max(5, (Number(lastSet.weight) || calc1RM) - effInc)
-                : calc1RM;
-            const maxW = roundTo5(calc1RM);
-
-            return currentList.map((st, idx) => {
-              // Ignore sets already marked done
-              if (st.completed) {
-                return { ...st, setNumber: idx + 1 };
-              }
-
-              // Last set: 1 Rep Max
-              if (idx === totalCount - 1) {
-                if (st.lastEditedField === 'weight') {
-                  const chosenW = Math.max(0, Number(st.weight) || roundToIncrement(maxW + effInc));
-                  const nextInc = Math.round((chosenW - maxW) * 100) / 100;
-                  return {
-                    ...st,
-                    setNumber: idx + 1,
-                    type: '1 Rep Max',
-                    reps: 1,
-                    lastWeight: maxW,
-                    increment: nextInc,
-                    weight: chosenW,
-                    lastEditedField: undefined
-                  };
-                }
-                return {
-                  ...st,
-                  setNumber: idx + 1,
-                  type: '1 Rep Max',
-                  reps: 1,
-                  lastWeight: maxW,
-                  increment: effInc,
-                  weight: roundToIncrement(maxW + effInc),
-                  lastEditedField: undefined
-                };
-              }
-
-              // Preceding sets: if individually edited by weight or reps, honor that; otherwise adjust both weight & reps to match Pyramid 1RM
-              if (st.lastEditedField === 'weight') {
-                const chosenWeight = Math.max(0, Number(st.weight) || 0);
-                const newReps = calculateEquivalentRepsForWeight(
-                  rampBase1RM,
-                  chosenWeight,
-                  { ...st, type: 'Warmup' },
-                  totalCount,
-                  slot.category,
-                  0
-                );
-                return {
-                  ...st,
-                  setNumber: idx + 1,
-                  type: 'Warmup',
-                  reps: newReps,
-                  lastWeight: chosenWeight,
-                  increment: 0,
-                  weight: chosenWeight,
-                  lastEditedField: undefined
-                };
-              }
-
-              if (st.lastEditedField === 'reps') {
-                const customReps = Math.max(1, Number(st.reps) || getPyramidWarmupReps(idx));
-                const customW = calculateLastEquivalentWeightForSet(
-                  rampBase1RM,
-                  { ...st, type: 'Warmup', reps: customReps, lastEditedField: 'reps' },
-                  totalCount,
-                  slot.category,
-                  idx,
-                  'Pyramid 1RM'
-                );
-                return {
-                  ...st,
-                  setNumber: idx + 1,
-                  type: 'Warmup',
-                  reps: customReps,
-                  lastWeight: customW,
-                  increment: 0,
-                  weight: customW,
-                  lastEditedField: undefined
-                };
-              }
-
-              const warmupReps = getPyramidWarmupReps(idx);
-              const warmupW = calculateLastEquivalentWeightForSet(
-                rampBase1RM,
-                { reps: warmupReps, type: 'Warmup' },
-                totalCount,
-                slot.category,
-                idx,
-                'Pyramid 1RM'
-              );
-              return {
-                ...st,
-                setNumber: idx + 1,
-                type: 'Warmup',
-                reps: warmupReps,
-                lastWeight: warmupW,
-                increment: 0,
-                weight: warmupW,
-                lastEditedField: undefined
-              };
-            });
-          }
-
-          // Case B: Last set was edited (weight, increment, reps, or type) and is not '1 Rep Max'
-          // Adjust both weight and reps across incomplete preceding sets to make that last set possible
-          if (lastSetWasEdited && totalCount > 1) {
-            if (listScheme === 'Pyramid 1RM' && lastSet.type === 'Top Out') {
-              nextSchemes[half] = 'Pyramid';
-            }
-            const effectiveScheme = nextSchemes[half] === 'Pyramid 1RM' ? 'Pyramid' : nextSchemes[half];
-
-            let finalLastReps = Math.max(1, Number(lastSet.reps) || 1);
-            let finalLastWeight = Math.max(0, Number(lastSet.weight) || 0);
-            let finalLastBaseW = 0;
-            let finalLastInc = effInc;
-
-            if (lastSet.lastEditedField === 'weight') {
-              finalLastReps = calculateEquivalentRepsForWeight(
-                calc1RM,
-                finalLastWeight,
-                lastSet,
-                totalCount,
-                slot.category,
-                effInc
-              );
-              finalLastBaseW = calculateLastEquivalentWeightForSet(
-                calc1RM,
-                { ...lastSet, reps: finalLastReps, lastEditedField: 'reps' },
-                totalCount,
-                slot.category,
-                totalCount - 1,
-                effectiveScheme
-              );
-              finalLastInc = Math.round((finalLastWeight - finalLastBaseW) * 100) / 100;
-            } else {
-              if (lastSet.lastEditedField === 'type' && lastSet.type === 'Top Out') {
-                finalLastReps = 1;
-              }
-              finalLastBaseW = calculateLastEquivalentWeightForSet(
-                calc1RM,
-                { ...lastSet, reps: finalLastReps, lastEditedField: 'reps' },
-                totalCount,
-                slot.category,
-                totalCount - 1,
-                effectiveScheme
-              );
-              finalLastInc = effInc;
-              finalLastWeight = Math.max(0, roundToIncrement(finalLastBaseW + finalLastInc));
-            }
-
-            const startReps = Math.max(finalLastReps, Number(currentList[0]?.reps) || 8, 8);
-
-            return currentList.map((st, idx) => {
-              // Ignore sets already marked done
-              if (st.completed) {
-                return { ...st, setNumber: idx + 1 };
-              }
-
-              if (idx === totalCount - 1) {
-                return {
-                  ...st,
-                  setNumber: idx + 1,
-                  reps: finalLastReps,
-                  lastWeight: finalLastBaseW,
-                  increment: finalLastInc,
-                  weight: finalLastWeight,
-                  lastEditedField: undefined
-                };
-              }
-
-              // If an earlier set was also individually edited, honor its edit
-              if (st.lastEditedField === 'weight') {
-                const chosenW = Math.max(0, Number(st.weight) || 0);
-                const newReps = calculateEquivalentRepsForWeight(
-                  calc1RM,
-                  chosenW,
-                  st,
-                  totalCount,
-                  slot.category,
-                  effInc
-                );
-                const newLastW = calculateLastEquivalentWeightForSet(
-                  calc1RM,
-                  { ...st, reps: newReps, lastEditedField: 'reps' },
-                  totalCount,
-                  slot.category,
-                  idx,
-                  effectiveScheme
-                );
-                return {
-                  ...st,
-                  setNumber: idx + 1,
-                  reps: newReps,
-                  lastWeight: newLastW,
-                  increment: Math.round((chosenW - newLastW) * 100) / 100,
-                  weight: chosenW,
-                  lastEditedField: undefined
-                };
-              }
-
-              // Adjust both reps and weight on preceding sets to ramp toward the edited last set
-              const targetReps =
-                finalLastReps <= 1 || lastSet.type === 'Top Out'
-                  ? getPyramidWarmupReps(idx)
-                  : Math.max(
-                      1,
-                      Math.round(startReps + ((finalLastReps - startReps) * idx) / (totalCount - 1))
-                    );
-              const nextType =
-                finalLastReps <= 1 || lastSet.type === 'Top Out'
-                  ? idx === 0
-                    ? 'Warmup'
-                    : 'Working'
-                  : st.type;
-              const lastW = calculateLastEquivalentWeightForSet(
-                calc1RM,
-                { ...st, type: nextType, reps: targetReps, lastEditedField: 'reps' },
-                totalCount,
-                slot.category,
-                idx,
-                effectiveScheme
-              );
-              const targetW = Math.max(0, roundToIncrement(lastW + effInc));
-              return {
-                ...st,
-                setNumber: idx + 1,
-                type: nextType,
-                reps: targetReps,
-                lastWeight: lastW,
-                increment: effInc,
-                weight: targetW,
-                lastEditedField: undefined
-              };
-            });
-          }
-
-          // Case C: Standard per-set recalculation (last set was not edited), then goal progress for rep schemes:
-          // working sets (last 3) = last weight + increment or stored 1RM + increment, whichever is lower; once the
-          // first set's weight is entered (or the set is done) the sets before the working sets ramp up from it.
-          // Completed sets and weights the athlete typed keep their weight.
-          const firstSet = currentList[0];
-          const firstStarted = Boolean(firstSet) && Number(firstSet.weight) > 0 && (firstSet.completed || firstSet.lastEditedField === 'weight');
-          const lockedIndexes = currentList
-            .map((st, idx) => (st.completed || st.lastEditedField === 'weight' ? idx : -1))
-            .filter(idx => idx >= 0);
-          // Rep schemes: the first set the athlete started stays exactly as entered (weight and reps)
-          const goalScheme = GOAL_PROGRESS_SCHEMES.includes(listScheme);
-          const standardList = currentList.map((st, idx) => {
-            // Ignore sets already marked done
-            if (st.completed) {
-              return { ...st, setNumber: idx + 1 };
-            }
-            if (idx === 0 && firstStarted && goalScheme) {
-              return { ...st, setNumber: 1, lastEditedField: undefined };
-            }
-
-            const isPyramid1RMWarmup =
-              listScheme === 'Pyramid 1RM' &&
-              st.type === 'Warmup' &&
-              idx < totalCount - 1;
-            const isPyramid1RMTopSet =
-              listScheme === 'Pyramid 1RM' &&
-              st.type === '1 Rep Max' &&
-              idx === totalCount - 1;
-
-            const defaultInc =
-              isPyramid1RMWarmup
-                ? 0
-                : st.type === '1 Rep Max' && !isPyramid1RMTopSet
-                  ? 0
-                  : effInc;
-
-            // Priority 1: If the user most recently edited WEIGHT (or increment), adjust REPS to match the selected weight
-            if (st.lastEditedField === 'weight' && st.type !== '1 Rep Max') {
-              const chosenWeight = Math.max(0, Number(st.weight) || 0);
-              const newReps = calculateEquivalentRepsForWeight(
-                calc1RM,
-                chosenWeight,
-                st,
-                totalCount,
-                slot.category,
-                defaultInc
-              );
-              const newLastW = calculateLastEquivalentWeightForSet(
-                calc1RM,
-                { ...st, reps: newReps, lastEditedField: 'reps' },
-                totalCount,
-                slot.category,
-                idx,
-                listScheme
-              );
-              const nextInc = Math.round((chosenWeight - newLastW) * 100) / 100;
-              return {
-                ...st,
-                setNumber: idx + 1,
-                reps: newReps,
-                lastWeight: newLastW,
-                increment: nextInc,
-                weight: chosenWeight,
-                lastEditedField: undefined
-              };
-            }
-
-            // Priority 2: Otherwise adjust WEIGHT to match reps (identical to generateSetsForScheme)
-            if (st.type === '1 Rep Max') {
-              const maxW = roundTo5(calc1RM);
-              const incFor1RM = isPyramid1RMTopSet || idx === totalCount - 1 ? effInc : 0;
-              return {
-                ...st,
-                setNumber: idx + 1,
-                reps: 1,
-                lastWeight: maxW,
-                increment: incFor1RM,
-                weight: roundToIncrement(maxW + incFor1RM),
-                lastEditedField: undefined
-              };
-            }
-
-            const lastW = calculateLastEquivalentWeightForSet(
-              calc1RM,
-              st,
-              totalCount,
-              slot.category,
-              idx,
-              listScheme
-            );
-            const targetW = Math.max(0, roundToIncrement(lastW + defaultInc));
-            return {
-              ...st,
-              setNumber: idx + 1,
-              lastWeight: lastW,
-              increment: defaultInc,
-              weight: targetW,
-              lastEditedField: undefined
-            };
-          });
-          return applyGoalProgressToSets(standardList, {
+      // 4. Goal progress for the weights that aren't completed or locked
+      const keepIdx = merged.map((st, idx) => (st.completed || st.lockWeight ? idx : -1)).filter(idx => idx >= 0);
+      const progressed = isBw
+        ? merged
+        : applyGoalProgressToSets(merged, {
             exerciseId: exId,
-            scheme: listScheme,
+            scheme,
             history,
             oneRepMaxes,
             incrementLbs: currentIncrementLbs,
             excludeWorkoutId: workoutId,
-            lockedIndexes,
-            startWeight: firstStarted ? Number(firstSet.weight) : null
+            lockedIndexes: keepIdx
           });
-        };
+      // 5. Type-locked sets follow their type's rule from the working set (as when the type is picked), e.g. a locked
+      // Burn Out = the working weight with 2 more reps; locked weights / reps stay
+      const step = effInc > 0 ? Math.min(2.5, effInc) : 2.5;
+      const withTypes = progressed.map((st, idx) => {
+        const orig = original[idx];
+        if (!orig || orig.completed || !orig.lockType || orig.lockWeight || isBw || isTimer) return st;
+        const type = normalizeSetType(st.type);
+        if (type === '1 Rep Max') return st;
+        const ref = progressed.find(
+          (o, j) => j !== idx && normalizeSetType(o.type) === 'Working' && Number(o.weight) > 0
+        );
+        if (!ref) return st;
+        const [w, r] = setTypeTarget(type, Number(ref.weight), Math.max(1, Number(ref.reps) || 1));
+        return { ...st, weight: Math.max(0, Math.round(w / step) * step), reps: orig.lockReps ? st.reps : r };
+      });
+      return withTypes.map((st, idx) => ({ ...st, setNumber: idx + 1 }));
+    };
 
-        // RECALCULATE works out every unlocked number (set.lockWeight / set.lockReps, off by default): unlocked reps
-        // go back to the scheme's reps (the slot's REPS box on uniform schemes, the pattern on pyramids), then
-        // unlocked weights are worked out for those reps. A locked weight stays and its reps become what it allows;
-        // locked reps stay and get a weight; both locked = untouched. Completed sets are never changed. A locked
-        // weight counts as one the athlete typed, so the other sets work around it.
-        const recalcList = (list, exId, half = 0) => {
-          const original = Array.isArray(list) ? list : [];
-          const schemeBefore = baseSchemes[half];
-          const total = original.length;
-          const targetReps = isSupersetCategory(slot.category) ? slot.supersetTargetReps?.[half] : slot.targetReps;
-          const prepared = original.map((st, idx) => {
-            if (st.completed) return st;
-            const reps =
-              !st.lockReps && !st.lockWeight && st.type !== '1 Rep Max'
-                ? getTargetRepsForSet(schemeBefore, idx, total, targetReps)
-                : null;
-            return { ...st, ...(reps !== null ? { reps } : {}), lastEditedField: st.lockWeight ? 'weight' : undefined };
-          });
-          const computed = recalcListRaw(prepared, exId, half);
-          const listScheme = nextSchemes[half];
-          if (listScheme === 'Timer') return computed;
-          const calc1RM = getHistoricalCalculated1RM(exId, history, oneRepMaxes);
-          const effInc = getEffectiveIncrementForExercise(exId, currentIncrementLbs);
-          const weightForReps = (st, reps, idx) => {
-            const base = calculateLastEquivalentWeightForSet(
-              calc1RM,
-              { ...st, reps, lastEditedField: 'reps' },
-              total,
-              slot.category,
-              idx,
-              listScheme
-            );
-            const inc = Number(st.increment) || 0;
-            return { ...st, reps, lastWeight: base, weight: Math.max(0, roundToIncrement(base + inc)) };
-          };
-          return computed.map((st, idx) => {
-            const orig = original[idx];
-            if (!orig || orig.completed) return st;
-            if (orig.lockWeight && orig.lockReps) return { ...orig, setNumber: idx + 1, lastEditedField: undefined };
-            if (orig.lockWeight) {
-              // Weight stays; reps become what that weight allows for this set (needs a known 1RM)
-              const weight = Number(orig.weight) || 0;
-              const reps =
-                orig.type === '1 Rep Max'
-                  ? 1
-                  : calc1RM > 0 && weight > 0
-                    ? calculateEquivalentRepsForWeight(calc1RM, weight, orig, total, slot.category, effInc)
-                    : orig.reps;
-              return { ...orig, setNumber: idx + 1, reps, lastEditedField: undefined };
-            }
-            // Reps locked: keep them; otherwise the scheme's reps. The weight is worked out for them.
-            const wantReps = orig.lockReps ? orig.reps : prepared[idx].reps;
-            if (Number(st.reps) === Number(wantReps) || st.type === '1 Rep Max' || listScheme === 'Pyramid 1RM') return st;
-            return weightForReps(st, wantReps, idx);
-          });
-        };
-
-        if (isSupersetCategory(slot.category) && Array.isArray(slot.supersetSetsByExercise)) {
-          const supIds = slot.supersetExerciseIds || [slot.exerciseId, slot.secondaryExerciseId];
-          const nextMatrix = slot.supersetSetsByExercise.map((list, idx) =>
-            recalcList(list, supIds[idx] || slot.exerciseId, idx)
-          );
-          return {
-            ...slot,
-            scheme: nextSchemes[0],
-            supersetSchemes: [nextSchemes[0], nextSchemes[1] || nextSchemes[0]],
-            supersetSetsByExercise: nextMatrix,
-            sets: nextMatrix[0] || [],
-            secondarySets: nextMatrix[1] || []
-          };
-        }
-
-        const nextSets = recalcList(slot.sets || [], slot.exerciseId);
-        return { ...slot, scheme: nextSchemes[0], sets: nextSets, supersetSetsByExercise: [nextSets] };
+    if (isSup) {
+      const supIds = slot.supersetExerciseIds || [slot.exerciseId, slot.secondaryExerciseId];
+      const nextMatrix = slot.supersetSetsByExercise.map((list, idx) => recalcList(list, supIds[idx] || slot.exerciseId, idx));
+      return {
+        ...slot,
+        supersetSetsByExercise: nextMatrix,
+        sets: nextMatrix[0] || [],
+        secondarySets: nextMatrix[1] || []
+      };
+    }
+    const nextSets = recalcList(slot.sets || [], slot.exerciseId);
+    return { ...slot, sets: nextSets, supersetSetsByExercise: [nextSets] };
   };
 
   const handleRecalculateSlotWeights = slotId => {
@@ -2034,6 +1722,7 @@ export function useWorkoutMutations({
           completed: false,
           lockWeight: false,
           lockReps: false,
+          lockType: false,
           lastEditedField: undefined
         }));
         return [...list, ...extra];
@@ -2062,7 +1751,7 @@ export function useWorkoutMutations({
 
   // Lock beside a set's weight or reps (see recalcList in handleRecalculateSlotWeights). exIdx = superset half.
   const handleToggleSetLock = (slotId, exIdx, setId, field) => {
-    const key = field === 'weight' ? 'lockWeight' : field === 'reps' ? 'lockReps' : null;
+    const key = { weight: 'lockWeight', reps: 'lockReps', type: 'lockType' }[field] || null;
     if (!key) return;
     const toggle = list => (list || []).map(st => (st.id === setId ? { ...st, [key]: !st[key] } : st));
     updateCurrentWorkoutState(prev => {

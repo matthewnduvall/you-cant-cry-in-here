@@ -70,6 +70,26 @@ export const KINETIC_CSS = `
 
   /* Exercise filters (slot editor header, History filters): own lighter surface so they read apart from the
      set rows, centred text and an orange ▾ caret (orange = something you can act on) */
+  /* Set row type dropdown: the row's own background (green once done) with the orange caret */
+  .kinetic-app select.kinetic-set-type-select {
+    -webkit-appearance: none;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M0 0h10L5 6z' fill='%23FF6B00'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 3px center;
+    background-size: 7px 4px;
+    text-align: center;
+    text-align-last: center;
+    padding: 0 11px 0 1px !important;
+    text-overflow: ellipsis;
+  }
+
+  /* Beside its padlock the type cell has no room for the caret: full width for the label */
+  .kinetic-app select.kinetic-set-type-select.no-caret {
+    background-image: none;
+    padding: 0 1px !important;
+  }
+
   .kinetic-app select.kinetic-filter-select {
     -webkit-appearance: none;
     appearance: none;

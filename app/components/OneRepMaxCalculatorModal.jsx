@@ -326,6 +326,7 @@ export function OneRepMaxCalculatorModal({
           categories={CALC_CATEGORIES}
           history={history}
           onHeaderChange={handleHeaderChange}
+          onChangeSetType={({ set, type }) => updateSet(set.id, 'type', type)}
           onEditSetValue={({ mode, set, exercise, currentValue }) =>
             setSetValueTarget?.({
               mode,

@@ -160,7 +160,7 @@ export const mergeSessionSyncStructure = (localSlots, structure, ctx = {}) => {
 // ---------------------------------------------------------------------------------------------------------------
 // Per-athlete set values (YOU / @FRIEND tabs). Besides the shared structure, the row's structure JSON carries
 // values: { [accountId]: { [setId]: { weight, reps, completed, bandColor, durationSeconds, timerStr,
-// lastEditedField, lockWeight, lockReps, at, by } } } — each athlete's own numbers, so either athlete can see and edit the other's
+// lastEditedField, lockWeight, lockReps, lockType, at, by } } } — each athlete's own numbers, so either athlete can see and edit the other's
 // session. Entries are merged per set: the newer `at` wins.
 // ---------------------------------------------------------------------------------------------------------------
 
@@ -173,10 +173,11 @@ const VALUE_FIELDS = [
   'timerStr',
   'lastEditedField',
   'lockWeight',
-  'lockReps'
+  'lockReps',
+  'lockType'
 ];
 // On/off fields: missing counts as false
-const FLAG_FIELDS = ['completed', 'lockWeight', 'lockReps'];
+const FLAG_FIELDS = ['completed', 'lockWeight', 'lockReps', 'lockType'];
 
 const pickValues = st => {
   const out = {};

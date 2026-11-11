@@ -39,6 +39,7 @@ export function RoutineEditorView({
   handleUpdateSlotCategoryOrExercise,
   handleInsertSetAtPosition,
   handleUpdateSetField,
+  handleUpdateSetType,
   handleRecalculateSlotWeights,
   handleToggleSetLock,
   handleToggleSetDone,
@@ -385,6 +386,7 @@ export function RoutineEditorView({
                         isAbs: false
                       })
                     }
+                    onChangeSetType={({ exIdx, set, type }) => handleUpdateSetType?.(slot.id, exIdx, set.id, type)}
                     onSetBandColor={({ exIdx, set, color }) =>
                       handleUpdateSetField?.(slot.id, exIdx, set.id, 'bandColor', color)
                     }
