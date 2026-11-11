@@ -140,12 +140,12 @@ export function IncomingSyncInviteModal({ invite, fromName = 'friend', willRepla
   );
 }
 
-export function SyncNoticeModal({ message, onClose }) {
+export function SyncNoticeModal({ message, onClose, title = 'SYNC' }) {
   if (!message) return null;
   return (
     <div style={{ ...UI.modalBackdrop, zIndex: 1400 }} onClick={onClose}>
-      <div onClick={e => e.stopPropagation()} style={UI.modalCard('360px')} role="alertdialog" aria-label="Sync update">
-        <div style={{ ...UI.fieldLabel, marginBottom: '8px' }}>SYNC</div>
+      <div onClick={e => e.stopPropagation()} style={UI.modalCard('360px')} role="alertdialog" aria-label={`${title} update`}>
+        <div style={{ ...UI.fieldLabel, marginBottom: '8px' }}>{title}</div>
         <div style={{ ...bodyText, color: '#FFFFFF', fontSize: '13px', fontWeight: 800 }}>{message}</div>
         <Button variant="primary" onClick={onClose} style={{ width: '100%', height: '44px' }}>
           OK

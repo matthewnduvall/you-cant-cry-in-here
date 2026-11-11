@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { IOS_DARK, KINETIC_CSS } from './styles/kineticTokens';
 import { getIncrementInLbs, getInitial1RMs } from './utils/workoutEngine';
+import { fetchAthleteProfileSnapshot } from './utils/supabaseAuth';
 import { AppHeaderAndDrawer } from './components/AppHeaderAndDrawer';
 import {
   DeleteConfirmModal,
@@ -29,6 +30,8 @@ import { useCloudAndStorageSync } from './hooks/useCloudAndStorageSync';
 import { useTelemetryAndAnalytics } from './hooks/useTelemetryAndAnalytics';
 import { useSessionSync } from './hooks/useSessionSync';
 import { SessionSyncModal, IncomingSyncInviteModal, SyncNoticeModal } from './components/SessionSyncModals';
+import { useIdleAutoFinish } from './hooks/useIdleAutoFinish';
+import { collectSetValues, sameSetValues, overlaySetValues } from './utils/sessionSync';
 import { useWorkoutMutations } from './hooks/useWorkoutMutations';
 import { usePlateCalculator } from './hooks/usePlateCalculator';
 import { TabBar } from './components/Controls';
@@ -302,6 +305,83 @@ export default function App() {
     stimulusYellowDays
   });
 
+  // --- 3a. Live session sync with a friend (SYNC in the session header) ---
+  const sessionSync = useSessionSync({
+    user,
+    friendsList,
+    activeSession,
+    setActiveSession,
+    setCurrentView,
+    history,
+    oneRepMaxes: effectiveOneRepMaxes,
+    currentIncrementLbs,
+    userBodyweightLbs,
+    appendSessionLog
+  });
+
+  // While synced the session page has two tabs: YOU (your session) and @FRIEND (their session with their numbers,
+  // which you can edit too). Structure edits on either tab are shared; number edits go to that athlete only.
+  const [sessionTab, setSessionTab] = useState('me');
+  const showingPartnerSession = currentView === 'session' && sessionTab === 'partner' && Boolean(sessionSync.syncId);
+  const partnerSession = useMemo(
+    () => (showingPartnerSession ? overlaySetValues(activeSession, sessionSync.partnerValues) : null),
+    [showingPartnerSession, activeSession, sessionSync.partnerValues]
+  );
+  const handleEditPartnerSession = nextSession => {
+    if (!nextSession || !partnerSession) return;
+    // Their numbers that changed → sent to them
+    const before = collectSetValues(partnerSession);
+    const changed = {};
+    Object.entries(collectSetValues(nextSession)).forEach(([id, vals]) => {
+      if (!before[id] || !sameSetValues(before[id], vals)) changed[id] = vals;
+    });
+    sessionSync.editPartnerValues(changed);
+    // Structure (exercises, sets, order, name) → your session too, keeping your own numbers
+    setActiveSession(prev => {
+      if (!prev) return prev;
+      const mine = collectSetValues(prev);
+      return { ...prev, title: nextSession.title, slots: overlaySetValues({ slots: nextSession.slots }, mine).slots };
+    });
+  };
+
+  // The friend's own numbers (history, PRs, goal, increment, bodyweight, set preferences), so RECALCULATE and new
+  // exercises on their tab suggest their weights. Loaded when their tab opens (again after a minute); until it
+  // arrives, or if it can't be loaded, your numbers are used.
+  const [partnerNumbers, setPartnerNumbers] = useState(null);
+  const partnerNumbersLoadedRef = useRef({ id: null, at: 0 });
+  const syncPartnerId = sessionSync.syncPartnerId;
+  useEffect(() => {
+    if (!showingPartnerSession || !syncPartnerId || !user) return undefined;
+    const loaded = partnerNumbersLoadedRef.current;
+    if (loaded.id === syncPartnerId && Date.now() - loaded.at < 60 * 1000) return undefined;
+    let cancelled = false;
+    (async () => {
+      const snapshot = await fetchAthleteProfileSnapshot({ id: syncPartnerId }, user);
+      if (cancelled || !snapshot) return;
+      const goals = snapshot.goals || {};
+      partnerNumbersLoadedRef.current = { id: syncPartnerId, at: Date.now() };
+      setPartnerNumbers({
+        id: syncPartnerId,
+        history: Array.isArray(snapshot.history) ? snapshot.history : [],
+        oneRepMaxes: snapshot.prs || {},
+        bodyweightLbs: Number(snapshot.bodyweightLbs) || 200,
+        incrementLbs: getIncrementInLbs(goals.goalIncrement ?? 1.25, goals.goalUnit || 'lb', goals.goalType || 'Balanced'),
+        goalType: goals.goalType || 'Balanced',
+        setPreferences: snapshot.setPreferences || null
+      });
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [showingPartnerSession, syncPartnerId, user]);
+  const friendNumbers = showingPartnerSession && partnerNumbers?.id === syncPartnerId ? partnerNumbers : null;
+  const editorHistory = friendNumbers ? friendNumbers.history : history;
+  const editorOneRepMaxes = friendNumbers ? friendNumbers.oneRepMaxes : oneRepMaxes;
+  const editorIncrementLbs = friendNumbers ? friendNumbers.incrementLbs : currentIncrementLbs;
+  const editorBodyweightLbs = friendNumbers ? friendNumbers.bodyweightLbs : userBodyweightLbs;
+  const editorSetPreferences = friendNumbers?.setPreferences || setPreferences;
+  const editorGoalType = friendNumbers ? friendNumbers.goalType : goalType;
+
   // --- 3. Workout & Slot Mutation Handlers Hook ---
   const {
     isRoutineEditorView,
@@ -318,6 +398,7 @@ export default function App() {
     handleAddAutoSlot,
     handleSaveCurrentEditor,
     handleConfirmSaveWorkout,
+    handleAutoFinishActiveSession,
     handleShareCurrentEditor,
     handleResetCurrentEditor,
     handleConfirmDeleteAction,
@@ -328,15 +409,17 @@ export default function App() {
     handleUpdateSetType,
     handleInsertSetAtPosition,
     handleRecalculateSlotWeights,
+    handleToggleSetLock,
     handleToggleSetDone,
     handleChangeGymSelection
   } = useWorkoutMutations({
     currentView,
     setCurrentView,
     user,
-    history,
+    // On the friend's tab: their history, PRs, increment, bodyweight, set preferences and goal (editor* below)
+    history: editorHistory,
     setHistory,
-    oneRepMaxes,
+    oneRepMaxes: editorOneRepMaxes,
     setOneRepMaxes,
     activeSession,
     setActiveSession,
@@ -364,9 +447,9 @@ export default function App() {
     setSelectedGymId,
     gyms,
     routinePreferences,
-    setPreferences,
-    currentIncrementLbs,
-    userBodyweightLbs,
+    setPreferences: editorSetPreferences,
+    currentIncrementLbs: editorIncrementLbs,
+    userBodyweightLbs: editorBodyweightLbs,
     shareRoutinesWithFriends,
     setSavedRoutines,
     setSharedRoutines,
@@ -374,21 +457,9 @@ export default function App() {
     appendSessionLog,
     muscleStimulusStatus,
     availableEquipment,
-    goalType
-  });
-
-  // --- 3b. Live session sync with a friend (SYNC in the session header) ---
-  const sessionSync = useSessionSync({
-    user,
-    friendsList,
-    activeSession,
-    setActiveSession,
-    setCurrentView,
-    history,
-    oneRepMaxes: effectiveOneRepMaxes,
-    currentIncrementLbs,
-    userBodyweightLbs,
-    appendSessionLog
+    goalType: editorGoalType,
+    partnerSession,
+    onEditPartnerSession: handleEditPartnerSession
   });
 
   // When a sync connects while its pop-up is open (inviter waiting for an answer), show "SYNCED WITH @x"
@@ -403,9 +474,17 @@ export default function App() {
   }, [sessionSync.syncId]);
 
   // RESET while synced would empty the friend's session too, so it ends the sync first
+  // RESET and FINISH always act on your own session, even from the friend's tab
   const handleResetSession = async () => {
+    const fromPartnerTab = Boolean(partnerSession);
+    setSessionTab('me');
     if (sessionSync.syncId) await sessionSync.unsync();
-    handleResetCurrentEditor();
+    if (fromPartnerTab) setActiveSession(prev => (prev ? { ...prev, loadedRoutineTitle: 'MANUAL', slots: [] } : prev));
+    else handleResetCurrentEditor();
+  };
+  const handleFinishSession = () => {
+    setSessionTab('me');
+    handleSaveCurrentEditor();
   };
 
   // --- 4. Plate & Weight Calculator Hook ---
@@ -627,12 +706,24 @@ export default function App() {
     handleUpdateSetType,
     handleInsertSetAtPosition,
     handleRecalculateSlotWeights,
+    handleToggleSetLock,
     handleToggleSetDone,
     handleReorderExercises,
     handleReorderSets,
     openPlateCalculatorForSet,
     setSetValueTarget,
     isEmbeddedHistorySession: true
+  });
+
+  // 15 minutes without a touch: a live session with completed sets is saved to History and closed
+  const [idleFinishNotice, setIdleFinishNotice] = useState('');
+  useIdleAutoFinish({
+    hasLiveSession: (activeSession?.slots || []).length > 0,
+    onAutoFinish: () => {
+      const saved = handleAutoFinishActiveSession();
+      if (saved) setIdleFinishNotice('No activity for 15 minutes, so your session was finished and saved to History.');
+      return saved;
+    }
   });
 
   return (
@@ -663,7 +754,7 @@ export default function App() {
           setShowFeedbackModal={setShowFeedbackModal}
           isRoutineEditorView={isRoutineEditorView}
           currentEditorWorkout={currentEditorWorkout}
-          onFinishSession={handleSaveCurrentEditor}
+          onFinishSession={handleFinishSession}
           onResetSession={handleResetSession}
           sessionSync={
             sessionSync.canSync
@@ -716,9 +807,9 @@ export default function App() {
               selectedGymId={selectedGymId}
               setSelectedGymId={handleChangeGymSelection}
               gyms={gyms}
-              history={history}
-              oneRepMaxes={effectiveOneRepMaxes}
-              currentIncrementLbs={currentIncrementLbs}
+              history={editorHistory}
+              oneRepMaxes={friendNumbers ? friendNumbers.oneRepMaxes : effectiveOneRepMaxes}
+              currentIncrementLbs={editorIncrementLbs}
               setHistoricalDraft={setHistoricalDraft}
               setDeleteConfirmTarget={setDeleteConfirmTarget}
               isCurrentEditorShared={isCurrentEditorShared}
@@ -734,6 +825,7 @@ export default function App() {
               handleUpdateSetType={handleUpdateSetType}
               handleInsertSetAtPosition={handleInsertSetAtPosition}
               handleRecalculateSlotWeights={handleRecalculateSlotWeights}
+              handleToggleSetLock={handleToggleSetLock}
               handleToggleSetDone={handleToggleSetDone}
               handleReorderExercises={handleReorderExercises}
               handleReorderSets={handleReorderSets}
@@ -741,6 +833,16 @@ export default function App() {
               setSetValueTarget={setSetValueTarget}
               openedFromRoutines={openedFromRoutines}
               setOpenedFromRoutines={setOpenedFromRoutines}
+              sessionTabs={
+                sessionSync.syncId
+                  ? {
+                      active: showingPartnerSession ? 'partner' : 'me',
+                      onChange: setSessionTab,
+                      partnerName: sessionSync.syncPartnerName,
+                      partnerNumbersLoaded: Boolean(friendNumbers)
+                    }
+                  : null
+              }
             />
           )}
 
@@ -1035,6 +1137,7 @@ export default function App() {
         />
 
         <SyncNoticeModal message={sessionSync.syncNotice} onClose={sessionSync.clearSyncNotice} />
+        <SyncNoticeModal title="SESSION SAVED" message={idleFinishNotice} onClose={() => setIdleFinishNotice('')} />
 
         <SaveConfirmModal
           saveConfirmTarget={saveConfirmTarget}

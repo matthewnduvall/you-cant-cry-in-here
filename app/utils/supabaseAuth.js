@@ -1282,6 +1282,10 @@ function buildAthleteFromProfileRow(
     username: uname,
     email,
     bodyweightLbs: row?.settings?.bodyMetrics?.bodyweightLbs || 200,
+    // Their training goal (type, increment) and set preferences: the friend's session tab works out
+    // suggested weights from these, their history and their PRs
+    goals: row?.settings?.goals && typeof row.settings.goals === 'object' ? row.settings.goals : null,
+    setPreferences: Array.isArray(row?.settings?.setPreferences) ? row.settings.setPreferences : null,
     prs: mergedPrs,
     history: rowHistory,
     sharedRoutines: shared

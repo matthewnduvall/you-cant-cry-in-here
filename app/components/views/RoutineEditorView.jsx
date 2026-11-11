@@ -14,7 +14,7 @@ import {
 import {
   getBestHistory1RMInfo
 } from '../../utils/workoutEngine';
-import { Button } from '../Controls';
+import { Button, TabBar } from '../Controls';
 import { SlotEditor } from '../SlotEditor';
 
 // ============================================================================
@@ -40,6 +40,7 @@ export function RoutineEditorView({
   handleInsertSetAtPosition,
   handleUpdateSetField,
   handleRecalculateSlotWeights,
+  handleToggleSetLock,
   handleToggleSetDone,
   handleReorderExercises,
   handleReorderSets,
@@ -49,7 +50,9 @@ export function RoutineEditorView({
   setOpenedFromRoutines,
   setCurrentView,
   setRoutineSelectReturnView,
-  isEmbeddedHistorySession = false
+  isEmbeddedHistorySession = false,
+  // Synced session: { active: 'me' | 'partner', onChange, partnerName } shows the YOU / @FRIEND tabs
+  sessionTabs = null
 }) {
   // Drag an exercise's numbered grippy handle to reorder (pointer events: works with touch). The page scrolls when
   // the finger rests below the sticky session header (~146 px) or near the bottom edge.
@@ -61,6 +64,29 @@ export function RoutineEditorView({
 
   return (
     <div style={{ paddingTop: isEmbeddedHistorySession ? '8px' : '14px' }}>
+      {/* Synced with a friend: YOU / @FRIEND tabs. The friend's tab shows their session (their weights, reps and
+          checkmarks) and edits go to them; exercise and set changes are shared either way. */}
+      {sessionTabs && currentView === 'session' && !isEmbeddedHistorySession && (
+        <div style={{ padding: '0 var(--dp-spacing-gutter)', marginBottom: '16px' }}>
+          <TabBar
+            ariaLabel="Whose session"
+            tabs={[
+              { id: 'me', label: 'YOU' },
+              { id: 'partner', label: `@${sessionTabs.partnerName || 'FRIEND'}`.toUpperCase() }
+            ]}
+            value={sessionTabs.active}
+            onChange={sessionTabs.onChange}
+          />
+          {sessionTabs.active === 'partner' && (
+            <div style={{ marginTop: '8px', fontSize: '12px', fontWeight: 700, color: '#A0A0A0', lineHeight: 1.4 }}>
+              You’re editing @{sessionTabs.partnerName || 'your friend'}’s session. Changes show up on their phone.
+              {sessionTabs.partnerNumbersLoaded
+                ? ' Suggested weights use their history.'
+                : ' Loading their history: suggested weights use yours until then.'}
+            </div>
+          )}
+        </div>
+      )}
       {/* Session name, SAVE and RESET sit in the locked header (SessionTitleBar). This block only holds the
           past-workout title / date, and the name for the History inline editor (which has no locked header). */}
       {(currentView === 'historical_entry' || isEmbeddedHistorySession) && (
@@ -312,6 +338,11 @@ export function RoutineEditorView({
                     onInsertSet={position => handleInsertSetAtPosition(slot.id, position)}
                     actionLabel="RECALCULATE"
                     onAction={() => handleRecalculateSlotWeights(slot.id)}
+                    onToggleSetLock={
+                      handleToggleSetLock
+                        ? ({ exIdx, set, field }) => handleToggleSetLock(slot.id, exIdx, set.id, field)
+                        : undefined
+                    }
                   />
                 </div>
               );
