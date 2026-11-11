@@ -96,7 +96,7 @@ export const buildPersonalRecordHistoryEntry = ({ exerciseId, oneRepMax, dateYMD
     isComplete: true,
     verifiedByUser: true,
     defaultRestSeconds: 90,
-    slots: normalizeSlotLabels([prSlot])
+    slots: lockAndCompleteSets(normalizeSlotLabels([prSlot]))
   };
 };
 
@@ -670,6 +670,68 @@ export const getTargetRepsForSet = (scheme, idx, total, targetReps = null) => {
 /** Keeps the last `count` sets (the working sets on the usual schemes), renumbered. */
 export const trimSetsTo = (sets, count) =>
   (Array.isArray(sets) ? sets : []).slice(-count).map((st, i) => ({ ...st, setNumber: i + 1 }));
+
+/**
+ * History entries default to finished, fixed sets: every set is marked done and its type, weight and reps are
+ * locked (lockType / lockWeight / lockReps), unless a lock was already turned off (false stays false). Done once per
+ * exercise: the slot is marked `historyLocked` (slots sync with the workout), so later edits in the History editor —
+ * e.g. unticking a set — are kept.
+ */
+export const lockAndCompleteSets = slots => {
+  const fix = list =>
+    (Array.isArray(list) ? list : []).map(st =>
+      st
+        ? {
+            ...st,
+            completed: true,
+            lockType: st.lockType ?? true,
+            lockWeight: st.lockWeight ?? true,
+            lockReps: st.lockReps ?? true
+          }
+        : st
+    );
+  return (Array.isArray(slots) ? slots : []).map(slot => {
+    if (!slot || slot.historyLocked) return slot;
+    const matrix = Array.isArray(slot.supersetSetsByExercise) ? slot.supersetSetsByExercise.map(fix) : undefined;
+    return {
+      ...slot,
+      historyLocked: true,
+      sets: fix(slot.sets),
+      ...(Array.isArray(slot.secondarySets) ? { secondarySets: fix(slot.secondarySets) } : {}),
+      ...(matrix ? { supersetSetsByExercise: matrix } : {})
+    };
+  });
+};
+
+/**
+ * FINISH: only the sets marked done go to History. Exercises with no done set are left out; a superset keeps both
+ * halves' done sets (`sets` / `secondarySets` mirror the halves).
+ */
+export const keepCompletedSets = slots =>
+  (Array.isArray(slots) ? slots : [])
+    .map(slot => {
+      if (!slot) return null;
+      const done = list => (Array.isArray(list) ? list : []).filter(st => st && st.completed);
+      if (Array.isArray(slot.supersetSetsByExercise) && slot.supersetSetsByExercise.length > 1) {
+        const matrix = slot.supersetSetsByExercise.map(done);
+        if (matrix.every(list => list.length === 0)) return null;
+        return { ...slot, supersetSetsByExercise: matrix, sets: matrix[0] || [], secondarySets: matrix[1] || [] };
+      }
+      const sets = done(slot.sets);
+      if (sets.length === 0) return null;
+      return {
+        ...slot,
+        sets,
+        ...(Array.isArray(slot.supersetSetsByExercise) ? { supersetSetsByExercise: [sets] } : {})
+      };
+    })
+    .filter(Boolean);
+
+/** A History workout as it is shown and edited: exercises not yet marked get their sets done and locked once. */
+export const asHistoricalWorkout = workout =>
+  workout && (workout.slots || []).some(slot => slot && !slot.historyLocked)
+    ? { ...workout, slots: lockAndCompleteSets(workout.slots) }
+    : workout;
 
 /** [schemeA, schemeB] for a superset (each exercise may run its own scheme); falls back to slot.scheme. */
 export const getSupersetSchemes = slot => [

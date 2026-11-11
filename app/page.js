@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { IOS_DARK, KINETIC_CSS } from './styles/kineticTokens';
-import { getIncrementInLbs, getInitial1RMs } from './utils/workoutEngine';
+import { getIncrementInLbs, getInitial1RMs, asHistoricalWorkout } from './utils/workoutEngine';
 import { fetchAthleteProfileSnapshot } from './utils/supabaseAuth';
 import { AppHeaderAndDrawer } from './components/AppHeaderAndDrawer';
 import {
@@ -618,7 +618,18 @@ export default function App() {
           progressionSeriesByLift={seriesByLift}
           oneRepMaxes={prs}
           showGoalDistance={!readOnly}
+          onOpenHistoryWorkout={readOnly ? undefined : openHistoryWorkout}
+          onOpenGoals={
+            readOnly
+              ? undefined
+              : () => {
+                  setConfigurationTab('goals');
+                  setCurrentView('configuration');
+                }
+          }
           targetStandardClass={targetStandardClass}
+          setTargetStandardClass={readOnly ? undefined : setTargetStandardClass}
+          openPlateCalculatorForGoal={readOnly ? undefined : openPlateCalculatorForGoal}
           userBodyweightLbs={userBodyweightLbs}
           totalHeightInches={totalHeightInches}
           customGoalWeights={customGoalWeights}
@@ -689,7 +700,8 @@ export default function App() {
     colors,
     currentView: 'history',
     // The open workout's unsaved edits, if any
-    currentEditorWorkout: historyEditDraft?.id === historyWorkout?.id ? historyEditDraft : historyWorkout,
+    // History workouts show their sets done and locked (asHistoricalWorkout)
+    currentEditorWorkout: historyEditDraft?.id === historyWorkout?.id ? historyEditDraft : asHistoricalWorkout(historyWorkout),
     historyEdit: {
       dirty: Boolean(historyWorkout && historyEditDraft?.id === historyWorkout.id),
       onSave: handleSaveCurrentEditor,
@@ -927,6 +939,7 @@ export default function App() {
                 setTargetStandardClass,
                 oneRepMaxes: effectiveOneRepMaxes,
                 customGoalWeights,
+                progressionSeriesByLift,
                 openPlateCalculatorForGoal,
                 customPrExerciseIds,
                 setCustomPrExerciseIds

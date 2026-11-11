@@ -27,7 +27,8 @@ import {
   getExerciseEquipmentOptions,
   getAllEquipmentFilterOptions,
   getUniqueShortExerciseNames,
-  findClosestExerciseInPool
+  findClosestExerciseInPool,
+  normalizeMuscleGroupName
 } from '../data/exerciseLibrary';
 import {
   SCHEME_OPTIONS,
@@ -116,7 +117,8 @@ const best1RM = sets =>
 // Set type dropdown labels (short enough for the set row's type column)
 const SET_TYPE_LABELS = { Warmup: 'WARMUP', Working: 'WORKING', 'Top Out': 'TOP OUT', 'Burn Out': 'BURN OUT', '1 Rep Max': '1RM' };
 
-const SEARCH_RESULT_LIMIT = 12;
+// The results list scrolls, so it can hold plenty
+const SEARCH_RESULT_LIMIT = 40;
 
 // Each superset exercise is a Compound or Accessory pick; this value in its type menu ends the superset
 const SUPERSET_HALF_CATEGORIES = ['Compound', 'Accessory'];
@@ -138,31 +140,44 @@ const LockIcon = ({ locked, color }) => (
 );
 
 /**
- * Exercises whose name / equipment / muscle group contain every word typed, best name matches first.
- * Searches the whole library (the Equipment page list only drives the exercises picked automatically).
+ * Exercises whose name / equipment / muscle group contain every word typed, best matches first: a name that starts
+ * with the text, then one with a word starting with it, then one containing it, then equipment / muscle matches.
+ * Within each, the plainest names first (shortest name without the equipment word: "Lateral Raise" before
+ * "Hanging Pike (Toes-to-Bar) Leg Raise"), then priority / hand-picked exercises. Searches the whole library (the
+ * Equipment page list only drives the exercises picked automatically); up to SEARCH_RESULT_LIMIT, in a scrolling list.
  */
 export const searchExercises = (query, pool = EXERCISE_LIBRARY) => {
-  const words = String(query || '').toLowerCase().trim().split(' ').filter(Boolean);
+  const words = String(query || '').toLowerCase().trim().split(/\s+/).filter(Boolean);
   if (words.length === 0) return [];
   const phrase = words.join(' ');
   const rank = ex => {
     const name = ex.name.toLowerCase();
-    if (name.startsWith(phrase) || stripEquipmentFromExerciseName(ex.name).toLowerCase().startsWith(phrase)) return 0;
-    if (name.includes(phrase)) return 1;
-    return 2;
+    const short = stripEquipmentFromExerciseName(ex.name).toLowerCase();
+    if (name.startsWith(phrase) || short.startsWith(phrase)) return 0;
+    // A word in the name starts with the text ("raise" in "Lateral Raise")
+    const at = name.indexOf(phrase);
+    if (at > 0 && name.split(/[^a-z0-9]+/).some(word => word.startsWith(words[0]))) return 1;
+    if (name.includes(phrase)) return 2;
+    return 3;
   };
+  const plainLength = ex => stripEquipmentFromExerciseName(ex.name).length;
+  const curated = ex => (String(ex.id).startsWith('exrx_') ? 0 : 1);
   return pool
     .filter(ex => {
       const hay = `${ex.name} ${ex.equipment || ''} ${ex.muscleGroup || ''}`.toLowerCase();
       return words.every(w => hay.includes(w));
     })
+    .map(ex => ({ ex, r: rank(ex), len: plainLength(ex) }))
     .sort(
       (a, b) =>
-        rank(a) - rank(b) ||
-        Number(Boolean(b.isPriority)) - Number(Boolean(a.isPriority)) ||
-        a.name.localeCompare(b.name)
+        a.r - b.r ||
+        a.len - b.len ||
+        Number(Boolean(b.ex.isPriority)) - Number(Boolean(a.ex.isPriority)) ||
+        curated(b.ex) - curated(a.ex) ||
+        a.ex.name.localeCompare(b.ex.name)
     )
-    .slice(0, SEARCH_RESULT_LIMIT);
+    .slice(0, SEARCH_RESULT_LIMIT)
+    .map(item => item.ex);
 };
 
 export function SearchGlyph() {
@@ -284,7 +299,9 @@ export function SlotEditor({
     }
     const availMuscles = getAvailableMuscleGroupsForCategory(category, '', []);
     const rawMuscle =
-      (isSuperset ? slot.supersetMuscleFilters?.[half] : slot.muscleGroupFilter) || exObj.muscleGroup || 'All Muscles';
+      normalizeMuscleGroupName(
+        (isSuperset ? slot.supersetMuscleFilters?.[half] : slot.muscleGroupFilter) || exObj.muscleGroup || 'All Muscles'
+      );
     const muscle = availMuscles.includes(rawMuscle) ? rawMuscle : 'All Muscles';
     const basePool = getFilteredExercisesForSlotInline({ category, muscleGroupFilter: muscle }, '', []).filter(
       ex => !isSuperset || ex.id !== supIds[1 - half]

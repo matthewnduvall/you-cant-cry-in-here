@@ -3,8 +3,9 @@
 // ============================================================================
 // EXERCISE PICKER — the standard way to choose one exercise outside a workout (Personal Records → + ADD,
 // Goals → + ADD EXERCISE, Progress chart → CUSTOM). Same layout, styles and rules as the session editor's
-// header (SlotEditor): row 1 SEARCH | TYPE | MUSCLE, row 2 EQUIPMENT | EXERCISE, equipment *options*
-// ("A / B" equipment = either), short names (getUniqueShortExerciseNames), orange ▾ filter selects.
+// header (SlotEditor): row 1 = the exercise's name, which is also the search box (tap: the exercises the filters
+// allow; type: the whole library), row 2 TYPE | MUSCLE | EQUIPMENT; equipment *options* ("A / B" equipment =
+// either), short names (getUniqueShortExerciseNames), orange ▾ filter selects.
 // Also exports the shared search box pieces (ExerciseSearchCell, ExerciseSearchResults) used by
 // HistoryExerciseFilter.
 // ============================================================================
@@ -85,9 +86,25 @@ export function ExerciseSearchCell({ query, setQuery, onEnter, ariaLabel = 'Sear
   );
 }
 
-/** Results list under the SEARCH box (name, then equipment · muscle · type). */
-export function ExerciseSearchResults({ query, results, selectedId, onPick, emptyHint, noMatchHint = 'NO MATCHING EXERCISES' }) {
+/**
+ * Results list under the search box (name, then equipment · muscle · type). With `filterList`, an empty query shows
+ * those exercises (named by `nameOf`) under MATCHING YOUR FILTERS, as in the session editor; `top` = the box height.
+ */
+export function ExerciseSearchResults({
+  query,
+  results,
+  selectedId,
+  onPick,
+  emptyHint,
+  noMatchHint = 'NO MATCHING EXERCISES',
+  filterList = null,
+  onPickFromList,
+  nameOf,
+  top = '40px'
+}) {
   if (query === null) return null;
+  const listMode = query.trim() === '' && Array.isArray(filterList);
+  const shown = listMode ? filterList : results;
   return (
     <div
       role="listbox"
@@ -96,7 +113,7 @@ export function ExerciseSearchResults({ query, results, selectedId, onPick, empt
       onMouseDown={e => e.preventDefault()}
       style={{
         position: 'absolute',
-        top: '40px',
+        top,
         left: 0,
         right: 0,
         zIndex: 40,
@@ -107,18 +124,19 @@ export function ExerciseSearchResults({ query, results, selectedId, onPick, empt
         boxShadow: '0 12px 24px rgba(0, 0, 0, 0.6)'
       }}
     >
-      {query.trim() === '' ? (
+      {listMode && <div style={{ ...hintStyle, padding: '8px 12px' }}>MATCHING YOUR FILTERS · TYPE TO SEARCH ALL</div>}
+      {query.trim() === '' && !listMode ? (
         <div style={hintStyle}>{emptyHint || 'TYPE AN EXERCISE, EQUIPMENT OR MUSCLE'}</div>
-      ) : results.length === 0 ? (
+      ) : shown.length === 0 ? (
         <div style={hintStyle}>{noMatchHint}</div>
       ) : (
-        results.map(ex => (
+        shown.map(ex => (
           <button
             key={ex.id}
             type="button"
             role="option"
             aria-selected={ex.id === selectedId}
-            onClick={() => onPick(ex)}
+            onClick={() => (listMode && onPickFromList ? onPickFromList(ex) : onPick(ex))}
             style={{
               display: 'block',
               width: '100%',
@@ -131,7 +149,7 @@ export function ExerciseSearchResults({ query, results, selectedId, onPick, empt
             }}
           >
             <span style={{ display: 'block', fontSize: '13px', fontWeight: 800, color: '#FFFFFF', textTransform: 'uppercase' }}>
-              {stripEquipmentFromExerciseName(ex.name)}
+              {listMode && nameOf ? nameOf(ex) : stripEquipmentFromExerciseName(ex.name)}
             </span>
             <span
               style={{
@@ -274,29 +292,99 @@ export function ExercisePicker({ exerciseId, onChange, types = EXERCISE_TYPES, e
     onChange?.(ex.id);
   };
 
+  // Tapping the name lists the exercises the filters allow; picking one keeps the filters as they are
+  const pickFromList = ex => {
+    setQuery(null);
+    if (ex && ex.id !== exerciseId) onChange?.(ex.id);
+  };
+
   const listed = poolFor(filters.category, muscle).filter(ex => hasEquipment(ex, equipment));
   if (current && !listed.some(ex => ex.id === current.id)) listed.unshift(current);
   const shortNames = getUniqueShortExerciseNames(listed, equipment);
   const nameOf = ex => shortNames[ex.id] || stripEquipmentFromExerciseName(ex.name);
 
+  const showEquipment = equipment && equipment !== 'Bodyweight';
+  const titleCell = {
+    ...headerSelectStyle,
+    gridColumn: '1 / 7',
+    gridRow: 1,
+    height: '44px',
+    padding: '0 10px',
+    fontSize: '14px'
+  };
+
+  // Row 1: the exercise's name / search box. Row 2: TYPE | MUSCLE | EQUIPMENT (as in the session editor)
   return (
     <div
       style={{
         position: 'relative',
         display: 'grid',
-        gridTemplateColumns: PICKER_GRID_COLUMNS,
-        gridAutoRows: '40px',
+        gridTemplateColumns: 'repeat(6, minmax(0, 1fr))',
+        gridTemplateRows: '44px 40px',
         gap: 0
       }}
     >
-      <ExerciseSearchCell query={query} setQuery={setQuery} onEnter={() => results[0] && pickFromSearch(results[0])} />
+      {query === null ? (
+        <button
+          type="button"
+          aria-label="Exercise: tap to search or change"
+          onClick={() => setQuery('')}
+          style={{
+            ...titleCell,
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            textAlign: 'left',
+            whiteSpace: 'nowrap',
+            overflow: 'hidden'
+          }}
+        >
+          <span style={{ flex: '1 1 auto', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            {nameOf(current).toUpperCase()}
+            {showEquipment && <span style={{ color: '#8E8E93', fontSize: '11px' }}> · {equipment.toUpperCase()}</span>}
+          </span>
+          <span style={{ color: '#A0A0A0', display: 'flex', flexShrink: 0 }}>
+            <SearchGlyph />
+          </span>
+        </button>
+      ) : (
+        <input
+          type="search"
+          aria-label="Search exercises"
+          placeholder={`SEARCH · ${nameOf(current).toUpperCase()}`}
+          autoFocus
+          enterKeyHint="search"
+          value={query}
+          onChange={e => setQuery(e.target.value)}
+          onBlur={() => setQuery(null)}
+          onKeyDown={e => {
+            if (e.key === 'Escape') setQuery(null);
+            if (e.key !== 'Enter') return;
+            if (query.trim()) {
+              if (results[0]) pickFromSearch(results[0]);
+            } else if (listed[0]) {
+              pickFromList(listed[0]);
+            }
+          }}
+          style={{
+            ...titleCell,
+            cursor: 'text',
+            outline: 'none',
+            border: '2px solid var(--dp-color-accent)',
+            textTransform: 'none',
+            fontFamily: 'inherit',
+            // 16 px so iOS doesn't zoom into the field
+            fontSize: '16px'
+          }}
+        />
+      )}
 
       <select
         className="kinetic-filter-select"
         aria-label="Exercise type"
         value={filters.category}
         onChange={e => handleTypeChange(e.target.value)}
-        style={{ ...headerSelectStyle, gridColumn: '3 / 5', gridRow: 1 }}
+        style={{ ...headerSelectStyle, gridColumn: '1 / 3', gridRow: 2 }}
       >
         {types.map(t => (
           <option key={t} value={t}>
@@ -310,7 +398,7 @@ export function ExercisePicker({ exerciseId, onChange, types = EXERCISE_TYPES, e
         aria-label="Muscle group"
         value={muscle}
         onChange={e => handleMuscleChange(e.target.value)}
-        style={{ ...headerSelectStyle, gridColumn: '5 / 6', gridRow: 1 }}
+        style={{ ...headerSelectStyle, gridColumn: '3 / 5', gridRow: 2 }}
       >
         {muscles.map(m => (
           <option key={m} value={m}>
@@ -324,7 +412,7 @@ export function ExercisePicker({ exerciseId, onChange, types = EXERCISE_TYPES, e
         aria-label="Equipment"
         value={equipment}
         onChange={e => handleEquipmentChange(e.target.value)}
-        style={{ ...headerSelectStyle, gridColumn: '1 / 3', gridRow: 2 }}
+        style={{ ...headerSelectStyle, gridColumn: '5 / 7', gridRow: 2 }}
       >
         {equipmentOptions.map(eq => (
           <option key={eq} value={eq}>
@@ -333,21 +421,16 @@ export function ExercisePicker({ exerciseId, onChange, types = EXERCISE_TYPES, e
         ))}
       </select>
 
-      <select
-        className="kinetic-filter-select"
-        aria-label="Exercise"
-        value={current?.id || ''}
-        onChange={e => onChange?.(e.target.value)}
-        style={{ ...headerSelectStyle, gridColumn: '3 / 6', gridRow: 2 }}
-      >
-        {listed.map(ex => (
-          <option key={ex.id} value={ex.id}>
-            {nameOf(ex).toUpperCase()}
-          </option>
-        ))}
-      </select>
-
-      <ExerciseSearchResults query={query} results={results} selectedId={current?.id} onPick={pickFromSearch} />
+      <ExerciseSearchResults
+        query={query}
+        results={results}
+        selectedId={current?.id}
+        onPick={pickFromSearch}
+        filterList={listed}
+        onPickFromList={pickFromList}
+        nameOf={nameOf}
+        top="44px"
+      />
     </div>
   );
 }

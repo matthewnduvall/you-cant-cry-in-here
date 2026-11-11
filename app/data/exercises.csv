@@ -475,158 +475,158 @@ exrx_chest_suspended_self_assisted_chest_dip,Suspended Self-Assisted Chest Dip,C
 exrx_chest_stretch_wall_angel_stretch,Wall Angel Stretch,Chest,Accessory,Stretch,,Pectoralis Minor,false,25,
 exrx_chest_weighted_chest_dip,Weighted Chest Dip,Chest,Compound,Weighted,Weight Plates,Pectoralis Major - Sternal|Triceps Brachii,false,225,
 exrx_chest_weighted_push_up,Weighted Push-up,Chest,Compound,Weighted,Weight Plates,Pectoralis Major - Sternal|Triceps Brachii,false,225,
-back_extension,45° Back Extension (Hyperextension),Waist,Accessory,Bodyweight / Plate,,Erector Spinae|Gluteus Maximus|Hamstrings,false,60,barbell_good_morning
-barbell_lying_hip_raise,Barbell / Plate Loaded Pulse-Up (Hip Raise),Waist,Accessory,Barbell,Barbell,Rectus Abdominis|Obliques,false,65,lying_leg_hip_raise
-barbell_back_extension,Barbell 45° Back Extension,Waist,Compound,Barbell,Barbell,Erector Spinae|Gluteus Maximus|Hamstrings,false,115,back_extension
-barbell_rollout,Barbell Ab Rollout,Waist,Compound,Barbell / Bodyweight,Barbell,Rectus Abdominis|Transverse Abdominis|Latissimus Dorsi,false,95,weighted_plank|hollow_holds
-exrx_waist_barbell_bent_knee_good_morning,Barbell Bent Knee Good-morning,Waist,Compound,Barbell,Barbell,Erector Spinae|Gluteus Maximus|Hamstrings,false,185,
-exrx_waist_barbell_deadlift,Barbell Deadlift,Waist,Compound,Barbell,Barbell,Erector Spinae|Gluteus Maximus|Hamstrings,false,185,
-exrx_waist_barbell_hyperextension,Barbell Hyperextension,Waist,Compound,Barbell,Barbell,Erector Spinae|Gluteus Maximus|Hamstrings,false,185,
-exrx_waist_barbell_hyperextension_45deg,Barbell Hyperextension (45°),Waist,Compound,Barbell,Barbell,Erector Spinae|Gluteus Maximus|Hamstrings,false,185,
-exrx_waist_barbell_push_crunch,Barbell Push Crunch,Waist,Accessory,Barbell,Barbell,Rectus Abdominis|Obliques,false,65,
-barbell_seated_good_morning,Barbell Seated Good Morning,Waist,Compound,Barbell,Barbell|Flat / Incline Bench,Erector Spinae|Gluteus Maximus,false,135,barbell_good_morning
-barbell_seated_twist,Barbell Seated Twist,Waist,Accessory,Barbell,Barbell,Obliques,false,65,russian_twist
-barbell_side_bend,Barbell Standing Side Bend,Waist,Accessory,Barbell,Barbell,Obliques|Quadratus Lumborum,false,85,dumbbell_side_bend
-exrx_waist_barbell_stiff_leg_deadlift,Barbell Stiff-leg Deadlift,Waist,Compound,Barbell,Barbell,Erector Spinae|Gluteus Maximus|Hamstrings,false,185,
-exrx_waist_barbell_straight_leg_deadlift,Barbell Straight-leg Deadlift,Waist,Compound,Barbell,Barbell,Erector Spinae|Gluteus Maximus|Hamstrings,false,185,
-ab_crunch,Bodyweight / Weighted Floor Crunch,Waist,Accessory,Bodyweight / Plate,,Rectus Abdominis|Obliques,false,45,hollow_holds|bicycle_crunch
-sit_up,Bodyweight / Weighted Sit-Up,Waist,Accessory,Bodyweight / Plate,,Rectus Abdominis|Hip Flexors|Obliques,false,50,incline_sit_up|ab_crunch
-twisting_sit_up,Bodyweight / Weighted Twisting Sit-Up,Waist,Accessory,Bodyweight / Plate,,Obliques|Rectus Abdominis|Hip Flexors,false,50,sit_up
-exrx_waist_bodyweight_45deg_side_bend,Bodyweight 45° Side Bend,Waist,Accessory,Bodyweight,,Obliques|Rectus Abdominis,false,45,
-side_bridge_hip_abduction,Bodyweight 45° Side Bend (Roman Chair),Waist,Accessory,Bodyweight / Plate,,Obliques|Quadratus Lumborum,false,55,dumbbell_side_bend
-wheel_rollout,Bodyweight Ab Wheel Rollout,Waist,Compound,Bodyweight,,Rectus Abdominis|Transverse Abdominis|Obliques,false,75,barbell_rollout
-exrx_waist_bodyweight_abdominal_vacuum,Bodyweight Abdominal Vacuum,Waist,Accessory,Bodyweight,,Transverse Abdominis,false,45,
-exrx_waist_bodyweight_crunch,Bodyweight Crunch,Waist,Accessory,Bodyweight,,Rectus Abdominis|Obliques,false,45,
-exrx_waist_bodyweight_crunch_arms_crossed,Bodyweight Crunch (arms crossed),Waist,Accessory,Bodyweight,,Rectus Abdominis|Obliques,false,45,
-exrx_waist_bodyweight_crunch_arms_down,Bodyweight Crunch (arms down),Waist,Accessory,Bodyweight,,Rectus Abdominis|Obliques,false,45,
-exrx_waist_bodyweight_crunch_on_ball_arms_crossed,"Bodyweight Crunch (on ball, arms crossed)",Waist,Accessory,Bodyweight,,Rectus Abdominis|Obliques,false,45,
-exrx_waist_bodyweight_crunch_on_ball,Bodyweight Crunch (on ball),Waist,Accessory,Bodyweight,,Rectus Abdominis|Obliques,false,45,
-hanging_knee_raise,Bodyweight Hanging Knee Raise,Waist,Accessory,Bodyweight,,Rectus Abdominis|Hip Flexors,false,45,hanging_leg_raises
-exrx_waist_bodyweight_hanging_leg_hip_raise_with_ab_straps,Bodyweight Hanging Leg Hip Raise (with ab straps),Waist,Accessory,Bodyweight,,Rectus Abdominis|Obliques,false,45,
-hanging_straight_leg_raise,Bodyweight Hanging Pike (Toes-to-Bar) Leg Raise,Waist,Compound,Bodyweight,,Rectus Abdominis|Obliques|Hip Flexors,false,55,hanging_leg_raises
-hanging_windshield_wiper,Bodyweight Hanging Twist (Windshield Wiper),Waist,Accessory,Bodyweight,,Obliques|Rectus Abdominis|Hip Flexors,false,50,hanging_leg_raises
-exrx_waist_bodyweight_hanging_twisting_leg_raise,Bodyweight Hanging Twisting Leg Raise,Waist,Accessory,Bodyweight,,Obliques|Rectus Abdominis,false,45,
-hollow_holds,Bodyweight Hollow Body Hold,Waist,Accessory,Bodyweight,,Rectus Abdominis|Transverse Abdominis|Obliques,false,45,hanging_leg_raises|weighted_plank
-incline_leg_hip_raise,Bodyweight Incline Bench Leg-Hip Raise,Waist,Accessory,Bodyweight,Flat / Incline Bench,Rectus Abdominis|Obliques|Hip Flexors,false,50,lying_leg_hip_raise
-exrx_waist_bodyweight_incline_crunch,Bodyweight Incline Crunch,Waist,Accessory,Bodyweight,,Rectus Abdominis|Obliques,false,45,
-exrx_waist_bodyweight_incline_crunch_arms_down,Bodyweight Incline Crunch (arms down),Waist,Accessory,Bodyweight,,Rectus Abdominis|Obliques,false,45,
-exrx_waist_bodyweight_incline_sit_up,Bodyweight Incline Sit-up,Waist,Accessory,Bodyweight,,Rectus Abdominis|Obliques,false,45,
-exrx_waist_bodyweight_incline_sit_up_arms_crossed,Bodyweight Incline Sit-up (arms crossed),Waist,Accessory,Bodyweight,,Rectus Abdominis|Obliques,false,45,
-exrx_waist_bodyweight_incline_twisting_crunch,Bodyweight Incline Twisting Crunch,Waist,Accessory,Bodyweight,,Obliques|Rectus Abdominis,false,45,
-exrx_waist_bodyweight_incline_twisting_crunch_arms_crossed,Bodyweight Incline Twisting Crunch (arms crossed),Waist,Accessory,Bodyweight,,Obliques|Rectus Abdominis,false,45,
-exrx_waist_bodyweight_incline_twisting_sit_up,Bodyweight Incline Twisting Sit-up,Waist,Accessory,Bodyweight,,Obliques|Rectus Abdominis,false,45,
-exrx_waist_bodyweight_incline_twisting_sit_up_arms_crossed,Bodyweight Incline Twisting Sit-up (arms crossed),Waist,Accessory,Bodyweight,,Obliques|Rectus Abdominis,false,45,
-bicycle_crunch,Bodyweight Lying Alternating Twist (Bicycle) Crunch,Waist,Accessory,Bodyweight,,Obliques|Rectus Abdominis,false,45,ab_crunch|russian_twist
-lying_hip_swing,Bodyweight Lying Bent-Knee Hip Swing,Waist,Accessory,Bodyweight,,Obliques|Rectus Abdominis,false,45,bicycle_crunch
-lying_leg_hip_raise,Bodyweight Lying Leg-Hip Raise,Waist,Accessory,Bodyweight,,Rectus Abdominis|Obliques|Hip Flexors,false,45,hanging_leg_raises
-reverse_crunch,Bodyweight Lying Reverse Crunch,Waist,Accessory,Bodyweight,,Rectus Abdominis|Obliques,false,45,ab_crunch
-bodyweight_bird_dog,Bodyweight Quadruped Alternating Arm-Leg Raise (Bird-Dog),Waist,Accessory,Bodyweight,,Erector Spinae|Gluteus Maximus|Rectus Abdominis,false,45,superman_hold
-exrx_waist_bodyweight_side_bend_on_ball,Bodyweight Side Bend (on ball),Waist,Accessory,Bodyweight,,Obliques|Rectus Abdominis,false,45,
-exrx_waist_bodyweight_side_crunch,Bodyweight Side Crunch,Waist,Accessory,Bodyweight,,Obliques|Rectus Abdominis,false,45,
-side_plank,Bodyweight Side Plank (Side Bridge),Waist,Accessory,Bodyweight,,Obliques|Transverse Abdominis|Quadratus Lumborum,false,45,weighted_plank|russian_twist
-exrx_waist_bodyweight_sit_up,Bodyweight Sit-up,Waist,Accessory,Bodyweight,,Rectus Abdominis|Obliques,false,45,
-exrx_waist_bodyweight_sit_up_arms_crossed,Bodyweight Sit-up (arms crossed),Waist,Accessory,Bodyweight,,Rectus Abdominis|Obliques,false,45,
-exrx_waist_bodyweight_sit_up_arms_down,Bodyweight Sit-up (arms down),Waist,Accessory,Bodyweight,,Rectus Abdominis|Obliques,false,45,
-stomach_vacuum,Bodyweight Supine / Quadruped Stomach Vacuum,Waist,Accessory,Bodyweight,,Transverse Abdominis,false,45,hollow_holds
-exrx_waist_bodyweight_twisting_crunch,Bodyweight Twisting Crunch,Waist,Accessory,Bodyweight,,Obliques|Rectus Abdominis,false,45,
-exrx_waist_bodyweight_twisting_crunch_arms_crossed,Bodyweight Twisting Crunch (arms crossed),Waist,Accessory,Bodyweight,,Obliques|Rectus Abdominis,false,45,
-exrx_waist_bodyweight_twisting_crunch_on_ball,Bodyweight Twisting Crunch (on ball),Waist,Accessory,Bodyweight,,Obliques|Rectus Abdominis,false,45,
-exrx_waist_bodyweight_twisting_leg_hip_raise,Bodyweight Twisting Leg Hip Raise,Waist,Accessory,Bodyweight,,Obliques|Rectus Abdominis,false,45,
-exrx_waist_bodyweight_twisting_sit_up,Bodyweight Twisting Sit-up,Waist,Accessory,Bodyweight,,Obliques|Rectus Abdominis,false,45,
-exrx_waist_bodyweight_twisting_sit_up_arms_crossed,Bodyweight Twisting Sit-up (arms crossed),Waist,Accessory,Bodyweight,,Obliques|Rectus Abdominis,false,45,
-v_up,Bodyweight V-Up (Jackknife Sit-Up),Waist,Accessory,Bodyweight,,Rectus Abdominis|Obliques|Hip Flexors,false,45,sit_up
-vertical_leg_hip_raise,Bodyweight Vertical (Captain's Chair) Leg-Hip Raise,Waist,Accessory,Bodyweight,,Rectus Abdominis|Hip Flexors,false,50,hanging_leg_raises
-cable_kneeling_crunch,Cable Kneeling Crunch,Waist,Accessory,Cable,Cable Machine,Rectus Abdominis|Obliques,false,60,ab_crunch|hanging_leg_raises
-cable_lying_leg_hip_raise,Cable Lying Leg-Hip Raise,Waist,Accessory,Cable,Cable Machine,Rectus Abdominis|Hip Flexors,false,50,lying_leg_hip_raise
-cable_incline_push_pull_twist,Cable Pallof Anti-Rotation Press,Waist,Accessory,Cable,Cable Machine,Obliques|Transverse Abdominis,false,50,cable_standing_twist
-exrx_waist_cable_push_pull,Cable Push Pull,Waist,Accessory,Cable,Cable Machine,Obliques|Quadratus Lumborum,false,60,
-cable_seated_back_extension,Cable Seated Back Extension,Waist,Accessory,Cable,Cable Machine,Erector Spinae,false,110,lever_back_extension
-cable_seated_crunch,Cable Seated Crunch,Waist,Accessory,Cable,Cable Machine,Rectus Abdominis|Obliques,false,75,cable_kneeling_crunch
-cable_seated_twist,Cable Seated Twist,Waist,Accessory,Cable,Cable Machine,Obliques,false,55,cable_standing_twist
-exrx_waist_cable_side_bend,Cable Side Bend,Waist,Accessory,Cable,Cable Machine,Obliques|Quadratus Lumborum,false,60,
-exrx_waist_cable_side_crunch,Cable Side Crunch,Waist,Accessory,Cable,Cable Machine,Obliques|Quadratus Lumborum,false,60,
-cable_standing_crunch,Cable Standing Crunch,Waist,Accessory,Cable,Cable Machine,Rectus Abdominis|Obliques,false,70,cable_kneeling_crunch
-exrx_waist_cable_standing_crunch_isolateral,Cable Standing Crunch [Isolateral],Waist,Accessory,Cable,Cable Machine,Rectus Abdominis|Obliques,false,70,
-exrx_waist_cable_standing_overhead_crunch,Cable Standing Overhead Crunch,Waist,Accessory,Cable,Cable Machine,Rectus Abdominis|Obliques,false,70,
-cable_side_bend,Cable Standing Side Bend,Waist,Accessory,Cable,Cable Machine,Obliques|Quadratus Lumborum,false,65,dumbbell_side_bend
-cable_standing_twist,Cable Standing Twist (Woodchopper),Waist,Accessory,Cable,Cable Machine,Obliques|Transverse Abdominis,false,55,russian_twist
-exrx_waist_cable_standing_twisting_crunch_isolateral,Cable Standing Twisting Crunch [Isolateral],Waist,Accessory,Cable,Cable Machine,Obliques|Quadratus Lumborum,false,60,
-exrx_waist_cable_stiff_leg_deadlift,Cable Stiff-leg Deadlift,Waist,Accessory,Cable,Cable Machine,Erector Spinae|Gluteus Maximus|Hamstrings,false,125,
-exrx_waist_cable_twist,Cable Twist,Waist,Accessory,Cable,Cable Machine,Obliques|Quadratus Lumborum,false,60,
-dumbbell_back_extension,Dumbbell 45° Back Extension,Waist,Accessory,Dumbbell,Dumbbell,Erector Spinae|Gluteus Maximus|Hamstrings,false,75,back_extension
-dumbbell_incline_sit_up,Dumbbell Decline Sit-Up,Waist,Compound,Dumbbell,Dumbbell|Flat / Incline Bench,Rectus Abdominis|Hip Flexors|Obliques,false,65,incline_sit_up
-dumbbell_crunch,Dumbbell Lying Crunch,Waist,Accessory,Dumbbell,Dumbbell,Rectus Abdominis|Obliques,false,55,ab_crunch
-exrx_waist_dumbbell_one_arm_straight_leg_deadlift,Dumbbell One Arm Straight Leg Deadlift,Waist,Accessory,Dumbbell,Dumbbell,Obliques|Quadratus Lumborum,false,75,
-exrx_waist_dumbbell_push_crunch,Dumbbell Push Crunch,Waist,Accessory,Dumbbell,Dumbbell,Rectus Abdominis|Obliques,false,55,
-exrx_waist_dumbbell_side_bend,Dumbbell Side Bend,Waist,Accessory,Dumbbell,Dumbbell,Obliques|Quadratus Lumborum,false,75,
-dumbbell_side_bend,Dumbbell Standing Side Bend,Waist,Compound,Dumbbell,Dumbbell,Obliques|Quadratus Lumborum,false,75,russian_twist
-weighted_plank,Front Plank (Bodyweight / Weighted),Waist,Accessory,Plate / Bodyweight,,Rectus Abdominis|Transverse Abdominis|Obliques|Erector Spinae,false,60,hollow_holds|side_plank
-hanging_leg_raises,Hanging Leg-Hip Raise,Waist,Compound,Bodyweight,,Rectus Abdominis|Obliques|Hip Flexors,false,50,hollow_holds|weighted_plank
-exrx_waist_isometric_bent_knee_side_plank,Isometric Bent Knee Side Plank,Waist,Accessory,Isometric,,Obliques|Quadratus Lumborum,false,45,
-exrx_waist_isometric_front_plank,Isometric Front Plank,Waist,Accessory,Isometric,,Rectus Abdominis|Transverse Abdominis,false,50,
-exrx_waist_isometric_side_plank,Isometric Side Plank,Waist,Accessory,Isometric,,Obliques|Quadratus Lumborum,false,45,
-exrx_waist_lever_plate_loaded_deadlift,Lever (plate loaded) Deadlift,Waist,Compound,Lever (plate loaded),Lever / Machine|Weight Plates,Erector Spinae|Gluteus Maximus|Hamstrings,false,225,
-exrx_waist_lever_plate_loaded_lying_crunch,Lever (plate loaded) Lying Crunch,Waist,Accessory,Lever (plate loaded),Lever / Machine|Weight Plates,Rectus Abdominis|Obliques,false,85,
-exrx_waist_lever_plate_loaded_power_twist,Lever (plate loaded) Power Twist,Waist,Accessory,Lever (plate loaded),Lever / Machine|Weight Plates,Obliques,false,85,
-exrx_waist_lever_plate_loaded_seated_leg_raise_crunch,Lever (plate loaded) Seated Leg Raise Crunch,Waist,Accessory,Lever (plate loaded),Lever / Machine|Weight Plates,Rectus Abdominis|Obliques,false,85,
-exrx_waist_lever_plate_loaded_seated_side_leg_raise_crunch,Lever (plate loaded) Seated Side Leg Raise Crunch,Waist,Accessory,Lever (plate loaded),Lever / Machine|Weight Plates,Obliques,false,85,
-exrx_waist_lever_plate_loaded_seated_twisting_leg_raise_crunch,Lever (plate loaded) Seated Twisting Leg Raise Crunch,Waist,Accessory,Lever (plate loaded),Lever / Machine|Weight Plates,Obliques,false,85,
-exrx_waist_lever_plate_loaded_stiff_leg_deadlift,Lever (plate loaded) Stiff-leg Deadlift,Waist,Compound,Lever (plate loaded),Lever / Machine|Weight Plates,Erector Spinae|Gluteus Maximus|Hamstrings,false,225,
-exrx_waist_lever_selectorized_back_extension,Lever (selectorized) Back Extension,Waist,Accessory,Lever (selectorized),Lever / Machine,Erector Spinae,false,135,
-exrx_waist_lever_selectorized_back_extension_on_older_machine,Lever (selectorized) Back Extension (on older machine),Waist,Accessory,Lever (selectorized),Lever / Machine,Erector Spinae,false,135,
-exrx_waist_lever_selectorized_kneeling_twist,Lever (selectorized) Kneeling Twist,Waist,Accessory,Lever (selectorized),Lever / Machine,Obliques,false,90,
-exrx_waist_lever_selectorized_seated_crunch_arm_bar,Lever (selectorized) Seated Crunch (Arm Bar),Waist,Accessory,Lever (selectorized),Lever / Machine,Rectus Abdominis|Obliques,false,90,
-exrx_waist_lever_selectorized_seated_crunch_arm_pad,Lever (selectorized) Seated Crunch (Arm Pad),Waist,Accessory,Lever (selectorized),Lever / Machine,Rectus Abdominis|Obliques,false,90,
-exrx_waist_lever_selectorized_seated_crunch_chest_pad,Lever (selectorized) Seated Crunch (Chest Pad),Waist,Accessory,Lever (selectorized),Lever / Machine,Rectus Abdominis|Obliques,false,90,
-exrx_waist_lever_selectorized_seated_twist,Lever (selectorized) Seated Twist,Waist,Accessory,Lever (selectorized),Lever / Machine,Obliques,false,90,
-exrx_waist_lever_selectorized_seated_twist_gripless,Lever (selectorized) Seated Twist (gripless),Waist,Accessory,Lever (selectorized),Lever / Machine,Obliques,false,90,
-exrx_waist_lever_selectorized_seated_twist_lower_body,Lever (selectorized) Seated Twist (lower body),Waist,Accessory,Lever (selectorized),Lever / Machine,Obliques,false,90,
-lever_lying_crunch,Lever Lying Crunch,Waist,Accessory,Lever / Machine,Lever / Machine,Rectus Abdominis|Obliques,false,80,lever_seated_crunch
-lever_back_extension,Lever Seated Back Extension,Waist,Accessory,Lever / Machine,Lever / Machine,Erector Spinae,false,135,back_extension
-lever_seated_crunch,Lever Seated Crunch,Waist,Accessory,Lever / Machine,Lever / Machine,Rectus Abdominis|Obliques,false,90,cable_kneeling_crunch
-lever_seated_leg_raise_crunch,Lever Seated Leg-Raise Crunch,Waist,Accessory,Lever / Machine,Lever / Machine,Rectus Abdominis|Hip Flexors,false,85,lever_seated_crunch
-lever_seated_twist,Lever Seated Twist (Rotary Torso),Waist,Accessory,Lever / Machine,Lever / Machine,Obliques,false,95,cable_seated_twist
-exrx_waist_stretch_lying_prone_abdominal_stretch,Lying (Prone) Abdominal Stretch,Waist,Accessory,Stretch,,Rectus Abdominis,false,25,
-exrx_waist_stretch_lying_crossover_stretch,Lying Crossover Stretch,Waist,Accessory,Stretch,,Obliques,false,25,
-plank,Plank,Waist,Compound,Bodyweight,,Rectus Abdominis|Transverse Abdominis|Obliques|Erector Spinae,false,60,weighted_plank|hollow_holds
-exrx_waist_plyometric_broomstick_twist,Plyometric Broomstick Twist,Waist,Accessory,Plyometric,,Obliques,false,45,
-exrx_waist_plyometric_medicine_ball_seated_twist_with_partner,Plyometric Medicine Ball Seated Twist (with partner),Waist,Accessory,Plyometric,,Obliques,false,45,
-exrx_waist_stretch_pretzel_stretch,Pretzel Stretch,Waist,Accessory,Stretch,,Obliques,false,25,
-reverse_hyperextension,Reverse Hyperextension,Waist,Accessory,Bodyweight / Lever,,Erector Spinae|Gluteus Maximus|Hamstrings,false,95,back_extension
-horizontal_back_extension,Roman Chair Horizontal Back Extension,Waist,Accessory,Bodyweight / Plate,,Erector Spinae|Gluteus Maximus|Hamstrings,false,65,back_extension
-russian_twist,Seated Russian Twist,Waist,Accessory,Bodyweight / Dumbbell,Dumbbell,Obliques|Rectus Abdominis,false,45,bicycle_crunch|side_plank
-exrx_waist_sled_leg_hip_raise_ab_coaster,Sled Leg Hip Raise (Ab Coaster),Waist,Accessory,Sled,Lever / Machine,Rectus Abdominis|Hip Flexors,false,75,
-exrx_waist_sled_side_leg_hip_raise_ab_coaster,Sled Side Leg Hip Raise (Ab Coaster),Waist,Accessory,Sled,Lever / Machine,Obliques|Hip Flexors,false,70,
-exrx_waist_smith_bent_knee_good_morning,Smith Bent Knee Good-morning,Waist,Compound,Smith,Lever / Machine,Erector Spinae|Gluteus Maximus|Hamstrings,false,185,
-exrx_waist_smith_deadlift,Smith Deadlift,Waist,Compound,Smith,Lever / Machine,Erector Spinae|Gluteus Maximus|Hamstrings,false,185,
-exrx_waist_smith_stiff_leg_deadlift,Smith Stiff-leg Deadlift,Waist,Compound,Smith,Lever / Machine,Erector Spinae|Gluteus Maximus|Hamstrings,false,185,
-exrx_waist_stretch_standing_abdominal_stretch,Standing Abdominal Stretch,Waist,Accessory,Stretch,,Rectus Abdominis,false,25,
-exrx_waist_suspended_jack_knife,Suspended Jack-knife,Waist,Accessory,Suspended,Pull-Up Bar,Rectus Abdominis|Obliques,false,55,
-exrx_waist_suspended_pull_through,Suspended Pull Through,Waist,Accessory,Suspended,Pull-Up Bar,Rectus Abdominis|Obliques,false,55,
-exrx_waist_suspended_side_bend,Suspended Side Bend,Waist,Accessory,Suspended,Pull-Up Bar,Obliques|Rectus Abdominis,false,55,
-exrx_waist_suspended_twisting_jack_knife,Suspended Twisting Jack-knife,Waist,Accessory,Suspended,Pull-Up Bar,Obliques|Rectus Abdominis,false,55,
-exrx_waist_weighted_crunch,Weighted Crunch,Waist,Accessory,Weighted,Weight Plates,Rectus Abdominis|Obliques,false,60,
-exrx_waist_weighted_crunch_arms_crossed,Weighted Crunch (arms crossed),Waist,Accessory,Weighted,Weight Plates,Rectus Abdominis|Obliques,false,60,
-exrx_waist_weighted_crunch_on_ball,Weighted Crunch (on ball),Waist,Accessory,Weighted,Weight Plates,Rectus Abdominis|Obliques,false,60,
-incline_crunch,Weighted Decline / Incline Bench Crunch,Waist,Accessory,Bodyweight / Plate,Flat / Incline Bench,Rectus Abdominis|Obliques,false,55,ab_crunch
-incline_sit_up,Weighted Decline Bench Sit-Up,Waist,Compound,Bodyweight / Plate,Flat / Incline Bench,Rectus Abdominis|Hip Flexors|Obliques,false,65,sit_up
-incline_twisting_sit_up,Weighted Decline Twisting Sit-Up,Waist,Accessory,Bodyweight / Plate,Flat / Incline Bench,Obliques|Rectus Abdominis|Hip Flexors,false,60,incline_sit_up
-exrx_waist_weighted_hyperextension,Weighted Hyperextension,Waist,Accessory,Weighted,Weight Plates,Erector Spinae|Gluteus Maximus,false,85,
-exrx_waist_weighted_hyperextension_45deg,Weighted Hyperextension (45°),Waist,Accessory,Weighted,Weight Plates,Erector Spinae|Gluteus Maximus,false,85,
-exrx_waist_weighted_incline_crunch,Weighted Incline Crunch,Waist,Accessory,Weighted,Weight Plates,Rectus Abdominis|Obliques,false,60,
-exrx_waist_weighted_incline_crunch_arms_crossed,Weighted Incline Crunch (arms crossed),Waist,Accessory,Weighted,Weight Plates,Rectus Abdominis|Obliques,false,60,
-exrx_waist_weighted_incline_sit_up,Weighted Incline Sit-up,Waist,Accessory,Weighted,Weight Plates,Rectus Abdominis|Obliques,false,60,
-exrx_waist_weighted_incline_sit_up_arms_crossed,Weighted Incline Sit-up (arms crossed),Waist,Accessory,Weighted,Weight Plates,Rectus Abdominis|Obliques,false,60,
-exrx_waist_weighted_incline_twisting_crunch,Weighted Incline Twisting Crunch,Waist,Accessory,Weighted,Weight Plates,Obliques|Rectus Abdominis,false,60,
-exrx_waist_weighted_incline_twisting_sit_up,Weighted Incline Twisting Sit-up,Waist,Accessory,Weighted,Weight Plates,Obliques|Rectus Abdominis,false,60,
-exrx_waist_weighted_incline_twisting_sit_up_arms_crossed,Weighted Incline Twisting Sit-up (arms crossed),Waist,Accessory,Weighted,Weight Plates,Obliques|Rectus Abdominis,false,60,
-exrx_waist_weighted_side_crunch,Weighted Side Crunch,Waist,Accessory,Weighted,Weight Plates,Obliques|Rectus Abdominis,false,60,
-exrx_waist_weighted_sit_up,Weighted Sit-up,Waist,Accessory,Weighted,Weight Plates,Rectus Abdominis|Obliques,false,60,
-exrx_waist_weighted_sit_up_arms_crossed,Weighted Sit-up (arms crossed),Waist,Accessory,Weighted,Weight Plates,Rectus Abdominis|Obliques,false,60,
-exrx_waist_weighted_twisting_crunch,Weighted Twisting Crunch,Waist,Accessory,Weighted,Weight Plates,Obliques|Rectus Abdominis,false,60,
-exrx_waist_weighted_twisting_crunch_on_ball,Weighted Twisting Crunch (on ball),Waist,Accessory,Weighted,Weight Plates,Obliques|Rectus Abdominis,false,60,
-exrx_waist_weighted_twisting_sit_up,Weighted Twisting Sit-up,Waist,Accessory,Weighted,Weight Plates,Obliques|Rectus Abdominis,false,60,
-exrx_waist_weighted_twisting_sit_up_arms_crossed,Weighted Twisting Sit-up (arms crossed),Waist,Accessory,Weighted,Weight Plates,Obliques|Rectus Abdominis,false,60,
+back_extension,45° Back Extension (Hyperextension),Core,Accessory,Bodyweight / Plate,,Erector Spinae|Gluteus Maximus|Hamstrings,false,60,barbell_good_morning
+barbell_lying_hip_raise,Barbell / Plate Loaded Pulse-Up (Hip Raise),Core,Accessory,Barbell,Barbell,Rectus Abdominis|Obliques,false,65,lying_leg_hip_raise
+barbell_back_extension,Barbell 45° Back Extension,Core,Compound,Barbell,Barbell,Erector Spinae|Gluteus Maximus|Hamstrings,false,115,back_extension
+barbell_rollout,Barbell Ab Rollout,Core,Compound,Barbell / Bodyweight,Barbell,Rectus Abdominis|Transverse Abdominis|Latissimus Dorsi,false,95,weighted_plank|hollow_holds
+exrx_waist_barbell_bent_knee_good_morning,Barbell Bent Knee Good-morning,Core,Compound,Barbell,Barbell,Erector Spinae|Gluteus Maximus|Hamstrings,false,185,
+exrx_waist_barbell_deadlift,Barbell Deadlift,Core,Compound,Barbell,Barbell,Erector Spinae|Gluteus Maximus|Hamstrings,false,185,
+exrx_waist_barbell_hyperextension,Barbell Hyperextension,Core,Compound,Barbell,Barbell,Erector Spinae|Gluteus Maximus|Hamstrings,false,185,
+exrx_waist_barbell_hyperextension_45deg,Barbell Hyperextension (45°),Core,Compound,Barbell,Barbell,Erector Spinae|Gluteus Maximus|Hamstrings,false,185,
+exrx_waist_barbell_push_crunch,Barbell Push Crunch,Core,Accessory,Barbell,Barbell,Rectus Abdominis|Obliques,false,65,
+barbell_seated_good_morning,Barbell Seated Good Morning,Core,Compound,Barbell,Barbell|Flat / Incline Bench,Erector Spinae|Gluteus Maximus,false,135,barbell_good_morning
+barbell_seated_twist,Barbell Seated Twist,Core,Accessory,Barbell,Barbell,Obliques,false,65,russian_twist
+barbell_side_bend,Barbell Standing Side Bend,Core,Accessory,Barbell,Barbell,Obliques|Quadratus Lumborum,false,85,dumbbell_side_bend
+exrx_waist_barbell_stiff_leg_deadlift,Barbell Stiff-leg Deadlift,Core,Compound,Barbell,Barbell,Erector Spinae|Gluteus Maximus|Hamstrings,false,185,
+exrx_waist_barbell_straight_leg_deadlift,Barbell Straight-leg Deadlift,Core,Compound,Barbell,Barbell,Erector Spinae|Gluteus Maximus|Hamstrings,false,185,
+ab_crunch,Bodyweight / Weighted Floor Crunch,Core,Accessory,Bodyweight / Plate,,Rectus Abdominis|Obliques,false,45,hollow_holds|bicycle_crunch
+sit_up,Bodyweight / Weighted Sit-Up,Core,Accessory,Bodyweight / Plate,,Rectus Abdominis|Hip Flexors|Obliques,false,50,incline_sit_up|ab_crunch
+twisting_sit_up,Bodyweight / Weighted Twisting Sit-Up,Core,Accessory,Bodyweight / Plate,,Obliques|Rectus Abdominis|Hip Flexors,false,50,sit_up
+exrx_waist_bodyweight_45deg_side_bend,Bodyweight 45° Side Bend,Core,Accessory,Bodyweight,,Obliques|Rectus Abdominis,false,45,
+side_bridge_hip_abduction,Bodyweight 45° Side Bend (Roman Chair),Core,Accessory,Bodyweight / Plate,,Obliques|Quadratus Lumborum,false,55,dumbbell_side_bend
+wheel_rollout,Bodyweight Ab Wheel Rollout,Core,Compound,Bodyweight,,Rectus Abdominis|Transverse Abdominis|Obliques,false,75,barbell_rollout
+exrx_waist_bodyweight_abdominal_vacuum,Bodyweight Abdominal Vacuum,Core,Accessory,Bodyweight,,Transverse Abdominis,false,45,
+exrx_waist_bodyweight_crunch,Bodyweight Crunch,Core,Accessory,Bodyweight,,Rectus Abdominis|Obliques,false,45,
+exrx_waist_bodyweight_crunch_arms_crossed,Bodyweight Crunch (arms crossed),Core,Accessory,Bodyweight,,Rectus Abdominis|Obliques,false,45,
+exrx_waist_bodyweight_crunch_arms_down,Bodyweight Crunch (arms down),Core,Accessory,Bodyweight,,Rectus Abdominis|Obliques,false,45,
+exrx_waist_bodyweight_crunch_on_ball_arms_crossed,"Bodyweight Crunch (on ball, arms crossed)",Core,Accessory,Bodyweight,,Rectus Abdominis|Obliques,false,45,
+exrx_waist_bodyweight_crunch_on_ball,Bodyweight Crunch (on ball),Core,Accessory,Bodyweight,,Rectus Abdominis|Obliques,false,45,
+hanging_knee_raise,Bodyweight Hanging Knee Raise,Core,Accessory,Bodyweight,,Rectus Abdominis|Hip Flexors,false,45,hanging_leg_raises
+exrx_waist_bodyweight_hanging_leg_hip_raise_with_ab_straps,Bodyweight Hanging Leg Hip Raise (with ab straps),Core,Accessory,Bodyweight,,Rectus Abdominis|Obliques,false,45,
+hanging_straight_leg_raise,Bodyweight Hanging Pike (Toes-to-Bar) Leg Raise,Core,Compound,Bodyweight,,Rectus Abdominis|Obliques|Hip Flexors,false,55,hanging_leg_raises
+hanging_windshield_wiper,Bodyweight Hanging Twist (Windshield Wiper),Core,Accessory,Bodyweight,,Obliques|Rectus Abdominis|Hip Flexors,false,50,hanging_leg_raises
+exrx_waist_bodyweight_hanging_twisting_leg_raise,Bodyweight Hanging Twisting Leg Raise,Core,Accessory,Bodyweight,,Obliques|Rectus Abdominis,false,45,
+hollow_holds,Bodyweight Hollow Body Hold,Core,Accessory,Bodyweight,,Rectus Abdominis|Transverse Abdominis|Obliques,false,45,hanging_leg_raises|weighted_plank
+incline_leg_hip_raise,Bodyweight Incline Bench Leg-Hip Raise,Core,Accessory,Bodyweight,Flat / Incline Bench,Rectus Abdominis|Obliques|Hip Flexors,false,50,lying_leg_hip_raise
+exrx_waist_bodyweight_incline_crunch,Bodyweight Incline Crunch,Core,Accessory,Bodyweight,,Rectus Abdominis|Obliques,false,45,
+exrx_waist_bodyweight_incline_crunch_arms_down,Bodyweight Incline Crunch (arms down),Core,Accessory,Bodyweight,,Rectus Abdominis|Obliques,false,45,
+exrx_waist_bodyweight_incline_sit_up,Bodyweight Incline Sit-up,Core,Accessory,Bodyweight,,Rectus Abdominis|Obliques,false,45,
+exrx_waist_bodyweight_incline_sit_up_arms_crossed,Bodyweight Incline Sit-up (arms crossed),Core,Accessory,Bodyweight,,Rectus Abdominis|Obliques,false,45,
+exrx_waist_bodyweight_incline_twisting_crunch,Bodyweight Incline Twisting Crunch,Core,Accessory,Bodyweight,,Obliques|Rectus Abdominis,false,45,
+exrx_waist_bodyweight_incline_twisting_crunch_arms_crossed,Bodyweight Incline Twisting Crunch (arms crossed),Core,Accessory,Bodyweight,,Obliques|Rectus Abdominis,false,45,
+exrx_waist_bodyweight_incline_twisting_sit_up,Bodyweight Incline Twisting Sit-up,Core,Accessory,Bodyweight,,Obliques|Rectus Abdominis,false,45,
+exrx_waist_bodyweight_incline_twisting_sit_up_arms_crossed,Bodyweight Incline Twisting Sit-up (arms crossed),Core,Accessory,Bodyweight,,Obliques|Rectus Abdominis,false,45,
+bicycle_crunch,Bodyweight Lying Alternating Twist (Bicycle) Crunch,Core,Accessory,Bodyweight,,Obliques|Rectus Abdominis,false,45,ab_crunch|russian_twist
+lying_hip_swing,Bodyweight Lying Bent-Knee Hip Swing,Core,Accessory,Bodyweight,,Obliques|Rectus Abdominis,false,45,bicycle_crunch
+lying_leg_hip_raise,Bodyweight Lying Leg-Hip Raise,Core,Accessory,Bodyweight,,Rectus Abdominis|Obliques|Hip Flexors,false,45,hanging_leg_raises
+reverse_crunch,Bodyweight Lying Reverse Crunch,Core,Accessory,Bodyweight,,Rectus Abdominis|Obliques,false,45,ab_crunch
+bodyweight_bird_dog,Bodyweight Quadruped Alternating Arm-Leg Raise (Bird-Dog),Core,Accessory,Bodyweight,,Erector Spinae|Gluteus Maximus|Rectus Abdominis,false,45,superman_hold
+exrx_waist_bodyweight_side_bend_on_ball,Bodyweight Side Bend (on ball),Core,Accessory,Bodyweight,,Obliques|Rectus Abdominis,false,45,
+exrx_waist_bodyweight_side_crunch,Bodyweight Side Crunch,Core,Accessory,Bodyweight,,Obliques|Rectus Abdominis,false,45,
+side_plank,Bodyweight Side Plank (Side Bridge),Core,Accessory,Bodyweight,,Obliques|Transverse Abdominis|Quadratus Lumborum,false,45,weighted_plank|russian_twist
+exrx_waist_bodyweight_sit_up,Bodyweight Sit-up,Core,Accessory,Bodyweight,,Rectus Abdominis|Obliques,false,45,
+exrx_waist_bodyweight_sit_up_arms_crossed,Bodyweight Sit-up (arms crossed),Core,Accessory,Bodyweight,,Rectus Abdominis|Obliques,false,45,
+exrx_waist_bodyweight_sit_up_arms_down,Bodyweight Sit-up (arms down),Core,Accessory,Bodyweight,,Rectus Abdominis|Obliques,false,45,
+stomach_vacuum,Bodyweight Supine / Quadruped Stomach Vacuum,Core,Accessory,Bodyweight,,Transverse Abdominis,false,45,hollow_holds
+exrx_waist_bodyweight_twisting_crunch,Bodyweight Twisting Crunch,Core,Accessory,Bodyweight,,Obliques|Rectus Abdominis,false,45,
+exrx_waist_bodyweight_twisting_crunch_arms_crossed,Bodyweight Twisting Crunch (arms crossed),Core,Accessory,Bodyweight,,Obliques|Rectus Abdominis,false,45,
+exrx_waist_bodyweight_twisting_crunch_on_ball,Bodyweight Twisting Crunch (on ball),Core,Accessory,Bodyweight,,Obliques|Rectus Abdominis,false,45,
+exrx_waist_bodyweight_twisting_leg_hip_raise,Bodyweight Twisting Leg Hip Raise,Core,Accessory,Bodyweight,,Obliques|Rectus Abdominis,false,45,
+exrx_waist_bodyweight_twisting_sit_up,Bodyweight Twisting Sit-up,Core,Accessory,Bodyweight,,Obliques|Rectus Abdominis,false,45,
+exrx_waist_bodyweight_twisting_sit_up_arms_crossed,Bodyweight Twisting Sit-up (arms crossed),Core,Accessory,Bodyweight,,Obliques|Rectus Abdominis,false,45,
+v_up,Bodyweight V-Up (Jackknife Sit-Up),Core,Accessory,Bodyweight,,Rectus Abdominis|Obliques|Hip Flexors,false,45,sit_up
+vertical_leg_hip_raise,Bodyweight Vertical (Captain's Chair) Leg-Hip Raise,Core,Accessory,Bodyweight,,Rectus Abdominis|Hip Flexors,false,50,hanging_leg_raises
+cable_kneeling_crunch,Cable Kneeling Crunch,Core,Accessory,Cable,Cable Machine,Rectus Abdominis|Obliques,false,60,ab_crunch|hanging_leg_raises
+cable_lying_leg_hip_raise,Cable Lying Leg-Hip Raise,Core,Accessory,Cable,Cable Machine,Rectus Abdominis|Hip Flexors,false,50,lying_leg_hip_raise
+cable_incline_push_pull_twist,Cable Pallof Anti-Rotation Press,Core,Accessory,Cable,Cable Machine,Obliques|Transverse Abdominis,false,50,cable_standing_twist
+exrx_waist_cable_push_pull,Cable Push Pull,Core,Accessory,Cable,Cable Machine,Obliques|Quadratus Lumborum,false,60,
+cable_seated_back_extension,Cable Seated Back Extension,Core,Accessory,Cable,Cable Machine,Erector Spinae,false,110,lever_back_extension
+cable_seated_crunch,Cable Seated Crunch,Core,Accessory,Cable,Cable Machine,Rectus Abdominis|Obliques,false,75,cable_kneeling_crunch
+cable_seated_twist,Cable Seated Twist,Core,Accessory,Cable,Cable Machine,Obliques,false,55,cable_standing_twist
+exrx_waist_cable_side_bend,Cable Side Bend,Core,Accessory,Cable,Cable Machine,Obliques|Quadratus Lumborum,false,60,
+exrx_waist_cable_side_crunch,Cable Side Crunch,Core,Accessory,Cable,Cable Machine,Obliques|Quadratus Lumborum,false,60,
+cable_standing_crunch,Cable Standing Crunch,Core,Accessory,Cable,Cable Machine,Rectus Abdominis|Obliques,false,70,cable_kneeling_crunch
+exrx_waist_cable_standing_crunch_isolateral,Cable Standing Crunch [Isolateral],Core,Accessory,Cable,Cable Machine,Rectus Abdominis|Obliques,false,70,
+exrx_waist_cable_standing_overhead_crunch,Cable Standing Overhead Crunch,Core,Accessory,Cable,Cable Machine,Rectus Abdominis|Obliques,false,70,
+cable_side_bend,Cable Standing Side Bend,Core,Accessory,Cable,Cable Machine,Obliques|Quadratus Lumborum,false,65,dumbbell_side_bend
+cable_standing_twist,Cable Standing Twist (Woodchopper),Core,Accessory,Cable,Cable Machine,Obliques|Transverse Abdominis,false,55,russian_twist
+exrx_waist_cable_standing_twisting_crunch_isolateral,Cable Standing Twisting Crunch [Isolateral],Core,Accessory,Cable,Cable Machine,Obliques|Quadratus Lumborum,false,60,
+exrx_waist_cable_stiff_leg_deadlift,Cable Stiff-leg Deadlift,Core,Accessory,Cable,Cable Machine,Erector Spinae|Gluteus Maximus|Hamstrings,false,125,
+exrx_waist_cable_twist,Cable Twist,Core,Accessory,Cable,Cable Machine,Obliques|Quadratus Lumborum,false,60,
+dumbbell_back_extension,Dumbbell 45° Back Extension,Core,Accessory,Dumbbell,Dumbbell,Erector Spinae|Gluteus Maximus|Hamstrings,false,75,back_extension
+dumbbell_incline_sit_up,Dumbbell Decline Sit-Up,Core,Compound,Dumbbell,Dumbbell|Flat / Incline Bench,Rectus Abdominis|Hip Flexors|Obliques,false,65,incline_sit_up
+dumbbell_crunch,Dumbbell Lying Crunch,Core,Accessory,Dumbbell,Dumbbell,Rectus Abdominis|Obliques,false,55,ab_crunch
+exrx_waist_dumbbell_one_arm_straight_leg_deadlift,Dumbbell One Arm Straight Leg Deadlift,Core,Accessory,Dumbbell,Dumbbell,Obliques|Quadratus Lumborum,false,75,
+exrx_waist_dumbbell_push_crunch,Dumbbell Push Crunch,Core,Accessory,Dumbbell,Dumbbell,Rectus Abdominis|Obliques,false,55,
+exrx_waist_dumbbell_side_bend,Dumbbell Side Bend,Core,Accessory,Dumbbell,Dumbbell,Obliques|Quadratus Lumborum,false,75,
+dumbbell_side_bend,Dumbbell Standing Side Bend,Core,Compound,Dumbbell,Dumbbell,Obliques|Quadratus Lumborum,false,75,russian_twist
+weighted_plank,Front Plank (Bodyweight / Weighted),Core,Accessory,Plate / Bodyweight,,Rectus Abdominis|Transverse Abdominis|Obliques|Erector Spinae,false,60,hollow_holds|side_plank
+hanging_leg_raises,Hanging Leg-Hip Raise,Core,Compound,Bodyweight,,Rectus Abdominis|Obliques|Hip Flexors,false,50,hollow_holds|weighted_plank
+exrx_waist_isometric_bent_knee_side_plank,Isometric Bent Knee Side Plank,Core,Accessory,Isometric,,Obliques|Quadratus Lumborum,false,45,
+exrx_waist_isometric_front_plank,Isometric Front Plank,Core,Accessory,Isometric,,Rectus Abdominis|Transverse Abdominis,false,50,
+exrx_waist_isometric_side_plank,Isometric Side Plank,Core,Accessory,Isometric,,Obliques|Quadratus Lumborum,false,45,
+exrx_waist_lever_plate_loaded_deadlift,Lever (plate loaded) Deadlift,Core,Compound,Lever (plate loaded),Lever / Machine|Weight Plates,Erector Spinae|Gluteus Maximus|Hamstrings,false,225,
+exrx_waist_lever_plate_loaded_lying_crunch,Lever (plate loaded) Lying Crunch,Core,Accessory,Lever (plate loaded),Lever / Machine|Weight Plates,Rectus Abdominis|Obliques,false,85,
+exrx_waist_lever_plate_loaded_power_twist,Lever (plate loaded) Power Twist,Core,Accessory,Lever (plate loaded),Lever / Machine|Weight Plates,Obliques,false,85,
+exrx_waist_lever_plate_loaded_seated_leg_raise_crunch,Lever (plate loaded) Seated Leg Raise Crunch,Core,Accessory,Lever (plate loaded),Lever / Machine|Weight Plates,Rectus Abdominis|Obliques,false,85,
+exrx_waist_lever_plate_loaded_seated_side_leg_raise_crunch,Lever (plate loaded) Seated Side Leg Raise Crunch,Core,Accessory,Lever (plate loaded),Lever / Machine|Weight Plates,Obliques,false,85,
+exrx_waist_lever_plate_loaded_seated_twisting_leg_raise_crunch,Lever (plate loaded) Seated Twisting Leg Raise Crunch,Core,Accessory,Lever (plate loaded),Lever / Machine|Weight Plates,Obliques,false,85,
+exrx_waist_lever_plate_loaded_stiff_leg_deadlift,Lever (plate loaded) Stiff-leg Deadlift,Core,Compound,Lever (plate loaded),Lever / Machine|Weight Plates,Erector Spinae|Gluteus Maximus|Hamstrings,false,225,
+exrx_waist_lever_selectorized_back_extension,Lever (selectorized) Back Extension,Core,Accessory,Lever (selectorized),Lever / Machine,Erector Spinae,false,135,
+exrx_waist_lever_selectorized_back_extension_on_older_machine,Lever (selectorized) Back Extension (on older machine),Core,Accessory,Lever (selectorized),Lever / Machine,Erector Spinae,false,135,
+exrx_waist_lever_selectorized_kneeling_twist,Lever (selectorized) Kneeling Twist,Core,Accessory,Lever (selectorized),Lever / Machine,Obliques,false,90,
+exrx_waist_lever_selectorized_seated_crunch_arm_bar,Lever (selectorized) Seated Crunch (Arm Bar),Core,Accessory,Lever (selectorized),Lever / Machine,Rectus Abdominis|Obliques,false,90,
+exrx_waist_lever_selectorized_seated_crunch_arm_pad,Lever (selectorized) Seated Crunch (Arm Pad),Core,Accessory,Lever (selectorized),Lever / Machine,Rectus Abdominis|Obliques,false,90,
+exrx_waist_lever_selectorized_seated_crunch_chest_pad,Lever (selectorized) Seated Crunch (Chest Pad),Core,Accessory,Lever (selectorized),Lever / Machine,Rectus Abdominis|Obliques,false,90,
+exrx_waist_lever_selectorized_seated_twist,Lever (selectorized) Seated Twist,Core,Accessory,Lever (selectorized),Lever / Machine,Obliques,false,90,
+exrx_waist_lever_selectorized_seated_twist_gripless,Lever (selectorized) Seated Twist (gripless),Core,Accessory,Lever (selectorized),Lever / Machine,Obliques,false,90,
+exrx_waist_lever_selectorized_seated_twist_lower_body,Lever (selectorized) Seated Twist (lower body),Core,Accessory,Lever (selectorized),Lever / Machine,Obliques,false,90,
+lever_lying_crunch,Lever Lying Crunch,Core,Accessory,Lever / Machine,Lever / Machine,Rectus Abdominis|Obliques,false,80,lever_seated_crunch
+lever_back_extension,Lever Seated Back Extension,Core,Accessory,Lever / Machine,Lever / Machine,Erector Spinae,false,135,back_extension
+lever_seated_crunch,Lever Seated Crunch,Core,Accessory,Lever / Machine,Lever / Machine,Rectus Abdominis|Obliques,false,90,cable_kneeling_crunch
+lever_seated_leg_raise_crunch,Lever Seated Leg-Raise Crunch,Core,Accessory,Lever / Machine,Lever / Machine,Rectus Abdominis|Hip Flexors,false,85,lever_seated_crunch
+lever_seated_twist,Lever Seated Twist (Rotary Torso),Core,Accessory,Lever / Machine,Lever / Machine,Obliques,false,95,cable_seated_twist
+exrx_waist_stretch_lying_prone_abdominal_stretch,Lying (Prone) Abdominal Stretch,Core,Accessory,Stretch,,Rectus Abdominis,false,25,
+exrx_waist_stretch_lying_crossover_stretch,Lying Crossover Stretch,Core,Accessory,Stretch,,Obliques,false,25,
+plank,Plank,Core,Compound,Bodyweight,,Rectus Abdominis|Transverse Abdominis|Obliques|Erector Spinae,false,60,weighted_plank|hollow_holds
+exrx_waist_plyometric_broomstick_twist,Plyometric Broomstick Twist,Core,Accessory,Plyometric,,Obliques,false,45,
+exrx_waist_plyometric_medicine_ball_seated_twist_with_partner,Plyometric Medicine Ball Seated Twist (with partner),Core,Accessory,Plyometric,,Obliques,false,45,
+exrx_waist_stretch_pretzel_stretch,Pretzel Stretch,Core,Accessory,Stretch,,Obliques,false,25,
+reverse_hyperextension,Reverse Hyperextension,Core,Accessory,Bodyweight / Lever,,Erector Spinae|Gluteus Maximus|Hamstrings,false,95,back_extension
+horizontal_back_extension,Roman Chair Horizontal Back Extension,Core,Accessory,Bodyweight / Plate,,Erector Spinae|Gluteus Maximus|Hamstrings,false,65,back_extension
+russian_twist,Seated Russian Twist,Core,Accessory,Bodyweight / Dumbbell,Dumbbell,Obliques|Rectus Abdominis,false,45,bicycle_crunch|side_plank
+exrx_waist_sled_leg_hip_raise_ab_coaster,Sled Leg Hip Raise (Ab Coaster),Core,Accessory,Sled,Lever / Machine,Rectus Abdominis|Hip Flexors,false,75,
+exrx_waist_sled_side_leg_hip_raise_ab_coaster,Sled Side Leg Hip Raise (Ab Coaster),Core,Accessory,Sled,Lever / Machine,Obliques|Hip Flexors,false,70,
+exrx_waist_smith_bent_knee_good_morning,Smith Bent Knee Good-morning,Core,Compound,Smith,Lever / Machine,Erector Spinae|Gluteus Maximus|Hamstrings,false,185,
+exrx_waist_smith_deadlift,Smith Deadlift,Core,Compound,Smith,Lever / Machine,Erector Spinae|Gluteus Maximus|Hamstrings,false,185,
+exrx_waist_smith_stiff_leg_deadlift,Smith Stiff-leg Deadlift,Core,Compound,Smith,Lever / Machine,Erector Spinae|Gluteus Maximus|Hamstrings,false,185,
+exrx_waist_stretch_standing_abdominal_stretch,Standing Abdominal Stretch,Core,Accessory,Stretch,,Rectus Abdominis,false,25,
+exrx_waist_suspended_jack_knife,Suspended Jack-knife,Core,Accessory,Suspended,Pull-Up Bar,Rectus Abdominis|Obliques,false,55,
+exrx_waist_suspended_pull_through,Suspended Pull Through,Core,Accessory,Suspended,Pull-Up Bar,Rectus Abdominis|Obliques,false,55,
+exrx_waist_suspended_side_bend,Suspended Side Bend,Core,Accessory,Suspended,Pull-Up Bar,Obliques|Rectus Abdominis,false,55,
+exrx_waist_suspended_twisting_jack_knife,Suspended Twisting Jack-knife,Core,Accessory,Suspended,Pull-Up Bar,Obliques|Rectus Abdominis,false,55,
+exrx_waist_weighted_crunch,Weighted Crunch,Core,Accessory,Weighted,Weight Plates,Rectus Abdominis|Obliques,false,60,
+exrx_waist_weighted_crunch_arms_crossed,Weighted Crunch (arms crossed),Core,Accessory,Weighted,Weight Plates,Rectus Abdominis|Obliques,false,60,
+exrx_waist_weighted_crunch_on_ball,Weighted Crunch (on ball),Core,Accessory,Weighted,Weight Plates,Rectus Abdominis|Obliques,false,60,
+incline_crunch,Weighted Decline / Incline Bench Crunch,Core,Accessory,Bodyweight / Plate,Flat / Incline Bench,Rectus Abdominis|Obliques,false,55,ab_crunch
+incline_sit_up,Weighted Decline Bench Sit-Up,Core,Compound,Bodyweight / Plate,Flat / Incline Bench,Rectus Abdominis|Hip Flexors|Obliques,false,65,sit_up
+incline_twisting_sit_up,Weighted Decline Twisting Sit-Up,Core,Accessory,Bodyweight / Plate,Flat / Incline Bench,Obliques|Rectus Abdominis|Hip Flexors,false,60,incline_sit_up
+exrx_waist_weighted_hyperextension,Weighted Hyperextension,Core,Accessory,Weighted,Weight Plates,Erector Spinae|Gluteus Maximus,false,85,
+exrx_waist_weighted_hyperextension_45deg,Weighted Hyperextension (45°),Core,Accessory,Weighted,Weight Plates,Erector Spinae|Gluteus Maximus,false,85,
+exrx_waist_weighted_incline_crunch,Weighted Incline Crunch,Core,Accessory,Weighted,Weight Plates,Rectus Abdominis|Obliques,false,60,
+exrx_waist_weighted_incline_crunch_arms_crossed,Weighted Incline Crunch (arms crossed),Core,Accessory,Weighted,Weight Plates,Rectus Abdominis|Obliques,false,60,
+exrx_waist_weighted_incline_sit_up,Weighted Incline Sit-up,Core,Accessory,Weighted,Weight Plates,Rectus Abdominis|Obliques,false,60,
+exrx_waist_weighted_incline_sit_up_arms_crossed,Weighted Incline Sit-up (arms crossed),Core,Accessory,Weighted,Weight Plates,Rectus Abdominis|Obliques,false,60,
+exrx_waist_weighted_incline_twisting_crunch,Weighted Incline Twisting Crunch,Core,Accessory,Weighted,Weight Plates,Obliques|Rectus Abdominis,false,60,
+exrx_waist_weighted_incline_twisting_sit_up,Weighted Incline Twisting Sit-up,Core,Accessory,Weighted,Weight Plates,Obliques|Rectus Abdominis,false,60,
+exrx_waist_weighted_incline_twisting_sit_up_arms_crossed,Weighted Incline Twisting Sit-up (arms crossed),Core,Accessory,Weighted,Weight Plates,Obliques|Rectus Abdominis,false,60,
+exrx_waist_weighted_side_crunch,Weighted Side Crunch,Core,Accessory,Weighted,Weight Plates,Obliques|Rectus Abdominis,false,60,
+exrx_waist_weighted_sit_up,Weighted Sit-up,Core,Accessory,Weighted,Weight Plates,Rectus Abdominis|Obliques,false,60,
+exrx_waist_weighted_sit_up_arms_crossed,Weighted Sit-up (arms crossed),Core,Accessory,Weighted,Weight Plates,Rectus Abdominis|Obliques,false,60,
+exrx_waist_weighted_twisting_crunch,Weighted Twisting Crunch,Core,Accessory,Weighted,Weight Plates,Obliques|Rectus Abdominis,false,60,
+exrx_waist_weighted_twisting_crunch_on_ball,Weighted Twisting Crunch (on ball),Core,Accessory,Weighted,Weight Plates,Obliques|Rectus Abdominis,false,60,
+exrx_waist_weighted_twisting_sit_up,Weighted Twisting Sit-up,Core,Accessory,Weighted,Weight Plates,Obliques|Rectus Abdominis,false,60,
+exrx_waist_weighted_twisting_sit_up_arms_crossed,Weighted Twisting Sit-up (arms crossed),Core,Accessory,Weighted,Weight Plates,Obliques|Rectus Abdominis,false,60,
 band_hip_abduction,Band Standing / Seated Hip Abduction,Hips,Accessory,Band,Resistance Bands,Hip Abductors|Gluteus Maximus,false,60,glute_bridge
 glute_bridge,Barbell / Bodyweight Glute Bridge,Hips,Accessory,Barbell / Bodyweight,,Gluteus Maximus|Hamstrings,false,225,barbell_hip_thrust
 exrx_hips_barbell_bent_knee_good_morning,Barbell Bent Knee Good-morning,Hips,Compound,Barbell,Barbell,Gluteus Maximus|Hamstrings|Quadriceps,false,225,
