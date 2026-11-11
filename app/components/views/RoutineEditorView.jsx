@@ -51,6 +51,8 @@ export function RoutineEditorView({
   setCurrentView,
   setRoutineSelectReturnView,
   isEmbeddedHistorySession = false,
+  // History editor: { dirty, onSave, onDiscard }. Edits stay a draft until SAVE (same save pop-up as FINISH)
+  historyEdit = null,
   // Synced session: { active: 'me' | 'partner', onChange, partnerName } shows the YOU / @FRIEND tabs
   sessionTabs = null
 }) {
@@ -122,6 +124,66 @@ export function RoutineEditorView({
             ...SHARED_GROUP_OUTER
           }}
         >
+          {/* History editor: SAVE writes the edits to History (save pop-up), DISCARD drops them */}
+          {isEmbeddedHistorySession && historyEdit && (
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: historyEdit.dirty ? 'minmax(0, 1fr) 86px 86px' : 'minmax(0, 1fr) 86px',
+                alignItems: 'stretch'
+              }}
+            >
+              <div
+                style={{
+                  ...SHARED_CELL_BORDER,
+                  backgroundColor: '#141416',
+                  padding: '0 12px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  fontSize: '12px',
+                  fontWeight: 800,
+                  color: historyEdit.dirty ? 'var(--dp-color-accent)' : '#A0A0A0',
+                  minHeight: '44px'
+                }}
+              >
+                {historyEdit.dirty ? 'UNSAVED CHANGES' : 'EDITS SAVE WHEN YOU TAP SAVE'}
+              </div>
+              {historyEdit.dirty && (
+                <button
+                  type="button"
+                  className="kinetic-btn"
+                  onClick={historyEdit.onDiscard}
+                  style={{
+                    ...SHARED_CELL_BORDER,
+                    backgroundColor: '#141416',
+                    color: '#FF3B30',
+                    fontSize: '12px',
+                    fontWeight: 800,
+                    cursor: 'pointer'
+                  }}
+                >
+                  DISCARD
+                </button>
+              )}
+              <button
+                type="button"
+                className="kinetic-btn"
+                disabled={!historyEdit.dirty}
+                onClick={historyEdit.onSave}
+                style={{
+                  ...SHARED_CELL_BORDER,
+                  backgroundColor: historyEdit.dirty ? '#30D158' : '#242428',
+                  color: historyEdit.dirty ? '#101010' : '#8E8E93',
+                  fontSize: '12px',
+                  fontWeight: 800,
+                  cursor: historyEdit.dirty ? 'pointer' : 'default'
+                }}
+              >
+                SAVE
+              </button>
+            </div>
+          )}
+
           {/* Session Name (History inline editor only) */}
           {isEmbeddedHistorySession && (
           <div
@@ -299,8 +361,7 @@ export function RoutineEditorView({
                     selectedGymId={selectedGymId}
                     gyms={gyms}
                     history={history}
-                    oneRepMaxes={oneRepMaxes}
-                    currentIncrementLbs={currentIncrementLbs}
+                    workoutId={currentEditorWorkout.id}
                     prFlags={prFlags}
                     onHeaderChange={changes => handleUpdateSlotCategoryOrExercise(slot.id, changes)}
                     onRemove={() =>

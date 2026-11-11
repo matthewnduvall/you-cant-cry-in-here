@@ -74,6 +74,28 @@ export function OneRepMaxCalculatorModal({
   };
 
   const handleHeaderChange = changes => {
+    // SETS / REPS boxes: add (copies of the last set) or remove sets at the bottom; give every set those reps
+    if (changes.setCount !== undefined || changes.targetReps !== undefined) {
+      setSlot(prev => {
+        let sets = [...(prev.sets || [])];
+        if (changes.setCount !== undefined) {
+          const n = Math.max(1, Math.min(20, Number(changes.setCount) || 1));
+          const ref = sets[sets.length - 1] || { type: 'Working', reps: 5, weight: 135 };
+          while (sets.length < n) {
+            sets.push({ ...ref, id: `calc_set_${Date.now()}_${sets.length}_${Math.random().toString(36).slice(2, 6)}`, completed: false });
+          }
+          sets = sets.slice(0, n);
+        }
+        const next = { ...prev };
+        if (changes.targetReps !== undefined) {
+          next.targetReps = changes.targetReps;
+          sets = sets.map(st => (st.type === '1 Rep Max' ? st : { ...st, reps: changes.targetReps }));
+        }
+        sets = renumber(sets);
+        return { ...next, sets, supersetSetsByExercise: [sets] };
+      });
+      return;
+    }
     setSlot(prev => {
       // Equipment filter only (the exercise already allows it): keep the sets as they are
       if (Object.keys(changes).every(key => key === 'equipmentFilter')) return { ...prev, ...changes };
@@ -303,9 +325,6 @@ export function OneRepMaxCalculatorModal({
           headerTitle="Exercise 1RM Calculator"
           categories={CALC_CATEGORIES}
           history={history}
-          oneRepMaxes={oneRepMaxes}
-          currentIncrementLbs={currentIncrementLbs}
-          getBase1RM={base1RMFor}
           onHeaderChange={handleHeaderChange}
           onEditSetValue={({ mode, set, exercise, currentValue }) =>
             setSetValueTarget?.({

@@ -109,7 +109,9 @@ export function SocialView({
       setLastSearchedQuery('');
       setInviteEmailFeedback({
         ok: true,
-        message: `INVITE SENT TO ${cleanEmail.toUpperCase()}!`
+        message: data?.warning
+          ? `INVITE SENT TO ${cleanEmail.toUpperCase()}. ${String(data.warning).toUpperCase()}`
+          : `INVITE SENT TO ${cleanEmail.toUpperCase()}!`
       });
     } catch {
       setInviteEmailFeedback({

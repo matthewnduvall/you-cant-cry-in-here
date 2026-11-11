@@ -133,20 +133,17 @@ export const parseYMDToISO = ymdInput => {
   return Number.isNaN(dt.getTime()) ? new Date().toISOString() : dt.toISOString();
 };
 
-export const getDefaultSessionName = () => `${formatTodayYMD()} - Session`;
-export const getDefaultAutoSessionName = () => `${formatTodayYMD()} - Auto Session`;
+// Session names don't carry the date: the date is the session's startedAt, shown in its own DATE box
+export const getDefaultSessionName = () => 'Session';
+export const getDefaultAutoSessionName = () => 'Auto Session';
 
 export const formatTodayShortDate = () => formatTodayYMD();
 
+// A loaded routine's session name: the routine's name (a leading "YYYY/MM/DD - " from older saves is dropped)
 export const formatTitleWithDate = baseTitle => {
-  if (!baseTitle || baseTitle.trim() === 'SESSION' || baseTitle.trim() === 'Custom Kinetic Routine') {
-    return getDefaultSessionName();
-  }
-  const ymd = formatTodayYMD();
-  const dateStr = formatTodayShortDate();
-  const clean = baseTitle.trim();
-  if (clean.includes(ymd) || clean.toUpperCase().includes(dateStr.toUpperCase())) return clean;
-  return `${ymd} - ${clean}`;
+  const clean = String(baseTitle || '').trim().replace(/^\d{4}\/\d{2}\/\d{2}\s*-\s*/, '');
+  if (!clean || clean === 'SESSION' || clean === 'Custom Kinetic Routine') return getDefaultSessionName();
+  return clean;
 };
 
 export const isExerciseCompatibleWithGymSelection = (ex, gymSelectionId, customGyms = []) => {

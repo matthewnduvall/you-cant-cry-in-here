@@ -32,9 +32,10 @@ import {
 import {
   SCHEME_OPTIONS,
   normalizeSetType,
-  calculateLastEquivalentWeightForSet,
   getBestHistory1RMInfo,
-  getHistoricalCalculated1RM,
+  getLastLoggedSetsForExercise,
+  PYRAMID_SCHEMES,
+  getSchemeUniformReps,
   getSetTimerMMSS,
   getLastLoggedTimerDisplay,
   getSupersetSchemes
@@ -42,11 +43,6 @@ import {
 import { DeleteButton, DragNumberBadge } from './Controls';
 import { usePointerReorder } from '../hooks/usePointerReorder';
 
-// Header grid: at phone width ≈ SEARCH 95 / TYPE 102 / MUSCLE 108 px on row 1 and
-// SCHEME 80 / EQUIPMENT 100 / EXERCISE 125 px on row 2, so the usual labels fit without being cut off
-const HEADER_GRID_COLUMNS = '80px minmax(0, 15fr) minmax(0, 85fr) minmax(0, 17fr) minmax(0, 108fr)';
-// Long scheme names shortened to fit the narrow SCHEME box
-const SCHEME_SHORT_LABELS = { 'Pyramid 1RM': 'PYR 1RM', 'Reverse Pyramid': 'REV PYR' };
 
 export const headerSelectStyle = {
   width: '100%',
@@ -60,22 +56,6 @@ export const headerSelectStyle = {
   backgroundColor: '#26262B',
   color: '#FFFFFF',
   ...SHARED_CELL_BORDER,
-  textTransform: 'uppercase',
-  cursor: 'pointer'
-};
-
-const exerciseSelectStyle = {
-  flex: 1,
-  width: '100%',
-  minWidth: 0,
-  height: '100%',
-  boxSizing: 'border-box',
-  backgroundColor: '#26262B',
-  color: '#FFFFFF',
-  border: 'none',
-  padding: '0 8px',
-  fontSize: '12px',
-  fontWeight: 800,
   textTransform: 'uppercase',
   cursor: 'pointer'
 };
@@ -203,8 +183,8 @@ function PrBadge({ marginRight = '6px' }) {
  * - categories: category options (default all; the 1RM calculator excludes Superset)
  * - The pickers, equipment filter and search always cover the whole exercise library; the athlete's
  *   the Equipment page list only drives the default picks made by the hosts (see useWorkoutMutations).
- * - history, oneRepMaxes: used for LAST values and the 1RM box (PR) in the weight pop-up
- * - getBase1RM(exId): optional override of the 1RM used for LAST when a set has no lastWeight
+ * - history: LAST in the weight pop-up (that set's weight in the last logged session of the exercise, 0 if never
+ *   logged) and the 1RM box (PR). workoutId: the workout being edited, left out of LAST
  * - prFlags: [bool, bool] shows PR badges next to the exercise picker(s)
  * - onHeaderChange(changes): { category | muscleGroupFilter | scheme | exerciseId }. Supersets add
  *   supersetHalf (0 = A, 1 = B) to say which exercise changed. A half's type menu reads SUPERSET; picking another
@@ -231,8 +211,7 @@ export function SlotEditor({
   dragHandleProps,
   categories = SLOT_CATEGORIES,
   history = [],
-  oneRepMaxes = {},
-  getBase1RM,
+  workoutId = null,
   prFlags = [false, false],
   onHeaderChange,
   onRemove,
@@ -353,9 +332,31 @@ export function SlotEditor({
 
   const searchResults = search?.query ? searchExercises(search.query) : [];
 
-  const renderSearchCell = half => {
-    const label = isSuperset ? (half === 0 ? 'A · SEARCH' : 'B · SEARCH') : 'SEARCH';
-    const ariaLabel = isSuperset ? `Search exercises (${half === 0 ? 'A' : 'B'})` : 'Search exercises';
+  // The exercises the filters (type, muscle group, equipment) allow for one half, with their short names
+  const filteredExercises = half => {
+    const { pool, equipment } = pickerState(half);
+    const list = pool.filter(ex => equipmentOptionsOf(ex).includes(equipment));
+    const shortNames = getUniqueShortExerciseNames(list, equipment);
+    return { list, nameOf: ex => shortNames[ex.id] || stripEquipmentFromExerciseName(ex.name) };
+  };
+
+  // Row 1: the exercise's name, which is also the search box. Tapping it lists the exercises the filters allow;
+  // typing searches the whole library.
+  const renderTitleCell = half => {
+    const tag = isSuperset ? (half === 0 ? 'A' : 'B') : '';
+    const ariaLabel = isSuperset ? `Exercise ${tag}: tap to search or change` : 'Exercise: tap to search or change';
+    const { exObj, equipment } = pickerState(half);
+    const { list, nameOf } = filteredExercises(half);
+    const title = (list.some(ex => ex.id === exObj.id) ? nameOf(exObj) : stripEquipmentFromExerciseName(exObj.name)) || exObj.name;
+    const showEquipment = equipment && equipment !== 'Bodyweight' && !isBandEquipment(equipment);
+    const cellBase = {
+      ...headerSelectStyle,
+      gridColumn: '1 / 7',
+      gridRow: 1,
+      height: '44px',
+      padding: '0 10px',
+      fontSize: '14px'
+    };
     if (search?.half !== half) {
       return (
         <button
@@ -363,29 +364,32 @@ export function SlotEditor({
           aria-label={ariaLabel}
           onClick={() => setSearch({ half, query: '' })}
           style={{
-            ...headerSelectStyle,
-            gridColumn: '1 / 3',
-            gridRow: 1,
+            ...cellBase,
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'center',
-            gap: '6px',
-            color: '#A0A0A0',
-            textAlign: 'center',
+            gap: '8px',
+            textAlign: 'left',
             whiteSpace: 'nowrap',
             overflow: 'hidden'
           }}
         >
-          <SearchGlyph />
-          {label}
+          {tag && <span style={{ color: half === 0 ? 'var(--dp-color-accent)' : '#C0C0C0', flexShrink: 0 }}>{tag}</span>}
+          <span style={{ flex: '1 1 auto', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            {title.toUpperCase()}
+            {showEquipment && <span style={{ color: '#8E8E93', fontSize: '11px' }}> · {equipment.toUpperCase()}</span>}
+          </span>
+          {prFlags[half] && <PrBadge marginRight="0" />}
+          <span style={{ color: '#A0A0A0', display: 'flex', flexShrink: 0 }}>
+            <SearchGlyph />
+          </span>
         </button>
       );
     }
     return (
       <input
         type="search"
-        aria-label={ariaLabel}
-        placeholder={label}
+        aria-label={isSuperset ? `Search exercises (${tag})` : 'Search exercises'}
+        placeholder={`SEARCH · ${title.toUpperCase()}`}
         autoFocus
         enterKeyHint="search"
         value={search.query}
@@ -393,17 +397,18 @@ export function SlotEditor({
         onBlur={() => setSearch(null)}
         onKeyDown={e => {
           if (e.key === 'Escape') setSearch(null);
-          if (e.key === 'Enter' && searchResults[0]) handleSearchPick(half, searchResults[0]);
+          const first = search.query.trim() ? searchResults[0] : list[0];
+          if (e.key === 'Enter' && first) handleSearchPick(half, first);
         }}
         style={{
-          ...headerSelectStyle,
-          gridColumn: '1 / 3',
-          gridRow: 1,
+          ...cellBase,
           cursor: 'text',
           outline: 'none',
           border: '2px solid var(--dp-color-accent)',
           textTransform: 'none',
-          fontFamily: 'inherit'
+          fontFamily: 'inherit',
+          // 16 px so iOS doesn't zoom into the field
+          fontSize: '16px'
         }}
       />
     );
@@ -413,15 +418,18 @@ export function SlotEditor({
     if (search?.half !== half) return null;
     const currentId = supIds[half];
     const hintStyle = { padding: '12px', fontSize: '11px', fontWeight: 800, color: '#A0A0A0' };
+    const typed = search.query.trim() !== '';
+    const { list, nameOf } = filteredExercises(half);
+    const results = typed ? searchResults : list;
     return (
       <div
         role="listbox"
-        aria-label="Exercise search results"
+        aria-label={typed ? 'Exercise search results' : 'Exercises matching the filters'}
         // Keep focus in the search box while a result is tapped
         onMouseDown={e => e.preventDefault()}
         style={{
           position: 'absolute',
-          top: '40px',
+          top: '44px',
           left: 0,
           right: 0,
           zIndex: 40,
@@ -432,12 +440,11 @@ export function SlotEditor({
           boxShadow: '0 12px 24px rgba(0, 0, 0, 0.6)'
         }}
       >
-        {search.query.trim() === '' ? (
-          <div style={hintStyle}>TYPE AN EXERCISE, EQUIPMENT OR MUSCLE</div>
-        ) : searchResults.length === 0 ? (
+        {!typed && <div style={{ ...hintStyle, padding: '8px 12px' }}>MATCHING YOUR FILTERS · TYPE TO SEARCH ALL</div>}
+        {results.length === 0 ? (
           <div style={hintStyle}>NO MATCHING EXERCISES</div>
         ) : (
-          searchResults.map(ex => (
+          results.map(ex => (
             <button
               key={ex.id}
               type="button"
@@ -456,7 +463,7 @@ export function SlotEditor({
               }}
             >
               <span style={{ display: 'block', fontSize: '13px', fontWeight: 800, color: '#FFFFFF', textTransform: 'uppercase' }}>
-                {stripEquipmentFromExerciseName(ex.name)}
+                {typed ? stripEquipmentFromExerciseName(ex.name) : nameOf(ex)}
               </span>
               <span
                 style={{
@@ -477,7 +484,73 @@ export function SlotEditor({
     );
   };
 
-  // Row 1: Search, Type, Muscle Group. Row 2: Scheme, Equipment, Exercise. Supersets render this twice (A, B).
+  // A SETS or REPS box in the scheme row: type a number (applied when the box loses focus, or on Enter).
+  // Pyramids (and Timer reps) read a grey NA.
+  const renderNumberCell = ({ label, value, na, column, ariaLabel, onCommit }) => (
+    <label
+      style={{
+        ...headerSelectStyle,
+        gridColumn: column,
+        gridRow: 3,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: '4px',
+        padding: '0 8px',
+        cursor: na ? 'default' : 'text'
+      }}
+    >
+      <span style={{ fontSize: '11px', fontWeight: 800, color: '#A0A0A0' }}>{label}</span>
+      {na ? (
+        <span aria-label={`${ariaLabel}: not used by this scheme`} style={{ fontSize: '14px', fontWeight: 800, color: '#6E6E73' }}>
+          NA
+        </span>
+      ) : (
+        <input
+          key={`${label}_${value}`}
+          type="text"
+          inputMode="numeric"
+          pattern="[0-9]*"
+          aria-label={ariaLabel}
+          defaultValue={value}
+          onFocus={e => e.target.select()}
+          onKeyDown={e => {
+            if (e.key === 'Enter') e.currentTarget.blur();
+            if (e.key === 'Escape') {
+              e.currentTarget.value = String(value);
+              e.currentTarget.blur();
+            }
+          }}
+          onBlur={e => {
+            const next = Math.round(Number(e.target.value));
+            if (!Number.isFinite(next) || next < 1) {
+              e.target.value = String(value);
+              return;
+            }
+            if (next !== Number(value)) onCommit(next);
+          }}
+          style={{
+            width: '44px',
+            minWidth: 0,
+            height: '100%',
+            backgroundColor: 'transparent',
+            border: 'none',
+            color: '#FFFFFF',
+            // 16 px so iOS doesn't zoom into the field
+            fontSize: '16px',
+            fontWeight: 800,
+            textAlign: 'right',
+            outline: 'none',
+            padding: 0,
+            fontFamily: 'inherit'
+          }}
+        />
+      )}
+    </label>
+  );
+
+  // Row 1: exercise name / search. Row 2: TYPE | MUSCLE GROUP | EQUIPMENT. Row 3: SCHEME | SETS | REPS.
+  // Supersets render this twice (A, B); their SETS count is for both exercises.
   const renderHeaderBlock = half => {
     const { exId, category, availMuscles, muscle, pool, equipment, scheme } = pickerState(half);
     // Every equipment type is always offered, whatever the type / muscle filters say
@@ -521,30 +594,30 @@ export function SlotEditor({
       if (nextCategory !== category && typeOptionsForPick.includes(nextCategory)) changes.category = nextCategory;
       sendHeaderChange(half, changes);
     };
-    const exercisesForEquipment = pool.filter(ex => hasEquipment(ex, equipment));
-    // Short names; where two would read the same, the dropped equipment word is added in brackets
-    const shortNames = getUniqueShortExerciseNames(exercisesForEquipment, equipment);
-    const displayName = ex => shortNames[ex.id] || stripEquipmentFromExerciseName(ex.name);
     const tag = isSuperset ? (half === 0 ? 'A ' : 'B ') : '';
     // A superset's type menus read SUPERSET; picking any other type ends the superset: this exercise stays as a
     // normal exercise of that type and the other one is removed
     const typeOptions = isSuperset ? ['Superset', ...SUPERSET_HALF_CATEGORIES] : categories;
+    // SETS / REPS: the exercise's set count and the scheme's reps (or the athlete's REPS choice)
+    const halfSets = (isSuperset ? slot.supersetSetsByExercise?.[half] : slot.sets) || [];
+    const isPyramid = PYRAMID_SCHEMES.includes(scheme);
+    const typedReps = isSuperset ? slot.supersetTargetReps?.[half] : slot.targetReps;
+    const repsValue = Number(typedReps) > 0 ? Number(typedReps) : getSchemeUniformReps(scheme);
     return (
       <div
         key={half}
         style={{
           position: 'relative',
           display: 'grid',
-          // Five shared columns sized to their content: row 1 = SEARCH | TYPE | MUSCLE, row 2 = SCHEME | EQUIPMENT | EXERCISE
-          gridTemplateColumns: HEADER_GRID_COLUMNS,
-          gridAutoRows: '40px',
+          gridTemplateColumns: 'repeat(6, minmax(0, 1fr))',
+          gridTemplateRows: '44px 40px 40px',
           gap: 0,
           minWidth: 0,
           ...(half === 1 ? { borderTop: '2px solid var(--dp-color-rule)' } : {}),
           ...(half === supIds.length - 1 ? { borderBottom: '2px solid var(--dp-color-rule)' } : {})
         }}
       >
-        {renderSearchCell(half)}
+        {renderTitleCell(half)}
 
         <select
           aria-label={`${tag}Exercise Category`.trim()}
@@ -557,7 +630,7 @@ export function SlotEditor({
             sendHeaderChange(half, { category: e.target.value });
           }}
           className="kinetic-filter-select"
-          style={{ ...headerSelectStyle, gridColumn: '3 / 5', gridRow: 1 }}
+          style={{ ...headerSelectStyle, gridColumn: '1 / 3', gridRow: 2 }}
         >
           {typeOptions.map(cat => (
             <option key={cat} value={cat}>
@@ -571,7 +644,7 @@ export function SlotEditor({
           value={muscle}
           onChange={e => sendHeaderChange(half, { muscleGroupFilter: e.target.value })}
           className="kinetic-filter-select"
-          style={{ ...headerSelectStyle, gridColumn: '5 / 6', gridRow: 1 }}
+          style={{ ...headerSelectStyle, gridColumn: '3 / 5', gridRow: 2 }}
         >
           {availMuscles.map(mg => (
             <option key={mg} value={mg}>
@@ -585,7 +658,7 @@ export function SlotEditor({
           value={equipment}
           onChange={e => handleEquipmentChange(e.target.value)}
           className="kinetic-filter-select"
-          style={{ ...headerSelectStyle, gridColumn: '2 / 4', gridRow: 2 }}
+          style={{ ...headerSelectStyle, gridColumn: '5 / 7', gridRow: 2 }}
         >
           {equipmentOptions.map(eq => (
             <option key={eq} value={eq}>
@@ -594,49 +667,36 @@ export function SlotEditor({
           ))}
         </select>
 
-        <div
-          style={{
-            gridColumn: '4 / 6',
-            gridRow: 2,
-            width: '100%',
-            minWidth: 0,
-            height: '40px',
-            boxSizing: 'border-box',
-            backgroundColor: '#26262B',
-            ...SHARED_CELL_BORDER,
-            display: 'flex',
-            alignItems: 'center'
-          }}
-        >
-          <select
-            className="kinetic-filter-select"
-            aria-label={isSuperset ? `Superset Exercise ${half + 1}` : 'Select Exercise'}
-            value={exId}
-            onChange={e => sendHeaderChange(half, { exerciseId: e.target.value })}
-            style={exerciseSelectStyle}
-          >
-            {exercisesForEquipment.map(ex => (
-              <option key={ex.id} value={ex.id}>
-                {displayName(ex).toUpperCase()}
-              </option>
-            ))}
-          </select>
-          {prFlags[half] && <PrBadge marginRight="6px" />}
-        </div>
-
         <select
           aria-label={`${tag}Set and Rep Scheme`.trim()}
           value={scheme}
           onChange={e => sendHeaderChange(half, { scheme: e.target.value })}
           className="kinetic-filter-select"
-          style={{ ...headerSelectStyle, gridColumn: '1 / 2', gridRow: 2 }}
+          style={{ ...headerSelectStyle, gridColumn: '1 / 3', gridRow: 3 }}
         >
           {SCHEME_OPTIONS.map(scm => (
             <option key={scm} value={scm}>
-              {SCHEME_SHORT_LABELS[scm] || scm.toUpperCase()}
+              {scm.toUpperCase()}
             </option>
           ))}
         </select>
+
+        {renderNumberCell({
+          label: 'SETS',
+          value: halfSets.length,
+          na: isPyramid,
+          column: '3 / 5',
+          ariaLabel: isSuperset ? 'Sets (both exercises)' : 'Number of sets',
+          onCommit: n => sendHeaderChange(half, { setCount: n })
+        })}
+        {renderNumberCell({
+          label: 'REPS',
+          value: repsValue || '',
+          na: isPyramid || scheme === 'Timer' || !repsValue,
+          column: '5 / 7',
+          ariaLabel: `${tag}Reps per set`.trim(),
+          onCommit: n => sendHeaderChange(half, { targetReps: n })
+        })}
 
         {renderSearchResults(half)}
       </div>
@@ -702,7 +762,7 @@ export function SlotEditor({
     );
   };
 
-  const renderSetRow = ({ exIdx, exId, set: st, setIdx, total }) => {
+  const renderSetRow = ({ exIdx, exId, set: st, setIdx }) => {
     const rowScheme = schemes[exIdx] || schemes[0];
     const isTimerScheme = rowScheme === 'Timer';
     // Band exercises are loaded by band colour (RED / PURPLE) instead of weight
@@ -710,11 +770,13 @@ export function SlotEditor({
     const bandColor = getSetBandColor(st);
     const exObj = EXERCISE_MAP[exId] || EXERCISE_LIBRARY[0];
     const curType = normalizeSetType(st.type);
-    const base1RM = getBase1RM ? getBase1RM(exId) : getHistoricalCalculated1RM(exId, history, oneRepMaxes);
-    const lastW =
-      st.lastWeight !== undefined
-        ? st.lastWeight
-        : calculateLastEquivalentWeightForSet(base1RM, st, total, normCat, setIdx, rowScheme);
+    // LAST = what this set weighed in the last logged session of the exercise (completed sets when there were
+    // any; the same set number, else that session's last set). Never logged = 0.
+    const lastSessionSets = getLastLoggedSetsForExercise(exId, history, workoutId);
+    const lastDoneSets = lastSessionSets.filter(s => s && s.completed && Number(s.weight) > 0);
+    const lastPool = lastDoneSets.length > 0 ? lastDoneSets : lastSessionSets;
+    const lastSet = lastPool[Math.min(setIdx, lastPool.length - 1)];
+    const lastW = lastSet ? Math.max(0, Number(lastSet.weight) || 0) : 0;
     const timerMMSS = isTimerScheme ? st.timerStr ?? getSetTimerMMSS(st, true) : '';
     const lastTimerDisplay = isTimerScheme ? getLastLoggedTimerDisplay(exId, st, setIdx, lastW, history) : '';
     // Logged PR for the weight pop-up's 1RM box (and the History workout it came from)
@@ -765,7 +827,7 @@ export function SlotEditor({
                 lineHeight: 1.15
               }}
             >
-              {exIdx === 0 ? 'A: ' : 'B: '}
+              {`SUPERSET ${setIdx + 1} · ${exIdx === 0 ? 'A' : 'B'}: `}
               {stripEquipmentFromExerciseName(exObj.name)}
             </div>
           )}

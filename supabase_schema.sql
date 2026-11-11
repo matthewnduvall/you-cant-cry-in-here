@@ -412,6 +412,36 @@ CREATE POLICY "Inviters can view their invites"
   ON public.friend_invites FOR SELECT
   USING (auth.uid() = inviter_user_id);
 
+-- Records an invite from the signed-in athlete (always as auth.uid()) and returns its id for the join link.
+-- /api/invite uses this first, so sending an invite doesn't depend on the policies above.
+CREATE OR REPLACE FUNCTION public.record_friend_invite(target_email TEXT, inviter_name TEXT DEFAULT NULL)
+RETURNS UUID
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  me UUID := auth.uid();
+  my_email TEXT;
+  clean_target TEXT := lower(trim(coalesce(target_email, '')));
+  new_id UUID;
+BEGIN
+  IF me IS NULL THEN
+    RAISE EXCEPTION 'Sign in to send invites';
+  END IF;
+  IF clean_target !~ '^[^\s@]+@[^\s@]+\.[^\s@]+$' THEN
+    RAISE EXCEPTION 'Invalid email address';
+  END IF;
+  SELECT lower(email) INTO my_email FROM auth.users WHERE id = me;
+  INSERT INTO public.friend_invites (inviter_user_id, inviter_username, inviter_email, invited_email, status)
+  VALUES (me, nullif(trim(coalesce(inviter_name, '')), ''), my_email, clean_target, 'pending')
+  RETURNING id INTO new_id;
+  RETURN new_id;
+END;
+$$;
+REVOKE ALL ON FUNCTION public.record_friend_invite(TEXT, TEXT) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.record_friend_invite(TEXT, TEXT) TO authenticated;
+
 -- The default friend every new account starts with: @matt. Looked up by the sign-in account's email
 -- (auth.users, always set), falling back to the username, so a profile row without an email can't
 -- silently skip it.

@@ -153,6 +153,8 @@ export default function App() {
   const [historySessionsExpanded, setHistorySessionsExpanded] = useState(true);
   const [historyPRsExpanded, setHistoryPRsExpanded] = useState(true);
   const [expandedHistoryWorkoutId, setExpandedHistoryWorkoutId] = useState(null);
+  // Unsaved edits to the open History workout (saved with SAVE, dropped with DISCARD)
+  const [historyEditDraft, setHistoryEditDraft] = useState(null);
   // An open History workout (PR link, History edits) always shows the HISTORY tab
   const progressTab = expandedHistoryWorkoutId ? 'history' : progressTabChoice;
   const [customPrExerciseIds, setCustomPrExerciseIds] = useState([]);
@@ -437,8 +439,9 @@ export default function App() {
     setIsCurrentEditorShared,
     expandedHistoryWorkoutId,
     setExpandedHistoryWorkoutId,
-    confirmedHistoryEditWorkoutId,
     setConfirmedHistoryEditWorkoutId,
+    historyEditDraft,
+    setHistoryEditDraft,
     historicalEditConfirmTarget,
     setHistoricalEditConfirmTarget,
     deleteConfirmTarget,
@@ -499,6 +502,8 @@ export default function App() {
     calcBarLabel,
     calcPlatesPerSide,
     setCalcPlatesPerSide,
+    calcExtraLbs,
+    clearCalcExtra,
     setCalcTotalFromInput,
     prRecordDate,
     setPrRecordDate,
@@ -683,7 +688,13 @@ export default function App() {
   const buildHistoryWorkoutEditorProps = historyWorkout => ({
     colors,
     currentView: 'history',
-    currentEditorWorkout: historyWorkout,
+    // The open workout's unsaved edits, if any
+    currentEditorWorkout: historyEditDraft?.id === historyWorkout?.id ? historyEditDraft : historyWorkout,
+    historyEdit: {
+      dirty: Boolean(historyWorkout && historyEditDraft?.id === historyWorkout.id),
+      onSave: handleSaveCurrentEditor,
+      onDiscard: () => setHistoryEditDraft(null)
+    },
     routineSelectReturnView,
     setRoutineSelectReturnView,
     setCurrentView,
@@ -929,20 +940,6 @@ export default function App() {
                 setAvailableEquipment,
                 setGymDraft
               }}
-              routinesProps={{
-                user,
-                savedRoutines,
-                sharedRoutines,
-                friendsList,
-                selectedGymId,
-                setSelectedGymId,
-                gyms,
-                routineSelectReturnView: null,
-                handleOpenPreviewRoutine,
-                handleDirectLoadRoutine,
-                handleCancelRoutineSelection,
-                setDeleteConfirmTarget
-              }}
               routinePreferencesProps={{ routinePreferences, setRoutinePreferences }}
               setPreferencesProps={{ setPreferences, setSetPreferences }}
             />
@@ -1104,6 +1101,8 @@ export default function App() {
           calcBarLabel={calcBarLabel}
           calcPlatesPerSide={calcPlatesPerSide}
           setCalcPlatesPerSide={setCalcPlatesPerSide}
+          calcExtraLbs={calcExtraLbs}
+          clearCalcExtra={clearCalcExtra}
           setCalcTotalFromInput={setCalcTotalFromInput}
           prRecordDate={prRecordDate}
           setPrRecordDate={setPrRecordDate}

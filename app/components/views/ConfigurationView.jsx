@@ -3,7 +3,8 @@
 // ============================================================================
 // VIEW: 01 / CONFIGURATION (view id 'configuration'; replaces Onboarding and the Routines, Equipment and
 // Goals menu pages). One tab per topic, each showing the same content as the page it replaced:
-// BODY METRICS · GOALS (GoalsView) · EQUIPMENT (GymsView) · ROUTINES (ROUTINE PREFERENCES + RoutinesView).
+// BODY METRICS · GOALS (GoalsView) · EQUIPMENT (GymsView) · ROUTINES (ROUTINE + EXERCISE SET PREFERENCES).
+// Routines themselves (default, saved, shared, friends') are only reached from a blank session's LOAD ROUTINE.
 // New athletes land here after signing up; NEXT → steps through the tabs and DONE → goes Home.
 // ============================================================================
 
@@ -12,7 +13,6 @@ import { TabBar, Button } from '../Controls';
 import { BodyMetricsSection, RoutinePreferencesSection, SetPreferencesSection } from './SettingsView';
 import { GoalsView } from './GoalsView';
 import { GymsView } from './GymsView';
-import { RoutinesView } from './RoutinesView';
 
 export const CONFIGURATION_TABS = [
   { id: 'body', label: 'BODY METRICS' },
@@ -29,7 +29,6 @@ export function ConfigurationView({
   bodyMetricsProps,
   goalsProps,
   equipmentProps,
-  routinesProps,
   routinePreferencesProps,
   setPreferencesProps
 }) {
@@ -56,13 +55,10 @@ export function ConfigurationView({
         <GymsView colors={colors} setCurrentView={setCurrentView} {...equipmentProps} />
       )}
       {activeTab === 'routines' && (
-        <>
-          <div style={{ paddingTop: '16px' }}>
-            <RoutinePreferencesSection colors={colors} {...routinePreferencesProps} />
-            <SetPreferencesSection colors={colors} {...setPreferencesProps} />
-          </div>
-          <RoutinesView colors={colors} showCancel={false} {...routinesProps} />
-        </>
+        <div style={{ paddingTop: '16px' }}>
+          <RoutinePreferencesSection colors={colors} {...routinePreferencesProps} />
+          <SetPreferencesSection colors={colors} {...setPreferencesProps} />
+        </div>
       )}
 
       <div style={{ padding: '0 var(--dp-spacing-gutter)' }}>
