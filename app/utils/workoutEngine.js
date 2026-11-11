@@ -637,6 +637,40 @@ export const applyGoalProgressToSets = (
   });
 };
 
+// Pyramid schemes vary the reps set by set, so the editor's SETS / REPS boxes read NA for them (and for Timer reps)
+export const PYRAMID_SCHEMES = ['Pyramid', 'Pyramid 1RM', 'Reverse Pyramid'];
+const PYRAMID_REPS = { Pyramid: [8, 5, 3, 2, 1], 'Pyramid 1RM': [8, 5, 3, 2, 1], 'Reverse Pyramid': [8, 4, 6, 8, 10] };
+// A superset has this many sets (rounds); each round is one set of exercise A and one of exercise B
+export const SUPERSET_SET_COUNT = 3;
+
+/** Reps a uniform scheme asks for ("5x8" → 8); null for pyramids and Timer. */
+export const getSchemeUniformReps = scheme => {
+  const match = /^(\d+)x(\d+)/.exec(String(scheme || ''));
+  return match ? Number(match[2]) : null;
+};
+
+/**
+ * Target reps of set `idx` (of `total`) when RECALCULATE resets unlocked reps: the slot's own REPS box
+ * (`targetReps`) on uniform schemes, else the scheme's reps; pyramids follow their pattern (stretched to the count).
+ * null = leave the reps alone (Timer).
+ */
+export const getTargetRepsForSet = (scheme, idx, total, targetReps = null) => {
+  if (scheme === 'Timer') return null;
+  const pattern = PYRAMID_REPS[scheme];
+  if (pattern) {
+    if (total <= 1) return pattern[pattern.length - 1];
+    const pos = Math.round((idx / (total - 1)) * (pattern.length - 1));
+    return pattern[Math.max(0, Math.min(pattern.length - 1, pos))];
+  }
+  const typed = Number(targetReps);
+  if (Number.isFinite(typed) && typed > 0) return Math.round(typed);
+  return getSchemeUniformReps(scheme) || 8;
+};
+
+/** Keeps the last `count` sets (the working sets on the usual schemes), renumbered. */
+export const trimSetsTo = (sets, count) =>
+  (Array.isArray(sets) ? sets : []).slice(-count).map((st, i) => ({ ...st, setNumber: i + 1 }));
+
 /** [schemeA, schemeB] for a superset (each exercise may run its own scheme); falls back to slot.scheme. */
 export const getSupersetSchemes = slot => [
   slot?.supersetSchemes?.[0] || slot?.scheme || '5x8',
@@ -684,8 +718,12 @@ export const createWorkoutSlot = ({
     const setsByExercise = cleanIds.map((id, idx) => {
       const calcMax = resolveBase1RM(id);
       // Working sets follow goal progress (last weight + increment, or stored 1RM + increment, whichever is lower)
+      // Supersets run SUPERSET_SET_COUNT rounds: the scheme's last sets (its working sets)
       return applyGoalProgressToSets(
-        generateSetsForScheme(schemes[idx], calcMax, 'Superset', id, incrementLbs, userBodyweightLbs, setPreferences),
+        trimSetsTo(
+          generateSetsForScheme(schemes[idx], calcMax, 'Superset', id, incrementLbs, userBodyweightLbs, setPreferences),
+          SUPERSET_SET_COUNT
+        ),
         { exerciseId: id, scheme: schemes[idx], history, oneRepMaxes, incrementLbs }
       );
     });

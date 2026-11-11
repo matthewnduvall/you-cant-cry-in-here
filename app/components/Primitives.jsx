@@ -153,6 +153,8 @@ export function IOSListRow({ children, onClick, isLast = false, indexLabel, bgNu
 // Width of the header's SYNC / SAVE / RESET cells and the rest-timer bar's ✓ cell. They share it so the orange
 // NEXT bar ends exactly under the SAVE | RESET divider.
 const SESSION_ACTION_COL = '58px';
+// DATE box beside the session name (fits YYYY/MM/DD)
+const SESSION_DATE_COL = '100px';
 
 export function SessionTitleBar({
   title = '',
@@ -161,7 +163,10 @@ export function SessionTitleBar({
   onReset,
   showActions = false,
   sync = null,
-  saveLabel = 'SAVE'
+  saveLabel = 'SAVE',
+  // Live session: the session's date (YYYY/MM/DD, from startedAt) in its own box; typing a date moves the session
+  dateValue = null,
+  onChangeDate
 }) {
   const cellBorder = {
     borderTop: 'none',
@@ -187,7 +192,12 @@ export function SessionTitleBar({
       style={{
         marginTop: '8px',
         display: 'grid',
-        gridTemplateColumns: ['minmax(0, 1fr)', sync ? SESSION_ACTION_COL : null, showActions ? `${SESSION_ACTION_COL} ${SESSION_ACTION_COL}` : null]
+        gridTemplateColumns: [
+          'minmax(0, 1fr)',
+          dateValue ? SESSION_DATE_COL : null,
+          sync ? SESSION_ACTION_COL : null,
+          showActions ? `${SESSION_ACTION_COL} ${SESSION_ACTION_COL}` : null
+        ]
           .filter(Boolean)
           .join(' '),
         alignItems: 'stretch',
@@ -233,6 +243,58 @@ export function SessionTitleBar({
           }}
         />
       </label>
+      {dateValue && (
+        <label
+          style={{
+            minWidth: 0,
+            height: '40px',
+            boxSizing: 'border-box',
+            backgroundColor: '#141416',
+            ...cellBorder,
+            padding: '0 6px',
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'center'
+          }}
+        >
+          <span style={{ fontSize: '11px', fontWeight: 800, color: '#A0A0A0', lineHeight: 1.1 }}>DATE</span>
+          <input
+            key={dateValue}
+            type="text"
+            inputMode="numeric"
+            aria-label="Session date (YYYY/MM/DD)"
+            placeholder="YYYY/MM/DD"
+            defaultValue={dateValue}
+            onKeyDown={e => {
+              if (e.key === 'Enter') e.currentTarget.blur();
+            }}
+            onBlur={e => {
+              const next = e.target.value.trim().replace(/-/g, '/');
+              const match = /^(\d{4})\/(\d{1,2})\/(\d{1,2})$/.exec(next);
+              const valid = match && !Number.isNaN(new Date(`${match[1]}-${match[2].padStart(2, '0')}-${match[3].padStart(2, '0')}T12:00:00`).getTime());
+              if (!valid) {
+                e.target.value = dateValue;
+                return;
+              }
+              if (next !== dateValue) onChangeDate?.(next);
+            }}
+            style={{
+              width: '100%',
+              minWidth: 0,
+              backgroundColor: 'transparent',
+              border: 'none',
+              color: '#FFFFFF',
+              fontSize: '12px',
+              fontWeight: 800,
+              outline: 'none',
+              padding: 0,
+              marginTop: '2px',
+              lineHeight: 1.2,
+              fontFamily: 'inherit'
+            }}
+          />
+        </label>
+      )}
       {sync && (
         <button
           type="button"

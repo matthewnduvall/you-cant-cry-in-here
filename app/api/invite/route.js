@@ -69,25 +69,48 @@ export async function POST(request) {
       profileRows?.[0]?.username || authUser.user_metadata?.username || inviterEmail.split('@')[0] || 'athlete'
     ).replace(/^@/, '');
 
-    // Record the invite as the signed-in inviter (RLS rejects anything else)
-    const inviteRes = await fetch(`${supabaseUrl}/rest/v1/friend_invites?select=id`, {
+    // Record the invite as the signed-in inviter. First through record_friend_invite (SECURITY DEFINER, always
+    // as auth.uid(); supabase/migrations/2026-11-11_record_friend_invite.sql), else a direct insert (RLS:
+    // inviter_user_id = auth.uid()). If neither works the email still goes out, without the invite link id: the
+    // invited athlete can still join, and is matched by email if the invite was recorded.
+    const readDbError = async res => {
+      const data = await res.json().catch(() => null);
+      return [data?.code, data?.message].filter(Boolean).join(' ') || `HTTP ${res.status}`;
+    };
+    let inviteId = null;
+    let recordError = '';
+    const rpcRes = await fetch(`${supabaseUrl}/rest/v1/rpc/record_friend_invite`, {
       method: 'POST',
-      headers: { ...userHeaders, 'Content-Type': 'application/json', Prefer: 'return=representation' },
-      body: JSON.stringify({
-        inviter_user_id: authUser.id,
-        inviter_username: senderHandle,
-        inviter_email: inviterEmail || null,
-        invited_email: cleanTarget,
-        status: 'pending'
-      })
+      headers: { ...userHeaders, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ target_email: cleanTarget, inviter_name: senderHandle })
     });
-    if (!inviteRes.ok) {
-      return NextResponse.json({ ok: false, error: 'Could not record the invite. Try again.' }, { status: 502 });
+    if (rpcRes.ok) {
+      const id = await rpcRes.json().catch(() => null);
+      inviteId = typeof id === 'string' ? id : null;
+    } else {
+      recordError = await readDbError(rpcRes);
+      const inviteRes = await fetch(`${supabaseUrl}/rest/v1/friend_invites?select=id`, {
+        method: 'POST',
+        headers: { ...userHeaders, 'Content-Type': 'application/json', Prefer: 'return=representation' },
+        body: JSON.stringify({
+          inviter_user_id: authUser.id,
+          inviter_username: senderHandle,
+          inviter_email: inviterEmail || null,
+          invited_email: cleanTarget,
+          status: 'pending'
+        })
+      });
+      if (inviteRes.ok) {
+        // The invite's id goes in the link: whoever joins through it becomes friends with the inviter,
+        // whatever email they sign up with (claim_invite_link)
+        const insertedInvite = await inviteRes.json().catch(() => []);
+        inviteId = Array.isArray(insertedInvite) ? insertedInvite[0]?.id || null : null;
+        recordError = '';
+      } else {
+        recordError = `${recordError}; insert: ${await readDbError(inviteRes)}`;
+        console.error('[invite] could not record the invite:', recordError);
+      }
     }
-    // The invite's id goes in the link: whoever joins through it becomes friends with the inviter,
-    // whatever email they sign up with (claim_invite_link)
-    const insertedInvite = await inviteRes.json().catch(() => []);
-    const inviteId = Array.isArray(insertedInvite) ? insertedInvite[0]?.id : null;
 
     const rawOrigin =
       process.env.NEXT_PUBLIC_APP_URL ||
@@ -166,7 +189,11 @@ export async function POST(request) {
     return NextResponse.json({
       ok: true,
       emailId: resendData?.id || null,
-      invitedEmail: cleanTarget
+      invitedEmail: cleanTarget,
+      // Email sent but the invite isn't on record: they won't be added as a friend automatically
+      ...(recordError
+        ? { warning: 'Add them as a friend once they join (the invite could not be linked to your account).' }
+        : {})
     });
   } catch (err) {
     return NextResponse.json(

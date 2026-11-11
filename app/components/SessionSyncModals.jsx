@@ -12,7 +12,10 @@ import { UI } from '../styles/kineticTokens';
 import { Button, CloseButton } from './Controls';
 import { isUuid } from '../utils/supabaseAuth';
 
-const bodyText = { fontSize: '12px', fontWeight: 700, color: '#C8C8C8', lineHeight: 1.45, marginBottom: '12px' };
+const bodyText = { fontSize: '12px', fontWeight: 700, color: '#C8C8C8', lineHeight: 1.45, marginBottom: '12px', textAlign: 'center' };
+// Pop-up text and button labels are centred
+const centredButton = { display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center' };
+const titleBlock = { flex: 1, minWidth: 0, textAlign: 'center' };
 
 export function SessionSyncModal({
   open,
@@ -33,7 +36,8 @@ export function SessionSyncModal({
     <div style={{ ...UI.modalBackdrop, zIndex: 1300 }} onClick={onClose}>
       <div onClick={e => e.stopPropagation()} style={UI.modalCard('390px')} role="dialog" aria-label="Sync session">
         <div style={UI.modalHeader}>
-          <div>
+          {/* Left padding = the ✕ button's width, so the title sits in the middle of the card */}
+          <div style={{ ...titleBlock, paddingLeft: '40px' }}>
             <div style={UI.fieldLabel}>SYNC SESSION</div>
             <div style={{ fontSize: '16px', fontWeight: 800, textTransform: 'uppercase' }}>
               {isSynced ? `SYNCED WITH @${syncPartnerName}` : outgoingInvite ? 'WAITING FOR AN ANSWER' : 'TRAIN WITH A FRIEND'}
@@ -48,7 +52,7 @@ export function SessionSyncModal({
               Exercises, their order, schemes and sets are mirrored between you. Your weights, reps and checkmarks stay
               your own, and each of you saves your own copy to History.
             </div>
-            <Button variant="danger" onClick={onUnsync} style={{ width: '100%', height: '46px' }}>
+            <Button variant="danger" onClick={onUnsync} style={{ ...centredButton, width: '100%', height: '46px' }}>
               UNSYNC
             </Button>
           </>
@@ -58,7 +62,7 @@ export function SessionSyncModal({
               Invite sent to @{outgoingInvite.friendName}. Their app shows it within a few seconds while it&apos;s open.
               Once they accept, your exercises are mirrored.
             </div>
-            <Button variant="secondary" onClick={onCancelInvite} style={{ width: '100%', height: '46px' }}>
+            <Button variant="secondary" onClick={onCancelInvite} style={{ ...centredButton, width: '100%', height: '46px' }}>
               CANCEL INVITE
             </Button>
           </>
@@ -81,8 +85,8 @@ export function SessionSyncModal({
                   style={{
                     display: 'flex',
                     alignItems: 'center',
-                    justifyContent: 'space-between',
-                    gap: '8px',
+                    justifyContent: 'center',
+                    gap: '10px',
                     width: '100%',
                     padding: '12px',
                     backgroundColor: '#141416',
@@ -93,7 +97,7 @@ export function SessionSyncModal({
                     fontWeight: 800,
                     textTransform: 'uppercase',
                     cursor: busy ? 'wait' : 'pointer',
-                    textAlign: 'left'
+                    textAlign: 'center'
                   }}
                 >
                   <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -117,7 +121,7 @@ export function IncomingSyncInviteModal({ invite, fromName = 'friend', willRepla
     <div style={{ ...UI.modalBackdrop, zIndex: 1400 }}>
       <div style={UI.modalCard('390px')} role="dialog" aria-label="Session sync invite">
         <div style={UI.modalHeader}>
-          <div>
+          <div style={titleBlock}>
             <div style={UI.fieldLabel}>SYNC INVITE</div>
             <div style={{ fontSize: '16px', fontWeight: 800, textTransform: 'uppercase' }}>@{fromName} WANTS TO TRAIN TOGETHER</div>
           </div>
@@ -128,10 +132,10 @@ export function IncomingSyncInviteModal({ invite, fromName = 'friend', willRepla
           {willReplaceSession ? ' This replaces the session you have open now (it is not saved).' : ''}
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
-          <Button variant="secondary" disabled={busy} onClick={onDecline} style={{ height: '46px' }}>
+          <Button variant="secondary" disabled={busy} onClick={onDecline} style={{ ...centredButton, height: '46px' }}>
             DECLINE
           </Button>
-          <Button variant="success" disabled={busy} onClick={onAccept} style={{ height: '46px' }}>
+          <Button variant="success" disabled={busy} onClick={onAccept} style={{ ...centredButton, height: '46px' }}>
             ACCEPT
           </Button>
         </div>
@@ -145,9 +149,9 @@ export function SyncNoticeModal({ message, onClose, title = 'SYNC' }) {
   return (
     <div style={{ ...UI.modalBackdrop, zIndex: 1400 }} onClick={onClose}>
       <div onClick={e => e.stopPropagation()} style={UI.modalCard('360px')} role="alertdialog" aria-label={`${title} update`}>
-        <div style={{ ...UI.fieldLabel, marginBottom: '8px' }}>{title}</div>
+        <div style={{ ...UI.fieldLabel, marginBottom: '8px', textAlign: 'center' }}>{title}</div>
         <div style={{ ...bodyText, color: '#FFFFFF', fontSize: '13px', fontWeight: 800 }}>{message}</div>
-        <Button variant="primary" onClick={onClose} style={{ width: '100%', height: '44px' }}>
+        <Button variant="primary" onClick={onClose} style={{ ...centredButton, width: '100%', height: '44px' }}>
           OK
         </Button>
       </div>

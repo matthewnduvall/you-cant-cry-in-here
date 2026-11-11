@@ -3,6 +3,7 @@
 import React from 'react';
 import { SFSymbol, SessionRestTimerBar, SessionTitleBar } from './Primitives';
 import { getNextIncompleteSetInfo } from '../utils/workoutEngine';
+import { formatDateYMD, parseYMDToISO } from '../data/exerciseLibrary';
 import { Button } from './Controls';
 
 // Header centre title per view (the ← back button sits next to ☰ on the left)
@@ -178,6 +179,12 @@ export function AppHeaderAndDrawer({
             showActions={(currentEditorWorkout.slots || []).length > 0 && Boolean(onFinishSession)}
             sync={currentView === 'session' ? sessionSync : null}
             saveLabel={currentView === 'session' ? 'FINISH' : 'SAVE'}
+            dateValue={
+              currentView === 'session' && currentEditorWorkout.startedAt
+                ? formatDateYMD(currentEditorWorkout.startedAt)
+                : null
+            }
+            onChangeDate={ymd => updateCurrentWorkoutState(prev => ({ ...prev, startedAt: parseYMDToISO(ymd) }))}
           />
         )}
         {isRoutineEditorView && currentEditorWorkout && (

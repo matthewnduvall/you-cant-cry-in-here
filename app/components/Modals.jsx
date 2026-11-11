@@ -116,6 +116,8 @@ export function PlateCalculatorModal({
   calcBarLabel = 'Barbell',
   calcPlatesPerSide,
   setCalcPlatesPerSide,
+  calcExtraLbs = 0,
+  clearCalcExtra,
   setCalcTotalFromInput,
   prRecordDate,
   setPrRecordDate,
@@ -250,7 +252,9 @@ export function PlateCalculatorModal({
             <div style={{ fontSize: '11px', fontWeight: 800, color: '#A0A0A0', textTransform: 'uppercase', marginBottom: '6px' }}>
               {calcIsSingleLoad
                 ? `${calcBarLabel} weight (not doubled, no bar)`
-                : `Plates per side (added to both sides) · ${calcBarLabel} ${calcBarWeight} lb bar`}
+                : calcBarWeight > 0
+                  ? `Plates per side (added to both sides) · ${calcBarLabel} ${calcBarWeight} lb bar`
+                  : `Plates per side (added to both sides) · ${calcBarLabel}, no bar`}
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '6px', marginBottom: '6px' }}>
               {[45, 35, 25].map(p => (
@@ -284,12 +288,30 @@ export function PlateCalculatorModal({
                 marginBottom: '12px', minHeight: '38px', display: 'flex', flexWrap: 'wrap', gap: '4px', alignItems: 'center'
               }}
             >
+              {/* Bar + these plates + the leftover chip always add up to TOTAL WEIGHT */}
+              {calcExtraLbs !== 0 && (
+                <button
+                  type="button"
+                  aria-label={`Remove the ${Math.abs(calcExtraLbs)} lb that plates can't make up`}
+                  onClick={() => clearCalcExtra?.()}
+                  style={{
+                    padding: '2px 6px', backgroundColor: '#3A3A3E',
+                    color: '#FFFFFF', border: 'none', fontSize: '11px', fontWeight: 800, cursor: 'pointer'
+                  }}
+                >
+                  {calcExtraLbs > 0 ? '+' : '−'}{Math.abs(calcExtraLbs)} LB OTHER ✕
+                </button>
+              )}
               {calcPlatesPerSide.length === 0 ? (
-                <span style={{ fontSize: '11px', color: '#888888' }}>
-                  {calcIsSingleLoad
-                    ? 'Dumbbell — tap weights above (no bar, not doubled)'
-                    : `${calcBarLabel} (${calcBarWeight} lb) — tap plates above (per side)`}
-                </span>
+                calcExtraLbs === 0 && (
+                  <span style={{ fontSize: '11px', color: '#888888' }}>
+                    {calcIsSingleLoad
+                      ? `${calcBarLabel}: tap weights above (no bar, not doubled)`
+                      : calcBarWeight > 0
+                        ? `${calcBarLabel} (${calcBarWeight} lb): tap plates above (per side)`
+                        : `${calcBarLabel}: tap plates above (per side)`}
+                  </span>
+                )
               ) : (
                 [...calcPlatesPerSide]
                   .sort((a, b) => b - a)
