@@ -181,7 +181,7 @@ To keep agent edits fast and focused, views and state hooks are split into dedic
 * **Footer:** Every view renders `Copyright © 2026 MaNoDuV LLC` at the bottom of the app column (`app/page.js`).
 * **Feedback Delivery (`FeedbackModal` & `app/api/feedback/route.js`):**
   * Prompts `ENTER YOUR FEEDBACK BELOW. IT WILL BE AUTOMATICALLY SENT WITH DIAGNOSTIC LOGS FROM THIS SESSION (<N> LOG EVENTS).`
-  * Sends via `/api/feedback` + client-side `formsubmit.co/ajax/matthew.n.duvall@gmail.com`, and automatically triggers a pre-filled `mailto:matthew.n.duvall@gmail.com` fallback if active delivery is not confirmed.
+  * Sends only via `/api/feedback` (the server tries Resend, then FormSubmit). The browser never posts to FormSubmit itself (that duplicated feedback).
 
 ### G. Live Session Sync (`useSessionSync.js`, `sessionSync.js`, `public.shared_sessions`)
 * One `shared_sessions` row per sync (owner, participant, status `pending`/`accepted`/`declined`/`ended`, `structure` JSONB). RLS: only the two athletes can read/update/delete; only an accepted friend can be invited (`are_friends`); a trigger stops the athletes being swapped. Migration: `supabase/migrations/2026-11-09_shared_sessions.sql`; `delete_my_account` deletes the athlete's rows.

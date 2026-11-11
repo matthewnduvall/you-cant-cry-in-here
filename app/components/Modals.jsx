@@ -818,10 +818,6 @@ export function FeedbackModal({
       return;
     }
 
-    const senderLabel = user?.username
-      ? `@${user.username} (${user.email || 'no-email'})`
-      : 'Anonymous / Logged-Out Athlete';
-    const timestamp = new Date().toISOString();
     const snapshotCopy = appSnapshot;
     const logsCopy = Array.isArray(sessionLogs) ? [...sessionLogs] : [];
 
@@ -835,39 +831,18 @@ export function FeedbackModal({
     // Continue sending in the background
     (async () => {
       try {
-        await Promise.allSettled([
-          fetch('/api/feedback', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            keepalive: true,
-            body: JSON.stringify({
-              message: trimmed,
-              user,
-              sessionLogs: logsCopy,
-              appSnapshot: snapshotCopy
-            })
-          }),
-          fetch('https://formsubmit.co/ajax/matthew.n.duvall@gmail.com', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              Accept: 'application/json'
-            },
-            keepalive: true,
-            body: JSON.stringify({
-              _subject: `[You Can't Cry in Here] Feedback from ${senderLabel}`,
-              _captcha: 'false',
-              _template: 'table',
-              athlete: senderLabel,
-              timestamp,
-              message: trimmed,
-              session_snapshot: JSON.stringify(snapshotCopy),
-              session_logs: logsCopy
-                .map(e => `${e.timestamp || ''} [${e.type || 'LOG'}] ${e.detail || ''}`)
-                .join('\n')
-            })
+        // Only the app's server sends it (Resend, falling back to FormSubmit there): no direct browser send
+        await fetch('/api/feedback', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          keepalive: true,
+          body: JSON.stringify({
+            message: trimmed,
+            user,
+            sessionLogs: logsCopy,
+            appSnapshot: snapshotCopy
           })
-        ]);
+        });
       } catch {
         // Silent background fallback
       }
