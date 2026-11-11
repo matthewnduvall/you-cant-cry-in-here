@@ -88,7 +88,11 @@ export function buildProgressionSeriesByLift(history) {
             volume: roundedVol
           });
         } else {
-          if (top1RM > existing.weight) existing.weight = top1RM;
+          // The point opens the workout with the day's best set
+          if (top1RM > existing.weight) {
+            existing.weight = top1RM;
+            existing.workoutId = w.id || existing.workoutId;
+          }
           existing.volume += roundedVol;
         }
       }

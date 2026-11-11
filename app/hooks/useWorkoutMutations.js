@@ -43,7 +43,10 @@ import {
   SUPERSET_SET_COUNT,
   getTargetRepsForSet,
   trimSetsTo,
-  normalizeSetType
+  normalizeSetType,
+  lockAndCompleteSets,
+  keepCompletedSets,
+  asHistoricalWorkout
 } from '../utils/workoutEngine';
 import { deleteCloudRoutineByKey, deleteCloudWorkoutsByIds } from '../utils/supabaseAuth';
 import { markWorkoutIdDeleted, clearDeletedWorkoutIds } from '../utils/cloudSyncLedger';
@@ -73,7 +76,7 @@ const MUSCLE_GROUP_WEIGHT = {
   Shoulders: 1,
   Hips: 0.9,
   'Upper Arms': 0.8,
-  Waist: 0.6,
+  Core: 0.6,
   Calves: 0.5,
   Forearms: 0.4,
   Neck: 0.25
@@ -150,7 +153,7 @@ export function useWorkoutMutations({
     if (currentView === 'routine_preview') return previewRoutineDraft;
     if (currentView === 'history' && expandedHistoryWorkoutId) {
       if (historyEditDraft?.id === expandedHistoryWorkoutId) return historyEditDraft;
-      return history.find(w => w.id === expandedHistoryWorkoutId) || null;
+      return asHistoricalWorkout(history.find(w => w.id === expandedHistoryWorkoutId)) || null;
     }
     if (currentView === 'session' && partnerSession) return partnerSession;
     return activeSession;
@@ -162,7 +165,7 @@ export function useWorkoutMutations({
     if (currentView === 'history' && expandedHistoryWorkoutId) {
       const targetHistId = expandedHistoryWorkoutId;
       setHistoryEditDraft?.(prev => {
-        const base = prev?.id === targetHistId ? prev : history.find(w => w.id === targetHistId);
+        const base = prev?.id === targetHistId ? prev : asHistoricalWorkout(history.find(w => w.id === targetHistId));
         if (!base) return prev;
         const next = updater(base);
         return next ? { ...next, id: targetHistId, slots: normalizeSlotLabels(next.slots) } : prev;
@@ -652,6 +655,7 @@ export function useWorkoutMutations({
                 title: finalTitle,
                 gymType: routineGymType,
                 updatedAt: new Date().toISOString(),
+                // The draft started done + locked (asHistoricalWorkout); keep what the athlete changed since
                 slots: normalizedSlots
               }
             : w
@@ -674,7 +678,8 @@ export function useWorkoutMutations({
         updatedAt: new Date().toISOString(),
         isComplete: true,
         verifiedByUser: true,
-        slots: normalizedSlots
+        // Entering History: every set done, its type / weight / reps locked
+      slots: lockAndCompleteSets(normalizedSlots)
       };
       setHistory(prev => [entry, ...prev]);
       setHistoricalDraft(null);
@@ -682,14 +687,22 @@ export function useWorkoutMutations({
       return;
     }
 
+    // FINISH logs only the sets marked done (exercises with none are left out); nothing done = nothing logged
+    const doneSlots = keepCompletedSets(normalizedSlots);
+    if (doneSlots.length === 0) {
+      setActiveSession(null);
+      setCurrentView('home');
+      return;
+    }
     const entry = {
       ...currentWorkout,
       title: finalTitle,
-      gymType: routineGymType,
+      gymType: inferRoutineGymCategory(doneSlots),
       updatedAt: new Date().toISOString(),
-      isComplete: checkIsWorkoutComplete(normalizedSlots),
+      isComplete: checkIsWorkoutComplete(doneSlots),
       verifiedByUser: true,
-      slots: normalizedSlots
+      // Entering History: its sets are done; type / weight / reps locked
+      slots: lockAndCompleteSets(doneSlots)
     };
     setHistory(prev => {
       const exists = prev.some(w => w.id === entry.id);
@@ -708,7 +721,8 @@ export function useWorkoutMutations({
       (slot.supersetSetsByExercise || [slot.sets || []]).some(list => (list || []).some(st => st.completed))
     );
     if (!anyDone) return false;
-    const normalizedSlots = normalizeSlotLabels(cloneSlots(slots));
+    // Only the sets marked done are logged
+    const normalizedSlots = keepCompletedSets(normalizeSlotLabels(cloneSlots(slots)));
     const entry = {
       ...session,
       title: (session.title || '').trim() || getDefaultSessionName(),
@@ -717,7 +731,8 @@ export function useWorkoutMutations({
       isComplete: checkIsWorkoutComplete(normalizedSlots),
       verifiedByUser: true,
       autoFinished: true,
-      slots: normalizedSlots
+      // Entering History: its sets are done; type / weight / reps locked
+      slots: lockAndCompleteSets(normalizedSlots)
     };
     setHistory(prev => {
       const exists = prev.some(w => w.id === entry.id);

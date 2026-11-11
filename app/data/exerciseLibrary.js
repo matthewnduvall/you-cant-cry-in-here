@@ -80,7 +80,13 @@ export const normalizeSlotCategory = rawCat => {
 export const isSupersetCategory = cat => normalizeSlotCategory(cat) === 'Superset';
 export const isAccessoryCategory = cat => normalizeSlotCategory(cat) === 'Accessory';
 
-// Standardized with https://exrx.net/Lists/Directory Body Part Directory
+// The app's name for a muscle group (older data said Waist; it is Core now)
+export const normalizeMuscleGroupName = raw => {
+  const name = String(raw || '').trim();
+  return name.toLowerCase() === 'waist' ? 'Core' : name;
+};
+
+// Standardized with https://exrx.net/Lists/Directory Body Part Directory (its "Waist" is called Core here)
 export const MUSCLE_GROUP_OPTIONS = [
   'All Muscles',
   'Neck',
@@ -89,7 +95,7 @@ export const MUSCLE_GROUP_OPTIONS = [
   'Forearms',
   'Back',
   'Chest',
-  'Waist',
+  'Core',
   'Hips',
   'Thighs',
   'Calves'
@@ -233,7 +239,8 @@ export const parseExercisesCsv = rawCsv => {
     if (!id || !name || seenIds.has(id)) continue;
     seenIds.add(id);
 
-    const muscleGroup = (cols[2] || 'Chest').trim();
+    // ExRx's "Waist" body part is called Core in the app
+    const muscleGroup = normalizeMuscleGroupName(cols[2] || 'Chest');
     const category = normalizeSlotCategory(cols[3] || 'Accessory');
     const equipment = (cols[4] || 'Bodyweight').trim();
     const requiredEquipment = (cols[5] || '')
@@ -287,14 +294,14 @@ export const doesExerciseInteractWithMuscleGroup = (ex, muscleGroupFilter) => {
   const target = String(muscleGroupFilter || '').trim().toLowerCase();
 
   // Direct match against the 10 ExRx.net Body Part Directory groups:
-  // Neck, Shoulders, Upper Arms, Forearms, Back, Chest, Waist, Hips, Thighs, Calves
+  // Neck, Shoulders, Upper Arms, Forearms, Back, Chest, Core (ExRx "Waist"), Hips, Thighs, Calves
   if (primary === target) return true;
 
   // Legacy alias handling
   if ((target === 'upper arms' || target === 'arms') && (primary === 'upper arms' || primary === 'arms')) {
     return true;
   }
-  if ((target === 'waist' || target === 'core' || target === 'abs') && primary === 'waist') {
+  if ((target === 'waist' || target === 'core' || target === 'abs') && (primary === 'core' || primary === 'waist')) {
     return true;
   }
   if (target === 'legs' && (primary === 'thighs' || primary === 'hips' || primary === 'calves')) {

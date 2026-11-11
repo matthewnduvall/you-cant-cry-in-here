@@ -139,7 +139,7 @@ export function StimulusMapView({
                 <MuscleRect x="87" y="60" width="15" height="24" {...part('Upper Arms')} strokeWidth="1.5" />
                 <MuscleRect x="18" y="85" width="15" height="23" {...part('Forearms')} strokeWidth="1.5" />
                 <MuscleRect x="87" y="85" width="15" height="23" {...part('Forearms')} strokeWidth="1.5" />
-                <MuscleRect x="40" y="66" width="40" height="46" {...part('Waist')} strokeWidth="1.5" />
+                <MuscleRect x="40" y="66" width="40" height="46" {...part('Core')} strokeWidth="1.5" />
                 <line x1="60" y1="66" x2="60" y2="112" stroke="#101010" strokeWidth="1.5" />
                 <line x1="40" y1="81" x2="80" y2="81" stroke="#101010" strokeWidth="1.5" />
                 <line x1="40" y1="96" x2="80" y2="96" stroke="#101010" strokeWidth="1.5" />
@@ -170,7 +170,7 @@ export function StimulusMapView({
                 <MuscleRect x="87" y="60" width="15" height="24" {...part('Upper Arms')} strokeWidth="1.5" />
                 <MuscleRect x="18" y="85" width="15" height="23" {...part('Forearms')} strokeWidth="1.5" />
                 <MuscleRect x="87" y="85" width="15" height="23" {...part('Forearms')} strokeWidth="1.5" />
-                <MuscleRect x="42" y="90" width="36" height="22" {...part('Waist')} strokeWidth="1.5" />
+                <MuscleRect x="42" y="90" width="36" height="22" {...part('Core')} strokeWidth="1.5" />
                 <MuscleRect x="38" y="114" width="21" height="24" {...part('Hips')} strokeWidth="1.5" />
                 <MuscleRect x="61" y="114" width="21" height="24" {...part('Hips')} strokeWidth="1.5" />
                 <MuscleRect x="38" y="140" width="20" height="36" {...part('Thighs')} strokeWidth="1.5" />

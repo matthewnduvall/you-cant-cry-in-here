@@ -2,17 +2,16 @@
 
 import React, { useState } from 'react';
 import { UI, SHARED_CELL_BORDER, SHARED_GROUP_OUTER } from '../../styles/kineticTokens';
-import {
-  CORE_PR_EXERCISE_IDS,
-  EXERCISE_MAP,
-  STRENGTH_GOAL_CLASSES,
-  THOUSAND_LB_CLUB,
-  THOUSAND_LB_CLUB_TOTAL,
-  getThousandLbClubGoals,
-  getExRxTargetForLift
-} from '../../data/exerciseLibrary';
+import { CORE_PR_EXERCISE_IDS, EXERCISE_MAP, getExRxTargetForLift } from '../../data/exerciseLibrary';
 import { Button, CloseButton, SegmentButton } from '../Controls';
 import { ExercisePicker, resolvePickerExerciseId } from '../ExercisePicker';
+import {
+  CORE_LIFT_META,
+  LiftGoalRow,
+  StrengthClassGoalPicker,
+  formatLiftLabel,
+  getLiftGoalStats
+} from '../LiftGoals';
 
 export function GoalsView({
   colors,
@@ -30,6 +29,8 @@ export function GoalsView({
   setTargetStandardClass,
   oneRepMaxes,
   customGoalWeights,
+  // START / LATEST per lift (the same rows as the PROGRESS page)
+  progressionSeriesByLift = {},
   openPlateCalculatorForGoal,
   customPrExerciseIds = [],
   setCustomPrExerciseIds
@@ -189,183 +190,33 @@ export function GoalsView({
             ...SHARED_GROUP_OUTER
           }}
         >
-          {/* STRENGTH CLASS GOAL SELECTOR ROW */}
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'minmax(0, 1fr) 150px',
-              gap: 0,
-              height: '44px',
-              backgroundColor: '#18181B'
-            }}
-          >
-            <div
-              style={{
-                padding: '0 12px',
-                display: 'flex',
-                alignItems: 'center',
-                fontSize: '12px',
-                fontWeight: 800,
-                color: '#FFFFFF',
-                textTransform: 'uppercase',
-                ...SHARED_CELL_BORDER
-              }}
-            >
-              STRENGTH CLASS GOAL
-            </div>
-
-            <select
-              className="kinetic-filter-select"
-              aria-label="Strength class goal"
-              value={targetStandardClass}
-              onChange={e => setTargetStandardClass(e.target.value)}
-              style={{
-                width: '100%',
-                height: '44px',
-                backgroundColor: '#141416',
-                color: 'var(--dp-color-accent)',
-                ...SHARED_CELL_BORDER,
-                padding: '0 10px',
-                fontSize: '12px',
-                fontWeight: 800,
-                textTransform: 'uppercase',
-                cursor: 'pointer'
-              }}
-            >
-              {STRENGTH_GOAL_CLASSES.map(c => (
-                <option key={c} value={c}>
-                  {c.toUpperCase()}
-                </option>
-              ))}
-              <option value="Custom">CUSTOM</option>
-            </select>
-          </div>
-
-          {/* 1000 LB CLUB: Big 3 total so far; the rest is split evenly across the bench / squat / deadlift goals */}
-          {targetStandardClass === THOUSAND_LB_CLUB &&
-            (() => {
-              const club = getThousandLbClubGoals(oneRepMaxes);
-              return (
-                <div
-                  style={{
-                    padding: '0 12px',
-                    minHeight: '44px',
-                    boxSizing: 'border-box',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    gap: '8px',
-                    backgroundColor: '#141416',
-                    fontSize: '12px',
-                    fontWeight: 800,
-                    textTransform: 'uppercase',
-                    ...SHARED_CELL_BORDER
-                  }}
-                >
-                  <span style={{ color: '#FFFFFF' }}>
-                    BIG 3 TOTAL: {club.total} / {THOUSAND_LB_CLUB_TOTAL} LB
-                  </span>
-                  <span style={{ color: club.remaining > 0 ? '#A0A0A0' : '#30D158', whiteSpace: 'nowrap' }}>
-                    {club.remaining > 0 ? `${club.remaining} LB TO GO` : 'REACHED ✓'}
-                  </span>
-                </div>
-              );
-            })()}
-
-          {/* EXERCISE GOAL ROWS: EXERCISE TITLE | X FROM GOAL | GOAL WEIGHT */}
+          {/* STRENGTH CLASS GOAL (+ 1000 LB CLUB total), then one row per tracked lift — the same rows as the
+              PROGRESS page: START | PR | LATEST | TO GO | GOAL ✎ */}
+          <StrengthClassGoalPicker
+            targetStandardClass={targetStandardClass}
+            setTargetStandardClass={setTargetStandardClass}
+            oneRepMaxes={oneRepMaxes}
+          />
           {displayedGoalIds.map(liftId => {
             const ex = EXERCISE_MAP[liftId];
             if (!ex) return null;
-            const rawVal = Number(oneRepMaxes?.[liftId]) || 0;
-            const isTBD = rawVal <= 0;
-            const cur1RM = isTBD ? ex.default1RM : rawVal;
-            const goalWeight = getExRxTargetForLift(
+            const stats = getLiftGoalStats({
               liftId,
+              series: progressionSeriesByLift?.[liftId],
+              oneRepMaxes,
               targetStandardClass,
               userBodyweightLbs,
               totalHeightInches,
-              customGoalWeights,
-              oneRepMaxes
-            );
-            const distance = Math.max(0, goalWeight - cur1RM);
-
+              customGoalWeights
+            });
             return (
-              <div
+              <LiftGoalRow
                 key={liftId}
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'minmax(0, 1fr) 118px',
-                  gap: 0,
-                  alignItems: 'stretch',
-                  backgroundColor: '#141416'
-                }}
-              >
-                <div
-                  style={{
-                    padding: '0 12px',
-                    minWidth: 0,
-                    height: '46px',
-                    boxSizing: 'border-box',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    gap: '8px',
-                    ...SHARED_CELL_BORDER
-                  }}
-                >
-                  <span
-                    style={{
-                      fontSize: '13px',
-                      fontWeight: 800,
-                      color: '#FFFFFF',
-                      textTransform: 'uppercase',
-                      whiteSpace: 'nowrap',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      minWidth: 0,
-                      flex: 1
-                    }}
-                  >
-                    {ex.name}
-                  </span>
-                  <span
-                    style={{
-                      fontSize: '11px',
-                      fontWeight: 800,
-                      color: isTBD ? '#8E8E93' : '#30D158',
-                      textTransform: 'uppercase',
-                      whiteSpace: 'nowrap',
-                      flexShrink: 0
-                    }}
-                  >
-                    {isTBD ? 'NOT LOGGED YET' : distance === 0 ? 'GOAL REACHED ✓' : `${distance} LB FROM GOAL`}
-                  </span>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => openPlateCalculatorForGoal(liftId, ex.name, goalWeight)}
-                  style={{
-                    width: '118px',
-                    height: '46px',
-                    boxSizing: 'border-box',
-                    padding: '0 8px',
-                    backgroundColor: '#1C1C20',
-                    color: 'var(--dp-color-accent)',
-                    ...SHARED_CELL_BORDER,
-                    fontSize: '12px',
-                    fontWeight: 800,
-                    textTransform: 'uppercase',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    cursor: 'pointer',
-                    whiteSpace: 'nowrap'
-                  }}
-                >
-                  GOAL: {goalWeight} LB ✎
-                </button>
-              </div>
+                name={formatLiftLabel(liftId, ex.name)}
+                color={CORE_LIFT_META[liftId]?.color || '#FFFFFF'}
+                stats={stats}
+                onEditGoal={() => openPlateCalculatorForGoal(liftId, ex.name, stats.goal)}
+              />
             );
           })}
         </div>
