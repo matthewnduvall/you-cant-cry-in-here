@@ -155,6 +155,8 @@ export const searchExercises = (query, pool = EXERCISE_LIBRARY) => {
     const name = ex.name.toLowerCase();
     const short = stripEquipmentFromExerciseName(ex.name).toLowerCase();
     if (name.startsWith(phrase) || short.startsWith(phrase)) return 0;
+    // Another name it goes by ("RDL", "Dips")
+    if ((ex.aliases || []).some(alias => alias.toLowerCase().startsWith(phrase))) return 0;
     // A word in the name starts with the text ("raise" in "Lateral Raise")
     const at = name.indexOf(phrase);
     if (at > 0 && name.split(/[^a-z0-9]+/).some(word => word.startsWith(words[0]))) return 1;
@@ -165,7 +167,7 @@ export const searchExercises = (query, pool = EXERCISE_LIBRARY) => {
   const curated = ex => (String(ex.id).startsWith('exrx_') ? 0 : 1);
   return pool
     .filter(ex => {
-      const hay = `${ex.name} ${ex.equipment || ''} ${ex.muscleGroup || ''}`.toLowerCase();
+      const hay = `${ex.name} ${(ex.aliases || []).join(' ')} ${ex.equipment || ''} ${ex.muscleGroup || ''}`.toLowerCase();
       return words.every(w => hay.includes(w));
     })
     .map(ex => ({ ex, r: rank(ex), len: plainLength(ex) }))
