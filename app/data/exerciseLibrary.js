@@ -217,7 +217,11 @@ export const EXERCISE_NAME_ALIASES = {
   // Its name until 2026/11 (older CSVs and exports use it)
   overhead_press: ['Barbell Military Overhead Press', 'Military Overhead Press'],
   front_squat: ['Front Squat', 'Front Squats'],
-  chin_ups: ['Pull-Up', 'Pull-Ups', 'Pullup', 'Pullups']
+  chin_ups: ['Pull-Up', 'Pull-Ups', 'Pullup', 'Pullups'],
+  dumbbell_single_leg_rdl: ['One Legged RDL', 'One Legged RDLs', 'One-Leg RDL', 'Single Leg RDL', 'Single-Leg RDLs', 'SL RDL', 'Single Leg Deadlift', 'Kettlebell Single-Leg RDL'],
+  dumbbell_lu_raise: ['Lu Raise', 'Lu Raises', 'Overhead Lateral Raise', 'Plate Lu Raise'],
+  bodyweight_standing_hip_abduction: ['Hip Abductions Standing', 'Standing Hip Abduction', 'Standing Hip Abductions'],
+  bear_plank_shoulder_tap: ['Bear Plank Shoulder Taps', 'Bear Shoulder Tap', 'Bear Plank Shoulder Tap']
 };
 
 const SECONDARY_MUSCLE_GROUPS = {
