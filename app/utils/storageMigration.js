@@ -59,11 +59,17 @@ export const applyOutgoingInvitesSync = (prevInvites, result) => {
   const friendIds = new Set(result.friends.map(f => f.id));
   const friendEmails = new Set(result.friends.map(f => (f.email || '').toLowerCase()).filter(Boolean));
   const pendingIds = new Set(result.outgoingRequests.map(r => r.id));
-  return (Array.isArray(prevInvites) ? prevInvites : []).filter(inv => {
+  const kept = (Array.isArray(prevInvites) ? prevInvites : []).filter(inv => {
     if (typeof inv === 'string') return !friendEmails.has(inv.toLowerCase());
     if (hasAccountId(inv)) return !friendIds.has(inv.id) && pendingIds.has(inv.id);
     return !friendEmails.has((inv?.email || '').toLowerCase());
   });
+  // Requests still waiting on the server but not in this list (sent from another device) are added
+  const keptIds = new Set(kept.filter(hasAccountId).map(inv => inv.id));
+  const added = result.outgoingRequests
+    .filter(r => r?.id && !keptIds.has(r.id))
+    .map(r => ({ id: r.id, username: r.username }));
+  return added.length > 0 ? [...kept, ...added] : kept;
 };
 
 export const DEFAULT_SETTINGS_V2 = {

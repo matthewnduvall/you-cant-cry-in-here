@@ -120,7 +120,8 @@ function getAthleteScrollerEntries(friend, randomSeed = 1, todayFallbackStr = ''
           : todayFallbackStr;
       const entryTimeMs = latestTimeMs > 0 ? latestTimeMs : parsedTimeMs;
       const dayBucket = Math.floor(entryTimeMs / 86400000);
-      const dateSuffix = dateStr ? ` (${dateStr})` : '';
+      // Month and day only (MM/DD): the year is clear enough in a news ticker
+      const dateSuffix = dateStr ? ` (${dateStr.replace(/^\d{4}\//, '')})` : '';
 
       entries.push({
         uname,
@@ -131,7 +132,8 @@ function getAthleteScrollerEntries(friend, randomSeed = 1, todayFallbackStr = ''
         entryTimeMs,
         dayBucket,
         tieRand: deterministicHash(`${uname}_${lift.id}_${dateStr}_${randomSeed}`),
-        text: `@${uname}: ${lift.label} 1RM ${weightLabel} LB${dateSuffix}`
+        // Every ticker value is a 1RM, so it isn't spelled out
+        text: `@${uname}: ${lift.label} ${weightLabel} LB${dateSuffix}`
       });
     }
   });

@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { IOS_DARK, KINETIC_CSS } from './styles/kineticTokens';
 import { getIncrementInLbs, getInitial1RMs, asHistoricalWorkout } from './utils/workoutEngine';
 import { fetchAthleteProfileSnapshot, signOutUser } from './utils/supabaseAuth';
-import { AppHeaderAndDrawer } from './components/AppHeaderAndDrawer';
+import { AppHeaderAndDrawer, PageTitle } from './components/AppHeaderAndDrawer';
 import {
   DeleteConfirmModal,
   PlateCalculatorModal,
@@ -18,7 +18,7 @@ import { RoutineEditorView } from './components/views/RoutineEditorView';
 import { RoutinesView } from './components/views/RoutinesView';
 import { GymEditorView } from './components/views/GymsView';
 import { HistoryView } from './components/views/HistoryView';
-import { ProgressionChartView, DEFAULT_CHART_LIFTS } from './components/views/ProgressionChartView';
+import { ProgressionChartView } from './components/views/ProgressionChartView';
 import { StimulusMapView } from './components/views/StimulusMapView';
 import { SocialView } from './components/views/SocialView';
 import { ProfileView } from './components/views/ProfileView';
@@ -134,7 +134,8 @@ export default function App() {
   const [goalUnit, setGoalUnit] = useState('lb');
   const [chartMetric, setChartMetric] = useState('weight');
   // Progress chart lift toggles (Big 3 + OHP by default)
-  const [selectedChartLifts, setSelectedChartLifts] = useState(DEFAULT_CHART_LIFTS);
+  // Lifts shown on the PROGRESS chart: null = every lift (the Big 3, OHP and the CUSTOM exercise)
+  const [selectedChartLifts, setSelectedChartLifts] = useState(null);
   const [targetStandardClass, setTargetStandardClass] = useState('Intermediate');
   const [customGoalWeights, setCustomGoalWeights] = useState({});
   const [userBodyweightLbs, setUserBodyweightLbs] = useState(220);
@@ -446,6 +447,7 @@ export default function App() {
     currentIncrementLbs,
     userBodyweightLbs,
     shareRoutinesWithFriends,
+    savedRoutines,
     setSavedRoutines,
     setSharedRoutines,
     setTimerTrigger,
@@ -938,6 +940,7 @@ export default function App() {
 
         {/* MAIN VIEWPORT CONTENT */}
         <div style={{ flex: 1, paddingBottom: '48px' }}>
+          {currentView !== 'home' && <PageTitle view={currentView} />}
           {currentView === 'home' && (
             <HomeView
               colors={colors}

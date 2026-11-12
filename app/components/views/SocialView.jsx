@@ -8,9 +8,11 @@ import {
   acceptFriendRequestFromAthlete,
   removeFriendshipWithAthlete,
   syncFriendshipsForUser,
+  fetchMyPendingEmailInvites,
   getValidSupabaseAccessToken
 } from '../../utils/supabaseAuth';
 import { isSameFriend, applyFriendshipSync, applyOutgoingInvitesSync } from '../../utils/storageMigration';
+import { formatDateYMD } from '../../data/exerciseLibrary';
 import { DeleteButton, TabBar } from '../Controls';
 import { ProfileAvatar } from '../ProfileAvatar';
 import { UI } from '../../styles/kineticTokens';
@@ -59,6 +61,8 @@ export function SocialView({
   const [lastSearchedQuery, setLastSearchedQuery] = useState('');
   const [isSendingInviteEmail, setIsSendingInviteEmail] = useState(false);
   const [inviteEmailFeedback, setInviteEmailFeedback] = useState(null);
+  // Email invites nobody has joined from yet (server: friend_invites still pending), for SENT REQUESTS
+  const [pendingEmailInvites, setPendingEmailInvites] = useState([]);
 
   // Re-reads friendships from the server (the source of truth) and updates the cached lists.
   const refreshFriendships = async (isCancelled = () => false) => {
@@ -104,6 +108,9 @@ export function SocialView({
       }
 
       onSendEmailInvite?.(cleanEmail);
+      setPendingEmailInvites(prev =>
+        prev.some(inv => inv.email === cleanEmail) ? prev : [{ email: cleanEmail, sentAt: new Date().toISOString() }, ...prev]
+      );
       setFriendSearchQuery('');
       setHasSearched(false);
       setSearchedAthletes([]);
@@ -123,6 +130,18 @@ export function SocialView({
       setIsSendingInviteEmail(false);
     }
   };
+
+  // Email invites nobody has joined from yet, read whenever Social opens (SENT REQUESTS)
+  useEffect(() => {
+    if (!user) return undefined;
+    let cancelled = false;
+    fetchMyPendingEmailInvites(user).then(result => {
+      if (!cancelled && result.ok) setPendingEmailInvites(result.invites);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id]);
 
   // Sync friendships whenever Social opens
   useEffect(() => {
@@ -166,6 +185,23 @@ export function SocialView({
       return;
     }
     if (result.status !== 'requested') await refreshFriendships();
+  };
+
+  // Cancelling a sent request deletes the pending friendship row (either athlete may delete it)
+  const handleCancelSentRequest = request => {
+    setDeleteConfirmTarget?.({
+      type: 'friend',
+      title: 'WITHDRAW REQUEST?',
+      verb: 'withdraw your friend request to',
+      label: `@${request.username}`,
+      confirmLabel: 'WITHDRAW ✕',
+      onConfirm: async () => {
+        setOutgoingInvites?.(prev => (Array.isArray(prev) ? prev : []).filter(item => !isSameFriend(item, request)));
+        const ok = await removeFriendshipWithAthlete(user, request);
+        appendSessionLog?.('FRIEND_REQUEST_CANCELLED', `Cancelled request to @${request.username}${ok ? '' : ' (server delete failed)'}`);
+        if (!ok) await refreshFriendships();
+      }
+    });
   };
 
   const handleAcceptFriendInvite = async req => {
@@ -219,6 +255,18 @@ export function SocialView({
     searchedAthletes.length === 0 &&
     currentQuery === lastSearchedQuery &&
     isEmailAddress(currentQuery);
+
+  // SENT REQUESTS: in-app friend requests still waiting (kept in step with the server by applyOutgoingInvitesSync)
+  // and email invites nobody has joined from yet. Signed in only; not counted anywhere else.
+  const sentFriendRequests = user
+    ? (outgoingInvites || []).filter(
+        inv =>
+          inv && typeof inv === 'object' && inv.id && inv.username && !(friendsList || []).some(f => isSameFriend(f, inv))
+      )
+    : [];
+  const sentEmailInvites = user ? pendingEmailInvites : [];
+  const sentCount = sentFriendRequests.length + sentEmailInvites.length;
+  const sentSubStyle = { fontSize: '11px', fontWeight: 700, color: '#A0A0A0', textTransform: 'uppercase', marginTop: '2px' };
 
   return (
     <div style={{ paddingTop: '12px' }}>
@@ -459,6 +507,40 @@ export function SocialView({
                   ACCEPT
                 </button>
                 <DeleteButton label={`Decline @${req.username}`} onClick={() => handleDeclineFriendInvite(req)} />
+              </div>
+            </IOSListRow>
+          ))}
+        </IOSListSection>
+      )}
+
+      {sentCount > 0 && (
+        <IOSListSection header={`SENT REQUESTS (${sentCount})`} colors={colors}>
+          {sentFriendRequests.map((req, idx) => (
+            <IOSListRow
+              key={`req_${req.id}`}
+              isLast={idx === sentCount - 1}
+              colors={colors}
+            >
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: '15px', fontWeight: 800, textTransform: 'uppercase' }}>@{req.username}</div>
+                <div style={sentSubStyle}>
+                  FRIEND REQUEST{req.invitedAt ? ` • SENT ${formatDateYMD(req.invitedAt)}` : ''} • WAITING
+                </div>
+              </div>
+              <DeleteButton label={`Withdraw friend request to @${req.username}`} onClick={() => handleCancelSentRequest(req)} />
+            </IOSListRow>
+          ))}
+          {sentEmailInvites.map((inv, idx) => (
+            <IOSListRow
+              key={`email_${inv.email}`}
+              isLast={sentFriendRequests.length + idx === sentCount - 1}
+              colors={colors}
+            >
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: '14px', fontWeight: 800, overflowWrap: 'anywhere' }}>{inv.email}</div>
+                <div style={sentSubStyle}>
+                  EMAIL INVITE{inv.sentAt ? ` • SENT ${formatDateYMD(inv.sentAt)}` : ''} • NOT JOINED YET
+                </div>
               </div>
             </IOSListRow>
           ))}
