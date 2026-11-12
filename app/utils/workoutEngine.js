@@ -110,6 +110,14 @@ export const insertHistoryEntrySorted = (history, entry) =>
 export const getDefaultSchemeForGoal = goalType =>
   goalType === 'Strength' ? '5x5' : goalType === 'Hypertrophy' ? '5x10' : '5x8';
 
+// CLUSTER scheme: 3 working sets of one exercise, 6 reps each, with only
+// CLUSTER_REST_SECONDS of rest between sets (the rest timer uses it after each set)
+export const CLUSTER_SCHEME = 'Cluster';
+export const CLUSTER_SET_COUNT = 3;
+export const CLUSTER_REPS = 6;
+export const CLUSTER_REST_SECONDS = 6;
+export const isClusterScheme = scheme => scheme === CLUSTER_SCHEME;
+
 export const SCHEME_OPTIONS = [
   '5x5',
   '5x6',
@@ -119,7 +127,8 @@ export const SCHEME_OPTIONS = [
   'Pyramid',
   'Pyramid 1RM',
   'Reverse Pyramid',
-  'Timer'
+  'Timer',
+  CLUSTER_SCHEME
 ];
 
 export const parseTimerDurationSeconds = rawVal => {
@@ -434,6 +443,10 @@ export const generateSetsForScheme = (
       return buildWithLastAndTarget(typesFromSetPreferences(5, setPreferences).map(type => ({ type, reps: 10 })));
     case '8x8':
       return buildWithLastAndTarget(typesFromSetPreferences(8, setPreferences).map(type => ({ type, reps: 8 })));
+    case CLUSTER_SCHEME:
+      return buildWithLastAndTarget(
+        Array.from({ length: CLUSTER_SET_COUNT }, () => ({ type: 'Working', reps: CLUSTER_REPS }))
+      );
     case 'Pyramid':
       return buildWithLastAndTarget([
         { reps: 8, type: 'Warmup' },
@@ -510,7 +523,7 @@ export const generateSetsForScheme = (
 // weighted exercises (not bodyweight). Nothing known yet (no 1RM, no previous session) → the scheme defaults.
 // ============================================================================
 
-export const GOAL_PROGRESS_SCHEMES = ['5x5', '5x6', '5x8', '5x10', '8x8', 'Pyramid', 'Reverse Pyramid'];
+export const GOAL_PROGRESS_SCHEMES = ['5x5', '5x6', '5x8', '5x10', '8x8', 'Pyramid', 'Reverse Pyramid', 'Cluster'];
 
 const roundToStep = (val, step) => Math.round(val / step) * step;
 
@@ -645,6 +658,7 @@ export const SUPERSET_SET_COUNT = 3;
 
 /** Reps a uniform scheme asks for ("5x8" → 8); null for pyramids and Timer. */
 export const getSchemeUniformReps = scheme => {
+  if (isClusterScheme(scheme)) return CLUSTER_REPS;
   const match = /^(\d+)x(\d+)/.exec(String(scheme || ''));
   return match ? Number(match[2]) : null;
 };

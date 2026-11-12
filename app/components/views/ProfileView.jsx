@@ -8,13 +8,13 @@ import {
   fetchAthleteProfileSnapshot,
   fetchFriendsOfAthlete,
   sendFriendRequestToAthlete,
-  syncFriendshipsForUser,
-  signOutUser
+  syncFriendshipsForUser
 } from '../../utils/supabaseAuth';
 import { isSameFriend, applyFriendshipSync } from '../../utils/storageMigration';
 import { Button, TabBar } from '../Controls';
 import { RoutinesView } from './RoutinesView';
 import { buildProgressionSeriesByLift } from '../../hooks/useTelemetryAndAnalytics';
+import { ProfileAvatar, resizeImageFileToDataUrl } from '../ProfileAvatar';
 
 // Profile tabs: PERFORMANCE (their Progress page: progress / personal records / history — not called PROGRESS,
 // so it doesn't read PROGRESS > PROGRESS) · ROUTINES · FRIENDS
@@ -32,9 +32,12 @@ export function ProfileView({
   friendsList = [],
   setFriendsList,
   user,
-  setUser,
   setCurrentView,
   fileInputRef,
+  // Your profile photo (data URL) and its setter; a friend's comes with their profile
+  profilePhoto,
+  setProfilePhoto,
+  onSignOut,
   oneRepMaxes,
   history = [],
   sharedRoutines,
@@ -60,6 +63,22 @@ export function ProfileView({
   const [requestStatusById, setRequestStatusById] = useState({});
   // null | 'deleting' | error message
   const [accountDeleteStatus, setAccountDeleteStatus] = useState(null);
+  // null | 'saving' | error message
+  const [photoStatus, setPhotoStatus] = useState(null);
+
+  const handlePhotoPicked = async e => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setPhotoStatus('saving');
+    try {
+      setProfilePhoto?.(await resizeImageFileToDataUrl(file));
+      setPhotoStatus(null);
+      appendSessionLog?.('PROFILE_PHOTO', 'Profile photo updated');
+    } catch (err) {
+      setPhotoStatus(err?.message || 'Could not use that image.');
+    }
+  };
 
   const handleDeleteAccountClick = () => {
     setAccountDeleteStatus(null);
@@ -214,51 +233,90 @@ export function ProfileView({
       {!(isFriend && friendUnavailable) && (
       <>
       <IOSListSection header="ATHLETE IDENTITY" colors={colors}>
-        <IOSListRow isLast={isFriend || !user} colors={colors}>
-          <div>
-            <div style={{ fontSize: '22px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '-0.03em' }}>
-              @{profUser.username}
+        <IOSListRow isLast={true} colors={colors}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0 }}>
+            <ProfileAvatar
+              photo={isFriend ? liveFriendMatch?.profilePhoto || viewingFriendProfile?.profilePhoto : user ? profilePhoto : null}
+              username={profUser.username}
+              size={64}
+            />
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: '22px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '-0.03em', overflowWrap: 'anywhere' }}>
+                @{profUser.username}
+              </div>
+              {!isFriend && (
+                <div style={{ fontSize: '12px', color: '#A0A0A0', fontWeight: 700, overflowWrap: 'anywhere' }}>{profUser.email}</div>
+              )}
+              {/* SIGN OUT, just below the name and email */}
+              {!isFriend && user && (
+                <button
+                  type="button"
+                  onClick={() => onSignOut?.()}
+                  className="kinetic-btn"
+                  style={{
+                    marginTop: '8px',
+                    height: '40px',
+                    padding: '0 14px',
+                    backgroundColor: '#161616',
+                    color: '#FF3B30',
+                    border: '2px solid var(--dp-color-rule)',
+                    fontSize: '12px',
+                    fontWeight: 800,
+                    textTransform: 'uppercase',
+                    cursor: 'pointer'
+                  }}
+                >
+                  SIGN OUT
+                </button>
+              )}
             </div>
-            {!isFriend && (
-              <div style={{ fontSize: '12px', color: '#A0A0A0', fontWeight: 700 }}>{profUser.email}</div>
-            )}
           </div>
 
-          {!isFriend && (
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              style={{
-                padding: '8px 12px', backgroundColor: '#101010',
-                color: 'var(--dp-color-accent)', border: '2px solid var(--dp-color-rule)',
-                fontSize: '11px', fontWeight: 800, cursor: 'pointer'
-              }}
-            >
-              PHOTO
-            </button>
+          {!isFriend && user && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 0, flexShrink: 0 }}>
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={photoStatus === 'saving'}
+                style={{
+                  height: '40px',
+                  padding: '0 12px',
+                  backgroundColor: '#101010',
+                  color: 'var(--dp-color-accent)',
+                  border: '2px solid var(--dp-color-rule)',
+                  fontSize: '11px',
+                  fontWeight: 800,
+                  cursor: 'pointer'
+                }}
+              >
+                {photoStatus === 'saving' ? 'SAVING…' : profilePhoto ? 'CHANGE PHOTO' : 'ADD PHOTO'}
+              </button>
+              {profilePhoto && (
+                <button
+                  type="button"
+                  onClick={() => setProfilePhoto?.(null)}
+                  style={{
+                    height: '40px',
+                    padding: '0 12px',
+                    backgroundColor: '#101010',
+                    color: '#A0A0A0',
+                    border: '2px solid var(--dp-color-rule)',
+                    borderTop: 'none',
+                    fontSize: '11px',
+                    fontWeight: 800,
+                    cursor: 'pointer'
+                  }}
+                >
+                  REMOVE
+                </button>
+              )}
+            </div>
           )}
-          <input ref={fileInputRef} type="file" accept="image/*" style={{ display: 'none' }} />
+          <input ref={fileInputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handlePhotoPicked} />
         </IOSListRow>
-
-        {!isFriend && user && (
+        {photoStatus && photoStatus !== 'saving' && (
           <IOSListRow isLast={true} colors={colors}>
-            <span style={{ fontSize: '12px', fontWeight: 700, color: '#A0A0A0' }}>ACTIVE ACCOUNT SESSION</span>
-            <button
-              type="button"
-              onClick={() => {
-                signOutUser();
-                setUser(null);
-                setCurrentView('home');
-              }}
-              className="kinetic-btn"
-              style={{
-                padding: '6px 12px', backgroundColor: '#161616', color: '#FF3B30',
-                border: '2px solid var(--dp-color-rule)', fontSize: '11px',
-                fontWeight: 800, textTransform: 'uppercase', cursor: 'pointer'
-              }}
-            >
-              SIGN OUT
-            </button>
+            <span style={{ fontSize: '12px', fontWeight: 700, color: '#FF3B30' }}>{photoStatus}</span>
           </IOSListRow>
         )}
       </IOSListSection>

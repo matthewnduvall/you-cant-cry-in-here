@@ -98,7 +98,10 @@ export function useCloudAndStorageSync({
   shareRoutinesWithFriends,
   setShareRoutinesWithFriends,
   profileIsPublic,
-  setProfileIsPublic
+  setProfileIsPublic,
+  // Profile photo (small JPEG data URL; settings.profilePhoto, local + cloud)
+  profilePhoto,
+  setProfilePhoto
 }) {
   const cloudSyncReadyForUserKeyRef = useRef(null);
   const [cloudPullReadyTick, setCloudPullReadyTick] = useState(0);
@@ -160,6 +163,7 @@ export function useCloudAndStorageSync({
         if (Array.isArray(hydrated.settings.setPreferences) && hydrated.settings.setPreferences.length > 0) {
           setSetPreferences?.(hydrated.settings.setPreferences);
         }
+        if (typeof hydrated.settings.profilePhoto === 'string') setProfilePhoto?.(hydrated.settings.profilePhoto);
         if (hydrated.settings.social) {
           setShareStatsWithFriends(hydrated.settings.social.shareStatsWithFriends ?? true);
           setShareRoutinesWithFriends(hydrated.settings.social.shareRoutinesWithFriends ?? true);
@@ -407,6 +411,10 @@ export function useCloudAndStorageSync({
             if (Array.isArray(cloud.settings.availableEquipment)) {
               setAvailableEquipment(cloud.settings.availableEquipment);
             }
+            // A photo set (or removed) on another device; an account that never set one keeps this device's
+            if ('profilePhoto' in cloud.settings && cloud.settings.updatedAt) {
+              setProfilePhoto?.(typeof cloud.settings.profilePhoto === 'string' ? cloud.settings.profilePhoto : null);
+            }
             if (cloud.settings.bodyMetrics) {
               if (cloud.settings.bodyMetrics.bodyweightLbs) setUserBodyweightLbs(cloud.settings.bodyMetrics.bodyweightLbs);
               if (cloud.settings.bodyMetrics.heightFeet !== undefined) setUserHeightFeet(cloud.settings.bodyMetrics.heightFeet);
@@ -559,7 +567,8 @@ export function useCloudAndStorageSync({
             setPreferences,
             social: { shareStatsWithFriends, shareRoutinesWithFriends, profileIsPublic },
             selectedGymId,
-            availableEquipment
+            availableEquipment,
+            profilePhoto: profilePhoto || null
           }
         };
         window.localStorage.setItem(PERSISTENCE_KEY, JSON.stringify(payload));
@@ -630,6 +639,7 @@ export function useCloudAndStorageSync({
     profileIsPublic,
     selectedGymId,
     availableEquipment,
+    profilePhoto,
     cloudPullReadyTick
   ]);
 

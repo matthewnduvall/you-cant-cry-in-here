@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import { UI } from '../../styles/kineticTokens';
 import { IOSListSection, IOSListRow } from '../Primitives';
 import {
@@ -8,7 +8,15 @@ import {
   getRoutineGymCategory,
   doesRoutineMatchGymFilter
 } from '../../data/exerciseLibrary';
-import { Button, DeleteButton, GymSelect } from '../Controls';
+import { Button, DeleteButton, GymSelect, TabBar } from '../Controls';
+
+// The routine lists, one per tab (in this order)
+const ROUTINE_LISTS = [
+  { id: 'default', tab: 'DEFAULT', title: 'DEFAULT ROUTINES', empty: 'No default routines match this equipment filter.' },
+  { id: 'saved', tab: 'SAVED', title: 'SAVED ROUTINES', empty: 'No saved routines match this equipment filter.', deleteType: 'saved_routine' },
+  { id: 'shared', tab: 'SHARED', title: 'SHARED ROUTINES', empty: 'No shared routines match this equipment filter.', deleteType: 'shared_routine' },
+  { id: 'friends', tab: 'FRIENDS', title: "FRIENDS' ROUTINES", empty: 'No friend routines match this equipment filter.' }
+];
 
 export function RoutinesView({
   colors,
@@ -23,30 +31,92 @@ export function RoutinesView({
   handleDirectLoadRoutine,
   handleCancelRoutineSelection,
   setDeleteConfirmTarget,
+  // AUTO ROUTINE shortcut: builds an auto workout (as AUTO SESSION) instead of loading a routine
+  onAutoRoutine,
   // The Configuration page's ROUTINE tab has nothing to cancel back to
   showCancel = true,
-  // Which lists to show (a friend's profile shows only the routines they share)
+  // Which lists to show (a friend's profile shows only the routines they share); 2+ lists = tabs
   sections = ['default', 'saved', 'shared', 'friends'],
   // A friend's routines: LOAD only, no delete
   readOnly = false
 }) {
-  const friendRoutines = (friendsList || []).flatMap(f =>
-    (f.sharedRoutines || []).map(r => ({ ...r, friendName: f.username }))
-  );
+  const [tabChoice, setTabChoice] = useState(null);
   const fallbackAuthor = (user?.username || 'athlete').replace(/^@/, '');
+  const matches = r => doesRoutineMatchGymFilter(r, selectedGymId, gyms);
 
-  const filteredDefaultRoutines = DEFAULT_ROUTINES.filter(r =>
-    doesRoutineMatchGymFilter(r, selectedGymId, gyms)
-  );
-  const filteredSavedRoutines = (savedRoutines || []).filter(r =>
-    doesRoutineMatchGymFilter(r, selectedGymId, gyms)
-  );
-  const filteredSharedRoutines = (sharedRoutines || []).filter(r =>
-    doesRoutineMatchGymFilter(r, selectedGymId, gyms)
-  );
-  const filteredFriendRoutines = friendRoutines.filter(r =>
-    doesRoutineMatchGymFilter(r, selectedGymId, gyms)
-  );
+  const routinesByList = {
+    default: DEFAULT_ROUTINES.filter(matches),
+    saved: (savedRoutines || []).filter(matches),
+    shared: (sharedRoutines || []).filter(matches),
+    friends: (friendsList || [])
+      .flatMap(f => (f.sharedRoutines || []).map(r => ({ ...r, friendName: f.username })))
+      .filter(matches)
+  };
+  const lists = ROUTINE_LISTS.filter(l => sections.includes(l.id));
+  const useTabs = lists.length > 1;
+  const activeList = lists.find(l => l.id === tabChoice) || lists[0];
+
+  const load = r => handleDirectLoadRoutine(r, routineSelectReturnView || 'session');
+  const subtitleFor = (listId, r) => {
+    const gymCat = getRoutineGymCategory(r).toUpperCase();
+    if (listId === 'default') return `EQUIPMENT: ${gymCat}`;
+    const author = listId === 'friends' ? r.friendName : (r.author || fallbackAuthor).replace(/^@/, '');
+    return `BY @${author} • EQUIPMENT: ${gymCat}`;
+  };
+
+  const renderList = list => {
+    const routines = routinesByList[list.id];
+    return (
+      <IOSListSection key={list.id} header={useTabs ? null : `${list.title} (${routines.length})`} colors={colors}>
+        {routines.length === 0 ? (
+          <IOSListRow isLast={true} colors={colors}>
+            <span style={UI.rowSub}>{list.empty}</span>
+          </IOSListRow>
+        ) : (
+          routines.map((r, i) => (
+            <IOSListRow
+              key={`${r.key}_${i}`}
+              isLast={i === routines.length - 1}
+              colors={colors}
+              onClick={() => load(r)}
+            >
+              <div>
+                <div style={UI.rowTitle}>{r.label}</div>
+                <div className="kinetic-sub" style={UI.rowSub}>
+                  {subtitleFor(list.id, r)}
+                </div>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+                <Button
+                  variant="toggle"
+                  active
+                  onClick={e => {
+                    e.stopPropagation();
+                    load(r);
+                  }}
+                >
+                  LOAD →
+                </Button>
+                {!readOnly && list.deleteType && (
+                  <DeleteButton
+                    label={`Delete ${r.label}`}
+                    onClick={() =>
+                      setDeleteConfirmTarget?.({
+                        type: list.deleteType,
+                        routineKey: r.key,
+                        routineLabel: r.label,
+                        label: r.label
+                      })
+                    }
+                  />
+                )}
+              </div>
+            </IOSListRow>
+          ))
+        )}
+      </IOSListSection>
+    );
+  };
 
   return (
     <div style={UI.pagePad}>
@@ -61,7 +131,7 @@ export function RoutinesView({
         }}
       >
         {/* EQUIPMENT DROPDOWN AT TOP OF ROUTINES SELECTION */}
-<GymSelect
+        <GymSelect
           variant="tile"
           tileLabel="FILTER BY EQUIPMENT"
           ariaLabel="Filter routines by equipment"
@@ -71,196 +141,38 @@ export function RoutinesView({
         />
 
         {showCancel && (
-        <Button
-          variant="secondary"
-          onClick={() => handleCancelRoutineSelection?.()}
-          style={{ width: '100%', height: '48px', boxSizing: 'border-box', padding: '0 14px', fontSize: '12px', backgroundColor: '#3B1818', color: '#FF8585', borderTop: 'none', borderLeft: 'none', borderRight: '1px solid var(--dp-color-rule)', borderBottom: '1px solid var(--dp-color-rule)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
-        >
-          <span>CANCEL</span>
-        </Button>
+          <Button
+            variant="secondary"
+            onClick={() => handleCancelRoutineSelection?.()}
+            style={{ width: '100%', height: '48px', boxSizing: 'border-box', padding: '0 14px', fontSize: '12px', backgroundColor: '#3B1818', color: '#FF8585', borderTop: 'none', borderLeft: 'none', borderRight: '1px solid var(--dp-color-rule)', borderBottom: '1px solid var(--dp-color-rule)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
+          >
+            <span>CANCEL</span>
+          </Button>
         )}
       </div>
 
-      {sections.includes('default') && (
-      <IOSListSection header={`DEFAULT ROUTINES (${filteredDefaultRoutines.length})`} colors={colors}>
-        {filteredDefaultRoutines.length === 0 ? (
-          <IOSListRow isLast={true} colors={colors}>
-            <span style={UI.rowSub}>No default routines match this equipment filter.</span>
-          </IOSListRow>
-        ) : (
-          filteredDefaultRoutines.map((r, i) => {
-            const gymCat = getRoutineGymCategory(r).toUpperCase();
-            return (
-              <IOSListRow
-                key={r.key}
-                isLast={i === filteredDefaultRoutines.length - 1}
-                colors={colors}
-                onClick={() => handleDirectLoadRoutine(r, routineSelectReturnView || 'session')}
-              >
-                <div>
-                  <div style={UI.rowTitle}>{r.label}</div>
-                  <div className="kinetic-sub" style={UI.rowSub}>EQUIPMENT: {gymCat}</div>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
-                  <Button
-                    variant="toggle"
-                    active
-                    onClick={e => {
-                      e.stopPropagation();
-                      handleDirectLoadRoutine(r, routineSelectReturnView || 'session');
-                    }}
-                  >
-                    LOAD →
-                  </Button>
-                </div>
-              </IOSListRow>
-            );
-          })
-        )}
-      </IOSListSection>
+      {/* AUTO ROUTINE: an auto-built workout (same as AUTO SESSION) instead of a saved routine */}
+      {onAutoRoutine && (
+        <div style={{ padding: '0 var(--dp-spacing-gutter)', marginBottom: '16px' }}>
+          <Button variant="primary-row" onClick={onAutoRoutine}>
+            <span>AUTO ROUTINE</span>
+            <span>→</span>
+          </Button>
+        </div>
       )}
 
-      {sections.includes('saved') && (
-      <IOSListSection header={`SAVED ROUTINES (${filteredSavedRoutines.length})`} colors={colors}>
-        {filteredSavedRoutines.length === 0 ? (
-          <IOSListRow isLast={true} colors={colors}>
-            <span style={UI.rowSub}>No saved routines match this equipment filter.</span>
-          </IOSListRow>
-        ) : (
-          filteredSavedRoutines.map((r, i) => {
-            const authorHandle = (r.author || fallbackAuthor).replace(/^@/, '');
-            const gymCat = getRoutineGymCategory(r).toUpperCase();
-            return (
-              <IOSListRow
-                key={r.key}
-                isLast={i === filteredSavedRoutines.length - 1}
-                colors={colors}
-                onClick={() => handleDirectLoadRoutine(r, routineSelectReturnView || 'session')}
-              >
-                <div>
-                  <div style={UI.rowTitle}>{r.label}</div>
-                  <div className="kinetic-sub" style={UI.rowSub}>BY @{authorHandle} • EQUIPMENT: {gymCat}</div>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
-                  <Button
-                    variant="toggle"
-                    active
-                    onClick={e => {
-                      e.stopPropagation();
-                      handleDirectLoadRoutine(r, routineSelectReturnView || 'session');
-                    }}
-                  >
-                    LOAD →
-                  </Button>
-                  {!readOnly && <DeleteButton
-                    label={`Delete ${r.label}`}
-                    onClick={() =>
-                      setDeleteConfirmTarget?.({
-                        type: 'saved_routine',
-                        routineKey: r.key,
-                        routineLabel: r.label,
-                        label: r.label
-                      })
-                    }
-                  />}
-                </div>
-              </IOSListRow>
-            );
-          })
-        )}
-      </IOSListSection>
+      {useTabs && (
+        <div style={{ padding: '0 var(--dp-spacing-gutter)', marginBottom: '12px' }}>
+          <TabBar
+            ariaLabel="Routine lists"
+            tabs={lists.map(l => ({ id: l.id, label: `${l.tab} (${routinesByList[l.id].length})` }))}
+            value={activeList?.id}
+            onChange={setTabChoice}
+          />
+        </div>
       )}
 
-      {sections.includes('shared') && (
-      <IOSListSection header={`SHARED ROUTINES (${filteredSharedRoutines.length})`} colors={colors}>
-        {filteredSharedRoutines.length === 0 ? (
-          <IOSListRow isLast={true} colors={colors}>
-            <span style={UI.rowSub}>No shared routines match this equipment filter.</span>
-          </IOSListRow>
-        ) : (
-          filteredSharedRoutines.map((r, i) => {
-            const authorHandle = (r.author || fallbackAuthor).replace(/^@/, '');
-            const gymCat = getRoutineGymCategory(r).toUpperCase();
-            return (
-              <IOSListRow
-                key={r.key}
-                isLast={i === filteredSharedRoutines.length - 1}
-                colors={colors}
-                onClick={() => handleDirectLoadRoutine(r, routineSelectReturnView || 'session')}
-              >
-                <div>
-                  <div style={UI.rowTitle}>{r.label}</div>
-                  <div className="kinetic-sub" style={UI.rowSub}>BY @{authorHandle} • EQUIPMENT: {gymCat}</div>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
-                  <Button
-                    variant="toggle"
-                    active
-                    onClick={e => {
-                      e.stopPropagation();
-                      handleDirectLoadRoutine(r, routineSelectReturnView || 'session');
-                    }}
-                  >
-                    LOAD →
-                  </Button>
-                  {!readOnly && <DeleteButton
-                    label={`Delete ${r.label}`}
-                    onClick={() =>
-                      setDeleteConfirmTarget?.({
-                        type: 'shared_routine',
-                        routineKey: r.key,
-                        routineLabel: r.label,
-                        label: r.label
-                      })
-                    }
-                  />}
-                </div>
-              </IOSListRow>
-            );
-          })
-        )}
-      </IOSListSection>
-      )}
-
-      {sections.includes('friends') && (
-      <IOSListSection header={`FRIENDS' ROUTINES (${filteredFriendRoutines.length})`} colors={colors}>
-        {filteredFriendRoutines.length === 0 ? (
-          <IOSListRow isLast={true} colors={colors}>
-            <span style={UI.rowSub}>No friend routines match this equipment filter.</span>
-          </IOSListRow>
-        ) : (
-          filteredFriendRoutines.map((r, i, arr) => {
-            const gymCat = getRoutineGymCategory(r).toUpperCase();
-            return (
-              <IOSListRow
-                key={`${r.key}_${i}`}
-                isLast={i === arr.length - 1}
-                colors={colors}
-                onClick={() => handleDirectLoadRoutine(r, routineSelectReturnView || 'session')}
-              >
-                <div>
-                  <div style={UI.rowTitle}>{r.label}</div>
-                  <div className="kinetic-sub" style={UI.rowSub}>BY @{r.friendName} • EQUIPMENT: {gymCat}</div>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
-                  <Button
-                    variant="toggle"
-                    active
-                    onClick={e => {
-                      e.stopPropagation();
-                      handleDirectLoadRoutine(r, routineSelectReturnView || 'session');
-                    }}
-                  >
-                    LOAD →
-                  </Button>
-                </div>
-              </IOSListRow>
-            );
-          })
-        )}
-      </IOSListSection>
-      )}
+      {useTabs ? activeList && renderList(activeList) : lists.map(renderList)}
     </div>
   );
 }
-
