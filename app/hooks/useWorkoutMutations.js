@@ -10,6 +10,7 @@ import {
   getDefaultSessionName,
   getDefaultAutoSessionName,
   formatTitleWithDate,
+  stripDateFromTitle,
   parseYMDToISO,
   formatTodayYMD,
   findEquivalentExerciseForGym,
@@ -376,7 +377,7 @@ export function useWorkoutMutations({
     } else {
       setActiveSession(prev => ({
         ...prev,
-        title: prev.title || getDefaultSessionName(),
+        title: stripDateFromTitle(prev.title) || getDefaultSessionName(),
         loadedRoutineTitle: prev.loadedRoutineTitle || 'MANUAL'
       }));
     }
@@ -569,7 +570,7 @@ export function useWorkoutMutations({
     }
     const detectedGymType = inferRoutineGymCategory(currentWorkout.slots);
     setSaveConfirmTarget({
-      name: currentWorkout.title || getDefaultSessionName(),
+      name: stripDateFromTitle(currentWorkout.title) || getDefaultSessionName(),
       shareWithFriends: Boolean(isCurrentEditorShared || shareRoutinesWithFriends),
       saveAsRoutine: currentView === 'routine_editor',
       gymType: detectedGymType,
@@ -584,7 +585,8 @@ export function useWorkoutMutations({
       return;
     }
 
-    const finalTitle = (confirmed?.name || '').trim() || currentWorkout.title || getDefaultSessionName();
+    const finalTitle =
+      stripDateFromTitle(confirmed?.name) || stripDateFromTitle(currentWorkout.title) || getDefaultSessionName();
     const shouldShare = Boolean(confirmed?.shareWithFriends);
     const sourceView = confirmed?.sourceView || currentView;
     const normalizedSlots = normalizeSlotLabels(cloneSlots(currentWorkout.slots));

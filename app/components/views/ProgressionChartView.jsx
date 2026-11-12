@@ -8,6 +8,7 @@ import { oneRepMaxLabel } from '../../utils/workoutEngine';
 import { ExercisePicker } from '../ExercisePicker';
 import {
   CORE_LIFT_IDS,
+  CalculatedOneRepMaxKey,
   CORE_LIFT_META,
   CUSTOM_LIFT_COLOR as CUSTOM_COLOR,
   LiftGoalRow,
@@ -579,6 +580,11 @@ export function ProgressionChartView({
             );
           })}
         </div>
+
+        {/* The asterisk's key, only when a number above has one */}
+        {legendLiftIds.some(id => (seriesByLift[id] || []).some(pt => pt?.calculated)) && (
+          <CalculatedOneRepMaxKey style={{ marginTop: '8px' }} />
+        )}
 
         {/* Shortcut to Configuration → GOALS (training goal, increment, custom goals) */}
         {onOpenGoals && (

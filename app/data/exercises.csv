@@ -32,7 +32,7 @@ neck_flexion,Weighted Lying Neck Flexion,Neck,Accessory,Weight Plates / Bodyweig
 exrx_neck_weighted_neck_flexion,Weighted Neck Flexion,Neck,Accessory,Weighted,Weight Plates,Sternocleidomastoid,false,45,
 exrx_neck_weighted_seated_neck_extension,Weighted Seated Neck Extension,Neck,Accessory,Weighted,Weight Plates,Splenius,false,55,
 weighted_lateral_neck_flexion,Weighted Side-Lying Lateral Neck Flexion,Neck,Accessory,Weight Plates / Bodyweight,,Sternocleidomastoid|Splenius,false,40,neck_flexion
-overhead_press,Barbell Military Overhead Press,Shoulders,Compound,Barbell,Barbell|Weight Plates,Deltoid - Anterior|Deltoid - Lateral|Triceps Brachii|Trapezius - Upper|Serratus Anterior,true,155,dumbbell_shoulder_press|arnold_press
+overhead_press,Barbell Overhead Press,Shoulders,Compound,Barbell,Barbell|Weight Plates,Deltoid - Anterior|Deltoid - Lateral|Triceps Brachii|Trapezius - Upper|Serratus Anterior,true,155,dumbbell_shoulder_press|arnold_press
 barbell_front_raise,Barbell Front Raise,Shoulders,Accessory,Barbell,Barbell,Deltoid - Anterior|Pectoralis Major - Clavicular,false,65,front_raise_ez_bar|dumbbell_front_raise
 exrx_shoulders_barbell_military_press,Barbell Military Press,Shoulders,Compound,Barbell,Barbell,Deltoid - Anterior|Triceps Brachii,false,145,
 push_press,Barbell Push Press,Shoulders,Compound,Barbell,Barbell|Weight Plates,Deltoid - Anterior|Deltoid - Lateral|Triceps Brachii|Quadriceps|Gluteus Maximus,false,165,overhead_press|dumbbell_shoulder_press

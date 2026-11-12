@@ -31,7 +31,7 @@ import {
   overlaySetValues,
   SESSION_SYNC_PROTOCOL
 } from '../utils/sessionSync';
-import { getDefaultSessionName } from '../data/exerciseLibrary';
+import { getDefaultSessionName, stripDateFromTitle } from '../data/exerciseLibrary';
 
 const INVITE_POLL_MS = 10000;
 const SYNC_POLL_MS = 3000;
@@ -286,7 +286,7 @@ export function useSessionSync({
     const nowIso = new Date().toISOString();
     const session = {
       id: `session_${Date.now()}`,
-      title: shared.structure?.title || getDefaultSessionName(),
+      title: stripDateFromTitle(shared.structure?.title) || getDefaultSessionName(),
       startedAt: nowIso,
       updatedAt: nowIso,
       defaultRestSeconds: 90,

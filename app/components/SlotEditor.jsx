@@ -422,8 +422,17 @@ export function SlotEditor({
           }}
         >
           <span style={{ fontSize: '11px', fontWeight: 800, color: '#8E8E93', lineHeight: 1 }}>{label}</span>
-          <span style={{ fontSize: '13px', fontWeight: 800, color: value > 0 ? color : '#6E6E73', lineHeight: 1.2, marginTop: '2px' }}>
-            {value > 0 ? oneRepMaxLabel(value, calculated) : '—'}
+          {/* The asterisk hangs off the number's corner so three values still fit side by side */}
+          <span
+            aria-label={value > 0 ? oneRepMaxLabel(value, calculated) : 'none'}
+            style={{ position: 'relative', fontSize: '13px', fontWeight: 800, color: value > 0 ? color : '#6E6E73', lineHeight: 1.2, marginTop: '2px' }}
+          >
+            {value > 0 ? value : '—'}
+            {value > 0 && calculated && (
+              <span aria-hidden="true" style={{ position: 'absolute', left: '100%', top: '-3px', fontSize: '11px', lineHeight: 1 }}>
+                *
+              </span>
+            )}
           </span>
         </div>
       );
