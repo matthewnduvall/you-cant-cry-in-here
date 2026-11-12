@@ -195,6 +195,14 @@ export const getGymSelectionLabel = (gymSelectionId, customGyms = []) => {
 
 // Fast RFC-4180 CSV line parser supporting quoted fields and pipe-delimited array columns
 // Exercises that train a second body part as much as their main one (a thruster = front squat + overhead press)
+// Other names an exercise goes by: exercise search and the History .csv import both match them
+export const EXERCISE_NAME_ALIASES = {
+  barbell_rdl: ['RDL', 'RDLs', 'Romanian Deadlift'],
+  sit_up: ['Situp', 'Situps', 'Sit-Up', 'Sit-Ups'],
+  tricep_dip: ['Dip', 'Dips'],
+  dumbbell_shoulder_press: ['Dumbbell Overhead Press', 'DB Overhead Press', 'DB Press', 'DB Shoulder Press', 'Dumbbell OHP', 'DB OHP']
+};
+
 const SECONDARY_MUSCLE_GROUPS = {
   barbell_thruster: ['Shoulders'],
   dumbbell_thruster: ['Shoulders']
@@ -273,6 +281,8 @@ export const parseExercisesCsv = rawCsv => {
       muscleGroup,
       // Other body parts it trains as much (muscle filters and the stimulus map count them too)
       secondaryMuscleGroups: SECONDARY_MUSCLE_GROUPS[id] || [],
+      // Other names it goes by (search + .csv import)
+      aliases: EXERCISE_NAME_ALIASES[id] || [],
       specificMuscles,
       isPriority,
       default1RM,

@@ -167,6 +167,15 @@ export function HistoryView({
       return EXERCISE_MAP[ALIAS_MAP[norm]];
     }
 
+    // Another name the exercise goes by (EXERCISE_NAME_ALIASES: "RDL", "Situps", "Dips")
+    const toNorm = text =>
+      String(text || '')
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, ' ')
+        .trim();
+    const byAlias = EXERCISE_LIBRARY.find(ex => (ex.aliases || []).some(alias => toNorm(alias) === norm));
+    if (byAlias) return byAlias;
+
     // Check if norm starts with any alias (e.g. "dumbbell chest flies 1+0.5")
     for (const [aliasKey, exId] of Object.entries(ALIAS_MAP)) {
       if (norm.startsWith(aliasKey) && EXERCISE_MAP[exId]) {
