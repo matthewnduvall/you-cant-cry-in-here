@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { UI } from '../styles/kineticTokens';
 import { formatTodayYMD } from '../data/exerciseLibrary';
-import { SET_TYPES_LIST } from '../utils/workoutEngine';
+import { SET_TYPES_LIST, best1RMInfoOfSets, oneRepMaxLabel as oneRepMaxText } from '../utils/workoutEngine';
 import { Button, CloseButton } from './Controls';
 
 // ============================================================================
@@ -155,21 +155,15 @@ export function PlateCalculatorModal({
           // session, with this set at the weight being picked. Same estimate History uses to find PRs, so
           // CURRENT above PR means the session would log a new PR.
           const prValue = Number(plateCalcTarget.prValue) || 0;
+          const prCalculated = Boolean(plateCalcTarget.prCalculated);
           const prWorkoutId = plateCalcTarget.prWorkoutId || null;
-          const estimate1RM = (weight, reps) => {
-            const w = Number(weight) || 0;
-            const r = Math.max(1, Number(reps) || 1);
-            if (w <= 0) return 0;
-            return r === 1 ? w : Math.round(w * (1 + r / 30));
-          };
           const currentTotal = Number(computedPlateCalculatorTotal) || 0;
           const sessionSets = Array.isArray(plateCalcTarget.sessionSets) ? plateCalcTarget.sessionSets : [];
-          const current1RM = Math.max(
-            estimate1RM(currentTotal, plateCalcTarget.setReps),
-            ...sessionSets
-              .filter(st => st && st.id !== plateCalcTarget.setId)
-              .map(st => estimate1RM(st.weight, st.reps))
-          );
+          // * = calculated from reps (not lifted for 1 rep)
+          const { value: current1RM, calculated: currentCalculated } = best1RMInfoOfSets([
+            { weight: currentTotal, reps: plateCalcTarget.setReps },
+            ...sessionSets.filter(st => st && st.id !== plateCalcTarget.setId)
+          ]);
           const oneRepMaxLabel = color => ({ fontSize: '11px', fontWeight: 800, color, lineHeight: 1, whiteSpace: 'nowrap' });
           const oneRepMaxValue = {
             fontSize: '14px',
@@ -236,9 +230,9 @@ export function PlateCalculatorModal({
                   }}
                 >
                   <span style={oneRepMaxLabel('var(--dp-color-accent)')}>{prWorkoutId ? 'PR ↗' : 'PR'}</span>
-                  <span style={oneRepMaxValue}>{prValue > 0 ? prValue : 'TBD'}</span>
+                  <span style={oneRepMaxValue}>{prValue > 0 ? oneRepMaxText(prValue, prCalculated) : 'TBD'}</span>
                   <span style={{ ...oneRepMaxLabel('#A0A0A0'), marginTop: '6px' }}>CURRENT</span>
-                  <span style={oneRepMaxValue}>{current1RM > 0 ? current1RM : '—'}</span>
+                  <span style={oneRepMaxValue}>{current1RM > 0 ? oneRepMaxText(current1RM, currentCalculated) : '—'}</span>
                 </button>
               ) : (
                 <div style={{ borderLeft: '1px solid var(--dp-color-rule)' }} />

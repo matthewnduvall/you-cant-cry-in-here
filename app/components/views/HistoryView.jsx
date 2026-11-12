@@ -17,6 +17,7 @@ import {
 } from '../../data/exerciseLibrary';
 import {
   getBestHistory1RMInfo,
+  oneRepMaxLabel,
   normalizeSlotLabels,
   buildPersonalRecordHistoryEntry,
   insertHistoryEntrySorted
@@ -478,7 +479,7 @@ export function HistoryView({
     setCalcExerciseId(exerciseId || BIG_FOUR_IDS[0] || 'barbell_bench_press');
   };
 
-  const handleSaveCalculatedPR = ({ exerciseId, oneRepMax, dateYMD, scheme }) => {
+  const handleSaveCalculatedPR = ({ exerciseId, oneRepMax, dateYMD, scheme, estimated = true }) => {
     if (!exerciseId || oneRepMax <= 0) return;
     if (setCustomPrExerciseIds && !displayedPrExerciseIds.includes(exerciseId)) {
       setCustomPrExerciseIds(prev => (prev.includes(exerciseId) ? prev : [...prev, exerciseId]));
@@ -486,7 +487,7 @@ export function HistoryView({
     setOneRepMaxes?.(prev => ({ ...prev, [exerciseId]: oneRepMax }));
     // Log a PERSONAL RECORD entry so Personal Records reflect logged history
     setHistory?.(prev =>
-      insertHistoryEntrySorted(prev, buildPersonalRecordHistoryEntry({ exerciseId, oneRepMax, dateYMD, scheme }))
+      insertHistoryEntrySorted(prev, buildPersonalRecordHistoryEntry({ exerciseId, oneRepMax, dateYMD, scheme, estimated }))
     );
   };
 
@@ -646,6 +647,8 @@ export function HistoryView({
             const rawVal = Number(oneRepMaxes?.[ex.id]) || prInfo.best || 0;
             const isTBD = rawVal <= 0;
             const current1RM = isTBD ? 0 : rawVal;
+            // * = calculated from reps or the 1RM calculator (a PR typed in through the weight pop-up counts as lifted)
+            const prLabel = oneRepMaxLabel(current1RM, rawVal === prInfo.best && prInfo.calculated);
             const loggedDateLabel = prInfo.dateLabel || '';
             const goal1RM = getExRxTargetForLift(
               ex.id,
@@ -727,7 +730,7 @@ export function HistoryView({
                       color: isTBD ? '#FFFFFF' : '#000000'
                     }}
                   >
-                    {isTBD ? 'TBD' : `${current1RM}\u00A0LB`}
+                    {isTBD ? 'TBD' : `${prLabel}\u00A0LB`}
                   </div>
                 ) : (
                 <>
@@ -760,7 +763,7 @@ export function HistoryView({
                   }}
                 >
                   <span style={{ lineHeight: 1.1 }}>
-                    {isTBD ? 'TBD ✎' : `${current1RM} LB ✎`}
+                    {isTBD ? 'TBD ✎' : `${prLabel} LB ✎`}
                   </span>
                   {!isTBD && loggedDateLabel && (
                     <span

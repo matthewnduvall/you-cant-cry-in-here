@@ -6,6 +6,7 @@
 
 import React from 'react';
 import { SHARED_CELL_BORDER } from '../styles/kineticTokens';
+import { oneRepMaxLabel } from '../utils/workoutEngine';
 import {
   STRENGTH_GOAL_CLASSES,
   THOUSAND_LB_CLUB,
@@ -27,7 +28,7 @@ const TO_GO_RED = '#FF3B30';
 
 export const formatLiftLabel = (exId, rawName) => {
   const upper = String(rawName || '').trim().toUpperCase();
-  if (exId === 'overhead_press' || upper === 'BARBELL MILITARY OVERHEAD PRESS') return 'OHP';
+  if (exId === 'overhead_press' || upper === 'BARBELL MILITARY OVERHEAD PRESS') return 'BARBELL OVERHEAD PRESS';
   return upper || String(exId || 'CUSTOM').toUpperCase();
 };
 
@@ -47,6 +48,11 @@ export const getLiftGoalStats = ({
   const points = (Array.isArray(series) ? series : []).filter(pt => Number(pt?.weight) > 0);
   const best = Math.max(0, ...points.map(pt => Number(pt.weight)));
   const pr = Math.max(Number(oneRepMaxes?.[liftId]) || 0, best);
+  // * = calculated from reps: the best logged point is calculated unless some point with that value was a real
+  // single; a higher saved 1RM (typed in as a PR) counts as lifted
+  const bestCalculated = best > 0 && !points.some(pt => Number(pt.weight) === best && !pt.calculated);
+  const first = points[0];
+  const last = points[points.length - 1];
   const goal = getExRxTargetForLift(
     liftId,
     targetStandardClass,
@@ -56,9 +62,12 @@ export const getLiftGoalStats = ({
     oneRepMaxes
   );
   return {
-    start: points.length ? Number(points[0].weight) : 0,
-    latest: points.length ? Number(points[points.length - 1].weight) : 0,
+    start: points.length ? Number(first.weight) : 0,
+    startCalculated: Boolean(first?.calculated),
+    latest: points.length ? Number(last.weight) : 0,
+    latestCalculated: Boolean(last?.calculated),
     pr,
+    prCalculated: pr > 0 && pr === best && bestCalculated,
     goal,
     toGo: Math.max(0, goal - pr),
     logged: pr > 0
@@ -161,15 +170,15 @@ export function LiftGoalRow({
       >
         <div style={statCell}>
           <span style={cellLabel}>START</span>
-          <span style={cellValue}>{stats.start > 0 ? stats.start : dash}</span>
+          <span style={cellValue}>{stats.start > 0 ? oneRepMaxLabel(stats.start, stats.startCalculated) : dash}</span>
         </div>
         <div style={statCell}>
           <span style={cellLabel}>PR</span>
-          <span style={cellValue}>{stats.pr > 0 ? stats.pr : dash}</span>
+          <span style={cellValue}>{stats.pr > 0 ? oneRepMaxLabel(stats.pr, stats.prCalculated) : dash}</span>
         </div>
         <div style={statCell}>
           <span style={cellLabel}>LATEST</span>
-          <span style={cellValue}>{stats.latest > 0 ? stats.latest : dash}</span>
+          <span style={cellValue}>{stats.latest > 0 ? oneRepMaxLabel(stats.latest, stats.latestCalculated) : dash}</span>
         </div>
         {showGoal && (
           <div style={statCell}>

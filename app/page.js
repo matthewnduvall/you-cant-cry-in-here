@@ -335,13 +335,16 @@ export default function App() {
     appendSessionLog
   });
 
-  // While synced the session page has two tabs: YOU (your session) and @FRIEND (their session with their numbers,
-  // which you can edit too). Structure edits on either tab are shared; number edits go to that athlete only.
-  const [sessionTab, setSessionTab] = useState('me');
-  const showingPartnerSession = currentView === 'session' && sessionTab === 'partner' && Boolean(sessionSync.syncId);
+  // While synced every exercise has its own YOU / @FRIEND tab (partnerSlotTabs: slot id → true while that
+  // exercise shows the friend's numbers, which you can edit too). Structure edits on either tab are shared; number
+  // edits go to that athlete only.
+  const [partnerSlotTabs, setPartnerSlotTabs] = useState({});
+  const isSynced = Boolean(sessionSync.syncId);
+  const isPartnerSlot = slotId => isSynced && currentView === 'session' && Boolean(partnerSlotTabs[slotId]);
+  const partnerTabOpen = isSynced && currentView === 'session' && Object.values(partnerSlotTabs).some(Boolean);
   const partnerSession = useMemo(
-    () => (showingPartnerSession ? overlaySetValues(activeSession, sessionSync.partnerValues) : null),
-    [showingPartnerSession, activeSession, sessionSync.partnerValues]
+    () => (isSynced && currentView === 'session' ? overlaySetValues(activeSession, sessionSync.partnerValues) : null),
+    [isSynced, currentView, activeSession, sessionSync.partnerValues]
   );
   const handleEditPartnerSession = nextSession => {
     if (!nextSession || !partnerSession) return;
@@ -367,7 +370,7 @@ export default function App() {
   const partnerNumbersLoadedRef = useRef({ id: null, at: 0 });
   const syncPartnerId = sessionSync.syncPartnerId;
   useEffect(() => {
-    if (!showingPartnerSession || !syncPartnerId || !user) return undefined;
+    if (!partnerTabOpen || !syncPartnerId || !user) return undefined;
     const loaded = partnerNumbersLoadedRef.current;
     if (loaded.id === syncPartnerId && Date.now() - loaded.at < 60 * 1000) return undefined;
     let cancelled = false;
@@ -389,16 +392,72 @@ export default function App() {
     return () => {
       cancelled = true;
     };
-  }, [showingPartnerSession, syncPartnerId, user]);
-  const friendNumbers = showingPartnerSession && partnerNumbers?.id === syncPartnerId ? partnerNumbers : null;
-  const editorHistory = friendNumbers ? friendNumbers.history : history;
-  const editorOneRepMaxes = friendNumbers ? friendNumbers.oneRepMaxes : oneRepMaxes;
-  const editorIncrementLbs = friendNumbers ? friendNumbers.incrementLbs : currentIncrementLbs;
-  const editorBodyweightLbs = friendNumbers ? friendNumbers.bodyweightLbs : userBodyweightLbs;
-  const editorSetPreferences = friendNumbers?.setPreferences || setPreferences;
-  const editorGoalType = friendNumbers ? friendNumbers.goalType : goalType;
+  }, [partnerTabOpen, syncPartnerId, user]);
+  const friendNumbers = isSynced && partnerNumbers?.id === syncPartnerId ? partnerNumbers : null;
 
   // --- 3. Workout & Slot Mutation Handlers Hook ---
+  // Two copies: yours (your session, your numbers) and the friend's (their session = your structure + their
+  // numbers, their history / PRs / goal for suggested weights; every change goes through handleEditPartnerSession).
+  // Each exercise's buttons and pop-ups use the copy for the tab that exercise has open (routed* below).
+  const mutationArgs = {
+    currentView,
+    setCurrentView,
+    user,
+    history,
+    setHistory,
+    oneRepMaxes,
+    setOneRepMaxes,
+    activeSession,
+    setActiveSession,
+    historicalDraft,
+    setHistoricalDraft,
+    routineDraft,
+    setRoutineDraft,
+    previewRoutineDraft,
+    setPreviewRoutineDraft,
+    routineSelectReturnView,
+    setRoutineSelectReturnView,
+    isCurrentEditorShared,
+    setIsCurrentEditorShared,
+    expandedHistoryWorkoutId,
+    setExpandedHistoryWorkoutId,
+    setConfirmedHistoryEditWorkoutId,
+    historyEditDraft,
+    setHistoryEditDraft,
+    historicalEditConfirmTarget,
+    setHistoricalEditConfirmTarget,
+    deleteConfirmTarget,
+    setDeleteConfirmTarget,
+    setSaveConfirmTarget,
+    setOpenedFromRoutines,
+    selectedGymId,
+    setSelectedGymId,
+    gyms,
+    routinePreferences,
+    setPreferences,
+    currentIncrementLbs,
+    userBodyweightLbs,
+    shareRoutinesWithFriends,
+    setSavedRoutines,
+    setSharedRoutines,
+    setTimerTrigger,
+    appendSessionLog,
+    muscleStimulusStatus,
+    availableEquipment,
+    goalType
+  };
+  const partnerMutations = useWorkoutMutations({
+    ...mutationArgs,
+    // Their numbers once loaded; yours until then
+    history: friendNumbers ? friendNumbers.history : history,
+    oneRepMaxes: friendNumbers ? friendNumbers.oneRepMaxes : oneRepMaxes,
+    currentIncrementLbs: friendNumbers ? friendNumbers.incrementLbs : currentIncrementLbs,
+    userBodyweightLbs: friendNumbers ? friendNumbers.bodyweightLbs : userBodyweightLbs,
+    setPreferences: friendNumbers?.setPreferences || setPreferences,
+    goalType: friendNumbers ? friendNumbers.goalType : goalType,
+    partnerSession,
+    onEditPartnerSession: handleEditPartnerSession
+  });
   const {
     isRoutineEditorView,
     currentEditorWorkout,
@@ -428,56 +487,14 @@ export default function App() {
     handleToggleSetLock,
     handleToggleSetDone,
     handleChangeGymSelection
-  } = useWorkoutMutations({
-    currentView,
-    setCurrentView,
-    user,
-    // On the friend's tab: their history, PRs, increment, bodyweight, set preferences and goal (editor* below)
-    history: editorHistory,
-    setHistory,
-    oneRepMaxes: editorOneRepMaxes,
-    setOneRepMaxes,
-    activeSession,
-    setActiveSession,
-    historicalDraft,
-    setHistoricalDraft,
-    routineDraft,
-    setRoutineDraft,
-    previewRoutineDraft,
-    setPreviewRoutineDraft,
-    routineSelectReturnView,
-    setRoutineSelectReturnView,
-    isCurrentEditorShared,
-    setIsCurrentEditorShared,
-    expandedHistoryWorkoutId,
-    setExpandedHistoryWorkoutId,
-    setConfirmedHistoryEditWorkoutId,
-    historyEditDraft,
-    setHistoryEditDraft,
-    historicalEditConfirmTarget,
-    setHistoricalEditConfirmTarget,
-    deleteConfirmTarget,
-    setDeleteConfirmTarget,
-    setSaveConfirmTarget,
-    setOpenedFromRoutines,
-    selectedGymId,
-    setSelectedGymId,
-    gyms,
-    routinePreferences,
-    setPreferences: editorSetPreferences,
-    currentIncrementLbs: editorIncrementLbs,
-    userBodyweightLbs: editorBodyweightLbs,
-    shareRoutinesWithFriends,
-    setSavedRoutines,
-    setSharedRoutines,
-    setTimerTrigger,
-    appendSessionLog,
-    muscleStimulusStatus,
-    availableEquipment,
-    goalType: editorGoalType,
-    partnerSession,
-    onEditPartnerSession: handleEditPartnerSession
-  });
+  } = useWorkoutMutations(mutationArgs);
+
+  // Each exercise's edits go to the copy for the tab it has open (yours, or the friend's on their tab)
+  const mutationsForSlot = slotId => (isPartnerSlot(slotId) ? partnerMutations : null);
+  const routedUpdateSetField = (slotId, ...rest) =>
+    (mutationsForSlot(slotId)?.handleUpdateSetField || handleUpdateSetField)(slotId, ...rest);
+  const routedUpdateSetType = (slotId, ...rest) =>
+    (mutationsForSlot(slotId)?.handleUpdateSetType || handleUpdateSetType)(slotId, ...rest);
 
   // When a sync connects while its pop-up is open (inviter waiting for an answer), show "SYNCED WITH @x"
   // for a second, then close it. Opening the pop-up later (e.g. to UNSYNC) doesn't auto-close.
@@ -493,14 +510,12 @@ export default function App() {
   // RESET while synced would empty the friend's session too, so it ends the sync first
   // RESET and FINISH always act on your own session, even from the friend's tab
   const handleResetSession = async () => {
-    const fromPartnerTab = Boolean(partnerSession);
-    setSessionTab('me');
+    setPartnerSlotTabs({});
     if (sessionSync.syncId) await sessionSync.unsync();
-    if (fromPartnerTab) setActiveSession(prev => (prev ? { ...prev, loadedRoutineTitle: 'MANUAL', slots: [] } : prev));
-    else handleResetCurrentEditor();
+    handleResetCurrentEditor();
   };
   const handleFinishSession = () => {
-    setSessionTab('me');
+    setPartnerSlotTabs({});
     handleSaveCurrentEditor();
   };
 
@@ -525,7 +540,7 @@ export default function App() {
     computedPlateCalculatorTotal,
     handleApplyCalculatedWeight
   } = usePlateCalculator({
-    handleUpdateSetField,
+    handleUpdateSetField: routedUpdateSetField,
     setOneRepMaxes,
     setHistory,
     setCustomGoalWeights,
@@ -540,36 +555,91 @@ export default function App() {
     }
   }, [currentView]);
 
-  // BACK (header): the pages visited since Home, newest last. Going Home clears it; going back pops it.
-  const viewHistoryRef = useRef([]);
-  const lastViewRef = useRef(currentView);
-  const goingBackRef = useRef(false);
+  // BACK: a real back stack of the places visited since Home, newest last. A place is a page, plus (on the
+  // PROGRESS page) its tab and the History workout opened from elsewhere (e.g. a chart point), so BACK from that
+  // workout returns to the chart. Each place is also a browser history entry, so the phone's / browser's back
+  // gesture does the same as the header ←. Going Home clears the stack.
+  const placeOf = () => ({
+    view: currentView,
+    progressTab: progressTabChoice,
+    workoutId: currentView === 'history' ? expandedHistoryWorkoutId : null
+  });
+  const backStackRef = useRef([]);
+  const placeRef = useRef({ view: currentView, progressTab: progressTabChoice, workoutId: null });
+  const ignorePopsRef = useRef(0);
+  const pushPlace = place => {
+    backStackRef.current = [...backStackRef.current, place].slice(-50);
+    try {
+      window.history.pushState({ yccihBack: backStackRef.current.length }, '');
+    } catch {
+      // ignore (no history API)
+    }
+  };
   useEffect(() => {
-    const prev = lastViewRef.current;
-    if (prev === currentView) return;
-    if (goingBackRef.current) goingBackRef.current = false;
-    else if (currentView === 'home') viewHistoryRef.current = [];
-    else viewHistoryRef.current = [...viewHistoryRef.current, prev].slice(-30);
-    lastViewRef.current = currentView;
-  }, [currentView]);
-  // Previous page that can still be shown (editors need their draft; sign-in only while signed out), else Home
-  const handleBack = () => {
-    const canShow = view =>
-      view &&
-      view !== currentView &&
-      !(view === 'gym_editor' && !gymDraft) &&
-      !(view === 'historical_entry' && !historicalDraft) &&
-      !(view === 'routine_editor' && !routineDraft) &&
-      !(view === 'friend_profile' && !viewingFriendProfile) &&
-      !(view === 'auth' && user);
-    const stack = [...viewHistoryRef.current];
+    const prev = placeRef.current;
+    const next = placeOf();
+    placeRef.current = next;
+    // Tab changes on the same page aren't back steps; nor is a back step (goBack already set placeRef to the
+    // place it went to, so prev and next match)
+    if (prev.view === next.view) return;
+    if (next.view === 'home') backStackRef.current = [];
+    else pushPlace(prev);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentView, progressTabChoice, expandedHistoryWorkoutId]);
+  // Goes to the newest place that can still be shown (editors need their draft, sign-in only while signed out,
+  // a History workout must still exist), else Home. `fromBrowser`: the browser already went back one entry.
+  const goBack = ({ fromBrowser = false } = {}) => {
+    const canShow = place =>
+      place &&
+      !(place.view === currentView && (place.workoutId || null) === (placeRef.current?.workoutId || null)) &&
+      !(place.view === 'gym_editor' && !gymDraft) &&
+      !(place.view === 'historical_entry' && !historicalDraft) &&
+      !(place.view === 'routine_editor' && !routineDraft) &&
+      !(place.view === 'friend_profile' && !viewingFriendProfile) &&
+      !(place.view === 'auth' && user) &&
+      !(place.workoutId && !history.some(w => w?.id === place.workoutId));
+    const stack = [...backStackRef.current];
     let target = stack.pop();
     while (target && !canShow(target)) target = stack.pop();
-    viewHistoryRef.current = stack;
-    goingBackRef.current = true;
+    // Keep the browser's entries in step: one entry per place popped (the browser already went back one when
+    // the back gesture started this)
+    const browserSteps = backStackRef.current.length - stack.length - (fromBrowser ? 1 : 0);
+    backStackRef.current = stack;
+    if (browserSteps > 0) {
+      ignorePopsRef.current += 1;
+      try {
+        window.history.go(-browserSteps);
+      } catch {
+        ignorePopsRef.current -= 1;
+      }
+    }
+    const place = target || { view: 'home', progressTab: progressTabChoice, workoutId: null };
     setRoutineSelectReturnView(null);
-    setCurrentView(target || 'home');
+    setConfirmedHistoryEditWorkoutId(null);
+    if (place.view === 'history') setProgressTabChoice(place.progressTab || 'progress');
+    setExpandedHistoryWorkoutId(place.workoutId || null);
+    // The place now shown is the current one (so the effect above doesn't record it as a new step)
+    placeRef.current = { view: place.view, progressTab: place.progressTab || progressTabChoice, workoutId: place.workoutId || null };
+    setCurrentView(place.view);
   };
+  const handleBack = () => goBack();
+  // The phone's / browser's back gesture
+  const goBackRef = useRef(goBack);
+  useEffect(() => {
+    goBackRef.current = goBack;
+  });
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined;
+    const onPopState = () => {
+      if (ignorePopsRef.current > 0) {
+        ignorePopsRef.current -= 1;
+        return;
+      }
+      goBackRef.current({ fromBrowser: true });
+    };
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+  }, []);
 
   // Locked interface: iOS Safari ignores `user-scalable=no`, so cancel its pinch-zoom gestures and
   // multi-touch zoom directly (the viewport export in layout.js covers other browsers).
@@ -589,18 +659,6 @@ export default function App() {
     };
   }, []);
 
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const onPopState = () => {
-      if (openedFromRoutines) {
-        setOpenedFromRoutines(false);
-        setCurrentView('routines');
-      }
-    };
-    window.addEventListener('popstate', onPopState);
-    return () => window.removeEventListener('popstate', onPopState);
-  }, [openedFromRoutines]);
-
   // The PROGRESS page: tabs PROGRESS (chart) / PERSONAL RECORDS / HISTORY. Also each profile's PROGRESS tab;
   // a friend's profile passes their history / PRs / chart series, its own tab state and readOnly.
   // An open History workout (e.g. from the 1RM box's PR link) always shows your HISTORY tab.
@@ -610,6 +668,9 @@ export default function App() {
     oneRepMaxes: prs = effectiveOneRepMaxes,
     seriesByLift = progressionSeriesByLift,
     tab = progressTab,
+    // On a profile the page sits under the profile's own PERFORMANCE tab: its tabs are indented with an elbow
+    // line so they read as that tab's children rather than a second row of page tabs
+    nested = false,
     onTabChange = nextTab => {
       if (nextTab !== 'history' && expandedHistoryWorkoutId) {
         setConfirmedHistoryEditWorkoutId(null);
@@ -619,9 +680,33 @@ export default function App() {
     }
   } = {}) => (
     <>
-      <div style={{ padding: '12px var(--dp-spacing-gutter) 0' }}>
-        <TabBar ariaLabel="Progress sections" tabs={PROGRESS_TABS} value={tab} onChange={onTabChange} />
-      </div>
+      {nested ? (
+        <div style={{ position: 'relative', padding: '0 var(--dp-spacing-gutter)' }}>
+          <span
+            aria-hidden="true"
+            style={{
+              position: 'absolute',
+              left: 'calc(var(--dp-spacing-gutter) + 12px)',
+              top: '-4px',
+              width: '16px',
+              height: '30px',
+              borderLeft: '2px solid var(--dp-color-rule)',
+              borderBottom: '2px solid var(--dp-color-rule)'
+            }}
+          />
+          <TabBar
+            ariaLabel="Performance sections"
+            tabs={PROGRESS_TABS}
+            value={tab}
+            onChange={onTabChange}
+            style={{ marginLeft: '28px', marginTop: '6px' }}
+          />
+        </div>
+      ) : (
+        <div style={{ padding: '12px var(--dp-spacing-gutter) 0' }}>
+          <TabBar ariaLabel="Progress sections" tabs={PROGRESS_TABS} value={tab} onChange={onTabChange} />
+        </div>
+      )}
       {tab === 'progress' && (
         <ProgressionChartView
           colors={colors}
@@ -689,6 +774,8 @@ export default function App() {
   // Opens a logged workout on the PROGRESS page (expanded) and scrolls it into view below the sticky header
   const openHistoryWorkout = workoutId => {
     if (!workoutId) return;
+    // Already on the PROGRESS page (e.g. a chart point): opening the workout is still a back step
+    if (currentView === 'history' && expandedHistoryWorkoutId !== workoutId) pushPlace(placeRef.current);
     setRoutineSelectReturnView(null);
     setConfirmedHistoryEditWorkoutId(null);
     setExpandedHistoryWorkoutId(workoutId);
@@ -850,9 +937,9 @@ export default function App() {
               selectedGymId={selectedGymId}
               setSelectedGymId={handleChangeGymSelection}
               gyms={gyms}
-              history={editorHistory}
-              oneRepMaxes={friendNumbers ? friendNumbers.oneRepMaxes : effectiveOneRepMaxes}
-              currentIncrementLbs={editorIncrementLbs}
+              history={history}
+              oneRepMaxes={effectiveOneRepMaxes}
+              currentIncrementLbs={currentIncrementLbs}
               setHistoricalDraft={setHistoricalDraft}
               setDeleteConfirmTarget={setDeleteConfirmTarget}
               isCurrentEditorShared={isCurrentEditorShared}
@@ -876,14 +963,26 @@ export default function App() {
               setSetValueTarget={setSetValueTarget}
               openedFromRoutines={openedFromRoutines}
               setOpenedFromRoutines={setOpenedFromRoutines}
-              sessionTabs={
-                sessionSync.syncId
+              slotTabs={
+                isSynced && currentView === 'session'
                   ? {
-                      active: showingPartnerSession ? 'partner' : 'me',
-                      onChange: setSessionTab,
+                      isPartner: slotId => Boolean(partnerSlotTabs[slotId]),
+                      onChange: (slotId, tab) => setPartnerSlotTabs(prev => ({ ...prev, [slotId]: tab === 'partner' })),
                       partnerName: sessionSync.syncPartnerName,
+                      partnerWorkout: partnerSession,
+                      partnerHistory: friendNumbers ? friendNumbers.history : history,
                       partnerNumbersLoaded: Boolean(friendNumbers),
-                      partnerAppOutdated: sessionSync.partnerAppOutdated
+                      partnerAppOutdated: sessionSync.partnerAppOutdated,
+                      handlers: {
+                        handleUpdateSlotCategoryOrExercise: partnerMutations.handleUpdateSlotCategoryOrExercise,
+                        handleUpdateSetField: partnerMutations.handleUpdateSetField,
+                        handleUpdateSetType: partnerMutations.handleUpdateSetType,
+                        handleInsertSetAtPosition: partnerMutations.handleInsertSetAtPosition,
+                        handleRecalculateSlotWeights: partnerMutations.handleRecalculateSlotWeights,
+                        handleToggleSetLock: partnerMutations.handleToggleSetLock,
+                        handleToggleSetDone: partnerMutations.handleToggleSetDone,
+                        handleReorderSets: partnerMutations.handleReorderSets
+                      }
                     }
                   : null
               }
@@ -1144,8 +1243,8 @@ export default function App() {
         <SetValueEditorModal
           setValueTarget={setValueTarget}
           setSetValueTarget={setSetValueTarget}
-          handleUpdateSetField={handleUpdateSetField}
-          handleUpdateSetType={handleUpdateSetType}
+          handleUpdateSetField={routedUpdateSetField}
+          handleUpdateSetType={routedUpdateSetType}
         />
 
         <SessionSyncModal

@@ -9,6 +9,7 @@ import {
   recordFriendFirstSeen,
   daysBetweenYMD
 } from '../../utils/friendFirstSeen';
+import { getBestHistory1RMInfo, oneRepMaxLabel } from '../../utils/workoutEngine';
 
 // ============================================================================
 // VIEW: HOME SCREEN
@@ -102,6 +103,9 @@ function getAthleteScrollerEntries(friend, randomSeed = 1, todayFallbackStr = ''
 
     const prVal = Number(prs[lift.id]) || 0;
     const weightVal = Math.max(prVal, bestHistWeight, latestHistWeight);
+    // * = their best was calculated from reps, not lifted for 1 rep
+    const histInfo = getBestHistory1RMInfo(lift.id, histList);
+    const weightLabel = oneRepMaxLabel(weightVal, weightVal === histInfo.best && histInfo.calculated);
 
     if (weightVal > 0) {
       const resolvedDateRaw = latestDateRaw || fallbackDateRaw;
@@ -126,7 +130,7 @@ function getAthleteScrollerEntries(friend, randomSeed = 1, todayFallbackStr = ''
         entryTimeMs,
         dayBucket,
         tieRand: deterministicHash(`${uname}_${lift.id}_${dateStr}_${randomSeed}`),
-        text: `@${uname}: ${lift.label} 1RM ${weightVal} LB${dateSuffix}`
+        text: `@${uname}: ${lift.label} 1RM ${weightLabel} LB${dateSuffix}`
       });
     }
   });

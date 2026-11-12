@@ -14,8 +14,11 @@ import {
 import {
   getBestHistory1RMInfo
 } from '../../utils/workoutEngine';
-import { Button, TabBar } from '../Controls';
+import { Button } from '../Controls';
 import { SlotEditor } from '../SlotEditor';
+
+// The friend's tab colour on each exercise of a synced session (orange stays "you")
+const PARTNER_TAB_COLOR = '#BF5AF2';
 
 // ============================================================================
 // VIEW: WORKOUT SESSION / ROUTINE / HISTORICAL ENTRY
@@ -54,8 +57,10 @@ export function RoutineEditorView({
   isEmbeddedHistorySession = false,
   // History editor: { dirty, onSave, onDiscard }. Edits stay a draft until SAVE (same save pop-up as FINISH)
   historyEdit = null,
-  // Synced session: { active: 'me' | 'partner', onChange, partnerName } shows the YOU / @FRIEND tabs
-  sessionTabs = null
+  // Synced session: every exercise gets its own YOU / @FRIEND tab. { isPartner(slotId), onChange(slotId, tab),
+  // partnerName, partnerWorkout (your structure + their numbers), partnerHistory, partnerNumbersLoaded,
+  // partnerAppOutdated, handlers (the friend's copy of the slot handlers) }
+  slotTabs = null
 }) {
   // Drag an exercise's numbered grippy handle to reorder (pointer events: works with touch). The page scrolls when
   // the finger rests below the sticky session header (~146 px) or near the bottom edge.
@@ -67,33 +72,12 @@ export function RoutineEditorView({
 
   return (
     <div style={{ paddingTop: isEmbeddedHistorySession ? '8px' : '14px' }}>
-      {/* Synced with a friend: YOU / @FRIEND tabs. The friend's tab shows their session (their weights, reps and
-          checkmarks) and edits go to them; exercise and set changes are shared either way. */}
-      {sessionTabs && currentView === 'session' && !isEmbeddedHistorySession && (
-        <div style={{ padding: '0 var(--dp-spacing-gutter)', marginBottom: '16px' }}>
-          <TabBar
-            ariaLabel="Whose session"
-            tabs={[
-              { id: 'me', label: 'YOU' },
-              { id: 'partner', label: `@${sessionTabs.partnerName || 'FRIEND'}`.toUpperCase() }
-            ]}
-            value={sessionTabs.active}
-            onChange={sessionTabs.onChange}
-          />
-          {sessionTabs.partnerAppOutdated && (
-            <div role="alert" style={{ marginTop: '8px', fontSize: '12px', fontWeight: 700, color: '#FF3B30', lineHeight: 1.4 }}>
-              @{sessionTabs.partnerName || 'Your friend'} is on an older version of the app, so they can’t see these tabs
-              and their numbers don’t reach you. Ask them to close the app and open it again.
-            </div>
-          )}
-          {sessionTabs.active === 'partner' && (
-            <div style={{ marginTop: '8px', fontSize: '12px', fontWeight: 700, color: '#A0A0A0', lineHeight: 1.4 }}>
-              You’re editing @{sessionTabs.partnerName || 'your friend'}’s session. Changes show up on their phone.
-              {sessionTabs.partnerNumbersLoaded
-                ? ' Suggested weights use their history.'
-                : ' Loading their history: suggested weights use yours until then.'}
-            </div>
-          )}
+      {/* Synced with a friend: only a warning here when their app is too old to show their numbers (the YOU /
+          @FRIEND tabs are on each exercise) */}
+      {slotTabs?.partnerAppOutdated && !isEmbeddedHistorySession && (
+        <div role="alert" style={{ padding: '0 var(--dp-spacing-gutter)', marginBottom: '16px', fontSize: '12px', fontWeight: 700, color: '#FF3B30', lineHeight: 1.4 }}>
+          @{slotTabs.partnerName || 'Your friend'} is on an older version of the app, so their numbers don’t reach you.
+          Ask them to close the app and open it again.
         </div>
       )}
       {/* Session name, SAVE and RESET sit in the locked header (SessionTitleBar). This block only holds the
@@ -321,7 +305,22 @@ export function RoutineEditorView({
 
         <div style={{ borderTop: '2px solid var(--dp-color-rule)' }}>
           {!hasExercises ? null : (
-            (currentEditorWorkout.slots || []).map((slot, sIdx) => {
+            (currentEditorWorkout.slots || []).map((ownSlot, sIdx) => {
+              // Synced: this exercise on the friend's tab shows (and edits) their numbers with their handlers
+              const onPartnerTab = Boolean(slotTabs?.isPartner(ownSlot.id));
+              const slot = (onPartnerTab && slotTabs.partnerWorkout?.slots?.find(s => s.id === ownSlot.id)) || ownSlot;
+              const partnerHandlers = onPartnerTab ? slotTabs.handlers : null;
+              const ownHandlers = {
+                handleUpdateSlotCategoryOrExercise,
+                handleUpdateSetField,
+                handleUpdateSetType,
+                handleInsertSetAtPosition,
+                handleRecalculateSlotWeights,
+                handleToggleSetLock,
+                handleToggleSetDone,
+                handleReorderSets
+              };
+              const slotHandler = name => (partnerHandlers && partnerHandlers[name]) || ownHandlers[name];
               const isSuperset = isSupersetCategory(normalizeSlotCategory(slot.category));
               const ex1 = EXERCISE_MAP[slot.exerciseId] || EXERCISE_LIBRARY[0];
               const supIds = isSuperset
@@ -355,16 +354,62 @@ export function RoutineEditorView({
                     ...slotDragStyle(sIdx)
                   }}
                 >
+                  {slotTabs && (
+                    <div style={{ marginBottom: '8px' }}>
+                      <div
+                        role="tablist"
+                        aria-label="Whose numbers"
+                        style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 0, ...SHARED_GROUP_OUTER }}
+                      >
+                        {[
+                          { id: 'me', label: 'YOU', color: 'var(--dp-color-accent)' },
+                          { id: 'partner', label: `@${slotTabs.partnerName || 'FRIEND'}`.toUpperCase(), color: PARTNER_TAB_COLOR }
+                        ].map(tab => {
+                          const active = (tab.id === 'partner') === onPartnerTab;
+                          return (
+                            <button
+                              key={tab.id}
+                              type="button"
+                              role="tab"
+                              aria-selected={active}
+                              className="kinetic-btn"
+                              onClick={() => slotTabs.onChange(ownSlot.id, tab.id)}
+                              style={{
+                                ...SHARED_CELL_BORDER,
+                                minHeight: '40px',
+                                padding: '4px 6px',
+                                backgroundColor: active ? tab.color : '#141416',
+                                color: active ? '#101010' : tab.id === 'partner' ? PARTNER_TAB_COLOR : '#FFFFFF',
+                                fontSize: '12px',
+                                fontWeight: 800,
+                                textTransform: 'uppercase',
+                                overflowWrap: 'anywhere',
+                                cursor: 'pointer'
+                              }}
+                            >
+                              {tab.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                      {onPartnerTab && (
+                        <div style={{ marginTop: '6px', fontSize: '12px', fontWeight: 700, color: PARTNER_TAB_COLOR, lineHeight: 1.4 }}>
+                          @{slotTabs.partnerName || 'your friend'}’s numbers: changes show up on their phone.
+                          {slotTabs.partnerNumbersLoaded ? '' : ' Suggested weights use your history until theirs loads.'}
+                        </div>
+                      )}
+                    </div>
+                  )}
                   <SlotEditor
                     slot={slot}
                     number={sIdx + 1}
                     dragHandleProps={slotHandleProps(sIdx)}
                     selectedGymId={selectedGymId}
                     gyms={gyms}
-                    history={history}
+                    history={onPartnerTab ? slotTabs.partnerHistory || history : history}
                     workoutId={currentEditorWorkout.id}
                     prFlags={prFlags}
-                    onHeaderChange={changes => handleUpdateSlotCategoryOrExercise(slot.id, changes)}
+                    onHeaderChange={changes => slotHandler('handleUpdateSlotCategoryOrExercise')(slot.id, changes)}
                     onRemove={() =>
                       setDeleteConfirmTarget({
                         type: 'slot',
@@ -386,14 +431,14 @@ export function RoutineEditorView({
                         isAbs: false
                       })
                     }
-                    onChangeSetType={({ exIdx, set, type }) => handleUpdateSetType?.(slot.id, exIdx, set.id, type)}
+                    onChangeSetType={({ exIdx, set, type }) => slotHandler('handleUpdateSetType')?.(slot.id, exIdx, set.id, type)}
                     onSetBandColor={({ exIdx, set, color }) =>
-                      handleUpdateSetField?.(slot.id, exIdx, set.id, 'bandColor', color)
+                      slotHandler('handleUpdateSetField')?.(slot.id, exIdx, set.id, 'bandColor', color)
                     }
                     onEditWeight={({ exIdx, set, exercise, ...setInfo }) =>
                       openPlateCalculatorForSet(slot.id, exIdx, set, exercise.name, null, setInfo)
                     }
-                    onToggleDone={({ exIdx, set }) => handleToggleSetDone(slot, exIdx, set)}
+                    onToggleDone={({ exIdx, set }) => slotHandler('handleToggleSetDone')(slot, exIdx, set)}
                     onDeleteSet={({ exIdx, set, exercise }) =>
                       setDeleteConfirmTarget({
                         type: 'set',
@@ -403,13 +448,13 @@ export function RoutineEditorView({
                         label: `${exercise.name} — Set ${set.setNumber}`
                       })
                     }
-                    onReorderSets={(exIdx, fromIdx, toIdx) => handleReorderSets?.(slot.id, exIdx, fromIdx, toIdx)}
-                    onInsertSet={position => handleInsertSetAtPosition(slot.id, position)}
+                    onReorderSets={(exIdx, fromIdx, toIdx) => slotHandler('handleReorderSets')?.(slot.id, exIdx, fromIdx, toIdx)}
+                    onInsertSet={position => slotHandler('handleInsertSetAtPosition')(slot.id, position)}
                     actionLabel="RECALCULATE"
-                    onAction={() => handleRecalculateSlotWeights(slot.id)}
+                    onAction={() => slotHandler('handleRecalculateSlotWeights')(slot.id)}
                     onToggleSetLock={
                       handleToggleSetLock
-                        ? ({ exIdx, set, field }) => handleToggleSetLock(slot.id, exIdx, set.id, field)
+                        ? ({ exIdx, set, field }) => slotHandler('handleToggleSetLock')(slot.id, exIdx, set.id, field)
                         : undefined
                     }
                   />

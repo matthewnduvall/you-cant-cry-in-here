@@ -10,7 +10,7 @@ import {
   formatDateYMD,
   parseYMDToISO
 } from '../data/exerciseLibrary';
-import { getPersonalRecord1RM } from '../utils/workoutEngine';
+import { getPersonalRecord1RM, isCalculated1RMSet } from '../utils/workoutEngine';
 
 // Muscle groups with no logged training: neutral grey, so a new account isn't shown as all "overdue"
 export const UNLOGGED_STIMULUS_COLOR = '#4A4A50';
@@ -46,6 +46,8 @@ export function buildProgressionSeriesByLift(history) {
 
     normalizedWorkouts.forEach(({ workout: w, rawIdx, dateLabel, timestampMs }) => {
       let top1RM = 0;
+      // the day's best 1RM was worked out from reps (or the 1RM calculator), not lifted for 1 rep
+      let topCalculated = false;
       let totalVol = 0;
 
       const accumulateSetsForExercise = setsList => {
@@ -57,7 +59,11 @@ export function buildProgressionSeriesByLift(history) {
           const wVal = Number(s.weight) || 0;
           const rVal = Math.max(1, Number(s.reps) || 1);
           const est1RM = rVal === 1 ? wVal : Math.round(wVal * (1 + rVal / 30));
-          if (est1RM > top1RM) top1RM = est1RM;
+          const calc = isCalculated1RMSet(s);
+          if (est1RM > top1RM || (est1RM === top1RM && topCalculated && !calc)) {
+            top1RM = est1RM;
+            topCalculated = calc;
+          }
           totalVol += wVal * rVal;
         });
       };
@@ -85,12 +91,14 @@ export function buildProgressionSeriesByLift(history) {
             dateLabel,
             timestampMs,
             weight: top1RM,
+            calculated: top1RM > 0 && topCalculated,
             volume: roundedVol
           });
         } else {
           // The point opens the workout with the day's best set
-          if (top1RM > existing.weight) {
+          if (top1RM > existing.weight || (top1RM === existing.weight && existing.calculated && !topCalculated)) {
             existing.weight = top1RM;
+            existing.calculated = top1RM > 0 && topCalculated;
             existing.workoutId = w.id || existing.workoutId;
           }
           existing.volume += roundedVol;

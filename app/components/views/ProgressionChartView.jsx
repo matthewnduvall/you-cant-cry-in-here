@@ -4,6 +4,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { EXERCISE_LIBRARY, EXERCISE_MAP, parseYMDToISO } from '../../data/exerciseLibrary';
 import { SHARED_CELL_BORDER, SHARED_GROUP_OUTER } from '../../styles/kineticTokens';
 import { Button, SegmentButton } from '../Controls';
+import { oneRepMaxLabel } from '../../utils/workoutEngine';
 import { ExercisePicker } from '../ExercisePicker';
 import {
   CORE_LIFT_IDS,
@@ -386,6 +387,8 @@ export function ProgressionChartView({
                     x: getXByTime(pt.timestampMs),
                     y: getY(pt.weight),
                     rawVal: pt.weight,
+                    // * = calculated from reps (not lifted for 1 rep)
+                    label: oneRepMaxLabel(pt.weight, pt.calculated),
                     dateLabel: pt.dateLabel,
                     workoutId: pt.workoutId,
                     inWindow: pt.timestampMs >= domainMinMs && pt.timestampMs <= domainMaxMs
@@ -442,7 +445,7 @@ export function ProgressionChartView({
                                 fontSize="12.5"
                                 fontWeight="800"
                               >
-                                {c.rawVal}
+                                {c.label}
                               </text>
                             )}
                             {/* Tap target: opens the workout in History */}
@@ -454,7 +457,7 @@ export function ProgressionChartView({
                                 fill="transparent"
                                 role="button"
                                 tabIndex={0}
-                                aria-label={`${liftMeta[liftId]?.short || ''} ${c.rawVal} lb on ${c.dateLabel}: open in History`}
+                                aria-label={`${liftMeta[liftId]?.short || ''} ${c.label} lb on ${c.dateLabel}: open in History`}
                                 style={{ cursor: 'pointer' }}
                                 onClick={() => openPoint(c.workoutId)}
                                 onKeyDown={e => {
@@ -515,13 +518,6 @@ export function ProgressionChartView({
                 >
                   LATER ›
                 </button>
-              </div>
-            )}
-            {(onOpenHistoryWorkout || activeLifts.some(id => (seriesByLift[id] || []).length >= 3)) && (
-              <div style={{ marginTop: '6px', fontSize: '11px', fontWeight: 700, color: '#8E8E93', textAlign: 'center' }}>
-                Dashed line = smoothed average.
-                {onOpenHistoryWorkout ? ' Tap a point to open that workout.' : ''}
-                {canScroll ? ' Drag sideways to scroll.' : ''}
               </div>
             )}
           </div>
