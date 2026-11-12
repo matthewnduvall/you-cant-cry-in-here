@@ -81,7 +81,7 @@ const setCellStyle = cellBg => ({
 });
 
 const cellLabelStyle = { fontSize: '11px', fontWeight: 500, color: '#9A9A9A', lineHeight: 1 };
-// Set values (weight, reps, timer, band) are readouts: the NN1050 numeral face
+// Set values (weight, reps, timer, band) are readouts: the label / number face (--cr-face-display)
 const cellValueStyle = (color = '#FFFFFF', size = '15px') => ({
   fontFamily: 'var(--cr-face-display)',
   fontSize: size,
