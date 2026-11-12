@@ -2,14 +2,20 @@
 
 import React, { useState, useEffect } from 'react';
 import { IOSListSection, IOSListRow } from '../Primitives';
-import { formatDateYMD } from '../../data/exerciseLibrary';
+import {
+  formatDateYMD,
+  EXERCISE_MAP,
+  stripEquipmentFromExerciseName,
+  getBandLoadLabel,
+  isBodyweightExercise
+} from '../../data/exerciseLibrary';
 import {
   NEW_FRIEND_DAYS,
   readFriendFirstSeen,
   recordFriendFirstSeen,
   daysBetweenYMD
 } from '../../utils/friendFirstSeen';
-import { buildHistoryPRs, getBestHistory1RMInfo, oneRepMaxLabel } from '../../utils/workoutEngine';
+import { buildHistoryPRs, getBestHistory1RMInfo, oneRepMaxLabel, getSetTimerMMSS } from '../../utils/workoutEngine';
 
 // ============================================================================
 // VIEW: HOME SCREEN
@@ -31,6 +37,69 @@ const deterministicHash = str => {
   }
   return h >>> 0;
 };
+
+// Other exercises from a friend's latest workout: at most this many per friend
+const RECENT_EXERCISES_PER_FRIEND = 3;
+
+/**
+ * A friend's last completed exercises outside the Big 3 + OHP (those have their own entries): from their most recent
+ * workout with a completed set, each exercise's best completed set — "@X: LAT PULLDOWN 140 LB × 10 (11/12)",
+ * "@X: PULL-UP × 12", "@X: PLANK 01:30", "@X: BAND ROW RED BAND × 15". Entries carry the same sort fields as the lift
+ * entries (newest first).
+ */
+function getAthleteRecentExerciseEntries(friend, randomSeed = 1) {
+  const uname = (friend?.username || 'athlete').toUpperCase();
+  const timeOf = w => new Date(w?.startedAt || w?.workoutDate || w?.updatedAt || 0).getTime();
+  const done = st => st && st.completed;
+  const latest = [...(Array.isArray(friend?.history) ? friend.history : [])]
+    .sort((a, b) => timeOf(b) - timeOf(a))
+    .find(w => (w?.slots || []).some(slot => (slot?.supersetSetsByExercise || [slot?.sets]).some(list => (list || []).some(done))));
+  if (!latest) return [];
+  const timeMs = timeOf(latest) || 0;
+  const dateStr = timeMs > 0 ? formatDateYMD(latest.startedAt || latest.workoutDate).replace(/^\d{4}\//, '') : '';
+  const coreIds = new Set(SCROLLER_LIFTS.map(l => l.id));
+  const seen = new Set();
+  const entries = [];
+  (latest.slots || []).forEach(slot => {
+    const ids =
+      Array.isArray(slot?.supersetExerciseIds) && slot.supersetExerciseIds.length > 0
+        ? slot.supersetExerciseIds
+        : [slot?.exerciseId].filter(Boolean);
+    ids.forEach((exId, exIdx) => {
+      if (!exId || coreIds.has(exId) || seen.has(exId)) return;
+      const list = Array.isArray(slot?.supersetSetsByExercise) && slot.supersetSetsByExercise[exIdx]
+        ? slot.supersetSetsByExercise[exIdx]
+        : exIdx === 0 ? slot?.sets || [] : slot?.secondarySets || [];
+      const completed = (list || []).filter(done);
+      if (completed.length === 0) return;
+      seen.add(exId);
+      // Best completed set: heaviest estimated 1RM, else most reps / longest time
+      const score = st => {
+        const w = Number(st.weight) || 0;
+        const r = Math.max(1, Number(st.reps) || 1);
+        return w > 0 ? w * (1 + r / 30) : Number(st.durationSeconds) || r;
+      };
+      const best = completed.reduce((a, b) => (score(b) > score(a) ? b : a));
+      const name = stripEquipmentFromExerciseName(EXERCISE_MAP[exId]?.name || exId).toUpperCase();
+      const reps = Number(best.reps) || 0;
+      const load = best.durationSeconds || best.timerStr
+        ? getSetTimerMMSS(best, true)
+        : best.bandColor
+          ? `${getBandLoadLabel(best.bandColor)} × ${reps}`
+          : Number(best.weight) > 0 && !isBodyweightExercise(exId)
+            ? `${best.weight} LB × ${reps}`
+            : `× ${reps}`;
+      entries.push({
+        uname,
+        dayBucket: Math.floor(timeMs / 86400000),
+        entryTimeMs: timeMs,
+        tieRand: deterministicHash(`${uname}_${exId}_${randomSeed}`),
+        text: `@${uname}: ${name} ${load}${dateStr ? ` (${dateStr})` : ''}`
+      });
+    });
+  });
+  return entries.slice(0, RECENT_EXERCISES_PER_FRIEND);
+}
 
 function getAthleteScrollerEntries(friend, randomSeed = 1, todayFallbackStr = '') {
   const uname = (friend?.username || 'athlete').toUpperCase();
@@ -208,10 +277,14 @@ export function HomeView({
         : `${group.toUpperCase()} READY (${s.daysAgo}D AGO)`
     );
 
-  // Limit to 10 athletes, up to 4 exercises each (Big 3 + OHP) = max 40 entries, ordered by time of entry
+  // Limit to 10 athletes: their Big 3 + OHP entries plus up to 3 other exercises from their latest workout, ordered by
+  // time of entry
   const tickerEntryObjects = uniqueAthletes
     .slice(0, 10)
-    .flatMap(a => getAthleteScrollerEntries(a, scrollerSeed, todayFallbackStr));
+    .flatMap(a => [
+      ...getAthleteScrollerEntries(a, scrollerSeed, todayFallbackStr),
+      ...getAthleteRecentExerciseEntries(a, scrollerSeed)
+    ]);
 
   const sortedTickerEntries = [...tickerEntryObjects]
     .sort((a, b) => {

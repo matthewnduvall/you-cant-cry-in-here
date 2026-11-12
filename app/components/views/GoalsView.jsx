@@ -32,6 +32,8 @@ export function GoalsView({
   // START / LATEST per lift (the same rows as the PROGRESS page)
   progressionSeriesByLift = {},
   openPlateCalculatorForGoal,
+  // START / PR / LATEST open the History workout they come from
+  onOpenHistoryWorkout,
   customPrExerciseIds = [],
   setCustomPrExerciseIds
 }) {
@@ -216,6 +218,7 @@ export function GoalsView({
                 color={CORE_LIFT_META[liftId]?.color || '#FFFFFF'}
                 stats={stats}
                 onEditGoal={() => openPlateCalculatorForGoal(liftId, ex.name, stats.goal)}
+                onOpenWorkout={onOpenHistoryWorkout}
               />
             );
           })}

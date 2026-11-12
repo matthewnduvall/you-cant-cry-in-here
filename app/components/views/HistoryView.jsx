@@ -745,10 +745,15 @@ export function HistoryView({
                     height: '100%',
                     minHeight: '48px',
                     backgroundColor: '#1C1C1C',
-                    color: '#FFFFFF'
+                    color: '#FFFFFF',
+                    // Two lines in the 96 px column
+                    whiteSpace: 'normal',
+                    lineHeight: 1.15,
+                    fontSize: '11px',
+                    padding: '0 6px'
                   }}
                 >
-                  CALCULATE
+                  CALCULATE FROM REPS
                 </button>
 
                 <button

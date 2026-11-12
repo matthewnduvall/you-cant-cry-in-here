@@ -385,6 +385,12 @@ export function ProfileView({
                 history: profHistory,
                 oneRepMaxes: profPRs,
                 seriesByLift: friendSeriesByLift,
+                // Their strength class goal (distance-to-goal view); falls back to Intermediate
+                goalSettings: {
+                  targetStandardClass: profUser?.goals?.targetStandardClass || 'Intermediate',
+                  customGoalWeights: profUser?.goals?.customGoalWeights || {},
+                  bodyweightLbs: profUser?.bodyweightLbs
+                },
                 tab: friendProgressTab,
                 onTabChange: setFriendProgressTab
               }

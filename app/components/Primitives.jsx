@@ -155,8 +155,9 @@ export function IOSListRow({ children, onClick, isLast = false, indexLabel, bgNu
 // Width of the header's SYNC / SAVE / RESET cells and the rest-timer bar's ✓ cell. They share it so the orange
 // NEXT bar ends exactly under the SAVE | RESET divider.
 const SESSION_ACTION_COL = '58px';
-// DATE box beside the session name (fits YYYY/MM/DD)
-const SESSION_DATE_COL = '100px';
+// DATE box beside the session name: fits YYYY/MM/DD at 12 px (59 px of text), so the SESSION NAME label keeps one line
+// even with SYNC showing (name box ≈ 95 px at phone width; the label needs ≈ 93 px with its padding)
+const SESSION_DATE_COL = '74px';
 
 export function SessionTitleBar({
   title = '',
@@ -218,13 +219,13 @@ export function SessionTitleBar({
           boxSizing: 'border-box',
           backgroundColor: '#1C1C1C',
           ...cellBorder,
-          padding: '0 10px',
+          padding: '0 8px',
           display: 'flex',
           flexDirection: 'column',
           justifyContent: 'center'
         }}
       >
-        <span style={{ fontSize: '10px', fontWeight: 500, letterSpacing: '0.1em', color: '#9A9A9A', lineHeight: 1.1 }}>
+        <span style={{ fontSize: '10px', fontWeight: 500, letterSpacing: '0.06em', color: '#9A9A9A', lineHeight: 1.1, whiteSpace: 'nowrap' }}>
           SESSION NAME
         </span>
         <input
@@ -485,7 +486,8 @@ export const SessionRestTimerBar = React.memo(function SessionRestTimerBar({
           overflow: 'hidden'
         }}
       >
-        {nextLiftInfo.topLine ? (
+        {/* The red dot only while a set is waiting (a set line under the exercise name) */}
+        {nextLiftInfo.topLine && nextLiftInfo.bottomLine ? (
           <span
             aria-hidden="true"
             style={{
