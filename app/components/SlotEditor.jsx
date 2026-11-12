@@ -32,6 +32,7 @@ import {
 } from '../data/exerciseLibrary';
 import {
   SCHEME_OPTIONS,
+  isClusterScheme,
   normalizeSetType,
   getBestHistory1RMInfo,
   getLastLoggedSetsForExercise,
@@ -772,7 +773,8 @@ export function SlotEditor({
           className="kinetic-filter-select"
           style={{ ...headerSelectStyle, gridColumn: '1 / 3', gridRow: 3 }}
         >
-          {SCHEME_OPTIONS.map(scm => (
+          {/* CLUSTER is a scheme for a single exercise (not offered in a superset) */}
+          {SCHEME_OPTIONS.filter(scm => !isSuperset || !isClusterScheme(scm)).map(scm => (
             <option key={scm} value={scm}>
               {scm.toUpperCase()}
             </option>

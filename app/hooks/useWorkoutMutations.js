@@ -46,6 +46,8 @@ import {
   normalizeSetType,
   lockAndCompleteSets,
   keepCompletedSets,
+  isClusterScheme,
+  CLUSTER_REST_SECONDS,
   asHistoricalWorkout
 } from '../utils/workoutEngine';
 import { deleteCloudRoutineByKey, deleteCloudWorkoutsByIds } from '../utils/supabaseAuth';
@@ -1797,9 +1799,14 @@ export function useWorkoutMutations({
   const handleToggleSetDone = (slot, exIndex, setItem) => {
     const markingDone = !setItem.completed;
     if (markingDone && isRoutineEditorView) {
+      // CLUSTER: a short rest between its sets; the usual rest after the last one
+      const clusterSetsLeft =
+        isClusterScheme(slot.scheme) && (slot.sets || []).some(st => st.id !== setItem.id && !st.completed);
       setTimerTrigger({
         isRunning: true,
-        targetSeconds: slot.restSeconds || currentEditorWorkout?.defaultRestSeconds || 90,
+        targetSeconds: clusterSetsLeft
+          ? CLUSTER_REST_SECONDS
+          : slot.restSeconds || currentEditorWorkout?.defaultRestSeconds || 90,
         startedAtMs: Date.now()
       });
     }

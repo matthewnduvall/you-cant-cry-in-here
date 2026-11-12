@@ -194,6 +194,12 @@ export const getGymSelectionLabel = (gymSelectionId, customGyms = []) => {
 };
 
 // Fast RFC-4180 CSV line parser supporting quoted fields and pipe-delimited array columns
+// Exercises that train a second body part as much as their main one (a thruster = front squat + overhead press)
+const SECONDARY_MUSCLE_GROUPS = {
+  barbell_thruster: ['Shoulders'],
+  dumbbell_thruster: ['Shoulders']
+};
+
 const parseCsvLine = line => {
   const fields = [];
   let cur = '';
@@ -265,6 +271,8 @@ export const parseExercisesCsv = rawCsv => {
       requiredEquipment,
       category,
       muscleGroup,
+      // Other body parts it trains as much (muscle filters and the stimulus map count them too)
+      secondaryMuscleGroups: SECONDARY_MUSCLE_GROUPS[id] || [],
       specificMuscles,
       isPriority,
       default1RM,
@@ -286,6 +294,13 @@ export const sortExercisesAlphabetically = list =>
   [...(list || [])].sort((a, b) => (a?.name || '').localeCompare(b?.name || ''));
 
 export const doesExerciseInteractWithMuscleGroup = (ex, muscleGroupFilter) => {
+  if (
+    ex &&
+    Array.isArray(ex.secondaryMuscleGroups) &&
+    ex.secondaryMuscleGroups.some(g => doesExerciseInteractWithMuscleGroup({ muscleGroup: g }, muscleGroupFilter))
+  ) {
+    return true;
+  }
   if (!ex) return false;
   if (!muscleGroupFilter || muscleGroupFilter === 'All Muscles' || muscleGroupFilter === 'All') {
     return true;

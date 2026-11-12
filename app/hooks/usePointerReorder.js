@@ -8,6 +8,8 @@
 // - the row it would land on gets an orange outline (an outline, not an inset box-shadow, so the row's own
 //   filled cells can't cover it).
 // On release, `onMove(fromKey, overKey)` runs if they differ; numeric keys come back as numbers.
+// Not too sensitive: the row only lifts after the finger moves LIFT_THRESHOLD_PX, and it only lands on another row
+// once the finger passes that row's middle (so a small wobble never reorders anything).
 // Options:
 // - attribute: the row attribute to look for (use different ones for nested lists, e.g. exercises vs sets)
 // - canDrop(fromKey, overKey): only allow some targets (e.g. sets within the same superset exercise)
@@ -18,48 +20,79 @@
 import { useEffect, useRef, useState } from 'react';
 
 const ACCENT_OUTLINE = '2px solid var(--dp-color-accent)';
+const LIFT_THRESHOLD_PX = 10;
 
 export function usePointerReorder(onMove, { attribute = 'data-reorder-index', canDrop, edgeTop = 90, edgeBottom = 70 } = {}) {
-  const [drag, setDrag] = useState(null); // { from, over, offsetY } while a handle is held (keys as strings)
+  const [drag, setDrag] = useState(null); // { from, over, offsetY, lifted } while a handle is held (keys as strings)
   const pointer = useRef(null); // { x, y } latest pointer position
   const start = useRef(null); // { y, scrollY } where the drag began
   const fromIsNumber = useRef(false);
+  // The same drag state, read synchronously by the pointer handlers (state from the last render can be a move
+  // behind, e.g. when the finger lifts right after moving)
+  const dragRef = useRef(null);
+  const updateDrag = next => {
+    dragRef.current = next;
+    setDrag(next);
+  };
 
-  // The row under (x, y), skipping the lifted row itself (it moves with the finger, so it is always on top)
-  const rowKeyAt = (x, y, fromKey) => {
+  // The held row's element (keys repeat across lists, e.g. every exercise's sets start at "0:0", so rows are found
+  // by element, never by querySelector on the key)
+  const ownRowEl = useRef(null);
+
+  // The row under (x, y) in the same list, skipping the lifted row itself (it moves with the finger, so it is
+  // always on top): { key, el } or null
+  const rowAt = (x, y) => {
     const stack = typeof document.elementsFromPoint === 'function' ? document.elementsFromPoint(x, y) : [document.elementFromPoint(x, y)];
+    const list = ownRowEl.current?.parentElement;
     for (const el of stack) {
       const row = el?.closest?.(`[${attribute}]`);
-      if (!row) continue;
-      const key = row.getAttribute(attribute);
-      if (key !== fromKey) return key;
+      if (!row || row === ownRowEl.current) continue;
+      if (list && row.parentElement !== list) continue;
+      return { key: row.getAttribute(attribute), el: row };
     }
     return null;
   };
 
   // Follow the pointer: lifted-row offset (incl. any auto-scroll) and the landing row
   const follow = () => {
-    setDrag(prev => {
+    const prev = dragRef.current;
+    const next = (() => {
       if (!prev || !pointer.current || !start.current) return prev;
       const offsetY = pointer.current.y - start.current.y + (window.scrollY - start.current.scrollY);
-      let over = rowKeyAt(pointer.current.x, pointer.current.y, prev.from);
+      // Nothing moves until the finger has really moved
+      if (!prev.lifted && Math.abs(offsetY) < LIFT_THRESHOLD_PX) return prev;
+      const hit = rowAt(pointer.current.x, pointer.current.y);
+      let over = hit ? hit.key : null;
+      if (hit && over !== prev.over) {
+        // Land on another row only past its middle (on the far side from where the dragged row started)
+        const target = hit.el.getBoundingClientRect();
+        const own = ownRowEl.current?.getBoundingClientRect();
+        if (target && own) {
+          const ownTop = own.top - (prev.offsetY || 0);
+          const middle = target.top + target.height / 2;
+          const y = pointer.current.y;
+          const pastMiddle = target.top > ownTop ? y >= middle : y <= middle;
+          if (!pastMiddle) over = prev.over;
+        }
+      }
       if (over === null) {
         // Back over the row's own (now empty) place: landing there = no move
-        const own = document.querySelector(`[${attribute}="${prev.from}"]`)?.getBoundingClientRect();
+        const own = ownRowEl.current?.getBoundingClientRect();
         const lifted = prev.offsetY || 0;
         const y = pointer.current.y;
         over = own && y >= own.top - lifted && y <= own.bottom - lifted ? prev.from : prev.over;
       } else if (canDrop && !canDrop(prev.from, over)) {
         over = prev.over;
       }
-      return { ...prev, over, offsetY };
-    });
+      return { ...prev, over, offsetY, lifted: true };
+    })();
+    if (next !== prev) updateDrag(next);
   };
 
   // Auto-scroll while the finger / cursor rests near the top or bottom edge (a ~60 fps timer rather than
   // requestAnimationFrame, which some browsers pause in background / embedded views)
   useEffect(() => {
-    if (!drag || typeof window === 'undefined') return undefined;
+    if (!drag?.lifted || typeof window === 'undefined') return undefined;
     const timer = window.setInterval(() => {
       const y = pointer.current?.y;
       if (y === undefined || y === null) return;
@@ -73,12 +106,13 @@ export function usePointerReorder(onMove, { attribute = 'data-reorder-index', ca
     }, 16);
     return () => window.clearInterval(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [Boolean(drag), edgeTop, edgeBottom]);
+  }, [Boolean(drag?.lifted), edgeTop, edgeBottom]);
 
   const reset = () => {
     pointer.current = null;
     start.current = null;
-    setDrag(null);
+    ownRowEl.current = null;
+    updateDrag(null);
   };
 
   const handleProps = key => ({
@@ -92,19 +126,25 @@ export function usePointerReorder(onMove, { attribute = 'data-reorder-index', ca
         // ignore (older browsers)
       }
       fromIsNumber.current = typeof key === 'number';
+      ownRowEl.current = e.currentTarget.closest?.(`[${attribute}]`) || null;
       pointer.current = { x: e.clientX, y: e.clientY };
       start.current = { y: e.clientY, scrollY: window.scrollY };
-      setDrag({ from: String(key), over: String(key), offsetY: 0 });
+      updateDrag({ from: String(key), over: String(key), offsetY: 0, lifted: false });
     },
     onPointerMove: e => {
-      if (!drag) return;
+      if (!dragRef.current) return;
       pointer.current = { x: e.clientX, y: e.clientY };
       follow();
     },
-    onPointerUp: () => {
-      if (drag && drag.over !== drag.from && (!canDrop || canDrop(drag.from, drag.over))) {
+    onPointerUp: e => {
+      if (dragRef.current && Number.isFinite(e?.clientY)) {
+        pointer.current = { x: e.clientX, y: e.clientY };
+        follow();
+      }
+      const done = dragRef.current;
+      if (done?.lifted && done.over !== done.from && (!canDrop || canDrop(done.from, done.over))) {
         const cast = v => (fromIsNumber.current ? Number(v) : v);
-        onMove?.(cast(drag.from), cast(drag.over));
+        onMove?.(cast(done.from), cast(done.over));
       }
       reset();
     },
@@ -117,7 +157,7 @@ export function usePointerReorder(onMove, { attribute = 'data-reorder-index', ca
 
   // Style for a row while dragging: the held row lifts and follows; the landing row is outlined
   const rowDragStyle = key => {
-    if (!drag) return null;
+    if (!drag?.lifted) return null;
     const k = String(key);
     if (k === drag.from) {
       return {

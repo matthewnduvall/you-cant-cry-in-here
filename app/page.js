@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { IOS_DARK, KINETIC_CSS } from './styles/kineticTokens';
 import { getIncrementInLbs, getInitial1RMs, asHistoricalWorkout } from './utils/workoutEngine';
-import { fetchAthleteProfileSnapshot } from './utils/supabaseAuth';
+import { fetchAthleteProfileSnapshot, signOutUser } from './utils/supabaseAuth';
 import { AppHeaderAndDrawer } from './components/AppHeaderAndDrawer';
 import {
   DeleteConfirmModal,
@@ -148,6 +148,8 @@ export default function App() {
   const [shareRoutinesWithFriends, setShareRoutinesWithFriends] = useState(true);
   // Public profiles let friends-of-friends see you in their friend lists (Profile → FRIENDS)
   const [profileIsPublic, setProfileIsPublic] = useState(true);
+  // Profile photo: a small JPEG data URL (settings.profilePhoto, local + cloud); see ProfileAvatar.jsx
+  const [profilePhoto, setProfilePhoto] = useState(null);
 
   // --- History & Personal Records Page State ---
   const [historySessionsExpanded, setHistorySessionsExpanded] = useState(true);
@@ -291,8 +293,18 @@ export default function App() {
     shareRoutinesWithFriends,
     setShareRoutinesWithFriends,
     profileIsPublic,
-    setProfileIsPublic
+    setProfileIsPublic,
+    profilePhoto,
+    setProfilePhoto
   });
+
+  // SIGN OUT (Profile page and the menu): revokes the session, back to Home; workouts stay on the device
+  const handleSignOut = () => {
+    signOutUser();
+    setShowHamburgerDrawer(false);
+    setUser(null);
+    setCurrentView('home');
+  };
 
   // --- 2. Telemetry, PRs, Stimulus Map & Progression Series Hook ---
   const {
@@ -797,6 +809,8 @@ export default function App() {
           setTimerTrigger={setTimerTrigger}
           updateCurrentWorkoutState={updateCurrentWorkoutState}
           user={user}
+          profilePhoto={profilePhoto}
+          onSignOut={handleSignOut}
           isStorageHydrated={isStorageHydrated}
           setAuthMode={setAuthMode}
         />
@@ -891,6 +905,7 @@ export default function App() {
               handleDirectLoadRoutine={handleDirectLoadRoutine}
               handleCancelRoutineSelection={handleCancelRoutineSelection}
               setDeleteConfirmTarget={setDeleteConfirmTarget}
+              onAutoRoutine={handleAutoBuildWorkout}
             />
           )}
 
@@ -1015,6 +1030,9 @@ export default function App() {
               setUser={setUser}
               setCurrentView={setCurrentView}
               fileInputRef={fileInputRef}
+              profilePhoto={profilePhoto}
+              setProfilePhoto={setProfilePhoto}
+              onSignOut={handleSignOut}
               oneRepMaxes={effectiveOneRepMaxes}
               history={history}
               sharedRoutines={sharedRoutines}

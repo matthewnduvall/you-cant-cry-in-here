@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { SFSymbol, SessionRestTimerBar, SessionTitleBar } from './Primitives';
+import { ProfileAvatar } from './ProfileAvatar';
 import { getNextIncompleteSetInfo } from '../utils/workoutEngine';
 import { formatDateYMD, parseYMDToISO } from '../data/exerciseLibrary';
 import { Button } from './Controls';
@@ -43,6 +44,9 @@ export function AppHeaderAndDrawer({
   setTimerTrigger,
   updateCurrentWorkoutState,
   user,
+  // Your profile photo (shown on the menu's PROFILE button) and SIGN OUT at the bottom of the menu
+  profilePhoto,
+  onSignOut,
   isStorageHydrated,
   setAuthMode,
   // ← next to the page title: back to the previous page (page.js keeps the history)
@@ -274,7 +278,10 @@ export function AppHeaderAndDrawer({
                     setCurrentView(user ? 'profile' : 'auth');
                   }}
                 >
-                  <span>{user ? `PROFILE (@${user.username})` : 'SIGN IN'}</span>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
+                    {user && <ProfileAvatar photo={profilePhoto} username={user.username} size={28} />}
+                    <span>{user ? `PROFILE (@${user.username})` : 'SIGN IN'}</span>
+                  </span>
                   <span>→</span>
                 </Button>
 
@@ -309,7 +316,29 @@ export function AppHeaderAndDrawer({
                 textTransform: 'uppercase'
               }}
             >
-              LOGGED IN: {user ? user.email : 'OFFLINE'}
+              <div>LOGGED IN: {user ? user.email : 'OFFLINE'}</div>
+              {/* SIGN OUT shortcut */}
+              {user && (
+                <button
+                  type="button"
+                  onClick={() => onSignOut?.()}
+                  className="kinetic-btn"
+                  style={{
+                    marginTop: '10px',
+                    width: '100%',
+                    height: '44px',
+                    backgroundColor: '#161616',
+                    color: '#FF3B30',
+                    border: '2px solid var(--dp-color-rule)',
+                    fontSize: '13px',
+                    fontWeight: 800,
+                    textTransform: 'uppercase',
+                    cursor: 'pointer'
+                  }}
+                >
+                  SIGN OUT
+                </button>
+              )}
             </div>
           </div>
         </div>

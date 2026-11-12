@@ -12,6 +12,7 @@ import {
 } from '../../utils/supabaseAuth';
 import { isSameFriend, applyFriendshipSync, applyOutgoingInvitesSync } from '../../utils/storageMigration';
 import { DeleteButton, TabBar } from '../Controls';
+import { ProfileAvatar } from '../ProfileAvatar';
 import { UI } from '../../styles/kineticTokens';
 import { SocialSettingsSection } from './SettingsView';
 import { LeaderboardView } from './LeaderboardView';
@@ -494,6 +495,7 @@ export function SocialView({
                   label={`Remove @${friend.username} from friends`}
                   onClick={() => handleRemoveFriend(friend)}
                 />
+                <ProfileAvatar photo={friend.profilePhoto} username={friend.username} size={36} />
                 <div style={{ fontSize: '16px', fontWeight: 800, textTransform: 'uppercase' }}>@{friend.username}</div>
               </div>
               <span style={{ fontSize: '14px', fontWeight: 800, color: 'var(--dp-color-accent)', flexShrink: 0 }}>

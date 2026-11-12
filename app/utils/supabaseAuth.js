@@ -1286,6 +1286,7 @@ function buildAthleteFromProfileRow(
     // suggested weights from these, their history and their PRs
     goals: row?.settings?.goals && typeof row.settings.goals === 'object' ? row.settings.goals : null,
     setPreferences: Array.isArray(row?.settings?.setPreferences) ? row.settings.setPreferences : null,
+    profilePhoto: typeof row?.settings?.profilePhoto === 'string' ? row.settings.profilePhoto : null,
     prs: mergedPrs,
     history: rowHistory,
     sharedRoutines: shared

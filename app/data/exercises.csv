@@ -1000,3 +1000,5 @@ exrx_calves_suspended_single_leg_forward_angled_calf_raise,Suspended Single Leg 
 exrx_calves_stretch_wall_calf_stretch,Wall Calf Stretch,Calves,Accessory,Stretch,,Gastrocnemius|Soleus,false,25,
 exrx_calves_stretch_wall_soleus_stretch,Wall Soleus Stretch,Calves,Accessory,Stretch,,Soleus,false,25,
 exrx_calves_weighted_single_leg_calf_raise,Weighted Single Leg Calf Raise,Calves,Accessory,Weighted,Weight Plates,Gastrocnemius|Soleus,false,145,
+barbell_thruster,Barbell Thruster,Thighs,Compound,Barbell,Barbell|Weight Plates,Quadriceps|Gluteus Maximus|Rectus Abdominis|Erector Spinae|Deltoid - Anterior|Deltoid - Lateral|Triceps Brachii|Trapezius - Upper|Serratus Anterior,false,155,dumbbell_thruster|front_squat|overhead_press
+dumbbell_thruster,Dumbbell Thruster,Thighs,Compound,Dumbbell,Dumbbell,Quadriceps|Gluteus Maximus|Rectus Abdominis|Erector Spinae|Deltoid - Anterior|Deltoid - Lateral|Triceps Brachii|Trapezius - Upper|Serratus Anterior,false,100,barbell_thruster|front_squat|dumbbell_shoulder_press
