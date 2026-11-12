@@ -394,17 +394,7 @@ export function HistoryView({
       });
     }
 
-    if (typeof setOneRepMaxes === 'function' && Object.keys(bestImported1RMs).length > 0) {
-      setOneRepMaxes(prev => {
-        const next = { ...(prev || {}) };
-        for (const [exId, val] of Object.entries(bestImported1RMs)) {
-          if (val > (Number(next[exId]) || 0)) {
-            next[exId] = val;
-          }
-        }
-        return next;
-      });
-    }
+    // The imported workouts are the record (PRs come only from logged History); no separate saved 1RM numbers
 
     setShowImportCsvModal(false);
     setImportCsvText('');
@@ -496,7 +486,6 @@ export function HistoryView({
     if (setCustomPrExerciseIds && !displayedPrExerciseIds.includes(exerciseId)) {
       setCustomPrExerciseIds(prev => (prev.includes(exerciseId) ? prev : [...prev, exerciseId]));
     }
-    setOneRepMaxes?.(prev => ({ ...prev, [exerciseId]: oneRepMax }));
     // Log a PERSONAL RECORD entry so Personal Records reflect logged history
     setHistory?.(prev =>
       insertHistoryEntrySorted(prev, buildPersonalRecordHistoryEntry({ exerciseId, oneRepMax, dateYMD, scheme, estimated }))

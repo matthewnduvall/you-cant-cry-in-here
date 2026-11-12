@@ -312,6 +312,17 @@ export const getBestHistory1RMInfo = (exerciseId, history = []) => {
  */
 export const buildHistoryPRs = (history = []) => {
   const prs = {};
+  (history || []).forEach(w => {
+    Object.entries(bestPerWorkout1RMs(w)).forEach(([exId, est]) => {
+      if (est > (prs[exId] || 0)) prs[exId] = est;
+    });
+  });
+  return prs;
+};
+
+/** One workout's best estimated 1RM per exercise ({ [exerciseId]: lb }), History's set rules. */
+const bestPerWorkout1RMs = workout => {
+  const best = {};
   const scan = (exId, setsList) => {
     if (!exId || !Array.isArray(setsList)) return;
     const hasCompleted = setsList.some(s => s && s.completed && Number(s.weight) > 0);
@@ -321,20 +332,33 @@ export const buildHistoryPRs = (history = []) => {
       if (hasCompleted && !st.completed) return;
       const reps = Math.max(1, Number(st.reps) || 1);
       const est = reps === 1 ? w : Math.round(w * (1 + reps / 30));
-      if (est > (prs[exId] || 0)) prs[exId] = est;
+      if (est > (best[exId] || 0)) best[exId] = est;
     });
   };
+  (workout?.slots || []).forEach(slot => {
+    if (isSupersetCategory(slot.category) && Array.isArray(slot.supersetSetsByExercise)) {
+      const ids = slot.supersetExerciseIds || [slot.exerciseId, slot.secondaryExerciseId].filter(Boolean);
+      ids.forEach((id, idx) => scan(id, slot.supersetSetsByExercise[idx]));
+    } else {
+      scan(slot.exerciseId, slot.sets);
+    }
+  });
+  return best;
+};
+
+/**
+ * Each exercise's lowest and highest logged 1RM across workouts ({ [exerciseId]: { low, high } }, from each
+ * workout's best set) — MOST IMPROVED's High − Low, from logged History only.
+ */
+export const buildHistoryPRRanges = (history = []) => {
+  const ranges = {};
   (history || []).forEach(w => {
-    (w?.slots || []).forEach(slot => {
-      if (isSupersetCategory(slot.category) && Array.isArray(slot.supersetSetsByExercise)) {
-        const ids = slot.supersetExerciseIds || [slot.exerciseId, slot.secondaryExerciseId].filter(Boolean);
-        ids.forEach((id, idx) => scan(id, slot.supersetSetsByExercise[idx]));
-      } else {
-        scan(slot.exerciseId, slot.sets);
-      }
+    Object.entries(bestPerWorkout1RMs(w)).forEach(([exId, est]) => {
+      const r = ranges[exId];
+      ranges[exId] = r ? { low: Math.min(r.low, est), high: Math.max(r.high, est) } : { low: est, high: est };
     });
   });
-  return prs;
+  return ranges;
 };
 
 export const getBestHistory1RM = (exerciseId, history = []) => {

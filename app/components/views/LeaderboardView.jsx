@@ -1,9 +1,9 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { IOSListSection, IOSListRow } from '../Primitives';
 import { Button, NestedTabBar, TabBar } from '../Controls';
-import { buildHistoryPRs, getBestHistory1RMInfo, oneRepMaxLabel } from '../../utils/workoutEngine';
+import { buildHistoryPRRanges, buildHistoryPRs, getBestHistory1RMInfo, oneRepMaxLabel } from '../../utils/workoutEngine';
 import { UI } from '../../styles/kineticTokens';
 import {
   EXERCISE_MAP,
@@ -61,6 +61,16 @@ function buildTop10WithSelfSlot(sortedEntries) {
   return top10;
 }
 
+// Everything the boards need from an athlete's logged History: PRs, MOST IMPROVED ranges, and which of the
+// Big 3 + OHP bests are calculated (asterisk)
+const statsOf = hist => ({
+  prs: buildHistoryPRs(hist),
+  ranges: buildHistoryPRRanges(hist),
+  best: Object.fromEntries(
+    [...BIG_THREE_LIFT_IDS, 'overhead_press'].map(liftId => [liftId, getBestHistory1RMInfo(liftId, hist || [])])
+  )
+});
+
 export function LeaderboardView({
   colors,
   user,
@@ -83,13 +93,20 @@ export function LeaderboardView({
   const selfBw = Math.max(50, Number(userBodyweightLbs) || 220);
 
   // One entry per friend account (by id), never yourself
-  const seenFriendIds = new Set(user?.id ? [String(user.id)] : []);
-  const distinctFriends = (friendsList || []).filter(f => {
-    const id = String(f?.id || '');
-    if (!id || seenFriendIds.has(id)) return false;
-    seenFriendIds.add(id);
-    return true;
-  });
+  const userId = user?.id || null;
+  const distinctFriends = useMemo(() => {
+    const seenFriendIds = new Set(userId ? [String(userId)] : []);
+    return (friendsList || []).filter(f => {
+      const id = String(f?.id || '');
+      if (!id || seenFriendIds.has(id)) return false;
+      seenFriendIds.add(id);
+      return true;
+    });
+  }, [friendsList, userId]);
+
+  // Each athlete's History stats (statsOf), worked out once per History change, not on every tab tap
+  const selfStats = useMemo(() => statsOf(history), [history]);
+  const friendStats = useMemo(() => new Map(distinctFriends.map(f => [f, statsOf(f.history)])), [distinctFriends]);
 
   // 1. BIG 3 TOTAL, BIG 3 NORMALIZED & OVERHEAD PRESS NORMALIZED (Strictly from logged PRs — no fake fallbacks)
   const selfBench = Number(oneRepMaxes.barbell_bench_press) || 0;
@@ -98,13 +115,13 @@ export function LeaderboardView({
   const selfOhp = Number(oneRepMaxes.overhead_press) || 0;
   const selfBig3Total = selfBench + selfSquat + selfDead;
   // * = a 1RM in it was calculated from reps (not lifted for 1 rep); a total is marked if any lift in it is
-  const isCalc = (liftId, value, hist) => {
+  const isCalc = (liftId, value, stats) => {
     if (!(value > 0)) return false;
-    const info = getBestHistory1RMInfo(liftId, hist || []);
-    return value === info.best && info.calculated;
+    const info = stats.best[liftId];
+    return Boolean(info) && value === info.best && info.calculated;
   };
-  const big3Calculated = (vals, hist) =>
-    BIG_THREE_LIFT_IDS.some((liftId, i) => isCalc(liftId, vals[i], hist));
+  const big3Calculated = (vals, stats) =>
+    BIG_THREE_LIFT_IDS.some((liftId, i) => isCalc(liftId, vals[i], stats));
   const selfStanding = getAverageBig3Standing(
     {
       barbell_bench_press: selfBench,
@@ -126,18 +143,19 @@ export function LeaderboardView({
       isSelf: true,
       bw: selfBw,
       total: selfBig3Total,
-      totalCalculated: big3Calculated([selfBench, selfSquat, selfDead], history),
+      totalCalculated: big3Calculated([selfBench, selfSquat, selfDead], selfStats),
       normalized: selfBig3Total / selfBw,
       standing: selfStanding,
       ohp: selfOhp,
-      ohpCalculated: isCalc('overhead_press', selfOhp, history),
+      ohpCalculated: isCalc('overhead_press', selfOhp, selfStats),
       ohpNormalized: selfOhp / selfBw,
       ohpStanding: selfOhpStanding
     },
     ...distinctFriends.map((f, i) => {
       const fBw = Math.max(50, Number(f.bodyweightLbs || f.bodyweight) || 200);
       // Their PRs from their logged History only (no data = 0)
-      const fHistPrs = buildHistoryPRs(f.history);
+      const fStats = friendStats.get(f);
+      const fHistPrs = fStats.prs;
       const fBench = Number(fHistPrs.barbell_bench_press) || 0;
       const fSquat = Number(fHistPrs.barbell_back_squat) || 0;
       const fDead = Number(fHistPrs.barbell_deadlift) || 0;
@@ -161,11 +179,11 @@ export function LeaderboardView({
         friend: f,
         bw: fBw,
         total: fTotal,
-        totalCalculated: big3Calculated([fBench, fSquat, fDead], f.history),
+        totalCalculated: big3Calculated([fBench, fSquat, fDead], fStats),
         normalized: fTotal / fBw,
         standing: fStanding,
         ohp: fOhp,
-        ohpCalculated: isCalc('overhead_press', fOhp, f.history),
+        ohpCalculated: isCalc('overhead_press', fOhp, fStats),
         ohpNormalized: fOhp / fBw,
         ohpStanding: fOhpStanding
       };
@@ -189,98 +207,35 @@ export function LeaderboardView({
   // 4. MOST IMPROVED (Delta between lowest logged value and highest logged value, divided by user's bodyweight)
   const improvementEntries = [];
 
-  const selfLiftStats = {};
-  (history || []).forEach(workout => {
-    (workout?.slots || []).forEach(slot => {
-      const collectSets = (exId, setsList) => {
-        if (!exId || !Array.isArray(setsList)) return;
-        const exObj = EXERCISE_MAP[exId];
-        if (exObj?.isBodyweight) return;
-        setsList.forEach(st => {
-          const w = Number(st?.weight) || 0;
-          if (w <= 0) return;
-          if (!selfLiftStats[exId]) {
-            selfLiftStats[exId] = { minVal: w, maxVal: w };
-          } else {
-            selfLiftStats[exId].minVal = Math.min(selfLiftStats[exId].minVal, w);
-            selfLiftStats[exId].maxVal = Math.max(selfLiftStats[exId].maxVal, w);
-          }
-        });
-      };
-
-      if (Array.isArray(slot?.supersetExerciseIds) && Array.isArray(slot?.supersetSetsByExercise)) {
-        slot.supersetExerciseIds.slice(0, 2).forEach((exId, idx) => {
-          collectSets(exId, slot.supersetSetsByExercise[idx] || []);
-        });
-      } else {
-        collectSets(slot?.exerciseId, slot?.sets || []);
-      }
-    });
-  });
-
-  // Include logged history ranges + current 1RMs for the user
-  const allSelfLiftIds = new Set([
-    ...Object.keys(selfLiftStats),
-    ...Object.keys(oneRepMaxes || {})
-  ]);
-
-  allSelfLiftIds.forEach(exId => {
-    const exObj = EXERCISE_MAP[exId];
-    if (!exObj || exObj.isBodyweight) return;
-    const currentPr = Number(oneRepMaxes?.[exId]) || 0;
-    const existing = selfLiftStats[exId];
-
-    let startWeight = 0;
-    let peakWeight = 0;
-    if (existing) {
-      startWeight = existing.minVal;
-      peakWeight = currentPr > 0 ? Math.max(existing.maxVal, currentPr) : existing.maxVal;
-    }
-
-    const deltaLbs = Math.max(0, peakWeight - startWeight);
-    if (startWeight > 0 && deltaLbs > 0) {
-      improvementEntries.push({
-        id: `self_imp_${exId}`,
-        name: selfName,
-        isSelf: true,
-        exerciseId: exId,
-        exerciseName: exObj.name,
-        startWeight,
-        peakWeight,
-        deltaLbs,
-        bw: selfBw,
-        normalizedGain: deltaLbs / selfBw
-      });
-    }
-  });
-
-  // Friends' lift improvements (strictly from logged startingPrs -> peakWeight, no synthetic fallback)
-  distinctFriends.forEach((f, i) => {
-    const fBw = Math.max(50, Number(f.bodyweightLbs || f.bodyweight) || 200);
-    const fPrs = buildHistoryPRs(f.history);
-    const fStartPrs = f.startingPrs || {};
-    Object.entries(fPrs).forEach(([exId, prVal]) => {
-      const peakWeight = Number(prVal) || 0;
-      const startWeight = Number(fStartPrs[exId]) || 0;
-      if (peakWeight <= 0 || startWeight <= 0) return;
+  const pushImprovements = (ranges, who) => {
+    Object.entries(ranges).forEach(([exId, { low, high }]) => {
       const exObj = EXERCISE_MAP[exId];
       if (!exObj || exObj.isBodyweight) return;
-      const deltaLbs = Math.max(0, peakWeight - startWeight);
-      if (deltaLbs > 0) {
-        improvementEntries.push({
-          id: `friend_${f.username}_${i}_${exId}`,
-          name: f.username || `athlete_${i + 1}`,
-          isSelf: false,
-          friend: f,
-          exerciseId: exId,
-          exerciseName: exObj.name,
-          startWeight,
-          peakWeight,
-          deltaLbs,
-          bw: fBw,
-          normalizedGain: deltaLbs / fBw
-        });
-      }
+      const deltaLbs = Math.max(0, high - low);
+      if (low <= 0 || deltaLbs <= 0) return;
+      improvementEntries.push({
+        id: `${who.idPrefix}_${exId}`,
+        name: who.name,
+        isSelf: who.isSelf,
+        friend: who.friend,
+        exerciseId: exId,
+        exerciseName: exObj.name,
+        startWeight: low,
+        peakWeight: high,
+        deltaLbs,
+        bw: who.bw,
+        normalizedGain: deltaLbs / who.bw
+      });
+    });
+  };
+  pushImprovements(selfStats.ranges, { idPrefix: 'self_imp', name: selfName, isSelf: true, bw: selfBw });
+  distinctFriends.forEach((f, i) => {
+    pushImprovements(friendStats.get(f).ranges, {
+      idPrefix: `friend_${f.username}_${i}`,
+      name: f.username || `athlete_${i + 1}`,
+      isSelf: false,
+      friend: f,
+      bw: Math.max(50, Number(f.bodyweightLbs || f.bodyweight) || 200)
     });
   });
 

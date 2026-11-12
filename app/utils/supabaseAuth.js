@@ -2,6 +2,8 @@
 // SUPABASE & LOCAL ACCOUNT AUTHENTICATION ENGINE
 // ============================================================================
 
+import { buildHistoryPRs } from './workoutEngine';
+
 const LOCAL_ACCOUNTS_KEY = 'yccih_registered_accounts_v1';
 const SUPABASE_TOKENS_KEY = 'yccih_supabase_tokens_v1';
 const BETA_ACCESS_CODE = 'imnotcrying';
@@ -1183,38 +1185,6 @@ export async function deleteCloudWorkoutsByIds(user, workoutIds) {
   }
 }
 
-const scanSetArrayIntoPrs = (exId, setsArr, targetPrs) => {
-  if (!exId || !Array.isArray(setsArr)) return;
-  // Same rule as History's PRs: when some sets are ticked, only the ticked ones count
-  const hasCompleted = setsArr.some(s => s && s.completed && Number(s.weight) > 0);
-  setsArr.forEach(st => {
-    const sw = Number(st?.weight) || 0;
-    if (sw <= 0) return;
-    if (hasCompleted && !st.completed) return;
-    const sr = Math.max(1, Number(st?.reps) || 1);
-    const est = sr === 1 ? sw : Math.round(sw * (1 + sr / 30));
-    if (est > (Number(targetPrs[exId]) || 0)) {
-      targetPrs[exId] = est;
-    }
-  });
-};
-
-const scanSlotsIntoPrs = (slotsList, targetPrs) => {
-  (Array.isArray(slotsList) ? slotsList : []).forEach(slot => {
-    if (slot?.exerciseId) {
-      scanSetArrayIntoPrs(slot.exerciseId, slot?.sets, targetPrs);
-    }
-    if (slot?.secondaryExerciseId) {
-      scanSetArrayIntoPrs(slot.secondaryExerciseId, slot?.secondarySets, targetPrs);
-    }
-    if (Array.isArray(slot?.supersetExerciseIds) && Array.isArray(slot?.supersetSetsByExercise)) {
-      slot.supersetExerciseIds.forEach((supExId, idx) => {
-        scanSetArrayIntoPrs(supExId, slot.supersetSetsByExercise[idx], targetPrs);
-      });
-    }
-  });
-};
-
 const mapHistoryTableRow = h => ({
   id: h.id,
   title: h.title,
@@ -1261,21 +1231,9 @@ function buildAthleteFromProfileRow(
     (a, b) => new Date(b?.startedAt || 0).getTime() - new Date(a?.startedAt || 0).getTime()
   );
 
-  const mergedPrs = {};
-  const mergePrSource = src => {
-    if (!src || typeof src !== 'object') return;
-    Object.entries(src).forEach(([k, v]) => {
-      const num = Number(v) || 0;
-      if (num > (Number(mergedPrs[k]) || 0)) {
-        mergedPrs[k] = num;
-      }
-    });
-  };
-
-  // PRs come only from logged History (no data = no PR): saved 1RM numbers in settings / one_rep_maxes can be
-  // left over from old imports or removed workouts, so they are not merged in (mergePrSource is unused)
-  void mergePrSource;
-  rowHistory.forEach(w => scanSlotsIntoPrs(w?.slots, mergedPrs));
+  // PRs come only from logged History (no data = no PR), with the same scanner as the rest of the app: saved 1RM
+  // numbers in settings / one_rep_maxes can be left over from old imports or removed workouts
+  const mergedPrs = buildHistoryPRs(rowHistory);
 
   return {
     id: row?.id || `friend_${uname.toLowerCase()}`,

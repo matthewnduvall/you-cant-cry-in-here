@@ -319,7 +319,11 @@ export function AppHeaderAndDrawer({
                 textTransform: 'uppercase'
               }}
             >
-              <div>{user ? `LOGGED IN: ${user.email}` : 'NOT SIGNED IN: SAVED ON THIS DEVICE ONLY'}</div>
+              {user ? (
+                <div>LOGGED IN: {user.email}</div>
+              ) : (
+                <div style={{ textTransform: 'none' }}>Not signed in: saved on this device only.</div>
+              )}
               {/* SIGN OUT shortcut */}
               {user && (
                 <button

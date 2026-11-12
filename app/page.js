@@ -412,7 +412,8 @@ export default function App() {
     user,
     history,
     setHistory,
-    oneRepMaxes,
+    // Suggested weights (getStored1RM) use the History-based 1RMs, never leftover saved numbers
+    oneRepMaxes: effectiveOneRepMaxes,
     setOneRepMaxes,
     activeSession,
     setActiveSession,
@@ -457,7 +458,7 @@ export default function App() {
     ...mutationArgs,
     // Their numbers once loaded; yours until then
     history: friendNumbers ? friendNumbers.history : history,
-    oneRepMaxes: friendNumbers ? friendNumbers.oneRepMaxes : oneRepMaxes,
+    oneRepMaxes: friendNumbers ? friendNumbers.oneRepMaxes : effectiveOneRepMaxes,
     currentIncrementLbs: friendNumbers ? friendNumbers.incrementLbs : currentIncrementLbs,
     userBodyweightLbs: friendNumbers ? friendNumbers.bodyweightLbs : userBodyweightLbs,
     setPreferences: friendNumbers?.setPreferences || setPreferences,
@@ -574,10 +575,36 @@ export default function App() {
   const backStackRef = useRef([]);
   const placeRef = useRef({ view: currentView, progressTab: progressTabChoice, workoutId: null });
   const ignorePopsRef = useRef(0);
+  // How many browser entries this app has pushed above where it started (each carries its number in
+  // history.state.yccihBack), so a popstate can tell back from forward and Home can rewind to the start
+  const browserDepthRef = useRef(0);
+  const goBrowserBack = wanted => {
+    // Never further back than the entries this app pushed (the trail can be deeper than the capped entries)
+    const steps = Math.min(Number(wanted) || 0, browserDepthRef.current);
+    if (!(steps > 0)) return;
+    ignorePopsRef.current += 1;
+    browserDepthRef.current -= steps;
+    try {
+      window.history.go(-steps);
+    } catch {
+      ignorePopsRef.current -= 1;
+    }
+  };
+  // Home starts a new trail: the browser goes back to where the app started, so the phone's back gesture on
+  // Home leaves the app instead of stepping through entries that no longer lead anywhere
+  const rewindToHome = () => {
+    backStackRef.current = [];
+    goBrowserBack(browserDepthRef.current);
+  };
+  // Browsers keep at most ~50 history entries and drop the oldest past that, which would break the count, so the
+  // app's own entries stop growing at 30 (deeper places still go on the in-app trail)
+  const MAX_BROWSER_DEPTH = 30;
   const pushPlace = place => {
     backStackRef.current = [...backStackRef.current, place].slice(-50);
+    if (browserDepthRef.current >= MAX_BROWSER_DEPTH) return;
+    browserDepthRef.current += 1;
     try {
-      window.history.pushState({ yccihBack: backStackRef.current.length }, '');
+      window.history.pushState({ yccihBack: browserDepthRef.current }, '');
     } catch {
       // ignore (no history API)
     }
@@ -589,7 +616,7 @@ export default function App() {
     // Tab changes on the same page aren't back steps; nor is a back step (goBack already set placeRef to the
     // place it went to, so prev and next match)
     if (prev.view === next.view) return;
-    if (next.view === 'home') backStackRef.current = [];
+    if (next.view === 'home') rewindToHome();
     else pushPlace(prev);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentView, progressTabChoice, expandedHistoryWorkoutId]);
@@ -612,15 +639,9 @@ export default function App() {
     // the back gesture started this)
     const browserSteps = backStackRef.current.length - stack.length - (fromBrowser ? 1 : 0);
     backStackRef.current = stack;
-    if (browserSteps > 0) {
-      ignorePopsRef.current += 1;
-      try {
-        window.history.go(-browserSteps);
-      } catch {
-        ignorePopsRef.current -= 1;
-      }
-    }
     const place = target || { view: 'home', progressTab: progressTabChoice, workoutId: null };
+    if (place.view === 'home') rewindToHome();
+    else goBrowserBack(browserSteps);
     setRoutineSelectReturnView(null);
     setConfirmedHistoryEditWorkoutId(null);
     if (place.view === 'history') setProgressTabChoice(place.progressTab || 'progress');
@@ -637,11 +658,21 @@ export default function App() {
   });
   useEffect(() => {
     if (typeof window === 'undefined') return undefined;
-    const onPopState = () => {
+    const onPopState = e => {
       if (ignorePopsRef.current > 0) {
         ignorePopsRef.current -= 1;
         return;
       }
+      const depth = Number(e?.state?.yccihBack) || 0;
+      if (depth > browserDepthRef.current) {
+        // Forward (browser button / gesture): the app has no forward trail, so undo it
+        const steps = depth - browserDepthRef.current;
+        browserDepthRef.current = depth;
+        goBrowserBack(steps);
+        return;
+      }
+      if (depth === browserDepthRef.current) return;
+      browserDepthRef.current = depth;
       goBackRef.current({ fromBrowser: true });
     };
     window.addEventListener('popstate', onPopState);
