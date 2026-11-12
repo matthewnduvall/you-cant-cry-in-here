@@ -36,7 +36,7 @@ import { useIdleAutoFinish } from './hooks/useIdleAutoFinish';
 import { collectSetValues, sameSetValues, overlaySetValues } from './utils/sessionSync';
 import { useWorkoutMutations } from './hooks/useWorkoutMutations';
 import { usePlateCalculator } from './hooks/usePlateCalculator';
-import { TabBar } from './components/Controls';
+import { NestedTabBar, TabBar } from './components/Controls';
 
 const PROGRESS_TABS = [
   { id: 'progress', label: 'PROGRESS' },
@@ -681,26 +681,8 @@ export default function App() {
   } = {}) => (
     <>
       {nested ? (
-        <div style={{ position: 'relative', padding: '0 var(--dp-spacing-gutter)' }}>
-          <span
-            aria-hidden="true"
-            style={{
-              position: 'absolute',
-              left: 'calc(var(--dp-spacing-gutter) + 12px)',
-              top: '-4px',
-              width: '16px',
-              height: '30px',
-              borderLeft: '2px solid var(--dp-color-rule)',
-              borderBottom: '2px solid var(--dp-color-rule)'
-            }}
-          />
-          <TabBar
-            ariaLabel="Performance sections"
-            tabs={PROGRESS_TABS}
-            value={tab}
-            onChange={onTabChange}
-            style={{ marginLeft: '28px', marginTop: '6px' }}
-          />
+        <div style={{ padding: '0 var(--dp-spacing-gutter)' }}>
+          <NestedTabBar ariaLabel="Performance sections" tabs={PROGRESS_TABS} value={tab} onChange={onTabChange} />
         </div>
       ) : (
         <div style={{ padding: '12px var(--dp-spacing-gutter) 0' }}>
@@ -1101,6 +1083,7 @@ export default function App() {
               setViewingFriendProfile={setViewingFriendProfile}
               setCurrentView={setCurrentView}
               leaderboardProps={{
+                onSignIn: () => setCurrentView('auth'),
                 oneRepMaxes: effectiveOneRepMaxes,
                 userBodyweightLbs,
                 totalHeightInches,

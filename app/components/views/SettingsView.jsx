@@ -18,7 +18,8 @@ export function BodyMetricsSection({
   setUserHeightInches
 }) {
   return (
-    <IOSListSection header="BODY METRICS" colors={colors}>
+    // No heading: the Configuration tab above already says BODY METRICS
+    <IOSListSection colors={colors}>
       <IOSListRow colors={colors}>
         <span style={UI.rowTitle}>BODYWEIGHT (LBS)</span>
         <input

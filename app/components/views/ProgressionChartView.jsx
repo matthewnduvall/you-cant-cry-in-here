@@ -183,8 +183,12 @@ export function ProgressionChartView({
   const rawMin = allVals.length ? Math.min(...allVals) : 0;
   const rawMax = allVals.length ? Math.max(...allVals) : 300;
   const pad = Math.max(10, Math.round((rawMax - rawMin) * 0.15));
-  const minVal = Math.max(0, rawMin - pad);
-  const maxVal = rawMax + pad;
+  const tickStep = (() => {
+    const span = Math.max(1, rawMax + pad - Math.max(0, rawMin - pad));
+    return [5, 10, 20, 25, 50, 100, 200, 250, 500, 1000].find(step => span / step <= 5) || 1000;
+  })();
+  const minVal = Math.max(0, Math.floor((rawMin - pad) / tickStep) * tickStep);
+  const maxVal = Math.ceil((rawMax + pad) / tickStep) * tickStep;
 
   const svgW = 360;
   const svgH = 210;
@@ -203,7 +207,8 @@ export function ProgressionChartView({
   };
 
   const getY = val => padT + plotH - ((val - minVal) / Math.max(1, maxVal - minVal)) * plotH;
-  const yTicks = [0, 0.25, 0.5, 0.75, 1].map(t => Math.round(minVal + t * (maxVal - minVal)));
+  const yTicks = [];
+  for (let v = minVal; v <= maxVal + 0.001; v += tickStep) yTicks.push(v);
 
   // 6 date ticks, or 3 when they carry their year (M/D/YYYY) so they don't crowd
   const tickMsAt = (count, idx) => Math.round(domainMinMs + (idx / (count - 1)) * (domainMaxMs - domainMinMs));

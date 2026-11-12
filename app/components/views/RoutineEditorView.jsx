@@ -70,6 +70,9 @@ export function RoutineEditorView({
   if (!currentEditorWorkout) return null;
 
   const hasExercises = (currentEditorWorkout.slots || []).length > 0;
+  // Inside an open History workout the History list already has the page gutter, so the editor adds none (set rows
+  // keep their full width and set types like WORKING aren't cut off)
+  const sideGutter = isEmbeddedHistorySession ? '0' : '0 var(--dp-spacing-gutter)';
 
   const fieldLabelStyle = {
     fontSize: '11px',
@@ -123,8 +126,16 @@ export function RoutineEditorView({
 
   return (
     <div style={{ paddingTop: isEmbeddedHistorySession ? '8px' : '14px' }}>
-      {/* Synced with a friend: only a warning here when their app is too old to show their numbers (the YOU /
-          @FRIEND tabs are on each exercise) */}
+      {/* Synced with a friend: one line explains the purple tabs on each exercise (so they don't each need a note) */}
+      {slotTabs && !slotTabs.partnerAppOutdated && !isEmbeddedHistorySession && (currentEditorWorkout.slots || []).length > 0 && (
+        <div style={{ padding: '0 var(--dp-spacing-gutter)', marginBottom: '12px', fontSize: '12px', fontWeight: 700, color: PARTNER_TAB_COLOR, lineHeight: 1.4 }}>
+          A purple @{slotTabs.partnerName || 'friend'} tab shows their numbers; changes there show up on their phone.
+          {slotTabs.partnerNumbersLoaded || !(currentEditorWorkout.slots || []).some(sl => slotTabs.isPartner(sl.id))
+            ? ''
+            : ' Suggested weights use your history until theirs loads.'}
+        </div>
+      )}
+      {/* Their app is too old to show their numbers */}
       {slotTabs?.partnerAppOutdated && !isEmbeddedHistorySession && (
         <div role="alert" style={{ padding: '0 var(--dp-spacing-gutter)', marginBottom: '16px', fontSize: '12px', fontWeight: 700, color: '#FF3B30', lineHeight: 1.4 }}>
           @{slotTabs.partnerName || 'Your friend'} is on an older version of the app, so their numbers don’t reach you.
@@ -134,7 +145,7 @@ export function RoutineEditorView({
       {/* Session name, SAVE and RESET sit in the locked header (SessionTitleBar). This block only holds the
           past-workout title / date, and the name for the History inline editor (which has no locked header). */}
       {(currentView === 'historical_entry' || isEmbeddedHistorySession) && (
-      <section style={{ marginBottom: '20px', padding: '0 var(--dp-spacing-gutter)' }}>
+      <section style={{ marginBottom: '20px', padding: sideGutter }}>
         {currentView === 'historical_entry' && (
           <div
             style={{
@@ -300,7 +311,7 @@ export function RoutineEditorView({
       )}
 
       {/* ALWAYS-EXPANDED EXERCISES — SHARED BORDERS, LARGER CONTROLS & TEXT */}
-      <section style={{ marginBottom: '20px', padding: '0 var(--dp-spacing-gutter)' }}>
+      <section style={{ marginBottom: '20px', padding: sideGutter }}>
         {!isEmbeddedHistorySession && (
           <div
             style={{
@@ -378,7 +389,7 @@ export function RoutineEditorView({
                   }}
                 >
                   {slotTabs && (
-                    <div style={{ marginBottom: '8px' }}>
+                    <div style={{ marginBottom: '6px' }}>
                       <div
                         role="tablist"
                         aria-label="Whose numbers"
@@ -415,12 +426,6 @@ export function RoutineEditorView({
                           );
                         })}
                       </div>
-                      {onPartnerTab && (
-                        <div style={{ marginTop: '6px', fontSize: '12px', fontWeight: 700, color: PARTNER_TAB_COLOR, lineHeight: 1.4 }}>
-                          @{slotTabs.partnerName || 'your friend'}’s numbers: changes show up on their phone.
-                          {slotTabs.partnerNumbersLoaded ? '' : ' Suggested weights use your history until theirs loads.'}
-                        </div>
-                      )}
                     </div>
                   )}
                   <SlotEditor
@@ -490,7 +495,7 @@ export function RoutineEditorView({
 
       {/* + ADD EXERCISE: appends an auto-guessed exercise the athlete can then edit.
           A blank live session also offers LOAD ROUTINE (opens the routine browser, which loads back here). */}
-      <div style={{ padding: '0 var(--dp-spacing-gutter)' }}>
+      <div style={{ padding: sideGutter }}>
         {(() => {
           const showLoadRoutine =
             !hasExercises && currentView === 'session' && !isEmbeddedHistorySession && setCurrentView && setRoutineSelectReturnView;
