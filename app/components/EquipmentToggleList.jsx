@@ -54,7 +54,7 @@ export function EquipmentToggleList({
             <span role="switch" aria-checked={on} style={UI.rowTitle}>
               {item}
             </span>
-            <span style={UI.badge(on)}>{on ? 'ON' : 'OFF'}</span>
+            <span className={on ? 'cr-answer-on' : undefined} style={UI.badge(on)}>{on ? 'ON' : 'OFF'}</span>
           </IOSListRow>
         );
       })}

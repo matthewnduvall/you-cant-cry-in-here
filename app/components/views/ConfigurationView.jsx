@@ -45,6 +45,8 @@ export function ConfigurationView({
         <TabBar ariaLabel="Configuration" tabs={CONFIGURATION_TABS} value={activeTab} onChange={setTab} />
       </div>
 
+      {/* The answers on each tab (number boxes, dropdowns, selected pills, ON) are red: .cr-config in KINETIC_CSS */}
+      <div className="cr-config">
       {activeTab === 'body' && (
         <div style={{ paddingTop: '16px' }}>
           <BodyMetricsSection colors={colors} {...bodyMetricsProps} />
@@ -61,9 +63,13 @@ export function ConfigurationView({
         </div>
       )}
 
+      </div>
+
+      {/* NEXT / DONE is white: the red is on the answers above */}
       <div style={{ padding: '0 var(--dp-spacing-gutter)' }}>
         <Button
           variant="primary-row"
+          style={{ backgroundColor: '#FFFFFF', color: '#000000' }}
           onClick={() => (isLastTab ? setCurrentView('home') : setTab(CONFIGURATION_TABS[tabIndex + 1].id))}
         >
           <span>{isLastTab ? 'DONE' : `NEXT: ${CONFIGURATION_TABS[tabIndex + 1].label}`}</span>

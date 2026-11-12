@@ -103,6 +103,9 @@ export function useCloudAndStorageSync({
   setShareRoutinesWithFriends,
   profileIsPublic,
   setProfileIsPublic,
+  // Share bodyweight with friends (settings.social.shareBodyweightWithFriends; off unless turned on)
+  shareBodyweightWithFriends = false,
+  setShareBodyweightWithFriends,
   // Profile photo (small JPEG data URL; settings.profilePhoto, local + cloud)
   profilePhoto,
   setProfilePhoto
@@ -174,6 +177,7 @@ export function useCloudAndStorageSync({
           setShareStatsWithFriends(hydrated.settings.social.shareStatsWithFriends ?? true);
           setShareRoutinesWithFriends(hydrated.settings.social.shareRoutinesWithFriends ?? true);
           setProfileIsPublic(hydrated.settings.social.profileIsPublic ?? true);
+          setShareBodyweightWithFriends?.(hydrated.settings.social.shareBodyweightWithFriends === true);
         }
       }
     }
@@ -461,6 +465,9 @@ export function useCloudAndStorageSync({
               if (cloud.settings.social.profileIsPublic !== undefined) {
                 setProfileIsPublic(cloud.settings.social.profileIsPublic);
               }
+              if (cloud.settings.social.shareBodyweightWithFriends !== undefined) {
+                setShareBodyweightWithFriends?.(cloud.settings.social.shareBodyweightWithFriends === true);
+              }
             }
           }
         }
@@ -588,7 +595,7 @@ export function useCloudAndStorageSync({
             stimulus: { greenDays: stimulusGreenDays, yellowDays: stimulusYellowDays },
             routinePreferences,
             setPreferences,
-            social: { shareStatsWithFriends, shareRoutinesWithFriends, profileIsPublic },
+            social: { shareStatsWithFriends, shareRoutinesWithFriends, profileIsPublic, shareBodyweightWithFriends },
             selectedGymId,
             availableEquipment,
             profilePhoto: profilePhoto || null
@@ -660,6 +667,7 @@ export function useCloudAndStorageSync({
     shareStatsWithFriends,
     shareRoutinesWithFriends,
     profileIsPublic,
+    shareBodyweightWithFriends,
     selectedGymId,
     availableEquipment,
     profilePhoto,
@@ -718,6 +726,7 @@ export function useCloudAndStorageSync({
           setShareStatsWithFriends(rehydrated.settings.social.shareStatsWithFriends);
           setShareRoutinesWithFriends(rehydrated.settings.social.shareRoutinesWithFriends);
           setProfileIsPublic(rehydrated.settings.social.profileIsPublic ?? true);
+          setShareBodyweightWithFriends?.(rehydrated.settings.social.shareBodyweightWithFriends === true);
           setSelectedGymId(rehydrated.settings.selectedGymId);
           setAvailableEquipment(
             Array.isArray(rehydrated.settings.availableEquipment)

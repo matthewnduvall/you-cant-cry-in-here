@@ -142,6 +142,7 @@ export function LeaderboardView({
   const rawAthletes = [
     {
       id: user?.id || 'self_user',
+      bwShared: true,
       name: selfName,
       photo: profilePhoto,
       isSelf: true,
@@ -156,7 +157,10 @@ export function LeaderboardView({
       ohpStanding: selfOhpStanding
     },
     ...distinctFriends.map((f, i) => {
-      const fBw = Math.max(50, Number(f.bodyweightLbs || f.bodyweight) || 200);
+      // Their bodyweight only when they share it (Social → Privacy); without it they sit out the BW boards and
+      // their standing isn't shown (it would give the number away)
+      const fBwShared = Number(f.bodyweightLbs) > 0;
+      const fBw = fBwShared ? Math.max(50, Number(f.bodyweightLbs)) : 200;
       // Their PRs from their logged History only (no data = 0)
       const fStats = friendStats.get(f);
       const fHistPrs = fStats.prs;
@@ -177,6 +181,7 @@ export function LeaderboardView({
       const fOhpStanding =
         fOhp > 0 ? getExRxCurrentClass('overhead_press', fOhp, fBw, 70) : 'Unlogged';
       return {
+        bwShared: fBwShared,
         id: f.id || `friend_${f.username}_${i}`,
         name: f.username || `athlete_${i + 1}`,
         photo: f.profilePhoto,
@@ -186,11 +191,11 @@ export function LeaderboardView({
         total: fTotal,
         totalCalculated: big3Calculated([fBench, fSquat, fDead], fStats),
         normalized: fTotal / fBw,
-        standing: fStanding,
+        standing: fBwShared ? fStanding : null,
         ohp: fOhp,
         ohpCalculated: isCalc('overhead_press', fOhp, fStats),
         ohpNormalized: fOhp / fBw,
-        ohpStanding: fOhpStanding
+        ohpStanding: fBwShared ? fOhpStanding : null
       };
     })
   ];
@@ -201,12 +206,12 @@ export function LeaderboardView({
 
   // 2. BIG 3 NORMALIZED (Literal sum of Big 3 divided by user's bodyweight)
   const big3NormalizedEntries = buildTop10WithSelfSlot(
-    [...rawAthletes].sort((a, b) => b.normalized - a.normalized)
+    rawAthletes.filter(a => a.bwShared).sort((a, b) => b.normalized - a.normalized)
   );
 
   // 3. OVERHEAD PRESS NORMALIZED (OHP 1RM divided by user's bodyweight)
   const ohpNormalizedEntries = buildTop10WithSelfSlot(
-    [...rawAthletes].sort((a, b) => b.ohpNormalized - a.ohpNormalized)
+    rawAthletes.filter(a => a.bwShared).sort((a, b) => b.ohpNormalized - a.ohpNormalized)
   );
 
   // 4. MOST IMPROVED (Delta between lowest logged value and highest logged value, divided by user's bodyweight)
@@ -235,15 +240,19 @@ export function LeaderboardView({
   };
   pushImprovements(selfStats.ranges, { idPrefix: 'self_imp', name: selfName, photo: profilePhoto, isSelf: true, bw: selfBw });
   distinctFriends.forEach((f, i) => {
+    if (!(Number(f.bodyweightLbs) > 0)) return; // bodyweight not shared: not on this board
     pushImprovements(friendStats.get(f).ranges, {
       idPrefix: `friend_${f.username}_${i}`,
       name: f.username || `athlete_${i + 1}`,
       photo: f.profilePhoto,
       isSelf: false,
       friend: f,
-      bw: Math.max(50, Number(f.bodyweightLbs || f.bodyweight) || 200)
+      bw: Math.max(50, Number(f.bodyweightLbs))
     });
   });
+
+  // Friends who don't share their bodyweight sit out the BW boards (a note says how many)
+  const bwHiddenCount = distinctFriends.filter(f => !(Number(f.bodyweightLbs) > 0)).length;
 
   const mostImprovedEntries = buildTop10WithSelfSlot(
     improvementEntries.sort((a, b) => b.normalizedGain - a.normalizedGain || b.deltaLbs - a.deltaLbs)
@@ -257,6 +266,11 @@ export function LeaderboardView({
           <NestedTabBar ariaLabel="Leaderboards" tabs={LEADERBOARD_TABS} value={activeTab} onChange={setActiveTab} />
         ) : (
           <TabBar ariaLabel="Leaderboards" tabs={LEADERBOARD_TABS} value={activeTab} onChange={setActiveTab} />
+        )}
+        {user && bwHiddenCount > 0 && activeTab !== 'big3_total' && (
+          <div style={{ ...UI.sentence, marginTop: '10px' }}>
+            {bwHiddenCount === 1 ? '1 friend doesn’t' : `${bwHiddenCount} friends don’t`} share their bodyweight, so they’re not on this board.
+          </div>
         )}
       </div>
 
@@ -302,8 +316,12 @@ export function LeaderboardView({
                 <span style={onOpenProfile ? NAME_LINK_STYLE : undefined}>@{entry.name}</span>
               </span>
               <span style={{ fontSize: '11px', fontWeight: 500, color: '#9A9A9A', textTransform: 'uppercase' }}>
-                <span style={{ color: '#FFFFFF' }}>BENCH + SQUAT + DEADLIFT</span> • STANDING:{' '}
-                <strong style={{ color: 'var(--dp-color-accent)' }}>{entry.standing.toUpperCase()}</strong>
+                <span style={{ color: '#FFFFFF' }}>BENCH + SQUAT + DEADLIFT</span>
+                {entry.standing && (
+                  <>
+                    {' '}• STANDING: <strong style={{ color: 'var(--dp-color-accent)' }}>{entry.standing.toUpperCase()}</strong>
+                  </>
+                )}
               </span>
             </div>
             </div>
