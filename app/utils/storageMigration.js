@@ -84,7 +84,8 @@ export const DEFAULT_SETTINGS_V2 = {
   routinePreferences: ['Compound', 'Compound', 'Superset', 'Superset', 'Accessory'],
   // Exercise Set Preferences: the type of each set (by position) for new exercises on the uniform rep schemes
   setPreferences: ['Warmup', 'Warmup', 'Working', 'Working', 'Working'],
-  social: { shareStatsWithFriends: true, shareRoutinesWithFriends: true, profileIsPublic: true },
+  // shareBodyweightWithFriends: off unless the athlete turns it on (also for accounts saved before it existed)
+  social: { shareStatsWithFriends: true, shareRoutinesWithFriends: true, profileIsPublic: true, shareBodyweightWithFriends: false },
   selectedGymId: '',
   // the Equipment page list (GYM_EQUIPMENT_OPTIONS the athlete has); null = not chosen yet (derived from selectedGymId)
   availableEquipment: null

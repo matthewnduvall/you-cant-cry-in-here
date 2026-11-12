@@ -392,6 +392,8 @@ export function SocialSettingsSection({
   setShareStatsWithFriends,
   shareRoutinesWithFriends,
   setShareRoutinesWithFriends,
+  shareBodyweightWithFriends = false,
+  setShareBodyweightWithFriends,
   // false = always open, no SHOW / HIDE (the Social page's PRIVACY tab)
   collapsible = true
 }) {
@@ -409,7 +411,8 @@ export function SocialSettingsSection({
             <div style={UI.sectionTitle}>PRIVACY & SHARING</div>
             <div style={{ fontSize: '12px', fontWeight: 500, color: '#9A9A9A', textTransform: 'uppercase' }}>
               {profileIsPublic ? 'PUBLIC' : 'PRIVATE'} • STATS {shareStatsWithFriends ? 'SHARED' : 'NOT SHARED'} • ROUTINES{' '}
-              {shareRoutinesWithFriends ? 'SHARED' : 'NOT SHARED'}
+              {shareRoutinesWithFriends ? 'SHARED' : 'NOT SHARED'} • BODYWEIGHT{' '}
+              {shareBodyweightWithFriends ? 'SHARED' : 'NOT SHARED'}
             </div>
           </div>
           {toggle}
@@ -438,9 +441,15 @@ export function SocialSettingsSection({
         <span style={UI.badge(shareStatsWithFriends)}>{shareStatsWithFriends ? 'ON' : 'OFF'}</span>
       </IOSListRow>
 
-      <IOSListRow isLast={true} colors={colors} onClick={() => setShareRoutinesWithFriends(p => !p)}>
+      <IOSListRow colors={colors} onClick={() => setShareRoutinesWithFriends(p => !p)}>
         <span style={UI.rowTitle}>Share routines with friends</span>
         <span style={UI.badge(shareRoutinesWithFriends)}>{shareRoutinesWithFriends ? 'ON' : 'OFF'}</span>
+      </IOSListRow>
+
+      {/* Off: friends' apps don't use your bodyweight (you're left off their BW leaderboards) */}
+      <IOSListRow isLast={true} colors={colors} onClick={() => setShareBodyweightWithFriends?.(p => !p)}>
+        <span style={UI.rowTitle}>Share bodyweight with friends</span>
+        <span style={UI.badge(shareBodyweightWithFriends)}>{shareBodyweightWithFriends ? 'ON' : 'OFF'}</span>
       </IOSListRow>
     </IOSListSection>
   );

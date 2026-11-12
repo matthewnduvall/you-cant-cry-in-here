@@ -163,6 +163,8 @@ export default function App() {
   const [shareRoutinesWithFriends, setShareRoutinesWithFriends] = useState(true);
   // Public profiles let friends-of-friends see you in their friend lists (Profile → FRIENDS)
   const [profileIsPublic, setProfileIsPublic] = useState(true);
+  // Friends see your bodyweight (BW leaderboards, their goal maths) only when this is on; off by default
+  const [shareBodyweightWithFriends, setShareBodyweightWithFriends] = useState(false);
   // Profile photo: a small JPEG data URL (settings.profilePhoto, local + cloud); see ProfileAvatar.jsx
   const [profilePhoto, setProfilePhoto] = useState(null);
 
@@ -309,6 +311,8 @@ export default function App() {
     setShareRoutinesWithFriends,
     profileIsPublic,
     setProfileIsPublic,
+    shareBodyweightWithFriends,
+    setShareBodyweightWithFriends,
     profilePhoto,
     setProfilePhoto
   });
@@ -398,7 +402,8 @@ export default function App() {
         id: syncPartnerId,
         history: Array.isArray(snapshot.history) ? snapshot.history : [],
         oneRepMaxes: snapshot.prs || {},
-        bodyweightLbs: Number(snapshot.bodyweightLbs) || 200,
+        // Their bodyweight only when they share it (null = not shared: yours is used)
+        bodyweightLbs: Number(snapshot.bodyweightLbs) || null,
         incrementLbs: getIncrementInLbs(goals.goalIncrement ?? 1.25, goals.goalUnit || 'lb', goals.goalType || 'Balanced'),
         goalType: goals.goalType || 'Balanced',
         setPreferences: snapshot.setPreferences || null
@@ -469,7 +474,7 @@ export default function App() {
     history: friendNumbers ? friendNumbers.history : history,
     oneRepMaxes: friendNumbers ? friendNumbers.oneRepMaxes : effectiveOneRepMaxes,
     currentIncrementLbs: friendNumbers ? friendNumbers.incrementLbs : currentIncrementLbs,
-    userBodyweightLbs: friendNumbers ? friendNumbers.bodyweightLbs : userBodyweightLbs,
+    userBodyweightLbs: friendNumbers?.bodyweightLbs || userBodyweightLbs,
     setPreferences: friendNumbers?.setPreferences || setPreferences,
     goalType: friendNumbers ? friendNumbers.goalType : goalType,
     partnerSession,
@@ -1176,7 +1181,9 @@ export default function App() {
                 shareStatsWithFriends,
                 setShareStatsWithFriends,
                 shareRoutinesWithFriends,
-                setShareRoutinesWithFriends
+                setShareRoutinesWithFriends,
+                shareBodyweightWithFriends,
+                setShareBodyweightWithFriends
               }}
             />
           )}

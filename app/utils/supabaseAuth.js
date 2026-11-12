@@ -1258,7 +1258,11 @@ function buildAthleteFromProfileRow(
     friendshipId: friendshipId || undefined,
     username: uname,
     email,
-    bodyweightLbs: row?.settings?.bodyMetrics?.bodyweightLbs || 200,
+    // Only when they share it (Social → Privacy; off unless turned on): null = not shared
+    bodyweightLbs:
+      row?.settings?.social?.shareBodyweightWithFriends === true
+        ? Number(row?.settings?.bodyMetrics?.bodyweightLbs) || null
+        : null,
     // Their training goal (type, increment) and set preferences: the friend's session tab works out
     // suggested weights from these, their history and their PRs
     goals: row?.settings?.goals && typeof row.settings.goals === 'object' ? row.settings.goals : null,

@@ -147,6 +147,7 @@ export function GoalsView({
                 <button
                   key={u}
                   type="button"
+                  aria-pressed={goalUnit === u}
                   onClick={() => setGoalUnit(u)}
                   style={{
                     height: '44px',
@@ -238,7 +239,7 @@ export function GoalsView({
 
       {/* ADD EXERCISE MODAL FOR CUSTOM GOALS */}
       {showAddGoalExerciseModal && (
-        <div style={UI.modalBackdrop} onClick={() => setShowAddGoalExerciseModal(false)}>
+        <div className="cr-config-off" style={UI.modalBackdrop} onClick={() => setShowAddGoalExerciseModal(false)}>
           <div onClick={e => e.stopPropagation()} style={UI.modalCard('400px')}>
             <div style={UI.modalHeader}>
               <span>ADD EXERCISE</span>
