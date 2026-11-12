@@ -39,17 +39,8 @@ export const IOS_DARK = {
 };
 
 export const KINETIC_CSS = `
-  @import url('https://fonts.googleapis.com/css2?family=Inter+Tight:wght@300;400;500;600&display=swap');
-
-  /* TRIAL: NN1050 (Nick Novell, lens-engraving style; one weight, 148 characters). Characters it lacks
-     (arrows, ✓ ✕ ▾ • × — + ( ) @ # %) fall back to Inter Tight. Check its licence (nicknovell.com) before shipping. */
-  @font-face {
-    font-family: "NN1050";
-    src: url('/fonts/NN1050.otf') format('opentype');
-    font-weight: 100 900;
-    font-style: normal;
-    font-display: swap;
-  }
+  /* Chakra Petch (Google Fonts, SIL Open Font License): a squared, technical sans used across the whole app */
+  @import url('https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@300;400;500;600;700&display=swap');
 
   :root {
     /* Crying tokens (see CRY above). --dp-color-accent is the "selected / actionable" colour: white (the active pill
@@ -68,10 +59,10 @@ export const KINETIC_CSS = `
     --cr-text-dim: #8a8a8a;
     --cr-red: #e20612;
     --cr-red-text: #ff4a3d;
-    /* Two faces: Inter Tight for sentences, titles and typed text; NN1050 (engraved, lens-ring style) for caps labels,
-       numbers and readouts. Characters NN1050 lacks fall back to Inter Tight. */
-    --dp-typography-face: "Inter Tight", "Helvetica Neue", Arial, sans-serif;
-    --cr-face-display: "NN1050", "Inter Tight", "Helvetica Neue", Arial, sans-serif;
+    /* One face everywhere: Chakra Petch. Two variables are kept (text vs labels / numbers) so a second face can be
+       brought back for one role by changing a single line. */
+    --dp-typography-face: "Chakra Petch", "Helvetica Neue", Arial, sans-serif;
+    --cr-face-display: "Chakra Petch", "Helvetica Neue", Arial, sans-serif;
     --dp-spacing-gutter: 16px;
     --dp-motion-marquee-easing: linear;
   }
@@ -89,8 +80,8 @@ export const KINETIC_CSS = `
     font-variant-numeric: tabular-nums;
     box-sizing: border-box;
   }
-  /* The text face is inherited (so a caps-label container passes NN1050 down to its spans); form controls don't
-     inherit fonts by default, so they are told to */
+  /* The text face is inherited (so a caps-label container passes the label face down to its spans); form controls
+     don't inherit fonts by default, so they are told to */
   .kinetic-app {
     font-family: var(--dp-typography-face);
   }
@@ -101,9 +92,9 @@ export const KINETIC_CSS = `
   .kinetic-app option {
     font-family: inherit;
   }
-  /* NN1050 for labels and numbers: anything set in capitals (caps labels, buttons, pills, tabs, the ticker), light
-     readout values (weight 300: hero numbers, page titles, the Home headline), number fields, chart text and
-     elements marked .cr-num (set values, stat cells). Sentences, list titles and typed text stay Inter Tight. */
+  /* The label / number face (--cr-face-display, currently also Chakra Petch): anything set in capitals (caps labels,
+     buttons, pills, tabs, the ticker), light readout values (weight 300), number fields, chart text and elements
+     marked .cr-num (set values, stat cells). Sentences, list titles and typed text use --dp-typography-face. */
   .kinetic-app [style*="text-transform:uppercase"],
   .kinetic-app [style*="text-transform: uppercase"],
   .kinetic-app [style*="font-weight:300"],
@@ -306,12 +297,12 @@ export const UI = {
     fontSize: '11px', fontWeight: 500, letterSpacing: '0.08em', textTransform: 'uppercase',
     whiteSpace: 'nowrap', flexShrink: 0
   }),
-  // A field you type into: raised graphite, 10 px corners, Inter Tight, shown as typed (never forced to capitals)
+  // A field you type into: raised graphite, 10 px corners, the text face, shown as typed (never forced to capitals)
   field: {
     width: '100%', minHeight: '44px', boxSizing: 'border-box', backgroundColor: CRY.tileRaised, color: '#FFFFFF',
     border: 'none', borderRadius: CRY.radiusSm, padding: '10px 14px', fontSize: '16px', fontWeight: 400, outline: 'none'
   },
-  // A full sentence (notices, errors, help text): Inter Tight, sentence case
+  // A full sentence (notices, errors, help text): the text face, sentence case
   sentence: { fontSize: '13px', fontWeight: 400, color: CRY.textLabel, lineHeight: 1.45 },
   select: {
     width: '100%', backgroundColor: CRY.tileRaised, color: '#FFFFFF',
