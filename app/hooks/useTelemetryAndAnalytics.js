@@ -18,7 +18,9 @@ export const UNLOGGED_STIMULUS_COLOR = '#4A4A50';
 /** Per exercise: one point per day with the best estimated 1RM and total volume (PROGRESS chart; also friends' profiles). */
 export function buildProgressionSeriesByLift(history) {
   const normalizedWorkouts = (history || []).map((w, rawIdx) => {
-    const dateLabel = formatDateYMD(w?.workoutDate || w?.startedAt);
+    // A saved workoutDate counts only when it is a full date (older builds could store a half-typed one)
+    const wd = /^\d{4}[/-]\d{1,2}[/-]\d{1,2}$/.test(String(w?.workoutDate || '').trim()) ? w.workoutDate : null;
+    const dateLabel = formatDateYMD(wd || w?.startedAt);
     const iso = parseYMDToISO(dateLabel);
     const parsedMs = new Date(iso).getTime();
     const fallbackMs = new Date(w?.startedAt || 0).getTime();

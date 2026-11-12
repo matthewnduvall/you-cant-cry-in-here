@@ -165,10 +165,7 @@ export function usePlateCalculator({
     } else if (plateCalcTarget.mode === 'pr') {
       const roundedPR = roundTo5(finalWeightLbs);
       const exId = plateCalcTarget.exerciseId;
-      setOneRepMaxes(prev => ({
-        ...prev,
-        [exId]: roundedPR
-      }));
+      // The PR is its History entry (PRs come only from logged History); no separate saved 1RM number
 
       // Always log an individual History entry when a Personal Record is entered (chosen date or today)
       const cleanDate =

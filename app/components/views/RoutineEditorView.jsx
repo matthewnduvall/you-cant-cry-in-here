@@ -18,6 +18,41 @@ import {
 import { Button } from '../Controls';
 import { SlotEditor } from '../SlotEditor';
 
+// A YYYY/MM/DD date box that only hands back a complete, real date (on blur or Enter); otherwise it shows the
+// saved date again. Remounted (key) whenever the saved date changes.
+const isRealYMD = text => {
+  const m = /^(\d{4})\/(\d{1,2})\/(\d{1,2})$/.exec(String(text || '').trim().replace(/-/g, '/'));
+  if (!m) return null;
+  const [y, mo, d] = [Number(m[1]), Number(m[2]), Number(m[3])];
+  const dt = new Date(y, mo - 1, d);
+  if (dt.getFullYear() !== y || dt.getMonth() !== mo - 1 || dt.getDate() !== d) return null;
+  return `${y}/${String(mo).padStart(2, '0')}/${String(d).padStart(2, '0')}`;
+};
+
+function WorkoutDateInput({ savedText, onCommit, style }) {
+  const [text, setText] = React.useState(savedText);
+  const finish = () => {
+    const ymd = isRealYMD(text);
+    if (ymd && ymd !== savedText) onCommit(ymd);
+    else setText(savedText);
+  };
+  return (
+    <input
+      type="text"
+      inputMode="numeric"
+      aria-label="Workout date (YYYY/MM/DD)"
+      placeholder="YYYY/MM/DD"
+      value={text}
+      onChange={e => setText(e.target.value)}
+      onBlur={finish}
+      onKeyDown={e => {
+        if (e.key === 'Enter') e.currentTarget.blur();
+      }}
+      style={style}
+    />
+  );
+}
+
 // The friend's tab colour on each exercise of a synced session (orange stays "you")
 const PARTNER_TAB_COLOR = '#BF5AF2';
 
@@ -82,33 +117,26 @@ export function RoutineEditorView({
     lineHeight: 1.15,
     letterSpacing: '0.03em'
   };
-  // The workout's date (YYYY/MM/DD): History edits go to the draft (a full date also moves startedAt);
-  // LOG PAST WORKOUT keeps it on its draft
+  // The workout's date (YYYY/MM/DD). Only a complete, real date is saved (on leaving the box or Enter): History
+  // edits set workoutDate + startedAt on the draft, LOG PAST WORKOUT its draft's workoutDate. Anything else goes
+  // back to the saved date, so a half-typed date can never be stored.
+  const savedDateText = currentEditorWorkout.workoutDate
+    ? formatDateYMD(currentEditorWorkout.workoutDate)
+    : currentEditorWorkout.startedAt
+      ? formatDateYMD(currentEditorWorkout.startedAt)
+      : '';
+  const commitDate = ymd => {
+    if (isEmbeddedHistorySession) {
+      updateCurrentWorkoutState(prev => ({ ...prev, workoutDate: ymd, startedAt: parseYMDToISO(ymd) }));
+    } else {
+      setHistoricalDraft?.(prev => ({ ...prev, workoutDate: ymd }));
+    }
+  };
   const dateInput = style => (
-    <input
-      type="text"
-      inputMode="numeric"
-      aria-label="Workout date (YYYY/MM/DD)"
-      placeholder="YYYY/MM/DD"
-      value={
-        currentEditorWorkout.workoutDate
-          ? String(currentEditorWorkout.workoutDate).replace(/-/g, '/')
-          : currentEditorWorkout.startedAt
-            ? formatDateYMD(currentEditorWorkout.startedAt)
-            : ''
-      }
-      onChange={e => {
-        const nextDate = e.target.value.replace(/-/g, '/');
-        if (isEmbeddedHistorySession) {
-          updateCurrentWorkoutState(prev => ({
-            ...prev,
-            workoutDate: nextDate,
-            startedAt: /^\d{4}\/\d{2}\/\d{2}$/.test(nextDate.trim()) ? parseYMDToISO(nextDate) : prev.startedAt
-          }));
-        } else {
-          setHistoricalDraft?.(prev => ({ ...prev, workoutDate: nextDate }));
-        }
-      }}
+    <WorkoutDateInput
+      key={savedDateText}
+      savedText={savedDateText}
+      onCommit={commitDate}
       style={{
         backgroundColor: '#101010',
         color: '#FFFFFF',

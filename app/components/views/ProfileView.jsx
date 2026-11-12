@@ -2,8 +2,7 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import { IOSListSection, IOSListRow } from '../Primitives';
-import { EXERCISE_LIBRARY } from '../../data/exerciseLibrary';
-import { getBestHistory1RM } from '../../utils/workoutEngine';
+import { buildHistoryPRs } from '../../utils/workoutEngine';
 import {
   fetchAthleteProfileSnapshot,
   fetchFriendsOfAthlete,
@@ -178,15 +177,15 @@ export function ProfileView({
     ? {} // a friend's PRs come only from their logged History (below)
     : oneRepMaxes || {};
 
+  // One pass over the History (PRs come only from logged History)
+  const historyPRs = useMemo(
+    () => buildHistoryPRs(isFriend ? friendHistorySource : history),
+    [isFriend, friendHistorySource, history]
+  );
   const profPRs = { ...rawProfPRs };
-  if (Array.isArray(profHistory) && profHistory.length > 0) {
-    EXERCISE_LIBRARY.forEach(ex => {
-      const bestHist = getBestHistory1RM(ex.id, profHistory);
-      if (bestHist > (Number(profPRs[ex.id]) || 0)) {
-        profPRs[ex.id] = bestHist;
-      }
-    });
-  }
+  Object.entries(historyPRs).forEach(([exId, best]) => {
+    if (best > (Number(profPRs[exId]) || 0)) profPRs[exId] = best;
+  });
 
   const profRoutines = isFriend
     ? liveFriendMatch?.sharedRoutines || viewingFriendProfile?.sharedRoutines || []

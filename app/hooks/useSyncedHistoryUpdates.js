@@ -13,6 +13,7 @@ import { fetchSyncsWithHistoryUpdates } from '../utils/supabaseAuth';
 import {
   buildSlotsFromHistoryUpdate,
   findPendingHistoryUpdates,
+  getWorkoutSyncInfo,
   readSyncedHistoryAcks,
   writeSyncedHistoryAck
 } from '../utils/syncedHistory';
@@ -37,6 +38,8 @@ export function useSyncedHistoryUpdates({
 
   const check = useCallback(async () => {
     if (!user?.id) return;
+    // Nothing synced in History = nothing a friend could add to, so no request
+    if (!(historyRef.current || []).some(w => getWorkoutSyncInfo(w))) return;
     const res = await fetchSyncsWithHistoryUpdates(user);
     if (!res.ok) return;
     setPending(

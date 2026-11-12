@@ -29,8 +29,8 @@ import {
   forgetCloudSyncLedger,
   workoutSyncSignature
 } from '../utils/cloudSyncLedger';
-import { getInitial1RMs, getBestHistory1RM } from '../utils/workoutEngine';
-import { getEquipmentListForGymSelection, EXERCISE_LIBRARY, normalizeSlotCategory } from '../data/exerciseLibrary';
+import { getInitial1RMs, buildHistoryPRs } from '../utils/workoutEngine';
+import { getEquipmentListForGymSelection, normalizeSlotCategory } from '../data/exerciseLibrary';
 
 export function useCloudAndStorageSync({
   isStorageHydrated,
@@ -524,14 +524,9 @@ export function useCloudAndStorageSync({
     if (typeof window === 'undefined' || !isStorageHydrated) return;
     const debounceTimer = setTimeout(() => {
       try {
-        const historyBackedOneRepMaxes = { ...(oneRepMaxes || {}) };
-        EXERCISE_LIBRARY.forEach(ex => {
-          const best = getBestHistory1RM(ex.id, history);
-          const cur = Number(historyBackedOneRepMaxes[ex.id]) || 0;
-          if (best > cur) {
-            historyBackedOneRepMaxes[ex.id] = best;
-          }
-        });
+        // Saved / uploaded 1RMs are exactly the History-based ones (one pass): numbers without logged data
+        // (old imports, removed workouts) drop out here instead of being carried forward
+        const historyBackedOneRepMaxes = buildHistoryPRs(history);
 
         const payload = {
           schemaVersion: CURRENT_SCHEMA_VERSION,
