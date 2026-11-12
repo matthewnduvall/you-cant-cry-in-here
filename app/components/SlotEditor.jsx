@@ -24,6 +24,7 @@ import {
   getSetBandColor,
   BAND_COLORS,
   BAND_COLOR_HEX,
+  getBandParts,
   getExerciseEquipmentOptions,
   getAllEquipmentFilterOptions,
   getUniqueShortExerciseNames,
@@ -467,7 +468,9 @@ export function SlotEditor({
                 WebkitLineClamp: 2,
                 WebkitBoxOrient: 'vertical',
                 lineHeight: 1.15,
-                wordBreak: 'break-word'
+                wordBreak: 'break-word',
+                // The exercise's title is the card's one red element (red is one per component)
+                color: 'var(--cr-red-text)'
               }}
             >
               {title.toUpperCase()}
@@ -1012,8 +1015,16 @@ export function SlotEditor({
               }
               style={{ ...setCellStyle(cellBg), cursor: 'pointer', overflow: 'hidden' }}
             >
-              <span style={cellLabelStyle}>BAND</span>
-              <span style={cellValueStyle(BAND_COLOR_HEX[bandColor])}>{bandColor.toUpperCase()}</span>
+              <span style={cellLabelStyle}>{getBandParts(bandColor).length > 1 ? 'BANDS' : 'BAND'}</span>
+              {/* Each band in its own colour; two bands sit side by side ("RED+PURPLE") */}
+              <span style={{ ...cellValueStyle('#FFFFFF', getBandParts(bandColor).length > 1 ? '11px' : '15px'), whiteSpace: 'nowrap' }}>
+                {getBandParts(bandColor).map((part, i) => (
+                  <React.Fragment key={part}>
+                    {i > 0 && <span style={{ color: '#9A9A9A' }}>+</span>}
+                    <span style={{ color: BAND_COLOR_HEX[part] || '#FFFFFF' }}>{part.toUpperCase()}</span>
+                  </React.Fragment>
+                ))}
+              </span>
             </button>
             ) : withSetLock(exIdx, st, 'weight', cellBg,
             <button

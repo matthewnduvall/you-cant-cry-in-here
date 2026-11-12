@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { SHARED_CELL_BORDER, SHARED_GROUP_OUTER, SHARED_PICKER_GROUP } from '../../styles/kineticTokens';
+import { SHARED_CELL_BORDER, SHARED_GROUP_OUTER, SHARED_PICKER_GROUP, UI } from '../../styles/kineticTokens';
 import { RoutineEditorView } from './RoutineEditorView';
 import {
   BIG_FOUR_IDS,
@@ -1033,9 +1033,8 @@ export function HistoryView({
                           <div
                             style={{
                               fontSize: '13px',
-                              fontWeight: 500,
+                              ...UI.sessionName,
                               color: '#FFFFFF',
-                              textTransform: 'uppercase',
                               whiteSpace: 'nowrap',
                               overflow: 'hidden',
                               textOverflow: 'ellipsis',

@@ -287,7 +287,7 @@ export function RoutineEditorView({
                     border: 'none',
                     color: '#FFFFFF',
                     fontSize: '16px',
-                    fontWeight: 500,
+                    ...UI.sessionName,
                     outline: 'none',
                     padding: 0,
                     marginTop: '2px',

@@ -811,11 +811,17 @@ export const getUniqueShortExerciseNames = (exercises = [], currentEquipment = '
 const EQUIPMENT_KEPT_WHOLE = new Set(['lever / machine']);
 const EQUIPMENT_OPTION_ALIASES = { 'weight plates': 'Plate' };
 
-// Band exercises are loaded by band colour instead of weight
-export const BAND_COLORS = ['Red', 'Purple'];
+// Band exercises are loaded by band colour instead of weight. 'Red + Purple' = both bands together (the heaviest).
+// Tapping the band cell cycles Red → Purple → Red + Purple. The hexes are the physical bands' colours.
+export const BAND_COLORS = ['Red', 'Purple', 'Red + Purple'];
 export const BAND_COLOR_HEX = { Red: '#FF3B30', Purple: '#BF5AF2' };
 export const isBandEquipment = equipment => /band/i.test(String(equipment || ''));
 export const getSetBandColor = set => (BAND_COLORS.includes(set?.bandColor) ? set.bandColor : BAND_COLORS[0]);
+/** The single bands in a band choice: 'Red + Purple' → ['Red', 'Purple']. */
+export const getBandParts = color => String(color || '').split('+').map(p => p.trim()).filter(Boolean);
+/** The load line for a band set: "RED BAND", "RED + PURPLE BANDS". */
+export const getBandLoadLabel = color =>
+  `${String(color || BAND_COLORS[0]).toUpperCase()} ${getBandParts(color).length > 1 ? 'BANDS' : 'BAND'}`;
 
 /**
  * The equipment option a slot's exercise (half 0 = A / single, 1 = B) is set to: the athlete's choice when

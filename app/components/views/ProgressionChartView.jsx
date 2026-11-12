@@ -20,6 +20,49 @@ import {
 // Big 3 + OHP: each has its own row in the legend and is shown by default
 export const DEFAULT_CHART_LIFTS = [...CORE_LIFT_IDS];
 const DEFAULT_CUSTOM_EXERCISE_ID = 'incline_bench_press';
+// The default view: DISTANCE TO GOAL — how far the tracked lifts (Big 3 + OHP) are below their goals for the selected
+// STRENGTH CLASS GOAL, added up, over time. Lower is better; it re-draws when the class changes.
+export const GOAL_SERIES_ID = 'goal_distance';
+
+/**
+ * Distance to goal over time. Each lift counts goal − its latest estimated 1RM on or before the date (never below 0, so
+ * a lift past its goal counts 0). Only lifts with a goal and at least one logged point are included, and the line
+ * starts once each of them has a value (so it doesn't jump when a lift is first logged).
+ * `liftIds` / `goalsById`: the tracked lifts and their goals. Returns [] when nothing is logged.
+ */
+const buildGoalDistanceSeries = (seriesByLift, liftIds, goalsById) => {
+  const tracked = liftIds.filter(
+    id => Number(goalsById[id]) > 0 && (seriesByLift[id] || []).some(pt => Number(pt.weight) > 0)
+  );
+  if (tracked.length === 0) return [];
+  const lists = tracked.map(id => (seriesByLift[id] || []).filter(pt => Number(pt.weight) > 0));
+  const dates = Array.from(new Set(lists.flatMap(l => l.map(pt => pt.timestampMs)))).sort((a, b) => a - b);
+  const idx = lists.map(() => 0);
+  const latest = lists.map(() => null);
+  const out = [];
+  dates.forEach(t => {
+    let loggedToday = null;
+    lists.forEach((l, i) => {
+      while (idx[i] < l.length && l[idx[i]].timestampMs <= t) {
+        latest[i] = l[idx[i]];
+        if (l[idx[i]].timestampMs === t) loggedToday = l[idx[i]];
+        idx[i] += 1;
+      }
+    });
+    if (latest.some(pt => !pt)) return;
+    out.push({
+      timestampMs: t,
+      dateLabel: loggedToday?.dateLabel || latest[0].dateLabel,
+      weight: Math.round(
+        latest.reduce((sum, pt, i) => sum + Math.max(0, Number(goalsById[tracked[i]]) - Number(pt.weight)), 0)
+      ),
+      // A distance isn't a 1RM: no asterisk
+      calculated: false,
+      workoutId: loggedToday?.workoutId
+    });
+  });
+  return out;
+};
 
 const TIME_FRAME_OPTIONS = [
   { id: '30D', label: '30 DAYS', days: 30 },
@@ -80,6 +123,66 @@ const smoothPath = coords => {
   return d;
 };
 
+/** The DISTANCE TO GOAL row under the chart: a title strip (red while selected) over four readouts. */
+function GoalDistanceRow({ className, selected, onTitleClick, cells }) {
+  const empty = cells.every(c => c.value === null || c.value === undefined);
+  return (
+    <div>
+      <button
+        type="button"
+        aria-pressed={selected}
+        aria-label={`Distance to your ${className} goal: ${selected ? 'selected' : 'show on the chart'}`}
+        onClick={onTitleClick}
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          gap: '8px',
+          width: '100%',
+          minHeight: '44px',
+          padding: '0 12px',
+          boxSizing: 'border-box',
+          backgroundColor: selected ? 'var(--cr-red)' : '#1C1C1C',
+          color: '#FFFFFF',
+          border: 'none',
+          ...SHARED_CELL_BORDER,
+          textAlign: 'left',
+          cursor: 'pointer',
+          fontFamily: 'inherit'
+        }}
+      >
+        <span style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
+          <span aria-hidden="true" style={{ width: '14px', height: '2px', flexShrink: 0, backgroundColor: selected ? '#FFFFFF' : CUSTOM_COLOR }} />
+          <span style={{ fontSize: '13px', fontWeight: 500, letterSpacing: '0.06em', textTransform: 'uppercase', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            DISTANCE TO {className} GOAL
+          </span>
+        </span>
+        <span style={{ fontSize: '11px', fontWeight: 500, color: selected ? '#FFFFFF' : '#9A9A9A', whiteSpace: 'nowrap', flexShrink: 0, textTransform: 'uppercase' }}>
+          {empty ? 'NOT LOGGED YET' : 'LB'}
+        </span>
+      </button>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 0 }}>
+        {cells.map(cell => (
+          <div
+            key={cell.label}
+            style={{
+              display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '2px',
+              minWidth: 0, height: '48px', boxSizing: 'border-box', backgroundColor: '#1C1C1C', ...SHARED_CELL_BORDER
+            }}
+          >
+            <span style={{ fontFamily: 'var(--cr-face-display)', fontSize: '11px', fontWeight: 500, color: '#9A9A9A', letterSpacing: '0.1em' }}>
+              {cell.label}
+            </span>
+            <span style={{ fontFamily: 'var(--cr-face-display)', fontSize: '15px', fontWeight: 500, color: cell.value === null || cell.value === undefined ? '#9A9A9A' : '#FFFFFF', whiteSpace: 'nowrap' }}>
+              {cell.value === null || cell.value === undefined ? '—' : cell.label === 'LATEST' && cell.value === 0 ? 'DONE ✓' : cell.value}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function ProgressionChartView({
   // Lifts drawn on the chart (several at once); the legend rows under the chart pick them
   selectedChartLifts = null,
@@ -130,26 +233,54 @@ export function ProgressionChartView({
 
   const liftMeta = {
     ...CORE_LIFT_META,
+    [GOAL_SERIES_ID]: { short: 'TO GO', color: CUSTOM_COLOR },
     [activeCustomId]: {
       short: formatProgressExerciseLabel(activeCustomId, customEx?.name || 'CUSTOM'),
       color: CUSTOM_COLOR
     }
   };
 
-  const activeLifts = legendLiftIds.filter(id => selectedLifts.includes(id));
-  const singleLift = activeLifts.length === 1;
-  // Every lift is drawn (grey); a single chosen lift is highlighted in red with its row below (Crying chart rule)
-  const highlightId = singleLift ? activeLifts[0] : null;
-  const drawnLifts = legendLiftIds;
+  // One series is always selected (red, with its row): DISTANCE TO GOAL by default (your own chart), or the lift tapped
+  // in the list. Every other series is drawn grey behind it, and the chart is framed on the selected one. A friend's
+  // chart (no goals) has no goal line and starts on its first lift.
+  const hasGoalView = showGoalDistance;
+  const defaultSeriesId = hasGoalView ? GOAL_SERIES_ID : legendLiftIds[0];
+  const allSeriesIds = hasGoalView ? [GOAL_SERIES_ID, ...legendLiftIds] : [...legendLiftIds];
+  const highlightId =
+    selectedLifts.length === 1 && allSeriesIds.includes(selectedLifts[0]) && chosenLifts ? selectedLifts[0] : defaultSeriesId;
+  const drawnLifts = allSeriesIds;
 
-  // Tapping a lift highlights it; tapping the highlighted lift clears the highlight (null = all, none highlighted)
-  const soloLift = liftId =>
-    setSelectedChartLifts?.(() => (singleLift && activeLifts[0] === liftId ? null : [liftId]));
+  // Tapping a row selects it; tapping the selected row goes back to the default view (null)
+  const soloLift = liftId => setSelectedChartLifts?.(() => (highlightId === liftId ? null : [liftId]));
 
-  // Time range of the data (every drawn lift)
-  const timestampsOf = ids => ids.flatMap(id => (progressionSeriesByLift[id] || []).map(getPointTimestampMs).filter(ms => ms > 0));
-  const shownTimestamps = timestampsOf(drawnLifts);
-  const refTimestamps = shownTimestamps.length > 0 ? shownTimestamps : timestampsOf(legendLiftIds);
+  // Each lift's points, oldest first, plus the distance-to-goal line built from them and the current goals
+  const fullSeriesById = {};
+  legendLiftIds.forEach(id => {
+    fullSeriesById[id] = (progressionSeriesByLift[id] || [])
+      .map(pt => ({ ...pt, timestampMs: getPointTimestampMs(pt) }))
+      .filter(pt => pt.timestampMs > 0)
+      .sort((a, b) => a.timestampMs - b.timestampMs);
+  });
+  // Each tracked lift's goal for the selected STRENGTH CLASS GOAL (changing the class re-draws the goal line)
+  const goalStatsById = {};
+  CORE_LIFT_IDS.forEach(id => {
+    goalStatsById[id] = getLiftGoalStats({
+      liftId: id,
+      series: fullSeriesById[id],
+      oneRepMaxes,
+      targetStandardClass,
+      userBodyweightLbs,
+      totalHeightInches,
+      customGoalWeights
+    });
+  });
+  const goalsById = Object.fromEntries(CORE_LIFT_IDS.map(id => [id, goalStatsById[id].goal]));
+  if (hasGoalView) fullSeriesById[GOAL_SERIES_ID] = buildGoalDistanceSeries(fullSeriesById, CORE_LIFT_IDS, goalsById);
+
+  // Time range: the selected series (framed on it), else every series
+  const timestampsOf = ids => ids.flatMap(id => (fullSeriesById[id] || []).map(pt => pt.timestampMs));
+  const shownTimestamps = timestampsOf([highlightId]);
+  const refTimestamps = shownTimestamps.length > 0 ? shownTimestamps : timestampsOf(allSeriesIds);
   const DEFAULT_REF_MS = 1793966400000; // Deterministic fallback if no workouts logged yet
   const maxDataMs = refTimestamps.length > 0 ? Math.max(...refTimestamps) : DEFAULT_REF_MS;
   const minDataMs = refTimestamps.length > 0 ? Math.min(...refTimestamps) : maxDataMs - 30 * DAY_MS;
@@ -171,19 +302,16 @@ export function ProgressionChartView({
       ? minDataMs - endRoomMs
       : domainMaxMs - 30 * DAY_MS;
 
-  // Each lift's points, oldest first; `inWindow` = the points inside the visible window
-  const seriesByLift = {};
+  // Each series' points; `inWindow` = the points inside the visible window
+  const seriesByLift = fullSeriesById;
   const inWindowByLift = {};
-  legendLiftIds.forEach(id => {
-    const all = (progressionSeriesByLift[id] || [])
-      .map(pt => ({ ...pt, timestampMs: getPointTimestampMs(pt) }))
-      .filter(pt => pt.timestampMs > 0)
-      .sort((a, b) => a.timestampMs - b.timestampMs);
-    seriesByLift[id] = all;
-    inWindowByLift[id] = all.filter(pt => pt.timestampMs >= domainMinMs && pt.timestampMs <= domainMaxMs);
+  allSeriesIds.forEach(id => {
+    inWindowByLift[id] = (seriesByLift[id] || []).filter(pt => pt.timestampMs >= domainMinMs && pt.timestampMs <= domainMaxMs);
   });
 
-  const allVals = drawnLifts.flatMap(id => (inWindowByLift[id] || []).map(pt => pt.weight));
+  // Value axis framed on the selected series (in the window), else on everything shown
+  const framedVals = (inWindowByLift[highlightId] || []).map(pt => pt.weight);
+  const allVals = framedVals.length > 0 ? framedVals : drawnLifts.flatMap(id => (inWindowByLift[id] || []).map(pt => pt.weight));
   const rawMin = allVals.length ? Math.min(...allVals) : 0;
   const rawMax = allVals.length ? Math.max(...allVals) : 300;
   const pad = Math.max(10, Math.round((rawMax - rawMin) * 0.15));
@@ -213,6 +341,59 @@ export function ProgressionChartView({
   const getY = val => padT + plotH - ((val - minVal) / Math.max(1, maxVal - minVal)) * plotH;
   const yTicks = [];
   for (let v = minVal; v <= maxVal + 0.001; v += tickStep) yTicks.push(v);
+
+  // Every series' points on the chart; grey lines first, the selected (red) one last so it draws on top
+  const drawOrder = [...drawnLifts.filter(id => id !== highlightId), highlightId];
+  const coordsById = {};
+  drawOrder.forEach(liftId => {
+    coordsById[liftId] = (seriesByLift[liftId] || []).map((pt, cIdx) => ({
+      key: `${liftId}_${cIdx}`,
+      x: getXByTime(pt.timestampMs),
+      y: getY(pt.weight),
+      timestampMs: pt.timestampMs,
+      // * = calculated from reps (not lifted for 1 rep)
+      label: oneRepMaxLabel(pt.weight, pt.calculated),
+      dateLabel: pt.dateLabel,
+      workoutId: pt.workoutId,
+      inWindow: pt.timestampMs >= domainMinMs && pt.timestampMs <= domainMaxMs
+    }));
+  });
+
+  // Value labels: every point of the selected series, and the end (lift + value) of each grey line that is inside the
+  // frame. Labels whose boxes would overlap aren't all drawn: the latest point's label wins (then the selected one).
+  const LABEL_CHAR_W = 6.9;
+  const LABEL_H = 13;
+  const labelCandidates = [];
+  drawOrder.forEach(liftId => {
+    const coords = coordsById[liftId];
+    const lastInWindow = coords.reduce((last, c, i) => (c.inWindow ? i : last), -1);
+    const isHighlighted = liftId === highlightId;
+    coords.forEach((c, cIdx) => {
+      if (!c.inWindow || c.y < padT - 2 || c.y > padT + plotH + 2) return;
+      const isEnd = cIdx === lastInWindow;
+      if (!isHighlighted && !isEnd) return;
+      const text = isEnd ? `${liftMeta[liftId]?.short || ''} ${c.label}`.trim() : c.label;
+      const anchor = c.x > padL + plotW - 40 ? 'end' : 'middle';
+      const w = text.length * LABEL_CHAR_W;
+      const left = anchor === 'end' ? c.x - w : c.x - w / 2;
+      labelCandidates.push({
+        key: c.key,
+        text,
+        anchor,
+        isHighlighted,
+        timestampMs: c.timestampMs,
+        box: { left, right: left + w, top: c.y - 8 - LABEL_H + 3, bottom: c.y - 8 + 3 }
+      });
+    });
+  });
+  const overlaps = (a, b) => a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
+  const shownLabels = new Map();
+  [...labelCandidates]
+    .sort((a, b) => b.timestampMs - a.timestampMs || Number(b.isHighlighted) - Number(a.isHighlighted))
+    .forEach(cand => {
+      if ([...shownLabels.values()].some(kept => overlaps(kept.box, cand.box))) return;
+      shownLabels.set(cand.key, cand);
+    });
 
   // 6 date ticks, or 3 when they carry their year (M/D/YYYY) so they don't crowd
   const tickMsAt = (count, idx) => Math.round(domainMinMs + (idx / (count - 1)) * (domainMaxMs - domainMinMs));
@@ -390,24 +571,14 @@ export function ProgressionChartView({
               ))}
 
               <g clipPath="url(#progress-plot-clip)">
-                {/* Grey lines first, the highlighted (red) one on top */}
-                {[...drawnLifts.filter(id => id !== highlightId), ...(highlightId ? [highlightId] : [])].map(liftId => {
+                {/* Grey lines first, the selected (red) one on top */}
+                {drawOrder.map(liftId => {
                   const series = seriesByLift[liftId] || [];
                   if (series.length === 0) return null;
                   const isHighlighted = liftId === highlightId;
                   const color = isHighlighted ? '#E20612' : '#8A8A8A';
-                  const coords = series.map(pt => ({
-                    x: getXByTime(pt.timestampMs),
-                    y: getY(pt.weight),
-                    rawVal: pt.weight,
-                    // * = calculated from reps (not lifted for 1 rep)
-                    label: oneRepMaxLabel(pt.weight, pt.calculated),
-                    dateLabel: pt.dateLabel,
-                    workoutId: pt.workoutId,
-                    inWindow: pt.timestampMs >= domainMinMs && pt.timestampMs <= domainMaxMs
-                  }));
+                  const coords = coordsById[liftId];
                   const polylinePoints = coords.map(c => `${c.x},${c.y}`).join(' ');
-                  const lastInWindow = coords.reduce((last, c, i) => (c.inWindow ? i : last), -1);
                   // Smoothed average (3+ points): bandwidth ~1/8 of the visible span, at least 5 days
                   const bandMs = Math.max(5 * DAY_MS, (domainMaxMs - domainMinMs) / 8);
                   const avgFrom = Math.max(series[0].timestampMs, domainMinMs - 2 * bandMs);
@@ -438,9 +609,12 @@ export function ProgressionChartView({
                           strokeLinecap="square"
                         />
                       )}
-                      {coords.map((c, cIdx) =>
-                        c.inWindow ? (
-                          <g key={`${liftId}_${cIdx}`}>
+                      {coords.map(c => {
+                        // Only points inside the frame get a marker (the lines still run off the edges)
+                        if (!c.inWindow || c.y < padT - 4 || c.y > padT + plotH + 4) return null;
+                        const lbl = shownLabels.get(c.key);
+                        return (
+                          <g key={c.key}>
                             <rect
                               x={c.x - 4}
                               y={c.y - 4}
@@ -450,17 +624,17 @@ export function ProgressionChartView({
                               stroke={color}
                               strokeWidth={isHighlighted ? 2.2 : 1.5}
                             />
-                            {/* Highlighted lift: every value; otherwise the line's end is labelled (lift + value) */}
-                            {((isHighlighted && cIdx !== lastInWindow) || cIdx === lastInWindow) && (
+                            {/* Value label, unless it would overlap a later point's label */}
+                            {lbl && (
                               <text
                                 x={c.x}
                                 y={c.y - 8}
-                                textAnchor={c.x > padL + plotW - 40 ? 'end' : 'middle'}
+                                textAnchor={lbl.anchor}
                                 fill={isHighlighted ? '#FFFFFF' : '#9A9A9A'}
                                 fontSize="12.5"
                                 fontWeight={isHighlighted ? 500 : 400}
                               >
-                                {cIdx === lastInWindow ? `${liftMeta[liftId]?.short || ''} ${c.label}`.trim() : c.label}
+                                {lbl.text}
                               </text>
                             )}
                             {/* Tap target: opens the workout in History */}
@@ -481,8 +655,8 @@ export function ProgressionChartView({
                               />
                             )}
                           </g>
-                        ) : null
-                      )}
+                        );
+                      })}
                     </g>
                   );
                 })}
@@ -496,7 +670,9 @@ export function ProgressionChartView({
                   fontSize="14"
                   fontWeight="400"
                 >
-                  {activeLifts.length === 0 ? 'PICK A LIFT BELOW' : 'NO SESSIONS IN THIS RANGE'}
+                  {(seriesByLift[highlightId] || []).length === 0 && highlightId === GOAL_SERIES_ID
+                    ? 'LOG A LIFT TO SEE YOUR DISTANCE TO GOAL'
+                    : 'NO SESSIONS IN THIS RANGE'}
                 </text>
               )}
             </svg>
@@ -537,8 +713,33 @@ export function ProgressionChartView({
             )}
           </div>
 
-          {/* LEGEND + VALUES: one row per lift in its line colour. Tap a lift to show only it; tap it again to show
-              every lift. */}
+          {/* DISTANCE TO GOAL: the default view. START = how far below the goals you were when the line starts, LATEST =
+              how far now, CLOSED = start − latest, REACHED = lifts at or past their goal */}
+          {hasGoalView && (() => {
+            const dist = seriesByLift[GOAL_SERIES_ID] || [];
+            const tracked = CORE_LIFT_IDS.filter(id => goalStatsById[id]?.logged && Number(goalsById[id]) > 0);
+            const reached = tracked.filter(id => goalStatsById[id].pr >= goalsById[id]).length;
+            const start = dist.length ? dist[0].weight : null;
+            const latest = dist.length ? dist[dist.length - 1].weight : null;
+            const isHighlighted = highlightId === GOAL_SERIES_ID;
+            const classLabel = String(targetStandardClass || 'Intermediate').toUpperCase();
+            return (
+              <GoalDistanceRow
+                className={classLabel}
+                selected={isHighlighted}
+                onTitleClick={() => soloLift(GOAL_SERIES_ID)}
+                cells={[
+                  { label: 'START', value: start },
+                  { label: 'LATEST', value: latest, unit: latest === 0 ? null : 'LB' },
+                  { label: 'CLOSED', value: start !== null && latest !== null ? Math.max(0, start - latest) : null },
+                  { label: 'REACHED', value: tracked.length ? `${reached}/${tracked.length}` : null }
+                ]}
+              />
+            );
+          })()}
+
+          {/* LEGEND + VALUES: one row per lift. Tap a row to select it (red line, chart framed on it); tap the selected
+              row to go back to the default view (DISTANCE TO GOAL). */}
           {legendLiftIds.map(liftId => {
             const ex = EXERCISE_MAP[liftId];
             if (!ex) return null;
@@ -567,7 +768,7 @@ export function ProgressionChartView({
                 showGoal={showGoalDistance}
                 onTitleClick={() => soloLift(liftId)}
                 titlePressed={isHighlighted}
-                titleAriaLabel={`${label}: ${isHighlighted ? 'clear the highlight' : 'highlight this lift'}`}
+                titleAriaLabel={`${label}: ${isHighlighted ? 'selected; tap to go back to the default view' : 'show on the chart'}`}
                 onEditGoal={
                   showGoalDistance && openPlateCalculatorForGoal
                     ? () => openPlateCalculatorForGoal(liftId, ex.name, stats.goal)
@@ -583,12 +784,8 @@ export function ProgressionChartView({
                     onChange={nextId => {
                       const prevId = activeCustomId;
                       setCustomExerciseId(nextId);
-                      setSelectedChartLifts?.(prev => {
-                        // Every lift shown: still every lift, now with the new CUSTOM exercise
-                        if (!Array.isArray(prev)) return null;
-                        const list = prev.filter(id => id !== prevId);
-                        return list.includes(nextId) ? list : [...list, nextId];
-                      });
+                      // CUSTOM was selected: keep it selected under its new exercise
+                      setSelectedChartLifts?.(prev => (Array.isArray(prev) && prev.includes(prevId) ? [nextId] : prev));
                     }}
                   />
                 )}

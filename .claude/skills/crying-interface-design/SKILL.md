@@ -12,7 +12,7 @@ This is an homage to camera menus, not a copy of any one maker. Never use a came
 ## Principles
 
 1. **Black is the material.** The ground is pure black, as on an OLED camera screen. Surfaces are lifted with one graphite step, never with shadows, gradients or blur.
-2. **One red thing per screen.** Red marks the selected item or the single primary action. If two things are red, one of them is wrong.
+2. **One red thing per component.** Each component (a tile or card, a list group, a header bar, a pop-up) has at most one red element: its selected item, its single primary action, or its title. If one component has two red things, one of them is wrong. A screen may show several red elements, one per component.
 3. **Values over chrome.** The number is the content. Each setting is a small caps label over a large value. Borders, icons and decoration are kept to the minimum that makes the grid legible.
 4. **Everything is a setting.** Model screens as a grid of readout tiles, plus grouped lists for navigation. Avoid marketing-style heroes, cards with imagery, and decorative illustration.
 5. **Calm and exact.** No exclamation marks, no emoji, no playful copy in controls. Labels are one or two words.
@@ -119,7 +119,7 @@ Rules:
 ## Checklist before finishing a screen
 
 - Ground is `#000000` and every surface is `--tile` or `--tile-raised`.
-- Exactly one red fill is visible (or one linked chart-and-row pair), plus at most one or two uses of `--red-text`.
+- Each component has at most one red element (a red fill, a linked chart-and-row pair, or one `--red-text` use).
 - Every number uses tabular figures and has a caps label.
 - No shadows, gradients, borders around tiles, emoji, or colors outside the tokens.
 - All interactive elements are real buttons or links, at least 44px, with `aria-label` on icon-only controls.

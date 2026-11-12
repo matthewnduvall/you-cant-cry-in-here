@@ -238,7 +238,7 @@ export function SessionTitleBar({
             border: 'none',
             color: '#FFFFFF',
             fontSize: '15px',
-            fontWeight: 500,
+            ...UI.sessionName,
             outline: 'none',
             padding: 0,
             marginTop: '2px',

@@ -6,6 +6,7 @@ import {
   getSlotEquipmentChoice,
   isBandEquipment,
   getSetBandColor,
+  getBandLoadLabel,
   EXERCISE_LIBRARY,
   EXERCISE_MAP,
   normalizeSlotCategory,
@@ -1079,7 +1080,7 @@ export const getNextIncompleteSetInfo = slots => {
             const exName = stripEquipmentFromExerciseName(EXERCISE_MAP[ids[exIdx]]?.name || ids[exIdx] || 'Lift');
             const repOrTime = isTimer ? getSetTimerMMSS(st, true) : `${st.reps}`;
             const load = isBandEquipment(getSlotEquipmentChoice(slot, exIdx))
-              ? `${getSetBandColor(st).toUpperCase()} BAND`
+              ? getBandLoadLabel(getSetBandColor(st))
               : `${st.weight} LB`;
             return {
               topLine: `NEXT: ${exName.toUpperCase()}`,
@@ -1094,7 +1095,7 @@ export const getNextIncompleteSetInfo = slots => {
           const exName = stripEquipmentFromExerciseName(EXERCISE_MAP[slot.exerciseId]?.name || slot.exerciseId || 'Lift');
           const repOrTime = isTimer ? getSetTimerMMSS(st, true) : `${st.reps}`;
           const load = isBandEquipment(getSlotEquipmentChoice(slot, 0))
-            ? `${getSetBandColor(st).toUpperCase()} BAND`
+            ? getBandLoadLabel(getSetBandColor(st))
             : `${st.weight} LB`;
           const loadStr = `${load} × ${repOrTime}`;
           return {
