@@ -145,9 +145,17 @@ export const getDefaultAutoSessionName = () => 'Auto Session';
 
 export const formatTodayShortDate = () => formatTodayYMD();
 
+// Names never carry the date (it lives in the DATE box): drops a leading "YYYY/MM/DD - " (or YYYY-MM-DD) that
+// older saves, imports and PR entries put there
+export const stripDateFromTitle = title =>
+  String(title || '')
+    .trim()
+    .replace(/^\d{4}[/-]\d{1,2}[/-]\d{1,2}\s*-\s*/, '')
+    .trim();
+
 // A loaded routine's session name: the routine's name (a leading "YYYY/MM/DD - " from older saves is dropped)
 export const formatTitleWithDate = baseTitle => {
-  const clean = String(baseTitle || '').trim().replace(/^\d{4}\/\d{2}\/\d{2}\s*-\s*/, '');
+  const clean = stripDateFromTitle(baseTitle);
   if (!clean || clean === 'SESSION' || clean === 'Custom Kinetic Routine') return getDefaultSessionName();
   return clean;
 };
@@ -206,6 +214,8 @@ export const EXERCISE_NAME_ALIASES = {
   barbell_deadlift: ['Deadlift', 'Deadlifts'],
   barbell_bench_press: ['Bench', 'Bench Press'],
   barbell_back_squat: ['Squat', 'Squats', 'Back Squat'],
+  // Its name until 2026/11 (older CSVs and exports use it)
+  overhead_press: ['Barbell Military Overhead Press', 'Military Overhead Press'],
   front_squat: ['Front Squat', 'Front Squats'],
   chin_ups: ['Pull-Up', 'Pull-Ups', 'Pullup', 'Pullups']
 };

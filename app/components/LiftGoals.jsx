@@ -24,11 +24,19 @@ export const CORE_LIFT_META = {
   overhead_press: { short: 'OHP', color: '#00E5FF' }
 };
 export const CUSTOM_LIFT_COLOR = '#BF5AF2';
+
+/** The key for the asterisk on calculated 1RMs, shown under lists of 1RMs. */
+export function CalculatedOneRepMaxKey({ style }) {
+  return (
+    <div style={{ fontSize: '11px', fontWeight: 700, color: '#A0A0A0', lineHeight: 1.4, ...style }}>
+      * Calculated from your reps, not lifted for 1 rep.
+    </div>
+  );
+}
 const TO_GO_RED = '#FF3B30';
 
 export const formatLiftLabel = (exId, rawName) => {
   const upper = String(rawName || '').trim().toUpperCase();
-  if (exId === 'overhead_press' || upper === 'BARBELL MILITARY OVERHEAD PRESS') return 'BARBELL OVERHEAD PRESS';
   return upper || String(exId || 'CUSTOM').toUpperCase();
 };
 

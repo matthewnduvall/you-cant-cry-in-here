@@ -9,7 +9,8 @@ import {
   EXERCISE_LIBRARY,
   EXERCISE_MAP,
   formatDateYMD,
-  parseYMDToISO
+  parseYMDToISO,
+  stripDateFromTitle
 } from '../../data/exerciseLibrary';
 import {
   getBestHistory1RMInfo
@@ -69,6 +70,56 @@ export function RoutineEditorView({
   if (!currentEditorWorkout) return null;
 
   const hasExercises = (currentEditorWorkout.slots || []).length > 0;
+
+  const fieldLabelStyle = {
+    fontSize: '11px',
+    fontWeight: 800,
+    color: 'var(--dp-color-accent)',
+    textTransform: 'uppercase',
+    lineHeight: 1.15,
+    letterSpacing: '0.03em'
+  };
+  // The workout's date (YYYY/MM/DD): History edits go to the draft (a full date also moves startedAt);
+  // LOG PAST WORKOUT keeps it on its draft
+  const dateInput = style => (
+    <input
+      type="text"
+      inputMode="numeric"
+      aria-label="Workout date (YYYY/MM/DD)"
+      placeholder="YYYY/MM/DD"
+      value={
+        currentEditorWorkout.workoutDate
+          ? String(currentEditorWorkout.workoutDate).replace(/-/g, '/')
+          : currentEditorWorkout.startedAt
+            ? formatDateYMD(currentEditorWorkout.startedAt)
+            : ''
+      }
+      onChange={e => {
+        const nextDate = e.target.value.replace(/-/g, '/');
+        if (isEmbeddedHistorySession) {
+          updateCurrentWorkoutState(prev => ({
+            ...prev,
+            workoutDate: nextDate,
+            startedAt: /^\d{4}\/\d{2}\/\d{2}$/.test(nextDate.trim()) ? parseYMDToISO(nextDate) : prev.startedAt
+          }));
+        } else {
+          setHistoricalDraft?.(prev => ({ ...prev, workoutDate: nextDate }));
+        }
+      }}
+      style={{
+        backgroundColor: '#101010',
+        color: '#FFFFFF',
+        border: '1px solid var(--dp-color-rule)',
+        padding: '5px 10px',
+        fontSize: '13px',
+        fontWeight: 800,
+        outline: 'none',
+        boxSizing: 'border-box',
+        minWidth: 0,
+        ...style
+      }}
+    />
+  );
 
   return (
     <div style={{ paddingTop: isEmbeddedHistorySession ? '8px' : '14px' }}>
@@ -169,55 +220,62 @@ export function RoutineEditorView({
             </div>
           )}
 
-          {/* Session Name (History inline editor only) */}
+          {/* History inline editor: SESSION NAME | DATE side by side (the name never carries the date) */}
           {isEmbeddedHistorySession && (
-          <div
-            style={{
-              width: '100%',
-              backgroundColor: '#141416',
-              ...SHARED_CELL_BORDER,
-              padding: '8px 12px',
-              boxSizing: 'border-box',
-              display: 'flex',
-              flexDirection: 'column',
-              justifyContent: 'center'
-            }}
-          >
-            <div
-              style={{
-                fontSize: '11px',
-                fontWeight: 800,
-                color: 'var(--dp-color-accent)',
-                textTransform: 'uppercase',
-                lineHeight: 1.15,
-                letterSpacing: '0.03em'
-              }}
-            >
-              SESSION NAME
+            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 116px', alignItems: 'stretch' }}>
+              <label
+                style={{
+                  backgroundColor: '#141416',
+                  ...SHARED_CELL_BORDER,
+                  padding: '8px 12px',
+                  boxSizing: 'border-box',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  justifyContent: 'center',
+                  minWidth: 0
+                }}
+              >
+                <span style={fieldLabelStyle}>SESSION NAME</span>
+                <input
+                  type="text"
+                  aria-label="Session name"
+                  value={stripDateFromTitle(currentEditorWorkout.title)}
+                  onChange={e => updateCurrentWorkoutState(prev => ({ ...prev, title: e.target.value }))}
+                  style={{
+                    width: '100%',
+                    backgroundColor: 'transparent',
+                    border: 'none',
+                    color: '#FFFFFF',
+                    fontSize: '16px',
+                    fontWeight: 800,
+                    textTransform: 'uppercase',
+                    outline: 'none',
+                    padding: 0,
+                    marginTop: '2px',
+                    lineHeight: 1.2
+                  }}
+                />
+              </label>
+              <label
+                style={{
+                  backgroundColor: '#141416',
+                  ...SHARED_CELL_BORDER,
+                  padding: '8px 10px',
+                  boxSizing: 'border-box',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  justifyContent: 'center',
+                  minWidth: 0
+                }}
+              >
+                <span style={fieldLabelStyle}>DATE</span>
+                {dateInput({ fontSize: '15px', textAlign: 'left', width: '100%', border: 'none', backgroundColor: 'transparent', padding: 0, marginTop: '2px' })}
+              </label>
             </div>
-            <input
-              type="text"
-              value={currentEditorWorkout.title || ''}
-              onChange={e => updateCurrentWorkoutState(prev => ({ ...prev, title: e.target.value }))}
-              style={{
-                width: '100%',
-                backgroundColor: 'transparent',
-                border: 'none',
-                color: '#FFFFFF',
-                fontSize: '16px',
-                fontWeight: 800,
-                textTransform: 'uppercase',
-                outline: 'none',
-                padding: 0,
-                marginTop: '2px',
-                lineHeight: 1.2
-              }}
-            />
-          </div>
           )}
 
-          {/* Optional Row: Historical Date Row if logging past workout or editing in History */}
-          {(currentView === 'historical_entry' || isEmbeddedHistorySession) && (
+          {/* LOG PAST WORKOUT: its date row (the name lives in the locked header) */}
+          {currentView === 'historical_entry' && (
             <div
               style={{
                 width: '100%',
@@ -233,42 +291,7 @@ export function RoutineEditorView({
               <span style={{ fontSize: '13px', fontWeight: 800, textTransform: 'uppercase', color: '#E0E0E0' }}>
                 WORKOUT DATE
               </span>
-              <input
-                type="text"
-                placeholder="YYYY/MM/DD"
-                value={
-                  currentEditorWorkout.workoutDate
-                    ? String(currentEditorWorkout.workoutDate).replace(/-/g, '/')
-                    : currentEditorWorkout.startedAt
-                      ? formatDateYMD(currentEditorWorkout.startedAt)
-                      : ''
-                }
-                onChange={e => {
-                  const nextDate = e.target.value.replace(/-/g, '/');
-                  if (isEmbeddedHistorySession) {
-                    updateCurrentWorkoutState(prev => ({
-                      ...prev,
-                      workoutDate: nextDate,
-                      startedAt: /^\d{4}\/\d{2}\/\d{2}$/.test(nextDate.trim())
-                        ? parseYMDToISO(nextDate)
-                        : prev.startedAt
-                    }));
-                  } else {
-                    setHistoricalDraft?.(prev => ({ ...prev, workoutDate: nextDate }));
-                  }
-                }}
-                style={{
-                  width: '130px',
-                  textAlign: 'center',
-                  backgroundColor: '#101010',
-                  color: '#FFFFFF',
-                  border: '1px solid var(--dp-color-rule)',
-                  padding: '5px 10px',
-                  fontSize: '13px',
-                  fontWeight: 800,
-                  outline: 'none'
-                }}
-              />
+              {dateInput({ width: '130px', textAlign: 'center' })}
             </div>
           )}
 

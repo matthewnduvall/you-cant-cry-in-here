@@ -10,6 +10,7 @@ import {
   EXERCISE_MAP,
   normalizeSlotCategory,
   getDefaultSessionName,
+  stripDateFromTitle,
   getExRxTargetForLift,
   formatDateYMD,
   parseYMDToISO,
@@ -23,6 +24,7 @@ import {
   insertHistoryEntrySorted
 } from '../../utils/workoutEngine';
 import { CloseButton, DeleteButton } from '../Controls';
+import { CalculatedOneRepMaxKey } from '../LiftGoals';
 import { ExercisePicker, resolvePickerExerciseId } from '../ExercisePicker';
 import {
   HistoryExerciseFilter,
@@ -367,7 +369,7 @@ export function HistoryView({
 
       newSessions.push({
         id: `hist_csv_${ymd.replace(/\//g, '')}_${nowStamp}_${sessionIdx}`,
-        title: `${ymd} - Session`,
+        title: getDefaultSessionName(),
         presetUsed: 'CSV IMPORT',
         gymId: selectedGymId || '',
         workoutDate: ymd,
@@ -785,6 +787,11 @@ export function HistoryView({
             );
           })}
         </div>
+        {displayedPrExercises.some(ex => {
+          const info = getBestHistory1RMInfo(ex.id, history);
+          const val = Number(oneRepMaxes?.[ex.id]) || info.best || 0;
+          return val > 0 && val === info.best && info.calculated;
+        }) && <CalculatedOneRepMaxKey style={{ marginTop: '8px' }} />}
       </section>
       )}
 
@@ -874,7 +881,7 @@ export function HistoryView({
                 const yesterday = formatDateYMD(new Date(Date.now() - 86400000));
                 setHistoricalDraft({
                   id: `hist_${Date.now()}`,
-                  title: `${yesterday} - Session`,
+                  title: getDefaultSessionName(),
                   loadedRoutineTitle: 'MANUAL',
                   workoutDate: yesterday,
                   defaultRestSeconds: 90,
@@ -1010,7 +1017,7 @@ export function HistoryView({
                               minWidth: 0
                             }}
                           >
-                            {w.title}
+                            {stripDateFromTitle(w.title) || getDefaultSessionName()}
                           </div>
                           {prWorkoutIds.has(w.id) && (
                             <span
@@ -1037,12 +1044,25 @@ export function HistoryView({
                             marginTop: '1px'
                           }}
                         >
-                          {/* The date only when the title doesn't already show it */}
-                          {String(w.title || '').includes(formatDateYMD(w.startedAt)) ? '' : `${formatDateYMD(w.startedAt)} • `}
+                          {/* Names carry no date, so the date is always here */}
+                          {`${formatDateYMD(w.startedAt)} • `}
                           {(w.slots || []).length} {(w.slots || []).length === 1 ? 'EXERCISE' : 'EXERCISES'}
                         </div>
-                        {readOnly && !historyFilter.exerciseId && (
-                          <div style={{ fontSize: '11px', fontWeight: 700, color: '#FFFFFF', marginTop: '1px', textTransform: 'uppercase' }}>
+                        {/* The exercises done, so rows with the same name are easy to tell apart */}
+                        {!historyFilter.exerciseId && getWorkoutExerciseNames(w) && (
+                          <div
+                            style={{
+                              fontSize: '11px',
+                              fontWeight: 700,
+                              color: '#FFFFFF',
+                              marginTop: '1px',
+                              textTransform: 'uppercase',
+                              display: '-webkit-box',
+                              WebkitLineClamp: 2,
+                              WebkitBoxOrient: 'vertical',
+                              overflow: 'hidden'
+                            }}
+                          >
                             {getWorkoutExerciseNames(w)}
                           </div>
                         )}
@@ -1057,7 +1077,7 @@ export function HistoryView({
                       <>
                       <button
                         type="button"
-                        aria-label={isExp ? `Collapse ${w.title}` : `Expand ${w.title}`}
+                        aria-label={`${isExp ? 'Collapse' : 'Expand'} ${stripDateFromTitle(w.title) || getDefaultSessionName()}, ${formatDateYMD(w.startedAt)}`}
                         onClick={() => setExpandedHistoryWorkoutId(isExp ? null : w.id)}
                         style={{
                           width: '48px',
@@ -1078,7 +1098,7 @@ export function HistoryView({
                       </button>
 
                       <DeleteButton
-                        label={`Delete ${w.title}`}
+                        label={`Delete ${stripDateFromTitle(w.title) || getDefaultSessionName()}, ${formatDateYMD(w.startedAt)}`}
                         variant="outline"
                         fill
                         minHeight="48px"
@@ -1087,7 +1107,7 @@ export function HistoryView({
                           setDeleteConfirmTarget?.({
                             type: 'history_workout',
                             workoutId: w.id,
-                            label: w.title
+                            label: `${stripDateFromTitle(w.title) || getDefaultSessionName()} (${formatDateYMD(w.startedAt)})`
                           })
                         }
                       />

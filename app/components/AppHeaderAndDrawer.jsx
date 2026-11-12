@@ -287,6 +287,9 @@ export function AppHeaderAndDrawer({
 
                 {[
                   { id: 'home', label: 'HOME', clearReturn: true },
+                  { id: 'history', label: 'PERFORMANCE', clearReturn: true },
+                  { id: 'stimulus_map', label: 'STIMULUS', clearReturn: true },
+                  { id: 'social', label: 'SOCIAL', clearReturn: true },
                   { id: 'configuration', label: 'CONFIGURATION', clearReturn: true },
                   { id: 'info', label: 'INFO' }
                 ].map(nav => (
@@ -316,7 +319,7 @@ export function AppHeaderAndDrawer({
                 textTransform: 'uppercase'
               }}
             >
-              <div>LOGGED IN: {user ? user.email : 'OFFLINE'}</div>
+              <div>{user ? `LOGGED IN: ${user.email}` : 'NOT SIGNED IN: SAVED ON THIS DEVICE ONLY'}</div>
               {/* SIGN OUT shortcut */}
               {user && (
                 <button

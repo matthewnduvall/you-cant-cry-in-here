@@ -91,7 +91,7 @@ export const buildPersonalRecordHistoryEntry = ({ exerciseId, oneRepMax, dateYMD
   };
   return {
     id: `hist_pr_${exObj.id}_${ts}`,
-    title: `${cleanDate} - ${exObj.name} PR (${oneRepMax} LB)`,
+    title: `${exObj.name} PR (${oneRepMax} LB)`,
     loadedRoutineTitle: 'PERSONAL RECORD',
     startedAt: parseYMDToISO(cleanDate),
     updatedAt: new Date().toISOString(),
