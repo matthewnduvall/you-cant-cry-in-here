@@ -112,6 +112,16 @@ export const insertHistoryEntrySorted = (history, entry) =>
 export const getDefaultSchemeForGoal = goalType =>
   goalType === 'Strength' ? '5x5' : goalType === 'Hypertrophy' ? '5x10' : '5x8';
 
+/** Planks are held for time, so they start on the Timer scheme (Bear Plank Shoulder Tap counts taps, so it doesn't). */
+export const isTimedHoldExercise = exerciseId => {
+  const name = EXERCISE_MAP[exerciseId]?.name || '';
+  return /\bplank\b/i.test(name) && !/shoulder tap/i.test(name);
+};
+
+/** Default scheme for an exercise picked for the athlete or swapped into a slot: Timer for planks, else the goal's. */
+export const getDefaultSchemeForExercise = (exerciseId, goalType) =>
+  isTimedHoldExercise(exerciseId) ? 'Timer' : getDefaultSchemeForGoal(goalType);
+
 // CLUSTER scheme: 3 working sets of one exercise, 6 reps each, with only
 // CLUSTER_REST_SECONDS of rest between sets (the rest timer uses it after each set)
 export const CLUSTER_SCHEME = 'Cluster';

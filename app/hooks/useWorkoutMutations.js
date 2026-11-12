@@ -32,6 +32,8 @@ import {
   createWorkoutSlot,
   generateSetsForScheme,
   getDefaultSchemeForGoal,
+  getDefaultSchemeForExercise,
+  isTimedHoldExercise,
   getSupersetSchemes,
   normalizeSlotLabels,
   buildPresetSlots,
@@ -293,7 +295,7 @@ export function useWorkoutMutations({
           category: 'Compound',
           slotLabel: 'Compound',
           exerciseId: pick.id,
-          scheme: defaultScheme,
+          scheme: getDefaultSchemeForExercise(pick.id, goalType),
           oneRepMaxes,
           history,
           incrementLbs: currentIncrementLbs,
@@ -321,7 +323,7 @@ export function useWorkoutMutations({
         category: 'Accessory',
         slotLabel: 'Accessory',
         exerciseId: pick.id,
-        scheme: defaultScheme,
+        scheme: getDefaultSchemeForExercise(pick.id, goalType),
         oneRepMaxes,
         history,
         incrementLbs: currentIncrementLbs,
@@ -1318,12 +1320,24 @@ export function useWorkoutMutations({
           }
         }
 
+        // A plank swapped in starts on Timer; swapping a timed plank for another exercise goes back to the goal's
+        // scheme. A scheme the athlete picks in this change always wins.
+        const swappedExercise = nextExId !== slot.exerciseId && !isSupersetCategory(nextCategory);
+        const slotScheme =
+          changes.scheme !== undefined || !swappedExercise
+            ? nextScheme
+            : isTimedHoldExercise(nextExId)
+              ? 'Timer'
+              : nextScheme === 'Timer' && isTimedHoldExercise(slot.exerciseId)
+                ? defaultScheme
+                : nextScheme;
+
         const rebuiltSlot = createWorkoutSlot({
           category: nextCategory,
           slotLabel: nextCategory,
           exerciseId: nextExId,
           supersetExerciseIds: isSupersetCategory(nextCategory) ? nextSupersetIds.slice(0, 2) : [nextExId],
-          scheme: nextScheme,
+          scheme: slotScheme,
           oneRepMaxes,
           history,
           incrementLbs: currentIncrementLbs,
@@ -1341,7 +1355,7 @@ export function useWorkoutMutations({
         };
         // Same scheme (a new exercise, type or muscle group): keep the athlete's SETS / REPS choice
         const keepShape =
-          nextScheme === slot.scheme && !isSupersetCategory(nextCategory) && !isSupersetCategory(slot.category);
+          slotScheme === slot.scheme && !isSupersetCategory(nextCategory) && !isSupersetCategory(slot.category);
         const prevCount = (slot.sets || []).length;
         if (keepShape && (slot.targetReps || (prevCount > 0 && prevCount !== rebuiltResult.sets.length))) {
           return reshapeSlot(
