@@ -7,6 +7,7 @@ import {
   fetchAthleteProfileSnapshot,
   fetchFriendsOfAthlete,
   sendFriendRequestToAthlete,
+  removeFriendshipWithAthlete,
   syncFriendshipsForUser
 } from '../../utils/supabaseAuth';
 import { isSameFriend, applyFriendshipSync } from '../../utils/storageMigration';
@@ -155,6 +156,29 @@ export function ProfileView({
     const next = !result.ok ? 'error' : result.status === 'accepted' ? 'friends' : 'requested';
     setRequestStatusById(prev => ({ ...prev, [athlete.id]: next }));
     appendSessionLog?.('FRIEND_REQUEST', `Request to @${athlete.username} from a friend's profile: ${next}`);
+  };
+
+  // REMOVE FRIEND (only here, on their profile): deletes the friendship on the server, revoking access both ways
+  const handleRemoveFriendClick = () => {
+    const friend = viewingFriendProfile;
+    if (!friend) return;
+    setDeleteConfirmTarget?.({
+      type: 'friend',
+      title: 'REMOVE FRIEND?',
+      verb: 'remove',
+      label: `@${friend.username}`,
+      confirmLabel: 'REMOVE ✕',
+      onConfirm: async () => {
+        setFriendsList?.(prev => (Array.isArray(prev) ? prev : []).filter(f => !isSameFriend(f, friend)));
+        setCurrentView('social');
+        const ok = await removeFriendshipWithAthlete(user, friend);
+        appendSessionLog?.('FRIEND_REMOVED', `Removed friend @${friend.username}${ok ? '' : ' (server delete failed)'}`);
+        if (!ok) {
+          const sync = await syncFriendshipsForUser(user);
+          if (sync?.ok) setFriendsList?.(prev => applyFriendshipSync(prev, sync));
+        }
+      }
+    });
   };
 
   // Prefer the cached friends-list copy (kept fresh by the friendship sync)
@@ -318,6 +342,29 @@ export function ProfileView({
                   }}
                 >
                   SIGN OUT
+                </button>
+              )}
+              {/* A friend's profile: REMOVE FRIEND in the same place (the friends list has no ✕) */}
+              {isFriend && user && (
+                <button
+                  type="button"
+                  onClick={handleRemoveFriendClick}
+                  className="kinetic-btn"
+                  aria-label={`Remove @${profUser.username} from friends`}
+                  style={{
+                    marginTop: '8px',
+                    height: '40px',
+                    padding: '0 14px',
+                    backgroundColor: '#1C1C1C',
+                    color: '#FF4A3D',
+                    border: 'none', borderRadius: '10px',
+                    fontSize: '12px',
+                    fontWeight: 500,
+                    textTransform: 'uppercase',
+                    cursor: 'pointer'
+                  }}
+                >
+                  REMOVE FRIEND ✕
                 </button>
               )}
             </div>
