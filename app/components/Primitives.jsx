@@ -171,6 +171,13 @@ export function SessionTitleBar({
   dateValue = null,
   onChangeDate
 }) {
+  // The name pop-up: null = closed; otherwise the name being edited (the header box is too narrow for long names)
+  const [nameDraft, setNameDraft] = useState(null);
+  const saveName = () => {
+    const next = String(nameDraft ?? '').trim();
+    if (next && next !== title) onChangeTitle?.(next);
+    setNameDraft(null);
+  };
   const cellBorder = {
     borderTop: 'none',
     borderLeft: 'none',
@@ -192,6 +199,7 @@ export function SessionTitleBar({
     padding: 0
   });
   return (
+    <>
     <div
       style={{
         marginTop: '8px',
@@ -212,7 +220,10 @@ export function SessionTitleBar({
         overflow: 'hidden'
       }}
     >
-      <label
+      <button
+        type="button"
+        aria-label={`Session name: ${title || 'none'}. Tap to see or edit the full name`}
+        onClick={() => setNameDraft(title || '')}
         style={{
           minWidth: 0,
           height: '40px',
@@ -222,32 +233,32 @@ export function SessionTitleBar({
           padding: '0 8px',
           display: 'flex',
           flexDirection: 'column',
-          justifyContent: 'center'
+          justifyContent: 'center',
+          alignItems: 'stretch',
+          textAlign: 'left',
+          cursor: 'pointer',
+          fontFamily: 'inherit',
+          color: '#FFFFFF'
         }}
       >
         <span style={{ fontSize: '10px', fontWeight: 500, letterSpacing: '0.06em', color: '#9A9A9A', lineHeight: 1.1, whiteSpace: 'nowrap' }}>
           SESSION NAME
         </span>
-        <input
-          type="text"
-          aria-label="Session name"
-          value={title}
-          onChange={e => onChangeTitle?.(e.target.value)}
+        <span
           style={{
-            width: '100%',
-            backgroundColor: 'transparent',
-            border: 'none',
-            color: '#FFFFFF',
+            display: 'block',
             fontSize: '15px',
             ...UI.sessionName,
-            outline: 'none',
-            padding: 0,
             marginTop: '2px',
             lineHeight: 1.2,
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
             textOverflow: 'ellipsis'
           }}
-        />
-      </label>
+        >
+          {title}
+        </span>
+      </button>
       {dateValue && (
         <label
           style={{
@@ -332,6 +343,49 @@ export function SessionTitleBar({
         </>
       )}
     </div>
+
+    {/* SESSION NAME pop-up: the full name, editable (SAVE NAME is this pop-up's one red) */}
+    {nameDraft !== null && (
+      <div style={{ ...UI.modalBackdrop, zIndex: 90 }} onClick={() => setNameDraft(null)}>
+        <div
+          role="dialog"
+          aria-label="Session name"
+          onClick={e => e.stopPropagation()}
+          style={UI.modalCard('380px')}
+        >
+          <div style={UI.modalHeader}>
+            <span>SESSION NAME</span>
+            <button type="button" aria-label="Close" onClick={() => setNameDraft(null)} style={UI.closeXBtn}>
+              ✕
+            </button>
+          </div>
+          <textarea
+            aria-label="Session name"
+            rows={3}
+            autoFocus
+            value={nameDraft}
+            onFocus={e => e.target.select()}
+            onChange={e => setNameDraft(e.target.value.replace(/\n/g, ' '))}
+            onKeyDown={e => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                saveName();
+              }
+            }}
+            style={{ ...UI.field, ...UI.sessionName, resize: 'none', lineHeight: 1.3, fontFamily: 'inherit' }}
+          />
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginTop: '12px' }}>
+            <button type="button" className="kinetic-btn" onClick={() => setNameDraft(null)} style={UI.secondaryBtnCenter}>
+              CANCEL
+            </button>
+            <button type="button" className="kinetic-btn" onClick={saveName} style={UI.primaryBtnCenter}>
+              SAVE NAME
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   );
 }
 

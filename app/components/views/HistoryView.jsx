@@ -608,7 +608,7 @@ export function HistoryView({
                   label="Close panel"
                   fill
                   minHeight="0"
-                  style={{ width: '100%' }}
+                  style={{ width: '100%', color: '#9A9A9A' }}
                   onClick={() => setShowAddPrExercisePanel(false)}
                 />
               </div>
@@ -689,7 +689,8 @@ export function HistoryView({
                     style={{
                       fontSize: '15px',
                       fontWeight: 500,
-                      color: '#FFFFFF',
+                      // The PR row's one red element: the exercise name, like an exercise card's title
+                      color: 'var(--cr-red-text)',
                       lineHeight: 1.2,
                       display: '-webkit-box',
                       WebkitLineClamp: 2,
@@ -1039,7 +1040,8 @@ export function HistoryView({
                             style={{
                               fontSize: '13px',
                               ...UI.sessionName,
-                              color: '#FFFFFF',
+                              // The row's one red element (one red per component); its ✕ is grey
+                              color: 'var(--cr-red-text)',
                               whiteSpace: 'nowrap',
                               overflow: 'hidden',
                               textOverflow: 'ellipsis',
@@ -1137,7 +1139,7 @@ export function HistoryView({
                         variant="outline"
                         fill
                         minHeight="48px"
-                        style={{ width: '48px', height: 'auto' }}
+                        style={{ width: '48px', height: 'auto', color: '#9A9A9A' }}
                         onClick={() =>
                           setDeleteConfirmTarget?.({
                             type: 'history_workout',

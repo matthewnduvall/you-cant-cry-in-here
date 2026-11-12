@@ -1155,6 +1155,7 @@ export default function App() {
               setCurrentView={setCurrentView}
               leaderboardProps={{
                 onSignIn: () => setCurrentView('auth'),
+                profilePhoto,
                 // A leaderboard row opens that athlete's profile
                 onOpenProfile: entry => {
                   if (entry?.isSelf) {

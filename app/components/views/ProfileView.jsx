@@ -437,7 +437,10 @@ export function ProfileView({
                   setCurrentView('friend_profile');
                 }}
               >
-                <span style={{ fontSize: '15px', fontWeight: 500, textTransform: 'uppercase' }}>@{friend.username}</span>
+                <span style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
+                  <ProfileAvatar photo={friend.profilePhoto} username={friend.username} size={32} />
+                  <span style={{ fontSize: '15px', fontWeight: 500, textTransform: 'uppercase' }}>@{friend.username}</span>
+                </span>
                 <span style={{ fontSize: '13px', fontWeight: 500, color: 'var(--dp-color-accent)', flexShrink: 0 }}>VIEW PROFILE →</span>
               </IOSListRow>
             ))
@@ -467,8 +470,16 @@ export function ProfileView({
               const status = requestStatusById[athlete.id] || athlete.relation;
               return (
                 <IOSListRow key={athlete.id} isLast={i === friendsOfFriend.friends.length - 1} colors={colors}>
-                  <span style={{ fontSize: '15px', fontWeight: 500, textTransform: 'uppercase', minWidth: 0, overflowWrap: 'anywhere' }}>
-                    @{athlete.username}
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
+                    {/* Their photo when they're also your friend (the list itself only carries usernames) */}
+                    <ProfileAvatar
+                      photo={(friendsList || []).find(f => f.id === athlete.id)?.profilePhoto}
+                      username={athlete.username}
+                      size={32}
+                    />
+                    <span style={{ fontSize: '15px', fontWeight: 500, textTransform: 'uppercase', minWidth: 0, overflowWrap: 'anywhere' }}>
+                      @{athlete.username}
+                    </span>
                   </span>
                   {status === 'friends' ? (
                     <span style={{ fontSize: '12px', fontWeight: 500, color: '#FFFFFF', flexShrink: 0 }}>FRIENDS ✓</span>

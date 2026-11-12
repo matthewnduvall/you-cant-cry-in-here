@@ -525,7 +525,13 @@ export function RoutineEditorView({
           const bottomButtonStyle = { minHeight: '52px', whiteSpace: 'nowrap', boxSizing: 'border-box' };
           return (
             <div style={{ display: 'grid', gridTemplateColumns: showLoadRoutine ? 'minmax(0, 1fr) minmax(0, 1fr)' : 'minmax(0, 1fr)', gap: '8px', width: '100%' }}>
-              <Button variant="dashed" onClick={() => handleAddAutoSlot?.()} style={bottomButtonStyle}>
+              {/* A blank live session: + ADD EXERCISE is the page's one red (FINISH only appears once there are
+                  exercises); otherwise it's the dashed "add" button */}
+              <Button
+                variant={showLoadRoutine ? 'primary' : 'dashed'}
+                onClick={() => handleAddAutoSlot?.()}
+                style={bottomButtonStyle}
+              >
                 + ADD EXERCISE
               </Button>
               {showLoadRoutine && (
