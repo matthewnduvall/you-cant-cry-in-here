@@ -200,7 +200,14 @@ export const EXERCISE_NAME_ALIASES = {
   barbell_rdl: ['RDL', 'RDLs', 'Romanian Deadlift'],
   sit_up: ['Situp', 'Situps', 'Sit-Up', 'Sit-Ups'],
   tricep_dip: ['Dip', 'Dips'],
-  dumbbell_shoulder_press: ['Dumbbell Overhead Press', 'DB Overhead Press', 'DB Press', 'DB Shoulder Press', 'Dumbbell OHP', 'DB OHP']
+  dumbbell_shoulder_press: ['Dumbbell Overhead Press', 'DB Overhead Press', 'DB Press', 'DB Shoulder Press', 'Dumbbell OHP', 'DB OHP'],
+  barbell_shrug: ['Shrug', 'Shrugs', 'Barbell Shrugs'],
+  barbell_upright_row: ['Standing Row', 'Standing Rows', 'Barbell Upright Rows'],
+  barbell_deadlift: ['Deadlift', 'Deadlifts'],
+  barbell_bench_press: ['Bench', 'Bench Press'],
+  barbell_back_squat: ['Squat', 'Squats', 'Back Squat'],
+  front_squat: ['Front Squat', 'Front Squats'],
+  chin_ups: ['Pull-Up', 'Pull-Ups', 'Pullup', 'Pullups']
 };
 
 const SECONDARY_MUSCLE_GROUPS = {

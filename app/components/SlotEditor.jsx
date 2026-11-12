@@ -154,6 +154,8 @@ export const searchExercises = (query, pool = EXERCISE_LIBRARY) => {
   const rank = ex => {
     const name = ex.name.toLowerCase();
     const short = stripEquipmentFromExerciseName(ex.name).toLowerCase();
+    // Exactly another name it goes by ("squat" = Barbell Back Squat): first
+    if ((ex.aliases || []).some(alias => alias.toLowerCase() === phrase)) return -1;
     if (name.startsWith(phrase) || short.startsWith(phrase)) return 0;
     // Another name it goes by ("RDL", "Dips")
     if ((ex.aliases || []).some(alias => alias.toLowerCase().startsWith(phrase))) return 0;
