@@ -257,6 +257,9 @@ export const UI = {
   gutterWrap: { padding: '0 var(--dp-spacing-gutter)' },
   gutterBottom: { padding: '0 var(--dp-spacing-gutter) 16px' },
   capsLabel: CAPS_LABEL,
+  // Session names, everywhere they show (session header, History rows and editor, save pop-up): bold, all capitals.
+  // Display only: the name is stored as typed.
+  sessionName: { fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' },
   // The one primary action on a screen: red fill, white 600 caps label, 52px, 12px radius
   primaryBtn: {
     width: '100%', minHeight: '52px', padding: '14px 16px', backgroundColor: 'var(--cr-red)', color: '#FFFFFF',

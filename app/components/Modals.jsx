@@ -633,7 +633,7 @@ export function SaveConfirmModal({
               setSaveConfirmTarget(prev => (prev ? { ...prev, name: e.target.value } : null))
             }
             placeholder="Session or routine name"
-            style={UI.field}
+            style={{ ...UI.field, ...UI.sessionName }}
           />
           <div
             style={{
