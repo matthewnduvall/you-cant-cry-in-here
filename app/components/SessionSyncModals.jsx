@@ -12,7 +12,7 @@ import { UI } from '../styles/kineticTokens';
 import { Button, CloseButton } from './Controls';
 import { isUuid } from '../utils/supabaseAuth';
 
-const bodyText = { fontSize: '12px', fontWeight: 700, color: '#C8C8C8', lineHeight: 1.45, marginBottom: '12px', textAlign: 'center' };
+const bodyText = { fontSize: '12px', fontWeight: 500, color: '#BDBDBD', lineHeight: 1.45, marginBottom: '12px', textAlign: 'center' };
 // Pop-up text and button labels are centred
 const centredButton = { display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center' };
 const titleBlock = { flex: 1, minWidth: 0, textAlign: 'center' };
@@ -39,7 +39,7 @@ export function SessionSyncModal({
           {/* Left padding = the ✕ button's width, so the title sits in the middle of the card */}
           <div style={{ ...titleBlock, paddingLeft: '40px' }}>
             <div style={UI.fieldLabel}>SYNC SESSION</div>
-            <div style={{ fontSize: '16px', fontWeight: 800, textTransform: 'uppercase' }}>
+            <div style={{ fontSize: '16px', fontWeight: 500, textTransform: 'uppercase' }}>
               {isSynced ? `SYNCED WITH @${syncPartnerName}` : outgoingInvite ? 'WAITING FOR AN ANSWER' : 'TRAIN WITH A FRIEND'}
             </div>
           </div>
@@ -89,12 +89,12 @@ export function SessionSyncModal({
                     gap: '10px',
                     width: '100%',
                     padding: '12px',
-                    backgroundColor: '#141416',
+                    backgroundColor: '#1C1C1C',
                     color: '#FFFFFF',
-                    border: '1px solid var(--dp-color-rule)',
+                    border: 'none', borderRadius: '10px',
                     marginTop: '-1px',
                     fontSize: '14px',
-                    fontWeight: 800,
+                    fontWeight: 500,
                     textTransform: 'uppercase',
                     cursor: busy ? 'wait' : 'pointer',
                     textAlign: 'center'
@@ -123,7 +123,7 @@ export function IncomingSyncInviteModal({ invite, fromName = 'friend', willRepla
         <div style={UI.modalHeader}>
           <div style={titleBlock}>
             <div style={UI.fieldLabel}>SYNC INVITE</div>
-            <div style={{ fontSize: '16px', fontWeight: 800, textTransform: 'uppercase' }}>@{fromName} WANTS TO TRAIN TOGETHER</div>
+            <div style={{ fontSize: '16px', fontWeight: 500, textTransform: 'uppercase' }}>@{fromName} WANTS TO TRAIN TOGETHER</div>
           </div>
         </div>
         <div style={bodyText}>
@@ -150,7 +150,7 @@ export function SyncNoticeModal({ message, onClose, title = 'SYNC' }) {
     <div style={{ ...UI.modalBackdrop, zIndex: 1400 }} onClick={onClose}>
       <div onClick={e => e.stopPropagation()} style={UI.modalCard('360px')} role="alertdialog" aria-label={`${title} update`}>
         <div style={{ ...UI.fieldLabel, marginBottom: '8px', textAlign: 'center' }}>{title}</div>
-        <div style={{ ...bodyText, color: '#FFFFFF', fontSize: '13px', fontWeight: 800 }}>{message}</div>
+        <div style={{ ...bodyText, color: '#FFFFFF', fontSize: '13px', fontWeight: 500 }}>{message}</div>
         <Button variant="primary" onClick={onClose} style={{ ...centredButton, width: '100%', height: '44px' }}>
           OK
         </Button>
@@ -175,7 +175,7 @@ export function SyncedHistoryUpdateModal({ update, exerciseName = id => id, form
         <div style={UI.modalHeader}>
           <div style={titleBlock}>
             <div style={UI.fieldLabel}>SYNCED WORKOUT UPDATED</div>
-            <div style={{ fontSize: '16px', fontWeight: 800, textTransform: 'uppercase' }}>
+            <div style={{ fontSize: '16px', fontWeight: 500, textTransform: 'uppercase' }}>
               @{update.partnerName} added {names.length === 1 ? 'an exercise' : `${names.length} exercises`}
             </div>
           </div>
@@ -183,7 +183,7 @@ export function SyncedHistoryUpdateModal({ update, exerciseName = id => id, form
         <div style={bodyText}>
           They added to the workout you did together{update.workoutDate ? ` on ${formatDate(update.workoutDate)}` : ''}:
         </div>
-        <div style={{ ...bodyText, color: '#FFFFFF', fontWeight: 800, textTransform: 'uppercase' }}>{names.join(' · ')}</div>
+        <div style={{ ...bodyText, color: '#FFFFFF', fontWeight: 500, textTransform: 'uppercase' }}>{names.join(' · ')}</div>
         <div style={bodyText}>
           {names.length === 1 ? 'Add it to your copy? Its weights start' : 'Add them to your copy? Their weights start'} from
           your own history; you can edit them after.

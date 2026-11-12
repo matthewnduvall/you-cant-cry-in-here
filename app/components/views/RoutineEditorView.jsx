@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { usePointerReorder } from '../../hooks/usePointerReorder';
-import { SHARED_CELL_BORDER, SHARED_GROUP_OUTER } from '../../styles/kineticTokens';
+import { SHARED_CELL_BORDER, SHARED_GROUP_OUTER, UI } from '../../styles/kineticTokens';
 import {
   normalizeSlotCategory,
   isSupersetCategory,
@@ -54,7 +54,8 @@ function WorkoutDateInput({ savedText, onCommit, style }) {
 }
 
 // The friend's tab colour on each exercise of a synced session (orange stays "you")
-const PARTNER_TAB_COLOR = '#BF5AF2';
+// Sync explanation line: grey info text (the friend's pill is shown by fill, not by a colour)
+const PARTNER_TAB_COLOR = '#BDBDBD';
 
 // ============================================================================
 // VIEW: WORKOUT SESSION / ROUTINE / HISTORICAL ENTRY
@@ -111,7 +112,7 @@ export function RoutineEditorView({
 
   const fieldLabelStyle = {
     fontSize: '11px',
-    fontWeight: 800,
+    fontWeight: 500,
     color: 'var(--dp-color-accent)',
     textTransform: 'uppercase',
     lineHeight: 1.15,
@@ -138,12 +139,12 @@ export function RoutineEditorView({
       savedText={savedDateText}
       onCommit={commitDate}
       style={{
-        backgroundColor: '#101010',
+        backgroundColor: '#000000',
         color: '#FFFFFF',
-        border: '1px solid var(--dp-color-rule)',
+        border: 'none', borderRadius: '10px',
         padding: '5px 10px',
         fontSize: '13px',
-        fontWeight: 800,
+        fontWeight: 500,
         outline: 'none',
         boxSizing: 'border-box',
         minWidth: 0,
@@ -154,10 +155,10 @@ export function RoutineEditorView({
 
   return (
     <div style={{ paddingTop: isEmbeddedHistorySession ? '8px' : '14px' }}>
-      {/* Synced with a friend: one line explains the purple tabs on each exercise (so they don't each need a note) */}
+      {/* Synced with a friend: one line explains the YOU / @FRIEND pills on each exercise (so they don't each need a note) */}
       {slotTabs && !slotTabs.partnerAppOutdated && !isEmbeddedHistorySession && (currentEditorWorkout.slots || []).length > 0 && (
-        <div style={{ padding: '0 var(--dp-spacing-gutter)', marginBottom: '12px', fontSize: '12px', fontWeight: 700, color: PARTNER_TAB_COLOR, lineHeight: 1.4 }}>
-          A purple @{slotTabs.partnerName || 'friend'} tab shows their numbers; changes there show up on their phone.
+        <div style={{ padding: '0 var(--dp-spacing-gutter)', marginBottom: '12px', fontSize: '13px', fontWeight: 400, color: PARTNER_TAB_COLOR, lineHeight: 1.4 }}>
+          The @{slotTabs.partnerName || 'friend'} pill on an exercise shows their numbers; changes there show up on their phone.
           {slotTabs.partnerNumbersLoaded || !(currentEditorWorkout.slots || []).some(sl => slotTabs.isPartner(sl.id))
             ? ''
             : ' Suggested weights use your history until theirs loads.'}
@@ -165,7 +166,7 @@ export function RoutineEditorView({
       )}
       {/* Their app is too old to show their numbers */}
       {slotTabs?.partnerAppOutdated && !isEmbeddedHistorySession && (
-        <div role="alert" style={{ padding: '0 var(--dp-spacing-gutter)', marginBottom: '16px', fontSize: '12px', fontWeight: 700, color: '#FF3B30', lineHeight: 1.4 }}>
+        <div role="alert" style={{ padding: '0 var(--dp-spacing-gutter)', marginBottom: '16px', fontSize: '12px', fontWeight: 500, color: '#FF4A3D', lineHeight: 1.4 }}>
           @{slotTabs.partnerName || 'Your friend'} is on an older version of the app, so their numbers don’t reach you.
           Ask them to close the app and open it again.
         </div>
@@ -178,8 +179,8 @@ export function RoutineEditorView({
           <div
             style={{
               fontSize: '20px',
-              fontWeight: 800,
-              letterSpacing: '-0.04em',
+              fontWeight: 500,
+              letterSpacing: '-0.01em',
               textTransform: 'uppercase',
               color: '#FFFFFF',
               lineHeight: 1.05,
@@ -211,13 +212,13 @@ export function RoutineEditorView({
               <div
                 style={{
                   ...SHARED_CELL_BORDER,
-                  backgroundColor: '#141416',
+                  backgroundColor: '#1C1C1C',
                   padding: '0 12px',
                   display: 'flex',
                   alignItems: 'center',
                   fontSize: '12px',
-                  fontWeight: 800,
-                  color: historyEdit.dirty ? 'var(--dp-color-accent)' : '#A0A0A0',
+                  fontWeight: 500,
+                  color: historyEdit.dirty ? 'var(--dp-color-accent)' : '#9A9A9A',
                   minHeight: '44px'
                 }}
               >
@@ -230,10 +231,10 @@ export function RoutineEditorView({
                   onClick={historyEdit.onDiscard}
                   style={{
                     ...SHARED_CELL_BORDER,
-                    backgroundColor: '#141416',
-                    color: '#FF3B30',
+                    backgroundColor: '#1C1C1C',
+                    color: '#FF4A3D',
                     fontSize: '12px',
-                    fontWeight: 800,
+                    fontWeight: 500,
                     cursor: 'pointer'
                   }}
                 >
@@ -247,10 +248,10 @@ export function RoutineEditorView({
                 onClick={historyEdit.onSave}
                 style={{
                   ...SHARED_CELL_BORDER,
-                  backgroundColor: historyEdit.dirty ? '#30D158' : '#242428',
-                  color: historyEdit.dirty ? '#101010' : '#8E8E93',
+                  backgroundColor: historyEdit.dirty ? '#FFFFFF' : '#2A2A2A',
+                  color: historyEdit.dirty ? '#000000' : '#9A9A9A',
                   fontSize: '12px',
-                  fontWeight: 800,
+                  fontWeight: 500,
                   cursor: historyEdit.dirty ? 'pointer' : 'default'
                 }}
               >
@@ -264,7 +265,7 @@ export function RoutineEditorView({
             <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 116px', alignItems: 'stretch' }}>
               <label
                 style={{
-                  backgroundColor: '#141416',
+                  backgroundColor: '#1C1C1C',
                   ...SHARED_CELL_BORDER,
                   padding: '8px 12px',
                   boxSizing: 'border-box',
@@ -286,8 +287,7 @@ export function RoutineEditorView({
                     border: 'none',
                     color: '#FFFFFF',
                     fontSize: '16px',
-                    fontWeight: 800,
-                    textTransform: 'uppercase',
+                    fontWeight: 500,
                     outline: 'none',
                     padding: 0,
                     marginTop: '2px',
@@ -297,7 +297,7 @@ export function RoutineEditorView({
               </label>
               <label
                 style={{
-                  backgroundColor: '#141416',
+                  backgroundColor: '#1C1C1C',
                   ...SHARED_CELL_BORDER,
                   padding: '8px 10px',
                   boxSizing: 'border-box',
@@ -327,7 +327,7 @@ export function RoutineEditorView({
                 justifyContent: 'space-between'
               }}
             >
-              <span style={{ fontSize: '13px', fontWeight: 800, textTransform: 'uppercase', color: '#E0E0E0' }}>
+              <span style={{ fontSize: '13px', fontWeight: 500, textTransform: 'uppercase', color: '#BDBDBD' }}>
                 WORKOUT DATE
               </span>
               {dateInput({ width: '130px', textAlign: 'center' })}
@@ -350,22 +350,13 @@ export function RoutineEditorView({
               marginBottom: '8px'
             }}
           >
-            <div
-              style={{
-                fontSize: '20px',
-                fontWeight: 800,
-                letterSpacing: '-0.04em',
-                textTransform: 'uppercase',
-                color: '#FFFFFF',
-                lineHeight: 1.05
-              }}
-            >
+            <div style={UI.sectionTitle}>
               {`EXERCISES (${(currentEditorWorkout.slots || []).length})`}
             </div>
           </div>
         )}
 
-        <div style={{ borderTop: '2px solid var(--dp-color-rule)' }}>
+        <div>
           {!hasExercises ? null : (
             (currentEditorWorkout.slots || []).map((ownSlot, sIdx) => {
               // Synced: this exercise on the friend's tab shows (and edits) their numbers with their handlers
@@ -409,8 +400,8 @@ export function RoutineEditorView({
                   key={slot.id}
                   data-slot-reorder={sIdx}
                   style={{
-                    borderBottom: '2px solid var(--dp-color-rule)',
-                    padding: '12px 0',
+                    // Exercises sit 8 px apart as separate tiles (no rule between them)
+                    padding: '4px 0',
                     backgroundColor: 'var(--dp-color-ground)',
                     // Held exercise lifts and follows the finger; the landing exercise is outlined
                     ...slotDragStyle(sIdx)
@@ -421,11 +412,11 @@ export function RoutineEditorView({
                       <div
                         role="tablist"
                         aria-label="Whose numbers"
-                        style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 0, ...SHARED_GROUP_OUTER }}
+                        style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}
                       >
                         {[
-                          { id: 'me', label: 'YOU', color: 'var(--dp-color-accent)' },
-                          { id: 'partner', label: `@${slotTabs.partnerName || 'FRIEND'}`.toUpperCase(), color: PARTNER_TAB_COLOR }
+                          { id: 'me', label: 'YOU' },
+                          { id: 'partner', label: `@${slotTabs.partnerName || 'FRIEND'}`.toUpperCase() }
                         ].map(tab => {
                           const active = (tab.id === 'partner') === onPartnerTab;
                           return (
@@ -437,13 +428,16 @@ export function RoutineEditorView({
                               className="kinetic-btn"
                               onClick={() => slotTabs.onChange(ownSlot.id, tab.id)}
                               style={{
-                                ...SHARED_CELL_BORDER,
-                                minHeight: '40px',
+                                // Pills: the selected one is a white fill with black text, the other outlined
+                                minHeight: '44px',
                                 padding: '4px 6px',
-                                backgroundColor: active ? tab.color : '#141416',
-                                color: active ? '#101010' : tab.id === 'partner' ? PARTNER_TAB_COLOR : '#FFFFFF',
+                                borderRadius: '999px',
+                                border: `1px solid ${active ? '#FFFFFF' : 'var(--cr-outline)'}`,
+                                backgroundColor: active ? '#FFFFFF' : 'transparent',
+                                color: active ? '#000000' : '#FFFFFF',
                                 fontSize: '12px',
-                                fontWeight: 800,
+                                letterSpacing: '0.06em',
+                                fontWeight: 500,
                                 textTransform: 'uppercase',
                                 overflowWrap: 'anywhere',
                                 cursor: 'pointer'
@@ -527,9 +521,10 @@ export function RoutineEditorView({
         {(() => {
           const showLoadRoutine =
             !hasExercises && currentView === 'session' && !isEmbeddedHistorySession && setCurrentView && setRoutineSelectReturnView;
-          const bottomButtonStyle = { height: '48px', fontSize: '13px', fontWeight: 800, ...SHARED_CELL_BORDER, backgroundColor: '#161618', color: '#FFFFFF', whiteSpace: 'nowrap', boxSizing: 'border-box' };
+          // Add / empty slot: transparent with a dashed outline and a grey caps label
+          const bottomButtonStyle = { minHeight: '52px', whiteSpace: 'nowrap', boxSizing: 'border-box' };
           return (
-            <div style={{ display: 'grid', gridTemplateColumns: showLoadRoutine ? 'minmax(0, 1fr) minmax(0, 1fr)' : 'minmax(0, 1fr)', gap: 0, width: '100%', ...SHARED_GROUP_OUTER }}>
+            <div style={{ display: 'grid', gridTemplateColumns: showLoadRoutine ? 'minmax(0, 1fr) minmax(0, 1fr)' : 'minmax(0, 1fr)', gap: '8px', width: '100%' }}>
               <Button variant="dashed" onClick={() => handleAddAutoSlot?.()} style={bottomButtonStyle}>
                 + ADD EXERCISE
               </Button>

@@ -16,8 +16,8 @@ export function CloudSyncBanner({ status, onRetry }) {
       style={{
         display: 'flex',
         alignItems: 'stretch',
-        borderBottom: '2px solid var(--dp-color-rule)',
-        backgroundColor: '#1A0B0A'
+        borderBottom: '1px solid var(--dp-color-rule)',
+        backgroundColor: '#1C1C1C'
       }}
     >
       <div
@@ -25,11 +25,11 @@ export function CloudSyncBanner({ status, onRetry }) {
           flex: 1,
           padding: '10px 12px',
           fontSize: '11px',
-          fontWeight: 800,
+          fontWeight: 500,
           letterSpacing: '0.02em',
           lineHeight: 1.35,
           textTransform: 'uppercase',
-          color: '#FF3B30'
+          color: '#FF4A3D'
         }}
       >
         CLOUD SYNC FAILED: {status.error}. YOUR DATA IS STILL SAVED ON THIS DEVICE.
@@ -38,7 +38,7 @@ export function CloudSyncBanner({ status, onRetry }) {
         variant="danger"
         onClick={onRetry}
         disabled={retrying}
-        style={{ width: '92px', flexShrink: 0, border: 'none', borderLeft: '2px solid var(--dp-color-rule)', fontSize: '12px', opacity: retrying ? 0.6 : 1 }}
+        style={{ width: '92px', flexShrink: 0, border: 'none', borderLeft: '1px solid var(--dp-color-rule)', fontSize: '12px', opacity: retrying ? 0.6 : 1 }}
       >
         {retrying ? 'SYNCING…' : 'RETRY'}
       </Button>

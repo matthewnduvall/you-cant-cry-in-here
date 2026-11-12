@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { SHARED_CELL_BORDER, SHARED_GROUP_OUTER } from '../../styles/kineticTokens';
+import { SHARED_CELL_BORDER, SHARED_GROUP_OUTER, SHARED_PICKER_GROUP } from '../../styles/kineticTokens';
 import { RoutineEditorView } from './RoutineEditorView';
 import {
   BIG_FOUR_IDS,
@@ -278,7 +278,7 @@ export function HistoryView({
       .filter(Boolean);
 
     if (lines.length === 0) {
-      setImportCsvStatus('NO VALID ROWS FOUND IN CSV.');
+      setImportCsvStatus('No valid rows found in the CSV.');
       return;
     }
 
@@ -522,7 +522,7 @@ export function HistoryView({
     boxSizing: 'border-box',
     padding: '0 6px',
     fontSize: '12px',
-    fontWeight: 800,
+    fontWeight: 500,
     textTransform: 'uppercase',
     ...SHARED_CELL_BORDER,
     display: 'inline-flex',
@@ -546,7 +546,8 @@ export function HistoryView({
             display: 'flex',
             flexDirection: 'column',
             gap: 0,
-            ...SHARED_GROUP_OUTER
+            // The add panel holds an exercise picker: don't clip while it's open (its search list can spill out)
+            ...(showAddPrExercisePanel ? SHARED_PICKER_GROUP : SHARED_GROUP_OUTER)
           }}
         >
           {/* + ADD WORKOUT / EXERCISE TO PERSONAL RECORDS (TOP OF STACK, MATCHING + LOG PAST WORKOUT) */}
@@ -557,13 +558,15 @@ export function HistoryView({
               className="kinetic-btn"
               style={{
                 width: '100%',
-                height: '46px',
-                padding: '0 12px',
-                backgroundColor: 'var(--dp-color-accent)',
-                color: '#101010',
+                height: '52px',
+                padding: '0 16px',
+                // An "add" row: graphite with a grey caps label (not a fill)
+                backgroundColor: '#1C1C1C',
+                color: '#9A9A9A',
                 ...SHARED_CELL_BORDER,
                 fontSize: '12px',
-                fontWeight: 800,
+                fontWeight: 500,
+                letterSpacing: '0.08em',
                 textTransform: 'uppercase',
                 display: 'flex',
                 alignItems: 'center',
@@ -588,12 +591,12 @@ export function HistoryView({
               >
                 <div
                   style={{
-                    backgroundColor: '#18181B',
+                    backgroundColor: '#1C1C1C',
                     padding: '0 12px',
                     display: 'flex',
                     alignItems: 'center',
                     fontSize: '11px',
-                    fontWeight: 800,
+                    fontWeight: 500,
                     color: 'var(--dp-color-accent)',
                     textTransform: 'uppercase',
                     ...SHARED_CELL_BORDER
@@ -630,10 +633,10 @@ export function HistoryView({
                   height: '44px',
                   padding: '0 12px',
                   backgroundColor: 'var(--dp-color-accent)',
-                  color: '#101010',
+                  color: '#000000',
                   ...SHARED_CELL_BORDER,
                   fontSize: '12px',
-                  fontWeight: 800,
+                  fontWeight: 500,
                   textTransform: 'uppercase',
                   cursor: 'pointer'
                 }}
@@ -669,7 +672,7 @@ export function HistoryView({
                   gridTemplateColumns: readOnly ? 'minmax(0, 1fr) 110px' : 'minmax(0, 1fr) 96px 96px',
                   gap: 0,
                   alignItems: 'stretch',
-                  backgroundColor: '#141416'
+                  backgroundColor: '#1C1C1C'
                 }}
               >
                 <div
@@ -684,11 +687,10 @@ export function HistoryView({
                 >
                   <div
                     style={{
-                      fontSize: '13px',
-                      fontWeight: 800,
+                      fontSize: '15px',
+                      fontWeight: 500,
                       color: '#FFFFFF',
-                      textTransform: 'uppercase',
-                      lineHeight: 1.15,
+                      lineHeight: 1.2,
                       display: '-webkit-box',
                       WebkitLineClamp: 2,
                       WebkitBoxOrient: 'vertical',
@@ -699,10 +701,10 @@ export function HistoryView({
                   </div>
                   <div
                     style={{
-                      fontSize: '11px',
-                      fontWeight: 700,
-                      color: colors?.secondaryLabel || '#A0A0A0',
-                      marginTop: '1px'
+                      fontSize: '13px',
+                      fontWeight: 400,
+                      color: colors?.secondaryLabel || '#9A9A9A',
+                      marginTop: '2px'
                     }}
                   >
                     {readOnly
@@ -727,7 +729,7 @@ export function HistoryView({
                       height: '100%',
                       minHeight: '48px',
                       cursor: 'default',
-                      backgroundColor: isTBD ? '#2A2A2E' : 'var(--dp-color-accent)',
+                      backgroundColor: isTBD ? '#2A2A2A' : 'var(--dp-color-accent)',
                       color: isTBD ? '#FFFFFF' : '#000000'
                     }}
                   >
@@ -742,7 +744,7 @@ export function HistoryView({
                     ...stdActionBtnStyle,
                     height: '100%',
                     minHeight: '48px',
-                    backgroundColor: '#1C1C20',
+                    backgroundColor: '#1C1C1C',
                     color: '#FFFFFF'
                   }}
                 >
@@ -758,7 +760,7 @@ export function HistoryView({
                     minHeight: '48px',
                     flexDirection: 'column',
                     backgroundColor: isTBD
-                      ? '#2A2A2E'
+                      ? '#2A2A2A'
                       : 'var(--dp-color-accent)',
                     color: isTBD ? '#FFFFFF' : '#000000'
                   }}
@@ -770,7 +772,7 @@ export function HistoryView({
                     <span
                       style={{
                         fontSize: '11px',
-                        fontWeight: 800,
+                        fontWeight: 500,
                         lineHeight: 1.1,
                         marginTop: '2px',
                         opacity: 0.85
@@ -797,11 +799,11 @@ export function HistoryView({
               width: '100%',
               minHeight: '44px',
               marginTop: '8px',
-              backgroundColor: '#141416',
+              backgroundColor: '#1C1C1C',
               color: '#FFFFFF',
-              border: '2px solid var(--dp-color-rule)',
+              border: 'none', borderRadius: '10px',
               fontSize: '12px',
-              fontWeight: 800,
+              fontWeight: 500,
               textTransform: 'uppercase',
               cursor: 'pointer'
             }}
@@ -824,7 +826,7 @@ export function HistoryView({
       <section style={{ marginBottom: '20px', padding: '0 var(--dp-spacing-gutter)' }}>
         {allSessionsCount > 0 && (
           <div style={{ marginBottom: '12px' }}>
-            <div style={SHARED_GROUP_OUTER}>
+            <div style={SHARED_PICKER_GROUP}>
               <HistoryExerciseFilter
                 history={history}
                 filter={historyFilter}
@@ -845,7 +847,7 @@ export function HistoryView({
                   marginTop: '8px'
                 }}
               >
-                <div style={{ fontSize: '12px', fontWeight: 800, color: '#A0A0A0', textTransform: 'uppercase', minWidth: 0 }}>
+                <div style={{ fontSize: '12px', fontWeight: 500, color: '#9A9A9A', textTransform: 'uppercase', minWidth: 0 }}>
                   {totalSessions === 0
                     ? 'NO SESSIONS MATCH'
                     : historyFilter.exerciseId
@@ -863,11 +865,11 @@ export function HistoryView({
                   style={{
                     height: '40px',
                     padding: '0 14px',
-                    backgroundColor: '#161618',
+                    backgroundColor: '#1C1C1C',
                     color: '#FFFFFF',
-                    border: '1px solid var(--dp-color-rule)',
+                    border: 'none', borderRadius: '10px',
                     fontSize: '12px',
-                    fontWeight: 800,
+                    fontWeight: 500,
                     textTransform: 'uppercase',
                     cursor: 'pointer'
                   }}
@@ -914,13 +916,15 @@ export function HistoryView({
               className="kinetic-btn"
               style={{
                 width: '100%',
-                height: '46px',
-                padding: '0 12px',
-                backgroundColor: 'var(--dp-color-accent)',
-                color: '#101010',
+                height: '52px',
+                padding: '0 16px',
+                // An "add" row: graphite with a grey caps label (not a fill)
+                backgroundColor: '#1C1C1C',
+                color: '#9A9A9A',
                 ...SHARED_CELL_BORDER,
                 fontSize: '12px',
-                fontWeight: 800,
+                fontWeight: 500,
+                letterSpacing: '0.08em',
                 textTransform: 'uppercase',
                 display: 'flex',
                 alignItems: 'center',
@@ -944,11 +948,11 @@ export function HistoryView({
                 width: '100%',
                 height: '46px',
                 padding: '0 12px',
-                backgroundColor: '#161618',
+                backgroundColor: '#1C1C1C',
                 color: '#FFFFFF',
                 ...SHARED_CELL_BORDER,
                 fontSize: '12px',
-                fontWeight: 800,
+                fontWeight: 500,
                 textTransform: 'uppercase',
                 display: 'flex',
                 alignItems: 'center',
@@ -967,15 +971,14 @@ export function HistoryView({
             <div
               style={{
                 padding: '12px',
-                backgroundColor: '#141416',
+                backgroundColor: '#1C1C1C',
                 ...SHARED_CELL_BORDER,
-                fontSize: '12px',
-                color: '#888888',
-                fontWeight: 700,
-                textTransform: 'uppercase'
+                fontSize: '14px',
+                color: '#9A9A9A',
+                fontWeight: 400
               }}
             >
-              {filterActive ? 'NO SESSIONS MATCH THESE FILTERS.' : 'NO SESSIONS LOGGED YET.'}
+              {filterActive ? 'No sessions match these filters.' : 'No sessions logged yet.'}
             </div>
           ) : (
             <>
@@ -994,7 +997,7 @@ export function HistoryView({
                         gridTemplateColumns: readOnly ? 'minmax(0, 1fr)' : 'minmax(0, 1fr) 48px 48px',
                         gap: 0,
                         alignItems: 'stretch',
-                        backgroundColor: isExp ? '#1C1C20' : '#141416'
+                        backgroundColor: isExp ? '#1C1C1C' : '#1C1C1C'
                       }}
                     >
                       <div
@@ -1030,7 +1033,7 @@ export function HistoryView({
                           <div
                             style={{
                               fontSize: '13px',
-                              fontWeight: 800,
+                              fontWeight: 500,
                               color: '#FFFFFF',
                               textTransform: 'uppercase',
                               whiteSpace: 'nowrap',
@@ -1044,10 +1047,10 @@ export function HistoryView({
                           {prWorkoutIds.has(w.id) && (
                             <span
                               style={{
-                                backgroundColor: '#30D158',
-                                color: '#101010',
+                                backgroundColor: '#FFFFFF',
+                                color: '#000000',
                                 fontSize: '11px',
-                                fontWeight: 900,
+                                fontWeight: 500,
                                 padding: '1px 5px',
                                 lineHeight: 1.2,
                                 letterSpacing: '0.02em',
@@ -1061,8 +1064,8 @@ export function HistoryView({
                         <div
                           style={{
                             fontSize: '11px',
-                            fontWeight: 700,
-                            color: colors?.secondaryLabel || '#A0A0A0',
+                            fontWeight: 500,
+                            color: colors?.secondaryLabel || '#9A9A9A',
                             marginTop: '1px'
                           }}
                         >
@@ -1072,7 +1075,7 @@ export function HistoryView({
                         </div>
                         {/* Done together with a friend (synced session) */}
                         {getWorkoutSyncInfo(w) && (
-                          <div style={{ fontSize: '11px', fontWeight: 800, color: '#BF5AF2', marginTop: '1px', textTransform: 'uppercase' }}>
+                          <div style={{ fontSize: '11px', fontWeight: 500, color: '#BDBDBD', marginTop: '1px', textTransform: 'uppercase' }}>
                             SYNCED WITH @{getWorkoutSyncInfo(w).partnerName || 'FRIEND'}
                           </div>
                         )}
@@ -1081,7 +1084,7 @@ export function HistoryView({
                           <div
                             style={{
                               fontSize: '11px',
-                              fontWeight: 700,
+                              fontWeight: 500,
                               color: '#FFFFFF',
                               marginTop: '1px',
                               textTransform: 'uppercase',
@@ -1095,7 +1098,7 @@ export function HistoryView({
                           </div>
                         )}
                         {historyFilter.exerciseId && describeExerciseInWorkout(w) && (
-                          <div style={{ fontSize: '11px', fontWeight: 800, color: '#FFFFFF', marginTop: '1px' }}>
+                          <div style={{ fontSize: '11px', fontWeight: 500, color: '#FFFFFF', marginTop: '1px' }}>
                             {describeExerciseInWorkout(w)}
                           </div>
                         )}
@@ -1111,11 +1114,11 @@ export function HistoryView({
                           width: '48px',
                           minHeight: '48px',
                           boxSizing: 'border-box',
-                          backgroundColor: '#1C1C20',
+                          backgroundColor: '#1C1C1C',
                           color: isExp ? 'var(--dp-color-accent)' : '#FFFFFF',
                           ...SHARED_CELL_BORDER,
                           fontSize: '16px',
-                          fontWeight: 800,
+                          fontWeight: 500,
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
@@ -1147,7 +1150,7 @@ export function HistoryView({
                       <div
                         style={{
                           paddingBottom: '12px',
-                          backgroundColor: '#101010',
+                          backgroundColor: '#000000',
                           ...SHARED_CELL_BORDER
                         }}
                       >
@@ -1169,11 +1172,11 @@ export function HistoryView({
                     width: '100%',
                     height: '44px',
                     padding: '0 12px',
-                    backgroundColor: '#18181B',
+                    backgroundColor: '#1C1C1C',
                     color: 'var(--dp-color-accent)',
                     ...SHARED_CELL_BORDER,
                     fontSize: '12px',
-                    fontWeight: 800,
+                    fontWeight: 500,
                     textTransform: 'uppercase',
                     cursor: 'pointer'
                   }}
@@ -1189,7 +1192,7 @@ export function HistoryView({
                     gridTemplateColumns: '96px minmax(0, 1fr) 96px',
                     gap: 0,
                     height: '44px',
-                    backgroundColor: '#141416'
+                    backgroundColor: '#1C1C1C'
                   }}
                 >
                   <button
@@ -1199,7 +1202,7 @@ export function HistoryView({
                     style={{
                       ...stdActionBtnStyle,
                       height: '44px',
-                      backgroundColor: '#18181B',
+                      backgroundColor: '#1C1C1C',
                       color: '#FFFFFF',
                       opacity: historyPage <= 0 ? 0.4 : 1,
                       cursor: historyPage <= 0 ? 'default' : 'pointer'
@@ -1215,8 +1218,8 @@ export function HistoryView({
                       justifyContent: 'center',
                       padding: '0 6px',
                       fontSize: '11px',
-                      fontWeight: 800,
-                      color: '#A0A0A0',
+                      fontWeight: 500,
+                      color: '#9A9A9A',
                       textTransform: 'uppercase',
                       textAlign: 'center'
                     }}
@@ -1231,7 +1234,7 @@ export function HistoryView({
                     style={{
                       ...stdActionBtnStyle,
                       height: '44px',
-                      backgroundColor: '#18181B',
+                      backgroundColor: '#1C1C1C',
                       color: '#FFFFFF',
                       opacity: historyPage >= totalPages - 1 ? 0.4 : 1,
                       cursor: historyPage >= totalPages - 1 ? 'default' : 'pointer'
@@ -1299,7 +1302,7 @@ export function HistoryView({
                 justifyContent: 'space-between',
                 alignItems: 'center',
                 marginBottom: '8px',
-                borderBottom: '1px solid #2A2A2E',
+                borderBottom: '1px solid #2A2A2A',
                 paddingBottom: '8px'
               }}
             >
@@ -1307,7 +1310,7 @@ export function HistoryView({
                 <div
                   style={{
                     fontSize: '11px',
-                    fontWeight: 800,
+                    fontWeight: 500,
                     color: 'var(--dp-color-accent)',
                     textTransform: 'uppercase'
                   }}
@@ -1317,7 +1320,7 @@ export function HistoryView({
                 <div
                   style={{
                     fontSize: '14px',
-                    fontWeight: 800,
+                    fontWeight: 500,
                     color: '#FFFFFF',
                     textTransform: 'uppercase'
                   }}
@@ -1331,8 +1334,8 @@ export function HistoryView({
             <div
               style={{
                 fontSize: '11px',
-                fontWeight: 700,
-                color: '#A0A0A0',
+                fontWeight: 500,
+                color: '#9A9A9A',
                 lineHeight: 1.4,
                 marginBottom: '10px',
                 textTransform: 'uppercase'
@@ -1360,11 +1363,11 @@ export function HistoryView({
                 style={{
                   height: '42px',
                   padding: '0 10px',
-                  backgroundColor: '#161618',
+                  backgroundColor: '#1C1C1C',
                   color: '#FFFFFF',
                   ...SHARED_CELL_BORDER,
                   fontSize: '11px',
-                  fontWeight: 800,
+                  fontWeight: 500,
                   textTransform: 'uppercase',
                   cursor: 'pointer',
                   boxSizing: 'border-box'
@@ -1379,10 +1382,10 @@ export function HistoryView({
                   height: '42px',
                   padding: '0 10px',
                   backgroundColor: 'var(--dp-color-accent)',
-                  color: '#101010',
+                  color: '#000000',
                   ...SHARED_CELL_BORDER,
                   fontSize: '11px',
-                  fontWeight: 800,
+                  fontWeight: 500,
                   textTransform: 'uppercase',
                   cursor: 'pointer',
                   display: 'flex',
@@ -1406,8 +1409,8 @@ export function HistoryView({
             <div
               style={{
                 fontSize: '11px',
-                fontWeight: 800,
-                color: '#A0A0A0',
+                fontWeight: 500,
+                color: '#9A9A9A',
                 marginBottom: '4px',
                 textTransform: 'uppercase'
               }}
@@ -1427,13 +1430,13 @@ export function HistoryView({
               style={{
                 width: '100%',
                 boxSizing: 'border-box',
-                backgroundColor: '#161618',
+                backgroundColor: '#1C1C1C',
                 color: '#FFFFFF',
-                border: '1px solid var(--dp-color-rule)',
+                border: 'none', borderRadius: '10px',
                 padding: '8px',
                 fontSize: '11px',
                 fontFamily: 'monospace',
-                fontWeight: 700,
+                fontWeight: 500,
                 outline: 'none',
                 resize: 'vertical',
                 marginBottom: '10px'
@@ -1444,8 +1447,8 @@ export function HistoryView({
               <div
                 style={{
                   fontSize: '11px',
-                  fontWeight: 800,
-                  color: '#FF3B30',
+                  fontWeight: 500,
+                  color: '#FF4A3D',
                   marginBottom: '10px'
                 }}
               >
@@ -1469,11 +1472,11 @@ export function HistoryView({
                 style={{
                   height: '42px',
                   padding: '0 10px',
-                  backgroundColor: '#161618',
-                  color: '#A0A0A0',
+                  backgroundColor: '#1C1C1C',
+                  color: '#9A9A9A',
                   ...SHARED_CELL_BORDER,
                   fontSize: '12px',
-                  fontWeight: 800,
+                  fontWeight: 500,
                   textTransform: 'uppercase',
                   cursor: 'pointer',
                   boxSizing: 'border-box'
@@ -1488,11 +1491,11 @@ export function HistoryView({
                 style={{
                   height: '42px',
                   padding: '0 10px',
-                  backgroundColor: '#30D158',
+                  backgroundColor: '#FFFFFF',
                   color: '#000000',
                   ...SHARED_CELL_BORDER,
                   fontSize: '12px',
-                  fontWeight: 800,
+                  fontWeight: 500,
                   textTransform: 'uppercase',
                   cursor: 'pointer',
                   boxSizing: 'border-box'

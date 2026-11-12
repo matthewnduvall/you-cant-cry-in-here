@@ -98,7 +98,7 @@ export function ProfileView({
           setAccountDeleteStatus(null);
           setCurrentView('home');
         } else {
-          setAccountDeleteStatus(result?.error || 'COULD NOT DELETE YOUR ACCOUNT.');
+          setAccountDeleteStatus(result?.error || 'Could not delete your account.');
         }
       }
     });
@@ -206,11 +206,11 @@ export function ProfileView({
             className="kinetic-btn"
             style={{
               padding: '8px 14px',
-              backgroundColor: '#161618',
+              backgroundColor: '#1C1C1C',
               color: '#FFFFFF',
-              border: '2px solid var(--dp-color-rule)',
+              border: 'none', borderRadius: '10px',
               fontSize: '12px',
-              fontWeight: 800,
+              fontWeight: 500,
               textTransform: 'uppercase',
               cursor: 'pointer',
               display: 'inline-flex',
@@ -225,7 +225,7 @@ export function ProfileView({
       {isFriend && friendUnavailable && (
         <IOSListSection header="PROFILE UNAVAILABLE" colors={colors}>
           <IOSListRow isLast={true} colors={colors}>
-            <span style={{ fontSize: '12px', fontWeight: 700, color: '#A0A0A0', lineHeight: 1.4 }}>
+            <span style={{ fontSize: '12px', fontWeight: 500, color: '#9A9A9A', lineHeight: 1.4 }}>
               You and @{viewingFriendProfile.username} are no longer friends, so their profile is private.
             </span>
           </IOSListRow>
@@ -275,16 +275,16 @@ export function ProfileView({
                       alignItems: 'center',
                       justifyContent: 'center',
                       backgroundColor: 'var(--dp-color-accent)',
-                      border: '2px solid #101010',
+                      border: '2px solid #000000',
                       boxSizing: 'border-box'
                     }}
                   >
                     {photoStatus === 'saving' ? (
-                      <span style={{ fontSize: '11px', fontWeight: 900, color: '#101010' }}>…</span>
+                      <span style={{ fontSize: '11px', fontWeight: 500, color: '#000000' }}>…</span>
                     ) : (
                       <svg width="12" height="12" viewBox="0 0 16 16">
-                        <path d="M11.5 1.5l3 3L5 14H2v-3z" fill="none" stroke="#101010" strokeWidth="2" strokeLinejoin="miter" />
-                        <line x1="9.5" y1="3.5" x2="12.5" y2="6.5" stroke="#101010" strokeWidth="2" />
+                        <path d="M11.5 1.5l3 3L5 14H2v-3z" fill="none" stroke="#000000" strokeWidth="2" strokeLinejoin="miter" />
+                        <line x1="9.5" y1="3.5" x2="12.5" y2="6.5" stroke="#000000" strokeWidth="2" />
                       </svg>
                     )}
                   </span>
@@ -292,11 +292,11 @@ export function ProfileView({
               )}
             </div>
             <div style={{ minWidth: 0 }}>
-              <div style={{ fontSize: '22px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '-0.03em', overflowWrap: 'anywhere' }}>
+              <div style={{ fontSize: '22px', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '-0.01em', overflowWrap: 'anywhere' }}>
                 @{profUser.username}
               </div>
               {!isFriend && (
-                <div style={{ fontSize: '12px', color: '#A0A0A0', fontWeight: 700, overflowWrap: 'anywhere' }}>{profUser.email}</div>
+                <div style={{ fontSize: '12px', color: '#9A9A9A', fontWeight: 500, overflowWrap: 'anywhere' }}>{profUser.email}</div>
               )}
               {/* SIGN OUT, just below the name and email */}
               {!isFriend && user && (
@@ -308,11 +308,11 @@ export function ProfileView({
                     marginTop: '8px',
                     height: '40px',
                     padding: '0 14px',
-                    backgroundColor: '#161616',
-                    color: '#FF3B30',
-                    border: '2px solid var(--dp-color-rule)',
+                    backgroundColor: '#1C1C1C',
+                    color: '#FF4A3D',
+                    border: 'none', borderRadius: '10px',
                     fontSize: '12px',
-                    fontWeight: 800,
+                    fontWeight: 500,
                     textTransform: 'uppercase',
                     cursor: 'pointer'
                   }}
@@ -337,7 +337,7 @@ export function ProfileView({
                   setPhotoMenuOpen(false);
                   fileInputRef.current?.click();
                 }}
-                style={{ ...SHARED_CELL_BORDER, height: '44px', backgroundColor: '#161616', color: '#FFFFFF', fontSize: '12px', fontWeight: 800, cursor: 'pointer' }}
+                style={{ ...SHARED_CELL_BORDER, height: '44px', backgroundColor: '#1C1C1C', color: '#FFFFFF', fontSize: '12px', fontWeight: 500, cursor: 'pointer' }}
               >
                 CHANGE PHOTO
               </button>
@@ -349,7 +349,7 @@ export function ProfileView({
                   setPhotoMenuOpen(false);
                   setProfilePhoto?.(null);
                 }}
-                style={{ ...SHARED_CELL_BORDER, height: '44px', backgroundColor: '#161616', color: '#FF3B30', fontSize: '12px', fontWeight: 800, cursor: 'pointer' }}
+                style={{ ...SHARED_CELL_BORDER, height: '44px', backgroundColor: '#1C1C1C', color: '#FF4A3D', fontSize: '12px', fontWeight: 500, cursor: 'pointer' }}
               >
                 REMOVE PHOTO
               </button>
@@ -358,7 +358,7 @@ export function ProfileView({
                 aria-label="Close photo menu"
                 className="kinetic-btn"
                 onClick={() => setPhotoMenuOpen(false)}
-                style={{ ...SHARED_CELL_BORDER, height: '44px', backgroundColor: '#161616', color: '#A0A0A0', fontSize: '14px', fontWeight: 800, cursor: 'pointer' }}
+                style={{ ...SHARED_CELL_BORDER, height: '44px', backgroundColor: '#1C1C1C', color: '#9A9A9A', fontSize: '14px', fontWeight: 500, cursor: 'pointer' }}
               >
                 ✕
               </button>
@@ -367,7 +367,7 @@ export function ProfileView({
         )}
         {photoStatus && photoStatus !== 'saving' && (
           <IOSListRow isLast={true} colors={colors}>
-            <span style={{ fontSize: '12px', fontWeight: 700, color: '#FF3B30' }}>{photoStatus}</span>
+            <span style={{ fontSize: '12px', fontWeight: 500, color: '#FF4A3D' }}>{photoStatus}</span>
           </IOSListRow>
         )}
       </IOSListSection>
@@ -418,7 +418,7 @@ export function ProfileView({
         <IOSListSection header={`FRIENDS (${(friendsList || []).length})`} colors={colors}>
           {(friendsList || []).length === 0 ? (
             <IOSListRow isLast={true} colors={colors}>
-              <span style={{ fontSize: '12px', fontWeight: 700, color: '#A0A0A0', textTransform: 'uppercase' }}>NO FRIENDS YET</span>
+              <span style={{ fontSize: '12px', fontWeight: 500, color: '#9A9A9A', textTransform: 'uppercase' }}>NO FRIENDS YET</span>
             </IOSListRow>
           ) : (
             friendsList.map((friend, i) => (
@@ -431,8 +431,8 @@ export function ProfileView({
                   setCurrentView('friend_profile');
                 }}
               >
-                <span style={{ fontSize: '15px', fontWeight: 800, textTransform: 'uppercase' }}>@{friend.username}</span>
-                <span style={{ fontSize: '13px', fontWeight: 800, color: 'var(--dp-color-accent)', flexShrink: 0 }}>VIEW PROFILE →</span>
+                <span style={{ fontSize: '15px', fontWeight: 500, textTransform: 'uppercase' }}>@{friend.username}</span>
+                <span style={{ fontSize: '13px', fontWeight: 500, color: 'var(--dp-color-accent)', flexShrink: 0 }}>VIEW PROFILE →</span>
               </IOSListRow>
             ))
           )}
@@ -446,34 +446,34 @@ export function ProfileView({
         >
           {!friendsOfFriend ? (
             <IOSListRow isLast={true} colors={colors}>
-              <span style={{ fontSize: '12px', fontWeight: 700, color: '#A0A0A0', textTransform: 'uppercase' }}>LOADING FRIENDS…</span>
+              <span style={{ fontSize: '12px', fontWeight: 500, color: '#9A9A9A', textTransform: 'uppercase' }}>LOADING FRIENDS…</span>
             </IOSListRow>
           ) : friendsOfFriend.ok && friendsOfFriend.friends.length === 0 ? (
             <IOSListRow isLast={true} colors={colors}>
-              <span style={{ fontSize: '12px', fontWeight: 700, color: '#A0A0A0' }}>No public friends to show, or this profile is private.</span>
+              <span style={{ fontSize: '12px', fontWeight: 500, color: '#9A9A9A' }}>No public friends to show, or this profile is private.</span>
             </IOSListRow>
           ) : !friendsOfFriend.ok ? (
             <IOSListRow isLast={true} colors={colors}>
-              <span style={{ fontSize: '12px', color: '#FF3B30', fontWeight: 700 }}>COULD NOT LOAD THEIR FRIENDS.</span>
+              <span style={{ fontSize: '12px', color: '#FF4A3D', fontWeight: 500 }}>COULD NOT LOAD THEIR FRIENDS.</span>
             </IOSListRow>
           ) : (
             friendsOfFriend.friends.map((athlete, i) => {
               const status = requestStatusById[athlete.id] || athlete.relation;
               return (
                 <IOSListRow key={athlete.id} isLast={i === friendsOfFriend.friends.length - 1} colors={colors}>
-                  <span style={{ fontSize: '15px', fontWeight: 800, textTransform: 'uppercase', minWidth: 0, overflowWrap: 'anywhere' }}>
+                  <span style={{ fontSize: '15px', fontWeight: 500, textTransform: 'uppercase', minWidth: 0, overflowWrap: 'anywhere' }}>
                     @{athlete.username}
                   </span>
                   {status === 'friends' ? (
-                    <span style={{ fontSize: '12px', fontWeight: 800, color: '#30D158', flexShrink: 0 }}>FRIENDS ✓</span>
+                    <span style={{ fontSize: '12px', fontWeight: 500, color: '#FFFFFF', flexShrink: 0 }}>FRIENDS ✓</span>
                   ) : status === 'requested' ? (
-                    <span style={{ fontSize: '12px', fontWeight: 800, color: '#A0A0A0', flexShrink: 0 }}>REQUESTED</span>
+                    <span style={{ fontSize: '12px', fontWeight: 500, color: '#9A9A9A', flexShrink: 0 }}>REQUESTED</span>
                   ) : (
                     <Button
-                      variant="primary"
+                      variant="success"
                       disabled={status === 'sending'}
                       onClick={() => handleRequestFriend(athlete)}
-                      style={{ width: 'auto', minWidth: '96px', minHeight: '40px', flexShrink: 0, padding: '0 14px', fontSize: '12px', border: '2px solid var(--dp-color-rule)' }}
+                      style={{ width: 'auto', minWidth: '96px', minHeight: '40px', flexShrink: 0, padding: '0 14px', fontSize: '12px', border: 'none', borderRadius: '10px' }}
                     >
                       {status === 'sending'
                         ? 'SENDING…'
@@ -495,12 +495,12 @@ export function ProfileView({
       {!isFriend && user && (
         <IOSListSection header="ACCOUNT" colors={colors}>
           <IOSListRow isLast={!accountDeleteStatus} colors={colors}>
-            <span style={{ fontSize: '12px', fontWeight: 700, color: '#A0A0A0' }}>PERMANENTLY DELETE YOUR ACCOUNT AND DATA</span>
+            <span style={{ fontSize: '12px', fontWeight: 500, color: '#9A9A9A' }}>PERMANENTLY DELETE YOUR ACCOUNT AND DATA</span>
             <Button
               variant="danger"
               disabled={accountDeleteStatus === 'deleting'}
               onClick={handleDeleteAccountClick}
-              style={{ width: 'auto', flexShrink: 0, padding: '6px 12px', fontSize: '11px', border: '2px solid var(--dp-color-rule)' }}
+              style={{ width: 'auto', flexShrink: 0, padding: '6px 12px', fontSize: '11px', border: 'none', borderRadius: '10px' }}
             >
               DELETE ACCOUNT
             </Button>
@@ -510,9 +510,9 @@ export function ProfileView({
               <span
                 style={{
                   fontSize: '11px',
-                  fontWeight: 800,
+                  fontWeight: 500,
                   textTransform: 'uppercase',
-                  color: accountDeleteStatus === 'deleting' ? '#A0A0A0' : '#FF3B30'
+                  color: accountDeleteStatus === 'deleting' ? '#9A9A9A' : '#FF4A3D'
                 }}
               >
                 {accountDeleteStatus === 'deleting' ? 'DELETING ACCOUNT…' : `⚠ ${accountDeleteStatus}`}

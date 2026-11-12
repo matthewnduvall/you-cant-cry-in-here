@@ -29,7 +29,7 @@ import { headerSelectStyle, searchExercises, SearchGlyph } from './SlotEditor';
 export const PICKER_GRID_COLUMNS = '80px minmax(0, 15fr) minmax(0, 85fr) minmax(0, 17fr) minmax(0, 108fr)';
 export const EXERCISE_TYPES = ['Compound', 'Accessory'];
 
-const hintStyle = { padding: '12px', fontSize: '11px', fontWeight: 800, color: '#A0A0A0' };
+const hintStyle = { padding: '12px', fontSize: '11px', fontWeight: 500, color: '#9A9A9A' };
 
 /** SEARCH cell: a button until tapped, then a text box (grid row 1, columns 1–2). */
 export function ExerciseSearchCell({ query, setQuery, onEnter, ariaLabel = 'Search exercises', label = 'SEARCH' }) {
@@ -47,7 +47,7 @@ export function ExerciseSearchCell({ query, setQuery, onEnter, ariaLabel = 'Sear
           alignItems: 'center',
           justifyContent: 'center',
           gap: '6px',
-          color: '#A0A0A0',
+          color: '#9A9A9A',
           textAlign: 'center',
           whiteSpace: 'nowrap',
           overflow: 'hidden'
@@ -119,7 +119,7 @@ export function ExerciseSearchResults({
         zIndex: 40,
         maxHeight: '300px',
         overflowY: 'auto',
-        backgroundColor: '#101010',
+        backgroundColor: '#000000',
         border: '2px solid var(--dp-color-accent)',
         boxShadow: '0 12px 24px rgba(0, 0, 0, 0.6)'
       }}
@@ -148,15 +148,15 @@ export function ExerciseSearchResults({
               cursor: 'pointer'
             }}
           >
-            <span style={{ display: 'block', fontSize: '13px', fontWeight: 800, color: '#FFFFFF', textTransform: 'uppercase' }}>
+            <span style={{ display: 'block', fontSize: '13px', fontWeight: 500, color: '#FFFFFF', textTransform: 'uppercase' }}>
               {listMode && nameOf ? nameOf(ex) : stripEquipmentFromExerciseName(ex.name)}
             </span>
             <span
               style={{
                 display: 'block',
                 fontSize: '11px',
-                fontWeight: 800,
-                color: '#A0A0A0',
+                fontWeight: 500,
+                color: '#9A9A9A',
                 textTransform: 'uppercase',
                 marginTop: '2px'
               }}
@@ -341,9 +341,9 @@ export function ExercisePicker({ exerciseId, onChange, types = EXERCISE_TYPES, e
         >
           <span style={{ flex: '1 1 auto', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>
             {nameOf(current).toUpperCase()}
-            {showEquipment && <span style={{ color: '#8E8E93', fontSize: '11px' }}> · {equipment.toUpperCase()}</span>}
+            {showEquipment && <span style={{ color: '#9A9A9A', fontSize: '11px' }}> · {equipment.toUpperCase()}</span>}
           </span>
-          <span style={{ color: '#A0A0A0', display: 'flex', flexShrink: 0 }}>
+          <span style={{ color: '#9A9A9A', display: 'flex', flexShrink: 0 }}>
             <SearchGlyph />
           </span>
         </button>

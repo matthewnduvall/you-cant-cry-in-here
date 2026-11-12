@@ -13,7 +13,7 @@ import {
 import { getPersonalRecord1RM, isCalculated1RMSet } from '../utils/workoutEngine';
 
 // Muscle groups with no logged training: neutral grey, so a new account isn't shown as all "overdue"
-export const UNLOGGED_STIMULUS_COLOR = '#4A4A50';
+export const UNLOGGED_STIMULUS_COLOR = '#3A3A3A';
 
 /**
  * Calendar days between a workout and now, in local time: trained yesterday = 1, whatever the hour (a 24-hour count
@@ -198,13 +198,13 @@ export function useTelemetryAndAnalytics({
 
       const greenMax = Number.isFinite(Number(stimulusGreenDays)) && Number(stimulusGreenDays) >= 0 ? Number(stimulusGreenDays) : 2;
       const yellowMax = Math.max(greenMax + 1, Number(stimulusYellowDays) || 4);
-      let statusColor = '#FF3B30';
+      let statusColor = '#FF4A3D';
       let statusLabel = `${yellowMax + 1}+ DAYS`;
       if (minDays <= greenMax) {
-        statusColor = '#30D158';
+        statusColor = '#FFFFFF';
         statusLabel = `${minDays}D AGO (RECOVERING)`;
       } else if (minDays <= yellowMax) {
-        statusColor = '#FFD60A';
+        statusColor = '#8A8A8A';
         statusLabel = `${minDays}D AGO (RECOVERED)`;
       } else if (minDays < 99) {
         statusLabel = `${minDays}D AGO (OVERDUE)`;

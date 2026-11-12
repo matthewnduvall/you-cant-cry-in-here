@@ -35,8 +35,8 @@ export function PageTitle({ view }) {
         margin: 0,
         padding: '16px var(--dp-spacing-gutter) 0',
         fontSize: '28px',
-        fontWeight: 800,
-        letterSpacing: '-0.045em',
+        fontWeight: 300,
+        letterSpacing: '-0.01em',
         lineHeight: 1,
         textTransform: 'uppercase',
         color: '#FFFFFF'
@@ -84,7 +84,7 @@ export function AppHeaderAndDrawer({
           top: 0,
           zIndex: 30,
           backgroundColor: 'var(--dp-color-ground)',
-          borderBottom: '2px solid var(--dp-color-rule)',
+          borderBottom: '1px solid var(--dp-color-rule)',
           // Clears the iPhone notch / Dynamic Island and status bar (0 elsewhere); the header's dark
           // background fills that strip so content never scrolls visibly behind it
           padding: `calc(8px + env(safe-area-inset-top, 0px)) var(--dp-spacing-gutter) 8px`
@@ -107,8 +107,9 @@ export function AppHeaderAndDrawer({
               style={{
                 width: '40px',
                 height: '40px',
-                backgroundColor: '#161616',
-                border: '2px solid var(--dp-color-rule)',
+                backgroundColor: '#1C1C1C',
+                border: 'none',
+                borderRadius: '10px',
                 color: '#FFFFFF',
                 display: 'flex',
                 alignItems: 'center',
@@ -130,11 +131,12 @@ export function AppHeaderAndDrawer({
                   width: '40px',
                   height: '40px',
                   flexShrink: 0,
-                  backgroundColor: '#161616',
-                  border: '2px solid var(--dp-color-rule)',
-                  color: 'var(--dp-color-accent)',
+                  backgroundColor: '#1C1C1C',
+                  border: 'none',
+                  borderRadius: '10px',
+                  color: '#FFFFFF',
                   fontSize: '18px',
-                  fontWeight: 800,
+                  fontWeight: 500,
                   lineHeight: 1,
                   display: 'flex',
                   alignItems: 'center',
@@ -165,8 +167,8 @@ export function AppHeaderAndDrawer({
               border: 'none',
               color: '#FFFFFF',
               fontSize: '13px',
-              fontWeight: 800,
-              letterSpacing: '-0.03em',
+              fontWeight: 500,
+              letterSpacing: '-0.01em',
               lineHeight: 1.05,
               textTransform: 'uppercase',
               textAlign: 'center',
@@ -185,11 +187,13 @@ export function AppHeaderAndDrawer({
               style={{
                 height: '40px',
                 padding: '0 10px',
-                backgroundColor: '#161616',
-                border: '2px solid var(--dp-color-rule)',
-                color: 'var(--dp-color-accent)',
+                backgroundColor: '#1C1C1C',
+                border: 'none',
+                borderRadius: '10px',
+                letterSpacing: '0.08em',
+                color: '#FFFFFF',
                 fontSize: '11px',
-                fontWeight: 800,
+                fontWeight: 500,
                 textTransform: 'uppercase',
                 display: 'flex',
                 alignItems: 'center',
@@ -257,8 +261,8 @@ export function AppHeaderAndDrawer({
               width: '300px',
               maxWidth: '82vw',
               height: '100%',
-              backgroundColor: '#101010',
-              borderRight: '2px solid var(--dp-color-rule)',
+              backgroundColor: '#000000',
+              borderRight: '1px solid var(--dp-color-rule)',
               padding: `calc(20px + env(safe-area-inset-top, 0px)) 16px calc(20px + env(safe-area-inset-bottom, 0px))`,
               display: 'flex',
               flexDirection: 'column',
@@ -268,11 +272,11 @@ export function AppHeaderAndDrawer({
             <div>
               <div
                 style={{
-                  fontSize: '24px',
-                  fontWeight: 800,
-                  letterSpacing: '-0.045em',
+                  fontSize: '15px',
+                  fontWeight: 500,
+                  letterSpacing: '0.1em',
                   textTransform: 'uppercase',
-                  borderBottom: '2px solid var(--dp-color-rule)',
+                  borderBottom: '1px solid var(--dp-color-rule)',
                   paddingBottom: '12px',
                   marginBottom: '16px',
                   display: 'flex',
@@ -285,12 +289,15 @@ export function AppHeaderAndDrawer({
                   type="button"
                   onClick={() => setShowHamburgerDrawer(false)}
                   style={{
-                    background: 'var(--dp-color-accent)',
-                    color: '#101010',
+                    background: '#1C1C1C',
+                    color: '#FFFFFF',
                     border: 'none',
+                    borderRadius: '10px',
+                    minWidth: '44px',
+                    minHeight: '44px',
                     padding: '4px 8px',
-                    fontSize: '12px',
-                    fontWeight: 800,
+                    fontSize: '15px',
+                    fontWeight: 400,
                     cursor: 'pointer'
                   }}
                 >
@@ -340,11 +347,11 @@ export function AppHeaderAndDrawer({
 
             <div
               style={{
-                borderTop: '2px solid var(--dp-color-rule)',
+                borderTop: '1px solid var(--dp-color-rule)',
                 paddingTop: '12px',
                 fontSize: '11px',
-                color: '#888888',
-                fontWeight: 700,
+                color: '#9A9A9A',
+                fontWeight: 500,
                 textTransform: 'uppercase'
               }}
             >
@@ -363,11 +370,12 @@ export function AppHeaderAndDrawer({
                     marginTop: '10px',
                     width: '100%',
                     height: '44px',
-                    backgroundColor: '#161616',
-                    color: '#FF3B30',
-                    border: '2px solid var(--dp-color-rule)',
+                    backgroundColor: '#1C1C1C',
+                    color: 'var(--cr-red-text)',
+                    border: 'none',
+                    borderRadius: '12px',
                     fontSize: '13px',
-                    fontWeight: 800,
+                    fontWeight: 500,
                     textTransform: 'uppercase',
                     cursor: 'pointer'
                   }}
@@ -391,11 +399,11 @@ export function AppHeaderAndDrawer({
             gap: '8px',
             minHeight: '44px',
             padding: '0 var(--dp-spacing-gutter)',
-            backgroundColor: '#141416',
-            borderBottom: '2px solid var(--dp-color-rule)'
+            backgroundColor: '#1C1C1C',
+            borderBottom: '1px solid var(--dp-color-rule)'
           }}
         >
-          <span style={{ fontSize: '12px', fontWeight: 700, color: '#A0A0A0', minWidth: 0 }}>
+          <span style={{ fontSize: '12px', fontWeight: 500, color: '#9A9A9A', minWidth: 0 }}>
             Not signed in: saved on this device only.
           </span>
           <div style={{ display: 'flex', alignItems: 'center', gap: 0, flexShrink: 0 }}>
@@ -418,7 +426,7 @@ export function AppHeaderAndDrawer({
                   border: 'none',
                   color: item.color,
                   fontSize: '12px',
-                  fontWeight: 800,
+                  fontWeight: 500,
                   textTransform: 'uppercase',
                   cursor: 'pointer'
                 }}

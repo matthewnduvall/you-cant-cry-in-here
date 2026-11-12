@@ -15,25 +15,27 @@ import {
   getExRxTargetForLift
 } from '../data/exerciseLibrary';
 
-// Big 3 + OHP line colours (the Progress chart's lines and these rows' swatches)
+// Big 3 + OHP. Crying charts give no lift its own hue: every line is grey and the selected lift is red (its row
+// below fills red); lines are labelled at their ends instead of by a colour legend.
+export const LIFT_LINE_GREY = '#8A8A8A';
 export const CORE_LIFT_IDS = ['barbell_bench_press', 'barbell_back_squat', 'barbell_deadlift', 'overhead_press'];
 export const CORE_LIFT_META = {
-  barbell_bench_press: { short: 'BENCH', color: '#FF6B00' },
-  barbell_back_squat: { short: 'SQUAT', color: '#30D158' },
-  barbell_deadlift: { short: 'DEADLIFT', color: '#FFD60A' },
-  overhead_press: { short: 'OHP', color: '#00E5FF' }
+  barbell_bench_press: { short: 'BENCH', color: LIFT_LINE_GREY },
+  barbell_back_squat: { short: 'SQUAT', color: LIFT_LINE_GREY },
+  barbell_deadlift: { short: 'DEADLIFT', color: LIFT_LINE_GREY },
+  overhead_press: { short: 'OHP', color: LIFT_LINE_GREY }
 };
-export const CUSTOM_LIFT_COLOR = '#BF5AF2';
+export const CUSTOM_LIFT_COLOR = LIFT_LINE_GREY;
 
 /** The key for the asterisk on calculated 1RMs, shown under lists of 1RMs. */
 export function CalculatedOneRepMaxKey({ style }) {
   return (
-    <div style={{ fontSize: '11px', fontWeight: 700, color: '#A0A0A0', lineHeight: 1.4, ...style }}>
+    <div style={{ fontSize: '11px', fontWeight: 500, color: '#9A9A9A', lineHeight: 1.4, ...style }}>
       * Calculated from your reps, not lifted for 1 rep.
     </div>
   );
 }
-const TO_GO_RED = '#FF3B30';
+const TO_GO_RED = '#FF4A3D';
 
 export const formatLiftLabel = (exId, rawName) => {
   const upper = String(rawName || '').trim().toUpperCase();
@@ -82,8 +84,8 @@ export const getLiftGoalStats = ({
   };
 };
 
-const cellLabel = { fontSize: '11px', fontWeight: 800, color: '#8E8E93', letterSpacing: '0.02em' };
-const cellValue = { fontSize: '14px', fontWeight: 800, color: '#FFFFFF', whiteSpace: 'nowrap' };
+const cellLabel = { fontFamily: 'var(--cr-face-display)', fontSize: '11px', fontWeight: 500, color: '#9A9A9A', letterSpacing: '0.1em' };
+const cellValue = { fontFamily: 'var(--cr-face-display)', fontSize: '15px', fontWeight: 500, color: '#FFFFFF', whiteSpace: 'nowrap' };
 const statCell = {
   display: 'flex',
   flexDirection: 'column',
@@ -93,7 +95,7 @@ const statCell = {
   minWidth: 0,
   height: '48px',
   boxSizing: 'border-box',
-  backgroundColor: '#141416',
+  backgroundColor: '#1C1C1C',
   ...SHARED_CELL_BORDER
 };
 
@@ -109,20 +111,26 @@ export function LiftGoalRow({
   titlePressed,
   titleAriaLabel,
   dimmed = false,
+  // The lift highlighted on the chart: its title strip fills red (the chart line and this row are the one red pair)
+  selected = false,
   showGoal = true,
   onEditGoal,
   children
 }) {
-  const dash = <span style={{ color: '#8E8E93' }}>—</span>;
+  const dash = <span style={{ color: '#9A9A9A' }}>—</span>;
   const titleInner = (
     <>
       <span style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
-        <span aria-hidden="true" style={{ width: '12px', height: '12px', flexShrink: 0, backgroundColor: color }} />
+        <span
+          aria-hidden="true"
+          style={{ width: '14px', height: '2px', flexShrink: 0, backgroundColor: selected ? '#FFFFFF' : color }}
+        />
         <span
           style={{
             fontSize: '13px',
-            fontWeight: 800,
-            color,
+            fontWeight: 500,
+            letterSpacing: '0.06em',
+            color: '#FFFFFF',
             textTransform: 'uppercase',
             overflow: 'hidden',
             textOverflow: 'ellipsis',
@@ -132,7 +140,7 @@ export function LiftGoalRow({
           {name}
         </span>
       </span>
-      <span style={{ fontSize: '11px', fontWeight: 800, color: '#8E8E93', whiteSpace: 'nowrap', flexShrink: 0 }}>
+      <span style={{ fontSize: '11px', fontWeight: 500, color: selected ? '#FFFFFF' : '#9A9A9A', whiteSpace: 'nowrap', flexShrink: 0 }}>
         {stats.logged ? '1RM · LB' : 'NOT LOGGED YET'}
       </span>
     </>
@@ -143,10 +151,10 @@ export function LiftGoalRow({
     alignItems: 'center',
     gap: '8px',
     width: '100%',
-    minHeight: '40px',
+    minHeight: '44px',
     padding: '0 12px',
     boxSizing: 'border-box',
-    backgroundColor: dimmed ? '#141416' : '#1C1C20',
+    backgroundColor: selected ? 'var(--cr-red)' : '#1C1C1C',
     textAlign: 'left',
     fontFamily: 'inherit',
     color: '#FFFFFF',
@@ -191,7 +199,7 @@ export function LiftGoalRow({
         {showGoal && (
           <div style={statCell}>
             <span style={cellLabel}>TO GO</span>
-            <span style={{ ...cellValue, color: !stats.logged ? '#8E8E93' : stats.toGo > 0 ? TO_GO_RED : '#30D158' }}>
+            <span style={{ ...cellValue, color: !stats.logged ? '#9A9A9A' : stats.toGo > 0 ? TO_GO_RED : '#FFFFFF' }}>
               {!stats.logged ? '—' : stats.toGo > 0 ? stats.toGo : 'DONE ✓'}
             </span>
           </div>
@@ -204,7 +212,7 @@ export function LiftGoalRow({
             onClick={onEditGoal}
             style={{
               ...statCell,
-              backgroundColor: '#1C1C20',
+              backgroundColor: '#1C1C1C',
               border: 'none',
               ...SHARED_CELL_BORDER,
               cursor: onEditGoal ? 'pointer' : 'default',
@@ -236,7 +244,7 @@ export function StrengthClassGoalPicker({ targetStandardClass, setTargetStandard
           gridTemplateColumns: 'minmax(0, 1fr) 150px',
           gap: 0,
           height: '44px',
-          backgroundColor: '#18181B'
+          backgroundColor: '#1C1C1C'
         }}
       >
         <div
@@ -245,7 +253,7 @@ export function StrengthClassGoalPicker({ targetStandardClass, setTargetStandard
             display: 'flex',
             alignItems: 'center',
             fontSize: '12px',
-            fontWeight: 800,
+            fontWeight: 500,
             color: '#FFFFFF',
             textTransform: 'uppercase',
             ...SHARED_CELL_BORDER
@@ -261,12 +269,12 @@ export function StrengthClassGoalPicker({ targetStandardClass, setTargetStandard
           style={{
             width: '100%',
             height: '44px',
-            backgroundColor: '#141416',
+            backgroundColor: '#1C1C1C',
             color: 'var(--dp-color-accent)',
             ...SHARED_CELL_BORDER,
             padding: '0 10px',
             fontSize: '12px',
-            fontWeight: 800,
+            fontWeight: 500,
             textTransform: 'uppercase',
             cursor: 'pointer'
           }}
@@ -291,9 +299,9 @@ export function StrengthClassGoalPicker({ targetStandardClass, setTargetStandard
             alignItems: 'center',
             justifyContent: 'space-between',
             gap: '8px',
-            backgroundColor: '#141416',
+            backgroundColor: '#1C1C1C',
             fontSize: '12px',
-            fontWeight: 800,
+            fontWeight: 500,
             textTransform: 'uppercase',
             ...SHARED_CELL_BORDER
           }}
@@ -301,7 +309,7 @@ export function StrengthClassGoalPicker({ targetStandardClass, setTargetStandard
           <span style={{ color: '#FFFFFF' }}>
             BIG 3 TOTAL: {club.total} / {THOUSAND_LB_CLUB_TOTAL} LB
           </span>
-          <span style={{ color: club.remaining > 0 ? TO_GO_RED : '#30D158', whiteSpace: 'nowrap' }}>
+          <span style={{ color: club.remaining > 0 ? TO_GO_RED : '#FFFFFF', whiteSpace: 'nowrap' }}>
             {club.remaining > 0 ? `${club.remaining} LB TO GO` : 'REACHED ✓'}
           </span>
         </div>

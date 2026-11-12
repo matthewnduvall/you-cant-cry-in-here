@@ -228,7 +228,7 @@ export function OneRepMaxCalculatorModal({
         display: 'grid',
         gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)',
         alignItems: 'stretch',
-        backgroundColor: '#18181B',
+        backgroundColor: '#1C1C1C',
         ...SHARED_CELL_BORDER
       }}
     >
@@ -238,8 +238,8 @@ export function OneRepMaxCalculatorModal({
           alignItems: 'center',
           padding: '0 12px',
           fontSize: '11px',
-          fontWeight: 800,
-          color: '#A0A0A0',
+          fontWeight: 500,
+          color: '#9A9A9A',
           textTransform: 'uppercase'
         }}
       >
@@ -256,11 +256,11 @@ export function OneRepMaxCalculatorModal({
           minWidth: 0,
           height: '40px',
           boxSizing: 'border-box',
-          backgroundColor: '#18181B',
+          backgroundColor: '#1C1C1C',
           ...SHARED_CELL_BORDER,
           textAlign: 'center',
           fontSize: '12px',
-          fontWeight: 800,
+          fontWeight: 500,
           color: 'var(--dp-color-accent)',
           textTransform: 'uppercase',
           outline: 'none',
@@ -280,14 +280,14 @@ export function OneRepMaxCalculatorModal({
         alignItems: 'center',
         justifyContent: 'space-between',
         padding: '10px 12px',
-        backgroundColor: '#18181B',
+        backgroundColor: '#1C1C1C',
         ...SHARED_CELL_BORDER
       }}
     >
-      <span style={{ fontSize: '11px', fontWeight: 800, color: '#A0A0A0', textTransform: 'uppercase' }}>
+      <span style={{ fontSize: '11px', fontWeight: 500, color: '#9A9A9A', textTransform: 'uppercase' }}>
         ESTIMATED 1 REP MAX
       </span>
-      <span style={{ fontSize: '20px', fontWeight: 800, color: 'var(--dp-color-accent)', fontVariantNumeric: 'tabular-nums' }}>
+      <span style={{ fontSize: '20px', fontWeight: 500, color: 'var(--dp-color-accent)', fontVariantNumeric: 'tabular-nums' }}>
         {estimated1RM > 0 ? `${oneRepMaxLabel(estimated1RM, estimatedIsCalculated)} LB` : 'TBD'}
       </span>
     </div>
@@ -319,7 +319,7 @@ export function OneRepMaxCalculatorModal({
             borderRight: '1px solid var(--dp-color-rule)',
             padding: '6px 6px 6px 12px',
             fontSize: '15px',
-            fontWeight: 800,
+            fontWeight: 500,
             textTransform: 'uppercase',
             color: 'var(--dp-color-accent)',
             display: 'flex',

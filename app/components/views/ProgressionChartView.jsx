@@ -2,7 +2,7 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import { EXERCISE_LIBRARY, EXERCISE_MAP, parseYMDToISO } from '../../data/exerciseLibrary';
-import { SHARED_CELL_BORDER, SHARED_GROUP_OUTER } from '../../styles/kineticTokens';
+import { SHARED_CELL_BORDER, SHARED_GROUP_OUTER, SHARED_PICKER_GROUP } from '../../styles/kineticTokens';
 import { Button, SegmentButton } from '../Controls';
 import { oneRepMaxLabel } from '../../utils/workoutEngine';
 import { ExercisePicker } from '../ExercisePicker';
@@ -126,7 +126,6 @@ export function ProgressionChartView({
   // Legend rows: the Big 3 + OHP, then the CUSTOM exercise
   const legendLiftIds = [...CORE_LIFT_IDS, activeCustomId];
   const selectedLifts = chosenLifts || legendLiftIds;
-  const isCustomActive = selectedLifts.includes(activeCustomId);
   const customEx = EXERCISE_MAP[activeCustomId];
 
   const liftMeta = {
@@ -139,14 +138,17 @@ export function ProgressionChartView({
 
   const activeLifts = legendLiftIds.filter(id => selectedLifts.includes(id));
   const singleLift = activeLifts.length === 1;
+  // Every lift is drawn (grey); a single chosen lift is highlighted in red with its row below (Crying chart rule)
+  const highlightId = singleLift ? activeLifts[0] : null;
+  const drawnLifts = legendLiftIds;
 
-  // Tapping a lift shows only that lift; tapping the only lift shown brings every lift back (null = all)
+  // Tapping a lift highlights it; tapping the highlighted lift clears the highlight (null = all, none highlighted)
   const soloLift = liftId =>
     setSelectedChartLifts?.(() => (singleLift && activeLifts[0] === liftId ? null : [liftId]));
 
-  // Time range of the data (the lifts shown, else every lift)
+  // Time range of the data (every drawn lift)
   const timestampsOf = ids => ids.flatMap(id => (progressionSeriesByLift[id] || []).map(getPointTimestampMs).filter(ms => ms > 0));
-  const shownTimestamps = timestampsOf(activeLifts);
+  const shownTimestamps = timestampsOf(drawnLifts);
   const refTimestamps = shownTimestamps.length > 0 ? shownTimestamps : timestampsOf(legendLiftIds);
   const DEFAULT_REF_MS = 1793966400000; // Deterministic fallback if no workouts logged yet
   const maxDataMs = refTimestamps.length > 0 ? Math.max(...refTimestamps) : DEFAULT_REF_MS;
@@ -181,7 +183,7 @@ export function ProgressionChartView({
     inWindowByLift[id] = all.filter(pt => pt.timestampMs >= domainMinMs && pt.timestampMs <= domainMaxMs);
   });
 
-  const allVals = activeLifts.flatMap(id => (inWindowByLift[id] || []).map(pt => pt.weight));
+  const allVals = drawnLifts.flatMap(id => (inWindowByLift[id] || []).map(pt => pt.weight));
   const rawMin = allVals.length ? Math.min(...allVals) : 0;
   const rawMax = allVals.length ? Math.max(...allVals) : 300;
   const pad = Math.max(10, Math.round((rawMax - rawMin) * 0.15));
@@ -264,11 +266,11 @@ export function ProgressionChartView({
   const smallButton = {
     height: '40px',
     padding: '0 10px',
-    backgroundColor: '#161618',
+    backgroundColor: '#1C1C1C',
     color: '#FFFFFF',
     border: 'none',
     fontSize: '11px',
-    fontWeight: 800,
+    fontWeight: 500,
     cursor: 'pointer',
     fontFamily: 'inherit'
   };
@@ -286,12 +288,14 @@ export function ProgressionChartView({
             />
           </div>
         )}
+        {/* One tile for the chart and the lift rows; it doesn't clip (the CUSTOM row's exercise search can open) */}
         <div
           style={{
             display: 'flex',
             flexDirection: 'column',
             gap: 0,
-            ...SHARED_GROUP_OUTER
+            backgroundColor: '#1C1C1C',
+            ...SHARED_PICKER_GROUP
           }}
         >
           {/* TIME FRAME: 30 DAYS | 90 DAYS | 1 YEAR | ALL — the chart's zoom */}
@@ -305,7 +309,7 @@ export function ProgressionChartView({
             {TIME_FRAME_OPTIONS.map(tf => (
               <SegmentButton
                 active={timeFrame === tf.id}
-                inactiveColor="#A0A0A0"
+                inactiveColor="#9A9A9A"
                 key={tf.id}
                 onClick={() => {
                   setTimeFrame(tf.id);
@@ -322,7 +326,7 @@ export function ProgressionChartView({
           <div
             style={{
               padding: '12px',
-              backgroundColor: '#141416',
+              backgroundColor: '#1C1C1C',
               ...SHARED_CELL_BORDER
             }}
           >
@@ -338,8 +342,8 @@ export function ProgressionChartView({
               style={{
                 width: '100%',
                 height: 'auto',
-                backgroundColor: '#101010',
-                border: '1px solid var(--dp-color-rule)',
+                backgroundColor: '#000000',
+                border: 'none', borderRadius: '10px',
                 display: 'block',
                 touchAction: 'pan-y',
                 cursor: canScroll ? 'grab' : 'default'
@@ -359,11 +363,10 @@ export function ProgressionChartView({
                       y1={y}
                       x2={svgW - padR}
                       y2={y}
-                      stroke="#2A2A2A"
+                      stroke="#2E2E2E"
                       strokeWidth="1"
-                      strokeDasharray="3 3"
                     />
-                    <text x={padL - 6} y={y + 3} textAnchor="end" fill="#A0A0A0" fontSize="12.5" fontWeight="700">
+                    <text x={padL - 6} y={y + 3} textAnchor="end" fill="#9A9A9A" fontSize="12.5" fontWeight="400">
                       {tickVal}
                     </text>
                   </g>
@@ -372,14 +375,14 @@ export function ProgressionChartView({
 
               {xDateTicks.map(tick => (
                 <g key={tick.key}>
-                  <line x1={tick.x} y1={padT} x2={tick.x} y2={padT + plotH} stroke="#1E1E1E" strokeWidth="1" />
+                  <line x1={tick.x} y1={padT} x2={tick.x} y2={padT + plotH} stroke="#2E2E2E" strokeWidth="1" />
                   <text
                     x={tick.x}
                     y={svgH - 9}
                     textAnchor={tick.anchor}
-                    fill="#A0A0A0"
+                    fill="#9A9A9A"
                     fontSize="12.5"
-                    fontWeight="800"
+                    fontWeight="400"
                   >
                     {tick.label}
                   </text>
@@ -387,10 +390,12 @@ export function ProgressionChartView({
               ))}
 
               <g clipPath="url(#progress-plot-clip)">
-                {activeLifts.map(liftId => {
+                {/* Grey lines first, the highlighted (red) one on top */}
+                {[...drawnLifts.filter(id => id !== highlightId), ...(highlightId ? [highlightId] : [])].map(liftId => {
                   const series = seriesByLift[liftId] || [];
                   if (series.length === 0) return null;
-                  const color = liftMeta[liftId]?.color || '#00E5FF';
+                  const isHighlighted = liftId === highlightId;
+                  const color = isHighlighted ? '#E20612' : '#8A8A8A';
                   const coords = series.map(pt => ({
                     x: getXByTime(pt.timestampMs),
                     y: getY(pt.weight),
@@ -402,10 +407,6 @@ export function ProgressionChartView({
                     inWindow: pt.timestampMs >= domainMinMs && pt.timestampMs <= domainMaxMs
                   }));
                   const polylinePoints = coords.map(c => `${c.x},${c.y}`).join(' ');
-                  const areaPoints =
-                    coords.length > 1
-                      ? `${coords[0].x},${padT + plotH} ${polylinePoints} ${coords[coords.length - 1].x},${padT + plotH}`
-                      : null;
                   const lastInWindow = coords.reduce((last, c, i) => (c.inWindow ? i : last), -1);
                   // Smoothed average (3+ points): bandwidth ~1/8 of the visible span, at least 5 days
                   const bandMs = Math.max(5 * DAY_MS, (domainMaxMs - domainMinMs) / 8);
@@ -420,16 +421,21 @@ export function ProgressionChartView({
 
                   return (
                     <g key={liftId}>
-                      {singleLift && areaPoints && <polygon points={areaPoints} fill={color} fillOpacity="0.14" />}
-                      <polyline fill="none" stroke={color} strokeWidth="2" strokeOpacity="0.6" points={polylinePoints} />
+                      <polyline
+                        fill="none"
+                        stroke={color}
+                        strokeWidth={isHighlighted ? 2.5 : 1.5}
+                        strokeOpacity={isHighlighted ? 0.75 : 0.55}
+                        points={polylinePoints}
+                      />
                       {avgPath && (
                         <path
                           d={avgPath}
                           fill="none"
                           stroke={color}
-                          strokeWidth="3.5"
+                          strokeWidth={isHighlighted ? 3 : 1.5}
                           strokeDasharray="7 4"
-                          strokeLinecap="round"
+                          strokeLinecap="square"
                         />
                       )}
                       {coords.map((c, cIdx) =>
@@ -440,20 +446,21 @@ export function ProgressionChartView({
                               y={c.y - 4}
                               width="8"
                               height="8"
-                              fill="#101010"
+                              fill="#000000"
                               stroke={color}
-                              strokeWidth="2.2"
+                              strokeWidth={isHighlighted ? 2.2 : 1.5}
                             />
-                            {(singleLift || cIdx === lastInWindow) && (
+                            {/* Highlighted lift: every value; otherwise the line's end is labelled (lift + value) */}
+                            {((isHighlighted && cIdx !== lastInWindow) || cIdx === lastInWindow) && (
                               <text
                                 x={c.x}
                                 y={c.y - 8}
-                                textAnchor={c.x > padL + plotW - 14 ? 'end' : 'middle'}
-                                fill={color}
+                                textAnchor={c.x > padL + plotW - 40 ? 'end' : 'middle'}
+                                fill={isHighlighted ? '#FFFFFF' : '#9A9A9A'}
                                 fontSize="12.5"
-                                fontWeight="800"
+                                fontWeight={isHighlighted ? 500 : 400}
                               >
-                                {c.label}
+                                {cIdx === lastInWindow ? `${liftMeta[liftId]?.short || ''} ${c.label}`.trim() : c.label}
                               </text>
                             )}
                             {/* Tap target: opens the workout in History */}
@@ -480,14 +487,14 @@ export function ProgressionChartView({
                   );
                 })}
               </g>
-              {activeLifts.every(id => (inWindowByLift[id] || []).length === 0) && (
+              {drawnLifts.every(id => (inWindowByLift[id] || []).length === 0) && (
                 <text
                   x={padL + plotW / 2}
                   y={padT + plotH / 2}
                   textAnchor="middle"
-                  fill="#A0A0A0"
+                  fill="#9A9A9A"
                   fontSize="14"
-                  fontWeight="800"
+                  fontWeight="400"
                 >
                   {activeLifts.length === 0 ? 'PICK A LIFT BELOW' : 'NO SESSIONS IN THIS RANGE'}
                 </text>
@@ -502,7 +509,7 @@ export function ProgressionChartView({
                   gridTemplateColumns: 'auto minmax(0, 1fr) auto',
                   alignItems: 'center',
                   marginTop: '8px',
-                  border: '1px solid var(--dp-color-rule)'
+                  border: 'none', borderRadius: '10px'
                 }}
               >
                 <button
@@ -514,7 +521,7 @@ export function ProgressionChartView({
                 >
                   ‹ EARLIER
                 </button>
-                <span style={{ textAlign: 'center', fontSize: '11px', fontWeight: 800, color: '#A0A0A0' }}>
+                <span style={{ textAlign: 'center', fontSize: '11px', fontWeight: 500, color: '#9A9A9A' }}>
                   {rangeLabel}
                 </span>
                 <button
@@ -537,7 +544,7 @@ export function ProgressionChartView({
             if (!ex) return null;
             const isCustom = liftId === activeCustomId && !CORE_LIFT_IDS.includes(liftId);
             const color = liftMeta[liftId]?.color || CUSTOM_COLOR;
-            const shown = selectedLifts.includes(liftId);
+            const isHighlighted = liftId === highlightId;
             const label = formatProgressExerciseLabel(ex.id, ex.name);
             // START / PR / LATEST over everything logged; TO GO = goal − PR
             const stats = getLiftGoalStats({
@@ -556,11 +563,11 @@ export function ProgressionChartView({
                 name={isCustom ? `CUSTOM · ${label}` : label}
                 color={color}
                 stats={stats}
-                dimmed={!shown}
+                selected={isHighlighted}
                 showGoal={showGoalDistance}
                 onTitleClick={() => soloLift(liftId)}
-                titlePressed={shown}
-                titleAriaLabel={`${label}: ${singleLift && shown ? 'show every lift' : 'show only this lift'}`}
+                titlePressed={isHighlighted}
+                titleAriaLabel={`${label}: ${isHighlighted ? 'clear the highlight' : 'highlight this lift'}`}
                 onEditGoal={
                   showGoalDistance && openPlateCalculatorForGoal
                     ? () => openPlateCalculatorForGoal(liftId, ex.name, stats.goal)
@@ -568,7 +575,7 @@ export function ProgressionChartView({
                 }
               >
                 {/* CUSTOM's exercise, while it is shown: the standard exercise picker */}
-                {isCustom && isCustomActive && (
+                {isCustom && (
                   <ExercisePicker
                     exerciseId={activeCustomId}
                     types={['Compound', 'Accessory']}
@@ -598,7 +605,7 @@ export function ProgressionChartView({
         {/* Shortcut to Configuration → GOALS (training goal, increment, custom goals) */}
         {onOpenGoals && (
           <div style={{ marginTop: '16px' }}>
-            <Button variant="primary-row" onClick={onOpenGoals}>
+            <Button variant="secondary" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }} onClick={onOpenGoals}>
               <span>SET GOALS</span>
               <span>→</span>
             </Button>

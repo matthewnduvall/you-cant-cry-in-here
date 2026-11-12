@@ -18,7 +18,7 @@ const GYM_STATUS_BTN_STYLE = isSelected => ({
   justifyContent: 'center',
   textAlign: 'center',
   fontSize: '11px',
-  fontWeight: 800,
+  fontWeight: 500,
   flexShrink: 0
 });
 
@@ -87,9 +87,9 @@ export function GymsView({
                       justifyContent: 'center',
                       backgroundColor: '#1C1C1E',
                       color: '#FFFFFF',
-                      border: '2px solid var(--dp-color-rule)',
+                      border: 'none', borderRadius: '10px',
                       fontSize: '11px',
-                      fontWeight: 800,
+                      fontWeight: 500,
                       textTransform: 'uppercase',
                       cursor: 'pointer'
                     }}
@@ -160,7 +160,7 @@ export function GymEditorView({
               type="text"
               value={gymDraft.name}
               onChange={e => setGymDraft(prev => ({ ...prev, name: e.target.value }))}
-              style={{ ...UI.textInputBare, fontSize: '18px', textTransform: 'uppercase', marginTop: '4px' }}
+              style={{ ...UI.textInputBare, fontSize: '18px', marginTop: '4px' }}
             />
           </div>
         </IOSListRow>

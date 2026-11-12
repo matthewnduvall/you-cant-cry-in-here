@@ -9,7 +9,7 @@
 // ============================================================================
 
 import React, { useState } from 'react';
-import { SHARED_CELL_BORDER, SHARED_GROUP_OUTER } from '../styles/kineticTokens';
+import { SHARED_CELL_BORDER } from '../styles/kineticTokens';
 import {
   EXERCISE_LIBRARY,
   EXERCISE_MAP,
@@ -55,10 +55,10 @@ export const headerSelectStyle = {
   height: '40px',
   boxSizing: 'border-box',
   fontSize: '12px',
-  fontWeight: 800,
+  fontWeight: 500,
   padding: '0 4px 0 6px',
   // Filter surface (see .kinetic-filter-select): lighter than the set rows below
-  backgroundColor: '#26262B',
+  backgroundColor: '#2A2A2A',
   color: '#FFFFFF',
   ...SHARED_CELL_BORDER,
   textTransform: 'uppercase',
@@ -80,10 +80,12 @@ const setCellStyle = cellBg => ({
   whiteSpace: 'nowrap'
 });
 
-const cellLabelStyle = { fontSize: '11px', fontWeight: 800, color: '#9A9A9A', lineHeight: 1 };
+const cellLabelStyle = { fontSize: '11px', fontWeight: 500, color: '#9A9A9A', lineHeight: 1 };
+// Set values (weight, reps, timer, band) are readouts: the NN1050 numeral face
 const cellValueStyle = (color = '#FFFFFF', size = '15px') => ({
+  fontFamily: 'var(--cr-face-display)',
   fontSize: size,
-  fontWeight: 800,
+  fontWeight: 500,
   color,
   lineHeight: 1.2,
   marginTop: '1px'
@@ -100,7 +102,7 @@ const bottomBtnStyle = (bg, color) => ({
   color,
   ...SHARED_CELL_BORDER,
   fontSize: '12px',
-  fontWeight: 800,
+  fontWeight: 500,
   textTransform: 'uppercase',
   cursor: 'pointer'
 });
@@ -195,10 +197,10 @@ function PrBadge({ marginRight = '6px' }) {
   return (
     <span
       style={{
-        backgroundColor: '#30D158',
-        color: '#101010',
+        backgroundColor: '#FFFFFF',
+        color: '#000000',
         fontSize: '11px',
-        fontWeight: 900,
+        fontWeight: 500,
         padding: '1px 5px',
         lineHeight: 1.2,
         marginRight,
@@ -223,7 +225,7 @@ function PrBadge({ marginRight = '6px' }) {
  * - onHeaderChange(changes): { category | muscleGroupFilter | scheme | exerciseId }. Supersets add
  *   supersetHalf (0 = A, 1 = B) to say which exercise changed. A half's type menu reads SUPERSET; picking another
  *   type sends { endSuperset: otherHalf, category } (that exercise stays, as that type; the other is removed).
- * - onRemove / removeLabel: red DELETE button at the end of the bottom row (omit to hide it)
+ * - onRemove / removeLabel: grey DELETE button at the end of the bottom row (omit to hide it)
  * - onEditSetValue({ mode, exIdx, set, exercise, currentValue }): mode = type | increment | reps | timer
  * - onEditWeight({ exIdx, set, exercise, exerciseId, equipment, lastDisplay, showOneRepMax, setReps, prValue,
  *   prWorkoutId }): CURRENT weight pop-up; LAST and the 1RM box (PR / CURRENT, links to the PR's History entry)
@@ -409,7 +411,7 @@ export function SlotEditor({
       const now1RM = nowInfo.value;
       const pr1RM = prInfoHeader.best;
       // * = calculated from reps (not lifted for 1 rep)
-      const statCell = (label, value, color = '#C8C8C8', calculated = false) => (
+      const statCell = (label, value, color = '#BDBDBD', calculated = false) => (
         <div
           style={{
             flex: '1 1 0',
@@ -421,11 +423,11 @@ export function SlotEditor({
             borderLeft: '1px solid var(--dp-color-rule)'
           }}
         >
-          <span style={{ fontSize: '11px', fontWeight: 800, color: '#8E8E93', lineHeight: 1 }}>{label}</span>
+          <span style={{ fontSize: '11px', fontWeight: 500, color: '#9A9A9A', lineHeight: 1 }}>{label}</span>
           {/* The asterisk hangs off the number's corner so three values still fit side by side */}
           <span
             aria-label={value > 0 ? oneRepMaxLabel(value, calculated) : 'none'}
-            style={{ position: 'relative', fontSize: '13px', fontWeight: 800, color: value > 0 ? color : '#6E6E73', lineHeight: 1.2, marginTop: '2px' }}
+            style={{ position: 'relative', fontSize: '13px', fontWeight: 500, color: value > 0 ? color : '#8A8A8A', lineHeight: 1.2, marginTop: '2px' }}
           >
             {value > 0 ? value : '—'}
             {value > 0 && calculated && (
@@ -469,10 +471,10 @@ export function SlotEditor({
               }}
             >
               {title.toUpperCase()}
-              {showEquipment && <span style={{ color: '#8E8E93', fontSize: '11px' }}> · {equipment.toUpperCase()}</span>}
+              {showEquipment && <span style={{ color: '#9A9A9A', fontSize: '11px' }}> · {equipment.toUpperCase()}</span>}
             </span>
             {prFlags[half] && <PrBadge marginRight="0" />}
-            <span style={{ color: '#A0A0A0', display: 'flex', flexShrink: 0 }}>
+            <span style={{ color: '#9A9A9A', display: 'flex', flexShrink: 0 }}>
               <SearchGlyph />
             </span>
           </button>
@@ -484,7 +486,7 @@ export function SlotEditor({
               gridRow: 1,
               height: '44px',
               boxSizing: 'border-box',
-              backgroundColor: '#1C1C20',
+              backgroundColor: '#1C1C1C',
               ...SHARED_CELL_BORDER,
               display: 'flex',
               alignItems: 'stretch'
@@ -492,7 +494,7 @@ export function SlotEditor({
           >
             {statCell('LAST', last1RM, undefined, lastInfo.calculated)}
             {/* NOW turns green once it beats the record */}
-            {statCell('NOW', now1RM, pr1RM > 0 && now1RM > pr1RM ? '#30D158' : '#FFFFFF', nowInfo.calculated)}
+            {statCell('NOW', now1RM, pr1RM > 0 && now1RM > pr1RM ? '#FFFFFF' : '#FFFFFF', nowInfo.calculated)}
             {statCell('PR', pr1RM, 'var(--dp-color-accent)', prInfoHeader.calculated)}
           </div>
         </>
@@ -530,7 +532,7 @@ export function SlotEditor({
   const renderSearchResults = half => {
     if (search?.half !== half) return null;
     const currentId = supIds[half];
-    const hintStyle = { padding: '12px', fontSize: '11px', fontWeight: 800, color: '#A0A0A0' };
+    const hintStyle = { padding: '12px', fontSize: '11px', fontWeight: 500, color: '#9A9A9A' };
     const typed = search.query.trim() !== '';
     const { list, nameOf } = filteredExercises(half);
     const results = typed ? searchResults : list;
@@ -548,7 +550,7 @@ export function SlotEditor({
           zIndex: 40,
           maxHeight: '300px',
           overflowY: 'auto',
-          backgroundColor: '#101010',
+          backgroundColor: '#000000',
           border: '2px solid var(--dp-color-accent)',
           boxShadow: '0 12px 24px rgba(0, 0, 0, 0.6)'
         }}
@@ -575,15 +577,15 @@ export function SlotEditor({
                 cursor: 'pointer'
               }}
             >
-              <span style={{ display: 'block', fontSize: '13px', fontWeight: 800, color: '#FFFFFF', textTransform: 'uppercase' }}>
+              <span style={{ display: 'block', fontSize: '13px', fontWeight: 500, color: '#FFFFFF', textTransform: 'uppercase' }}>
                 {typed ? stripEquipmentFromExerciseName(ex.name) : nameOf(ex)}
               </span>
               <span
                 style={{
                   display: 'block',
                   fontSize: '11px',
-                  fontWeight: 800,
-                  color: '#A0A0A0',
+                  fontWeight: 500,
+                  color: '#9A9A9A',
                   textTransform: 'uppercase',
                   marginTop: '2px'
                 }}
@@ -613,9 +615,9 @@ export function SlotEditor({
         cursor: na ? 'default' : 'text'
       }}
     >
-      <span style={{ fontSize: '11px', fontWeight: 800, color: '#A0A0A0' }}>{label}</span>
+      <span style={{ fontSize: '11px', fontWeight: 500, color: '#9A9A9A' }}>{label}</span>
       {na ? (
-        <span aria-label={`${ariaLabel}: not used by this scheme`} style={{ fontSize: '14px', fontWeight: 800, color: '#6E6E73' }}>
+        <span aria-label={`${ariaLabel}: not used by this scheme`} style={{ fontSize: '14px', fontWeight: 500, color: '#8A8A8A' }}>
           NA
         </span>
       ) : (
@@ -651,7 +653,7 @@ export function SlotEditor({
             color: '#FFFFFF',
             // 16 px so iOS doesn't zoom into the field
             fontSize: '16px',
-            fontWeight: 800,
+            fontWeight: 500,
             textAlign: 'right',
             outline: 'none',
             padding: 0,
@@ -726,8 +728,8 @@ export function SlotEditor({
           gridTemplateRows: '44px 40px 40px',
           gap: 0,
           minWidth: 0,
-          ...(half === 1 ? { borderTop: '2px solid var(--dp-color-rule)' } : {}),
-          ...(half === supIds.length - 1 ? { borderBottom: '2px solid var(--dp-color-rule)' } : {})
+          ...(half === 1 ? { borderTop: '1px solid var(--dp-color-rule)' } : {}),
+          ...(half === supIds.length - 1 ? { borderBottom: '1px solid var(--dp-color-rule)' } : {})
         }}
       >
         {renderTitleCell(half)}
@@ -871,7 +873,7 @@ export function SlotEditor({
             justifyContent: 'flex-start'
           }}
         >
-          <LockIcon locked={locked} color={locked ? 'var(--dp-color-accent)' : '#6E6E73'} />
+          <LockIcon locked={locked} color={locked ? 'var(--dp-color-accent)' : '#8A8A8A'} />
         </button>
         {innerValue}
       </div>
@@ -898,7 +900,8 @@ export function SlotEditor({
     // Logged PR for the weight pop-up's 1RM box (and the History workout it came from)
     const prInfo = getBestHistory1RMInfo(exId, history);
     const setNumText = isSuperset ? `${exIdx === 0 ? 'A' : 'B'}${st.setNumber}` : `${st.setNumber}`;
-    const cellBg = st.completed ? '#16291B' : '#141416';
+    // Done sets recede (a step darker than the tile); the ✓ circle fills white
+    const cellBg = st.completed ? '#121212' : '#1C1C1C';
     const editValue = (mode, currentValue) => onEditSetValue?.({ mode, exIdx, set: st, exercise: exObj, currentValue });
 
     return (
@@ -910,7 +913,7 @@ export function SlotEditor({
           gridTemplateColumns: '34px minmax(0, 1fr) 34px',
           gap: 0,
           alignItems: 'stretch',
-          backgroundColor: '#141416',
+          backgroundColor: '#1C1C1C',
           // Held set lifts and follows the finger; the landing set is outlined
           ...setDragStyle(`${exIdx}:${setIdx}`)
         }}
@@ -931,7 +934,7 @@ export function SlotEditor({
             <div
               style={{
                 fontSize: '11px',
-                fontWeight: 800,
+                fontWeight: 500,
                 color: exIdx === 0 ? 'var(--dp-color-accent)' : '#C0C0C0',
                 backgroundColor: cellBg,
                 ...SHARED_CELL_BORDER,
@@ -982,7 +985,7 @@ export function SlotEditor({
                 ...SHARED_CELL_BORDER,
                 color: '#FFFFFF',
                 fontSize: onToggleSetLock ? '11px' : '12px',
-                fontWeight: 800,
+                fontWeight: 500,
                 textTransform: 'uppercase',
                 cursor: 'pointer',
                 fontFamily: 'inherit'
@@ -1068,18 +1071,34 @@ export function SlotEditor({
                 height: '44px',
                 boxSizing: 'border-box',
                 padding: 0,
-                backgroundColor: st.completed ? '#30D158' : '#242428',
-                color: st.completed ? '#101010' : '#9A9A9A',
+                backgroundColor: cellBg,
                 ...SHARED_CELL_BORDER,
-                fontSize: '17px',
-                fontWeight: 800,
                 cursor: 'pointer',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center'
               }}
             >
-              ✓
+              {/* Circular check: outlined until done, then a white fill with a black tick */}
+              <span
+                aria-hidden="true"
+                style={{
+                  width: '30px',
+                  height: '30px',
+                  borderRadius: '50%',
+                  boxSizing: 'border-box',
+                  border: st.completed ? 'none' : '1.5px solid #4A4A4A',
+                  backgroundColor: st.completed ? '#FFFFFF' : 'transparent',
+                  color: st.completed ? '#000000' : '#8A8A8A',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '15px',
+                  fontWeight: 500
+                }}
+              >
+                ✓
+              </span>
             </button>
           </div>
         </div>
@@ -1088,7 +1107,7 @@ export function SlotEditor({
           label="Delete set"
           variant="outline"
           fill
-          style={{ color: '#8E8E93' }}
+          style={{ color: '#9A9A9A' }}
           onClick={() => onDeleteSet?.({ exIdx, set: st, exercise: exObj })}
         />
       </div>
@@ -1096,14 +1115,16 @@ export function SlotEditor({
   };
 
   return (
-    <div style={SHARED_GROUP_OUTER}>
+    // The exercise card: one graphite tile (14 px corners, no outer border); its cells are divided by hairlines
+    // While the exercise search is open the card doesn't clip, so the results list can spill past its bottom edge
+    <div style={{ backgroundColor: '#1C1C1C', borderRadius: '14px', overflow: search ? 'visible' : 'hidden' }}>
       {/* Header: drag handle + exercise picker(s), full width */}
       <div style={{ display: 'grid', gridTemplateColumns: '34px minmax(0, 1fr)', gap: 0, alignItems: 'stretch' }}>
         <DragNumberBadge
           label={number}
           color="var(--dp-color-accent)"
           height="100%"
-          bg="#18181B"
+          bg="#1C1C1C"
           title={headerTitle}
           aria-label={`Drag to reorder exercise ${number}`}
           {...(dragHandleProps || {})}
@@ -1117,7 +1138,7 @@ export function SlotEditor({
 
         {footer}
 
-        {/* + SET ^ · + SET ⌄ · RECALCULATE (widest label gets the most room) · DELETE — white text, DELETE red */}
+        {/* + SET ^ · + SET ⌄ · RECALCULATE (widest label gets the most room) · DELETE — white text, DELETE grey (RESET in the header keeps the session's red text; DELETE still asks first) */}
         <div
           style={{
             display: 'grid',
@@ -1132,7 +1153,7 @@ export function SlotEditor({
             className="kinetic-btn"
             aria-label="Add set at top"
             onClick={() => onInsertSet?.('top')}
-            style={bottomBtnStyle('#161618', '#FFFFFF')}
+            style={bottomBtnStyle('#1C1C1C', '#FFFFFF')}
           >
             + SET ^
           </button>
@@ -1141,7 +1162,7 @@ export function SlotEditor({
             className="kinetic-btn"
             aria-label="Add set at bottom"
             onClick={() => onInsertSet?.('bottom')}
-            style={bottomBtnStyle('#161618', '#FFFFFF')}
+            style={bottomBtnStyle('#1C1C1C', '#FFFFFF')}
           >
             + SET ⌄
           </button>
@@ -1149,7 +1170,7 @@ export function SlotEditor({
             type="button"
             className="kinetic-btn"
             onClick={() => onAction?.()}
-            style={actionTone === 'calculate' ? bottomBtnStyle('#30D158', '#000000') : bottomBtnStyle('#161618', '#FFFFFF')}
+            style={actionTone === 'calculate' ? bottomBtnStyle('#FFFFFF', '#000000') : bottomBtnStyle('#1C1C1C', '#FFFFFF')}
           >
             {actionLabel}
           </button>
@@ -1159,7 +1180,7 @@ export function SlotEditor({
               className="kinetic-btn"
               aria-label={removeLabel}
               onClick={() => onRemove()}
-              style={bottomBtnStyle('#1E1214', '#FF3B30')}
+              style={bottomBtnStyle('#1C1C1C', '#9A9A9A')}
             >
               DELETE
             </button>

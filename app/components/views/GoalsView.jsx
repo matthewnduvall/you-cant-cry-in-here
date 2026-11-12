@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { UI, SHARED_CELL_BORDER, SHARED_GROUP_OUTER } from '../../styles/kineticTokens';
+import { UI, SHARED_CELL_BORDER, SHARED_GROUP_OUTER, SHARED_PICKER_GROUP } from '../../styles/kineticTokens';
 import { CORE_PR_EXERCISE_IDS, EXERCISE_MAP, getExRxTargetForLift } from '../../data/exerciseLibrary';
 import { Button, CloseButton, SegmentButton } from '../Controls';
 import { ExercisePicker, resolvePickerExerciseId } from '../ExercisePicker';
@@ -81,8 +81,8 @@ export function GoalsView({
         <div
           style={{
             fontSize: '11px',
-            fontWeight: 800,
-            color: colors?.secondaryLabel || '#A0A0A0',
+            fontWeight: 500,
+            color: colors?.secondaryLabel || '#9A9A9A',
             marginBottom: '6px',
             textTransform: 'uppercase'
           }}
@@ -115,8 +115,8 @@ export function GoalsView({
             <div
               style={{
                 fontSize: '11px',
-                fontWeight: 800,
-                color: colors?.secondaryLabel || '#A0A0A0',
+                fontWeight: 500,
+                color: colors?.secondaryLabel || '#9A9A9A',
                 marginBottom: '6px',
                 textTransform: 'uppercase'
               }}
@@ -150,9 +150,9 @@ export function GoalsView({
                     height: '44px',
                     padding: '0 6px',
                     fontSize: '12px',
-                    fontWeight: 800,
+                    fontWeight: 500,
                     textTransform: 'uppercase',
-                    backgroundColor: goalUnit === u ? 'var(--dp-color-accent)' : '#18181B',
+                    backgroundColor: goalUnit === u ? 'var(--dp-color-accent)' : '#1C1C1C',
                     color: goalUnit === u ? '#000000' : '#FFFFFF',
                     ...SHARED_CELL_BORDER,
                     cursor: 'pointer'
@@ -173,8 +173,8 @@ export function GoalsView({
         <div
           style={{
             fontSize: '11px',
-            fontWeight: 800,
-            color: colors?.secondaryLabel || '#A0A0A0',
+            fontWeight: 500,
+            color: colors?.secondaryLabel || '#9A9A9A',
             marginBottom: '6px',
             textTransform: 'uppercase'
           }}
@@ -227,7 +227,7 @@ export function GoalsView({
         <Button
           variant="dashed"
           onClick={() => setShowAddGoalExerciseModal(true)}
-          style={{ height: '48px', fontSize: '14px', border: '1px solid var(--dp-color-rule)', backgroundColor: '#161618' }}
+          style={{ height: '48px', fontSize: '14px', border: 'none', borderRadius: '10px', backgroundColor: '#1C1C1C' }}
         >
           + ADD EXERCISE
         </Button>
@@ -243,7 +243,7 @@ export function GoalsView({
             </div>
 
             {/* The standard exercise picker (same as the session editor header) */}
-            <div style={{ marginBottom: '16px', ...SHARED_GROUP_OUTER }}>
+            <div style={{ marginBottom: '16px', ...SHARED_PICKER_GROUP }}>
               <ExercisePicker
                 exerciseId={selectedExId}
                 onChange={setAddGoalExerciseId}

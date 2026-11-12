@@ -24,7 +24,7 @@ export const resizeImageFileToDataUrl = (file, size = 192) =>
         canvas.width = size;
         canvas.height = size;
         const ctx = canvas.getContext('2d');
-        ctx.fillStyle = '#101010';
+        ctx.fillStyle = '#000000';
         ctx.fillRect(0, 0, size, size);
         ctx.drawImage(img, sx, sy, side, side, 0, 0, size, size);
         resolve(canvas.toDataURL('image/jpeg', 0.82));
@@ -57,13 +57,13 @@ export function ProfileAvatar({ photo, username = '', size = 56, style }) {
         display: 'inline-flex',
         alignItems: 'center',
         justifyContent: 'center',
-        backgroundColor: '#2A2A2E',
-        border: '2px solid var(--dp-color-rule)',
+        backgroundColor: '#2A2A2A',
+        border: 'none', borderRadius: '10px',
         boxSizing: 'border-box',
         overflow: 'hidden',
-        color: '#A0A0A0',
+        color: '#9A9A9A',
         fontSize: `${Math.round(size * 0.45)}px`,
-        fontWeight: 800,
+        fontWeight: 500,
         ...style
       }}
     >

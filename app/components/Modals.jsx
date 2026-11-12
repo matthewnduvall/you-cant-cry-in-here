@@ -34,7 +34,7 @@ export function DeleteConfirmModal({
           <CloseButton onClick={() => setDeleteConfirmTarget(null)} />
         </div>
 
-        <div style={{ fontSize: '13px', fontWeight: 700, color: '#E0E0E0', marginBottom: '16px', lineHeight: 1.4 }}>
+        <div style={{ fontSize: '13px', fontWeight: 500, color: '#BDBDBD', marginBottom: '16px', lineHeight: 1.4 }}>
           Are you sure you want to {deleteConfirmTarget.verb || 'delete'}{' '}
           <strong style={{ color: 'var(--dp-color-accent)' }}>{deleteConfirmTarget.label}</strong>?
         </div>
@@ -63,10 +63,11 @@ function EditableTotalWeight({ value, unit, onCommit }) {
     if (draft !== null && draft.trim() !== '' && !Number.isNaN(Number(draft))) onCommit?.(draft);
     setDraft(null);
   };
-  const bigText = { fontSize: '30px', fontWeight: 800, color: 'var(--dp-color-accent)', whiteSpace: 'nowrap', lineHeight: 1.2 };
+  // Hero value: large and light, with the unit small and grey beside it
+  const bigText = { fontSize: '40px', fontWeight: 300, letterSpacing: '-0.02em', color: '#FFFFFF', whiteSpace: 'nowrap', lineHeight: 1.1 };
   return (
     <div style={{ textAlign: 'center', minWidth: 0 }}>
-      <div style={{ fontSize: '11px', fontWeight: 800, color: '#A0A0A0' }}>TOTAL WEIGHT ✎</div>
+      <div style={{ fontSize: '10px', fontWeight: 500, letterSpacing: '0.1em', color: '#9A9A9A' }}>TOTAL WEIGHT ✎</div>
       {draft === null ? (
         <button
           type="button"
@@ -74,7 +75,10 @@ function EditableTotalWeight({ value, unit, onCommit }) {
           onClick={() => setDraft(String(value))}
           style={{ ...bigText, background: 'none', border: 'none', padding: 0, cursor: 'text', width: '100%' }}
         >
-          {value} {unit.toUpperCase()}
+          {value}
+          <span style={{ fontSize: '11px', fontWeight: 500, letterSpacing: '0.1em', color: '#9A9A9A', marginLeft: '4px' }}>
+            {unit.toUpperCase()}
+          </span>
         </button>
       ) : (
         <input
@@ -95,8 +99,9 @@ function EditableTotalWeight({ value, unit, onCommit }) {
             width: '100%',
             boxSizing: 'border-box',
             textAlign: 'center',
-            backgroundColor: '#141414',
-            border: '2px solid var(--dp-color-accent)',
+            backgroundColor: '#2A2A2A',
+            border: 'none',
+            borderRadius: '10px',
             padding: '0 4px',
             fontFamily: 'inherit'
           }}
@@ -139,7 +144,7 @@ export function PlateCalculatorModal({
                   ? 'EDIT CUSTOM GOAL WEIGHT'
                   : `SET #${plateCalcTarget.setNumber} WEIGHT`}
             </div>
-            <div style={{ fontSize: '16px', fontWeight: 800, textTransform: 'uppercase' }}>
+            <div style={{ fontSize: '16px', fontWeight: 500, textTransform: 'uppercase' }}>
               {plateCalcTarget.exerciseName}
             </div>
           </div>
@@ -149,8 +154,8 @@ export function PlateCalculatorModal({
         {(() => {
           const hasLast = plateCalcTarget.mode === 'set' && plateCalcTarget.lastDisplay !== undefined;
           const hasOneRepMax = plateCalcTarget.mode === 'set' && Boolean(plateCalcTarget.showOneRepMax);
-          const sideLabel = { fontSize: '11px', fontWeight: 800, color: '#A0A0A0', lineHeight: 1 };
-          const sideValue = color => ({ fontSize: '16px', fontWeight: 800, color, marginTop: '4px', lineHeight: 1.1 });
+          const sideLabel = { fontSize: '11px', fontWeight: 500, color: '#9A9A9A', lineHeight: 1 };
+          const sideValue = color => ({ fontSize: '16px', fontWeight: 500, color, marginTop: '4px', lineHeight: 1.1 });
           // 1RM box: PR = best 1RM logged in History; CURRENT = best 1RM across this exercise's sets in the
           // session, with this set at the weight being picked. Same estimate History uses to find PRs, so
           // CURRENT above PR means the session would log a new PR.
@@ -164,11 +169,11 @@ export function PlateCalculatorModal({
             { weight: currentTotal, reps: plateCalcTarget.setReps },
             ...sessionSets.filter(st => st && st.id !== plateCalcTarget.setId)
           ]);
-          const oneRepMaxLabel = color => ({ fontSize: '11px', fontWeight: 800, color, lineHeight: 1, whiteSpace: 'nowrap' });
+          const oneRepMaxLabel = color => ({ fontSize: '11px', fontWeight: 500, color, lineHeight: 1, whiteSpace: 'nowrap' });
           const oneRepMaxValue = {
             fontSize: '14px',
-            fontWeight: 800,
-            color: '#C8C8C8',
+            fontWeight: 500,
+            color: '#BDBDBD',
             lineHeight: 1.1,
             marginTop: '2px',
             whiteSpace: 'nowrap'
@@ -184,7 +189,7 @@ export function PlateCalculatorModal({
             return (
               <div
                 style={{
-                  backgroundColor: '#101010', border: '2px solid var(--dp-color-rule)',
+                  backgroundColor: '#000000', border: 'none', borderRadius: '10px',
                   padding: '12px', textAlign: 'center', marginBottom: '12px'
                 }}
               >
@@ -195,7 +200,7 @@ export function PlateCalculatorModal({
           return (
             <div
               style={{
-                backgroundColor: '#101010', border: '2px solid var(--dp-color-rule)',
+                backgroundColor: '#000000', border: 'none', borderRadius: '10px',
                 display: 'grid', gridTemplateColumns: '64px minmax(0, 1fr) 72px', alignItems: 'stretch',
                 marginBottom: '12px'
               }}
@@ -209,7 +214,7 @@ export function PlateCalculatorModal({
                 {hasLast && (
                   <>
                     <span style={sideLabel}>LAST</span>
-                    <span style={sideValue('#C8C8C8')}>{plateCalcTarget.lastDisplay}</span>
+                    <span style={sideValue('#BDBDBD')}>{plateCalcTarget.lastDisplay}</span>
                   </>
                 )}
               </div>
@@ -226,12 +231,12 @@ export function PlateCalculatorModal({
                   style={{
                     display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
                     backgroundColor: 'transparent', border: 'none', borderLeft: '1px solid var(--dp-color-rule)',
-                    padding: '8px 2px', cursor: prWorkoutId ? 'pointer' : 'default', color: '#C8C8C8', opacity: 1
+                    padding: '8px 2px', cursor: prWorkoutId ? 'pointer' : 'default', color: '#BDBDBD', opacity: 1
                   }}
                 >
                   <span style={oneRepMaxLabel('var(--dp-color-accent)')}>{prWorkoutId ? 'PR ↗' : 'PR'}</span>
                   <span style={oneRepMaxValue}>{prValue > 0 ? oneRepMaxText(prValue, prCalculated) : 'TBD'}</span>
-                  <span style={{ ...oneRepMaxLabel('#A0A0A0'), marginTop: '6px' }}>CURRENT</span>
+                  <span style={{ ...oneRepMaxLabel('#9A9A9A'), marginTop: '6px' }}>CURRENT</span>
                   <span style={oneRepMaxValue}>{current1RM > 0 ? oneRepMaxText(current1RM, currentCalculated) : '—'}</span>
                 </button>
               ) : (
@@ -243,7 +248,7 @@ export function PlateCalculatorModal({
 
         <div>
             {/* Always says how the buttons load (the empty-bar hint below disappears once plates are added) */}
-            <div style={{ fontSize: '11px', fontWeight: 800, color: '#A0A0A0', textTransform: 'uppercase', marginBottom: '6px' }}>
+            <div style={{ fontSize: '11px', fontWeight: 500, color: '#9A9A9A', textTransform: 'uppercase', marginBottom: '6px' }}>
               {calcIsSingleLoad
                 ? `${calcBarLabel} weight (not doubled, no bar)`
                 : calcBarWeight > 0
@@ -278,7 +283,7 @@ export function PlateCalculatorModal({
 
             <div
               style={{
-                padding: '8px', backgroundColor: '#101010', border: '2px solid var(--dp-color-rule)',
+                padding: '8px', backgroundColor: '#000000', border: 'none', borderRadius: '10px',
                 marginBottom: '12px', minHeight: '38px', display: 'flex', flexWrap: 'wrap', gap: '4px', alignItems: 'center'
               }}
             >
@@ -290,7 +295,7 @@ export function PlateCalculatorModal({
                   onClick={() => clearCalcExtra?.()}
                   style={{
                     padding: '2px 6px', backgroundColor: '#3A3A3E',
-                    color: '#FFFFFF', border: 'none', fontSize: '11px', fontWeight: 800, cursor: 'pointer'
+                    color: '#FFFFFF', border: 'none', fontSize: '11px', fontWeight: 500, cursor: 'pointer'
                   }}
                 >
                   {calcExtraLbs > 0 ? '+' : '−'}{Math.abs(calcExtraLbs)} LB OTHER ✕
@@ -298,7 +303,7 @@ export function PlateCalculatorModal({
               )}
               {calcPlatesPerSide.length === 0 ? (
                 calcExtraLbs === 0 && (
-                  <span style={{ fontSize: '11px', color: '#888888' }}>
+                  <span style={{ fontSize: '11px', color: '#9A9A9A' }}>
                     {calcIsSingleLoad
                       ? `${calcBarLabel}: tap weights above (no bar, not doubled)`
                       : calcBarWeight > 0
@@ -321,7 +326,7 @@ export function PlateCalculatorModal({
                       }
                       style={{
                         padding: '2px 6px', backgroundColor: 'var(--dp-color-accent)',
-                        color: '#101010', border: 'none', fontSize: '11px', fontWeight: 800, cursor: 'pointer'
+                        color: '#000000', border: 'none', fontSize: '11px', fontWeight: 500, cursor: 'pointer'
                       }}
                     >
                       {p} ✕
@@ -336,8 +341,8 @@ export function PlateCalculatorModal({
             style={{
               marginBottom: '12px',
               padding: '10px',
-              backgroundColor: '#101010',
-              border: '2px solid var(--dp-color-rule)'
+              backgroundColor: '#000000',
+              border: 'none', borderRadius: '10px'
             }}
           >
             <div
@@ -349,7 +354,7 @@ export function PlateCalculatorModal({
                 marginBottom: '6px'
               }}
             >
-              <span style={{ fontSize: '11px', fontWeight: 800, color: '#A0A0A0', textTransform: 'uppercase' }}>
+              <span style={{ fontSize: '11px', fontWeight: 500, color: '#9A9A9A', textTransform: 'uppercase' }}>
                 RECORD DATE (LOGS HISTORY ENTRY)
               </span>
               <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
@@ -361,7 +366,7 @@ export function PlateCalculatorModal({
                     border: 'none',
                     color: 'var(--dp-color-accent)',
                     fontSize: '11px',
-                    fontWeight: 800,
+                    fontWeight: 500,
                     textTransform: 'uppercase',
                     cursor: 'pointer',
                     padding: 0
@@ -376,9 +381,9 @@ export function PlateCalculatorModal({
                     style={{
                       background: 'none',
                       border: 'none',
-                      color: '#FF3B30',
+                      color: '#FF4A3D',
                       fontSize: '11px',
-                      fontWeight: 800,
+                      fontWeight: 500,
                       textTransform: 'uppercase',
                       cursor: 'pointer',
                       padding: 0
@@ -394,17 +399,7 @@ export function PlateCalculatorModal({
               placeholder="YYYY/MM/DD"
               value={(prRecordDate || '').replace(/-/g, '/')}
               onChange={e => setPrRecordDate?.(e.target.value.replace(/-/g, '/'))}
-              style={{
-                width: '100%',
-                boxSizing: 'border-box',
-                backgroundColor: '#161616',
-                color: '#FFFFFF',
-                border: '2px solid var(--dp-color-rule)',
-                padding: '8px 10px',
-                fontSize: '13px',
-                fontWeight: 800,
-                textTransform: 'uppercase'
-              }}
+              style={UI.field}
             />
           </div>
         )}
@@ -430,6 +425,9 @@ export function SetValueEditorModal({
   if (!setValueTarget) return null;
 
   const { mode, slotId, exIdx, setId, setNumber, exerciseName, currentValue, isAbs } = setValueTarget;
+  // Editors outside a workout (e.g. the Stimulus page's day thresholds) can relabel the pop-up and give their own
+  // preset numbers: title, subtitle, valueLabel, presets, applyLabel (with onApply)
+  const { title, subtitle, valueLabel, presets, applyLabel } = setValueTarget;
 
   const applyAndClose = nextVal => {
     // Editors outside the current workout (e.g. the History 1RM calculator) pass their own onApply.
@@ -453,16 +451,16 @@ export function SetValueEditorModal({
         <div style={UI.modalHeader}>
           <div>
             <div style={UI.fieldLabel}>
-              {mode === 'type'
+              {title || (mode === 'type'
                 ? `SET ${setNumber} TYPE`
                 : mode === 'increment'
                   ? `SET ${setNumber} WEIGHT INCREMENT`
                   : mode === 'timer'
                     ? `SET ${setNumber} TIMER (MM:SS)`
-                    : `SET ${setNumber} ${isAbs ? 'DURATION (SEC)' : 'REPS'}`}
+                    : `SET ${setNumber} ${isAbs ? 'DURATION (SEC)' : 'REPS'}`)}
             </div>
-            <div style={{ fontSize: '15px', fontWeight: 800, textTransform: 'uppercase' }}>
-              {exerciseName}
+            <div style={{ fontSize: '15px', fontWeight: 500, textTransform: 'uppercase' }}>
+              {subtitle ?? exerciseName}
             </div>
           </div>
           <CloseButton onClick={() => setSetValueTarget(null)} />
@@ -486,21 +484,21 @@ export function SetValueEditorModal({
           <div>
             <div
               style={{
-                backgroundColor: '#101010',
-                border: '2px solid var(--dp-color-rule)',
+                backgroundColor: '#000000',
+                border: 'none', borderRadius: '10px',
                 padding: '10px',
                 textAlign: 'center',
                 marginBottom: '12px'
               }}
             >
-              <div style={{ fontSize: '11px', fontWeight: 800, color: '#A0A0A0' }}>
-                {mode === 'increment'
+              <div style={{ fontSize: '11px', fontWeight: 500, color: '#9A9A9A' }}>
+                {valueLabel || (mode === 'increment'
                   ? 'INCREMENT FROM LAST'
                   : mode === 'timer'
                     ? 'TARGET TIME (MM:SS)'
                     : isAbs
                       ? 'SECONDS'
-                      : 'TARGET REPS'}
+                      : 'TARGET REPS')}
               </div>
               <input
                 type="text"
@@ -516,7 +514,7 @@ export function SetValueEditorModal({
                   border: 'none',
                   color: 'var(--dp-color-accent)',
                   fontSize: '28px',
-                  fontWeight: 800,
+                  fontWeight: 500,
                   textAlign: 'center',
                   outline: 'none',
                   marginTop: '2px'
@@ -564,7 +562,7 @@ export function SetValueEditorModal({
               </div>
             ) : (
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '6px', marginBottom: '12px' }}>
-                {(isAbs ? [15, 30, 45, 60, 90, 120] : [1, 2, 3, 4, 5, 6, 8, 10, 12, 15]).map(r => (
+                {(presets || (isAbs ? [15, 30, 45, 60, 90, 120] : [1, 2, 3, 4, 5, 6, 8, 10, 12, 15])).map(r => (
                   <button
                     key={r}
                     type="button"
@@ -588,7 +586,7 @@ export function SetValueEditorModal({
               onClick={() => applyAndClose(currentValue)}
               style={{ padding: '12px', fontSize: '13px' }}
             >
-              APPLY {mode === 'increment' ? 'INCREMENT' : mode === 'timer' ? 'TIME' : isAbs ? 'SECONDS' : 'REPS'} →
+              {applyLabel || `APPLY ${mode === 'increment' ? 'INCREMENT' : mode === 'timer' ? 'TIME' : isAbs ? 'SECONDS' : 'REPS'}`} →
             </Button>
           </div>
         )}
@@ -634,26 +632,15 @@ export function SaveConfirmModal({
             onChange={e =>
               setSaveConfirmTarget(prev => (prev ? { ...prev, name: e.target.value } : null))
             }
-            placeholder="ENTER SESSION / ROUTINE NAME..."
-            style={{
-              width: '100%',
-              boxSizing: 'border-box',
-              backgroundColor: '#101010',
-              color: '#FFFFFF',
-              border: '2px solid var(--dp-color-rule)',
-              padding: '10px 12px',
-              fontSize: '14px',
-              fontWeight: 800,
-              textTransform: 'uppercase',
-              outline: 'none'
-            }}
+            placeholder="Session or routine name"
+            style={UI.field}
           />
           <div
             style={{
               marginTop: '6px',
               fontSize: '11px',
-              fontWeight: 800,
-              color: '#A0A0A0',
+              fontWeight: 500,
+              color: '#9A9A9A',
               textTransform: 'uppercase',
               letterSpacing: '0.03em'
             }}
@@ -751,8 +738,8 @@ export function HistoricalEditConfirmModal({
         <div
           style={{
             fontSize: '13px',
-            fontWeight: 700,
-            color: '#E0E0E0',
+            fontWeight: 500,
+            color: '#BDBDBD',
             marginBottom: '16px',
             lineHeight: 1.45
           }}
@@ -884,17 +871,8 @@ export function FeedbackModal({
             }} />
         </div>
 
-        <div
-          style={{
-            fontSize: '11px',
-            fontWeight: 700,
-            color: '#A0A0A0',
-            marginBottom: '10px',
-            lineHeight: 1.4,
-            textTransform: 'uppercase'
-          }}
-        >
-          ENTER YOUR FEEDBACK BELOW. IT WILL BE AUTOMATICALLY SENT WITH DIAGNOSTIC LOGS FROM THIS SESSION ({sessionLogs.length} LOG EVENTS).
+        <div style={{ ...UI.sentence, marginBottom: '10px' }}>
+          Enter your feedback below. It is sent with the diagnostic logs from this session ({sessionLogs.length} log events).
         </div>
 
         <textarea
@@ -904,17 +882,10 @@ export function FeedbackModal({
             setMessage(e.target.value);
             if (errorText) setErrorText('');
           }}
-          placeholder="DESCRIBE YOUR EXPERIENCE, BUG REPORT, OR FEATURE REQUEST..."
+          placeholder="Describe your experience, a bug, or a feature request"
           style={{
-            width: '100%',
-            boxSizing: 'border-box',
-            backgroundColor: '#101010',
-            color: '#FFFFFF',
-            border: '2px solid var(--dp-color-rule)',
-            padding: '10px 12px',
-            fontSize: '13px',
-            fontWeight: 700,
-            outline: 'none',
+            ...UI.field,
+            fontSize: '15px',
             resize: 'vertical',
             marginBottom: '12px',
             fontFamily: 'inherit'
@@ -925,12 +896,13 @@ export function FeedbackModal({
           <div
             style={{
               padding: '8px 10px',
-              backgroundColor: '#2A1212',
-              border: '2px solid #FF3B30',
-              color: '#FF3B30',
-              fontSize: '11px',
-              fontWeight: 800,
-              textTransform: 'uppercase',
+              backgroundColor: '#1C1C1C',
+              border: 'none',
+              borderRadius: '10px',
+              color: '#FF4A3D',
+              fontSize: '14px',
+              fontWeight: 400,
+              textTransform: 'none',
               marginBottom: '12px'
             }}
           >
@@ -942,18 +914,19 @@ export function FeedbackModal({
           <div
             style={{
               padding: '12px',
-              backgroundColor: '#172B1C',
-              border: '2px solid #30D158',
-              color: '#30D158',
-              fontSize: '12px',
-              fontWeight: 800,
+              backgroundColor: '#1C1C1C',
+              border: 'none',
+              borderRadius: '10px',
+              color: '#FFFFFF',
+              fontSize: '14px',
+              fontWeight: 400,
               textAlign: 'center',
-              textTransform: 'uppercase'
+              textTransform: 'none'
             }}
           >
             <div>FEEDBACK & SESSION LOGS SENT ✓</div>
             {deliveryNote && (
-              <div style={{ fontSize: '11px', color: '#E0E0E0', marginTop: '6px', lineHeight: 1.35 }}>
+              <div style={{ fontSize: '11px', color: '#BDBDBD', marginTop: '6px', lineHeight: 1.35 }}>
                 {deliveryNote}
               </div>
             )}

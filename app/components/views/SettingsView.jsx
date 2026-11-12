@@ -21,7 +21,7 @@ export function BodyMetricsSection({
     // No heading: the Configuration tab above already says BODY METRICS
     <IOSListSection colors={colors}>
       <IOSListRow colors={colors}>
-        <span style={UI.rowTitle}>BODYWEIGHT (LBS)</span>
+        <span style={UI.rowTitle}>Bodyweight <span style={{ color: '#9A9A9A', fontWeight: 400 }}>lb</span></span>
         <input
           type="number"
           value={userBodyweightLbs}
@@ -30,7 +30,7 @@ export function BodyMetricsSection({
         />
       </IOSListRow>
       <IOSListRow isLast={true} colors={colors}>
-        <span style={UI.rowTitle}>HEIGHT (FT / IN)</span>
+        <span style={UI.rowTitle}>Height <span style={{ color: '#9A9A9A', fontWeight: 400 }}>ft / in</span></span>
         <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
           <input
             type="number"
@@ -38,14 +38,14 @@ export function BodyMetricsSection({
             onChange={e => setUserHeightFeet(Number(e.target.value) || 0)}
             style={UI.numInput('54px')}
           />
-          <span style={{ fontSize: '12px', fontWeight: 800 }}>FT</span>
+          <span style={{ fontSize: '12px', fontWeight: 500 }}>FT</span>
           <input
             type="number"
             value={userHeightInches}
             onChange={e => setUserHeightInches(Number(e.target.value) || 0)}
             style={UI.numInput('54px')}
           />
-          <span style={{ fontSize: '12px', fontWeight: 800 }}>IN</span>
+          <span style={{ fontSize: '12px', fontWeight: 500 }}>IN</span>
         </div>
       </IOSListRow>
     </IOSListSection>
@@ -87,17 +87,62 @@ function DayCountInput({ value, min = 1, onCommit, label }) {
   );
 }
 
-export function StimulusSettingsSection({ colors, stimulusGreenDays, setStimulusGreenDays, stimulusYellowDays, setStimulusYellowDays }) {
+/**
+ * A days value that opens the shared value pop-up (the same one as a set's REPS): the number in a tappable box.
+ * Without a pop-up host (`setSetValueTarget`) it falls back to the typed DayCountInput.
+ */
+function DayValueButton({ label, value, min = 1, onCommit, setSetValueTarget, title, subtitle }) {
+  if (!setSetValueTarget) return <DayCountInput label={label} value={value} min={min} onCommit={onCommit} />;
   return (
-    <IOSListSection header="STIMULUS THRESHOLDS" footer="OVERDUE starts the day after RECOVERED ends." colors={colors}>
+    <button
+      type="button"
+      aria-label={`${label}: ${value}. Tap to change`}
+      className="kinetic-btn"
+      onClick={() =>
+        setSetValueTarget({
+          mode: 'reps',
+          title,
+          subtitle,
+          valueLabel: 'DAYS',
+          // Day presets (the pop-up still takes any number typed)
+          presets: [1, 2, 3, 4, 5, 6, 7, 10, 14, 21],
+          applyLabel: 'APPLY DAYS',
+          currentValue: value,
+          onApply: next => {
+            const n = parseInt(next, 10);
+            if (Number.isFinite(n)) onCommit(Math.max(min, n));
+          }
+        })
+      }
+      style={{ ...UI.numInput('58px'), cursor: 'pointer', fontFamily: 'var(--cr-face-display)' }}
+    >
+      {value}
+    </button>
+  );
+}
+
+export function StimulusSettingsSection({
+  colors,
+  stimulusGreenDays,
+  setStimulusGreenDays,
+  stimulusYellowDays,
+  setStimulusYellowDays,
+  // Opens the shared value pop-up (same as a set's REPS) for the day boxes
+  setSetValueTarget
+}) {
+  return (
+    <IOSListSection header="STIMULUS THRESHOLDS" colors={colors}>
       <IOSListRow colors={colors}>
-<span style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', fontWeight: 800, color: '#30D158' }}>
-          <svg width="14" height="14" aria-hidden="true"><rect width="14" height="14" fill="#30D158" /></svg>
+<span style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', fontWeight: 500, color: '#FFFFFF' }}>
+          <svg width="14" height="14" aria-hidden="true"><rect width="14" height="14" fill="#FFFFFF" /></svg>
           RECOVERING
         </span>
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-          <DayCountInput
+          <DayValueButton
             label="Recovering days"
+            title="RECOVERING"
+            subtitle="Days after training"
+            setSetValueTarget={setSetValueTarget}
             value={stimulusGreenDays}
             min={1}
             onCommit={days => {
@@ -106,32 +151,35 @@ export function StimulusSettingsSection({ colors, stimulusGreenDays, setStimulus
               if (Number(stimulusYellowDays) <= days) setStimulusYellowDays(days + 1);
             }}
           />
-          <span style={{ fontSize: '11px', fontWeight: 800 }}>DAYS</span>
+          <span style={{ fontSize: '11px', fontWeight: 500 }}>DAYS</span>
         </div>
       </IOSListRow>
 
       <IOSListRow colors={colors}>
-<span style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', fontWeight: 800, color: '#FFD60A' }}>
-          <svg width="14" height="14" aria-hidden="true"><rect width="14" height="14" fill="#FFD60A" /><rect width="14" height="14" fill="url(#stim-dots)" /></svg>
+<span style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', fontWeight: 500, color: '#8A8A8A' }}>
+          <svg width="14" height="14" aria-hidden="true"><rect width="14" height="14" fill="#8A8A8A" /><rect width="14" height="14" fill="url(#stim-dots)" /></svg>
           RECOVERED
         </span>
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-          <DayCountInput
+          <DayValueButton
             label="Recovered days"
+            title="RECOVERED"
+            subtitle="Days after training"
+            setSetValueTarget={setSetValueTarget}
             value={stimulusYellowDays}
             min={Number(stimulusGreenDays) + 1}
             onCommit={setStimulusYellowDays}
           />
-          <span style={{ fontSize: '11px', fontWeight: 800 }}>DAYS</span>
+          <span style={{ fontSize: '11px', fontWeight: 500 }}>DAYS</span>
         </div>
       </IOSListRow>
 
       <IOSListRow isLast={true} colors={colors}>
-        <span style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', fontWeight: 800, color: '#FF3B30' }}>
-          <svg width="14" height="14" aria-hidden="true"><rect width="14" height="14" fill="#FF3B30" /><rect width="14" height="14" fill="url(#stim-stripes)" /></svg>
+        <span style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', fontWeight: 500, color: '#FF4A3D' }}>
+          <svg width="14" height="14" aria-hidden="true"><rect width="14" height="14" fill="#FF4A3D" /><rect width="14" height="14" fill="url(#stim-stripes)" /></svg>
           OVERDUE
         </span>
-        <span style={{ fontSize: '13px', fontWeight: 800, color: '#A0A0A0' }}>
+        <span style={{ fontSize: '13px', fontWeight: 500, color: '#9A9A9A' }}>
           {Number(stimulusYellowDays) + 1}+ DAYS (AUTO)
         </span>
       </IOSListRow>
@@ -166,7 +214,7 @@ export function RoutinePreferencesSection({ colors, routinePreferences, setRouti
             alignItems: 'stretch',
             minHeight: '48px',
             borderBottom: '1px solid var(--dp-color-rule)',
-            backgroundColor: '#141414',
+            backgroundColor: '#1C1C1C',
             // Held row lifts and follows the finger; the landing row is outlined
             ...rowDragStyle(idx)
           }}
@@ -188,9 +236,9 @@ export function RoutinePreferencesSection({ colors, routinePreferences, setRouti
               background: 'none',
               border: 'none',
               borderLeft: '1px solid var(--dp-color-rule)',
-              color: '#8E8E93',
+              color: '#9A9A9A',
               fontSize: '16px',
-              fontWeight: 800,
+              fontWeight: 500,
               cursor: 'pointer'
             }}
           >
@@ -251,7 +299,7 @@ export function SetPreferencesSection({ colors, setPreferences, setSetPreference
             alignItems: 'stretch',
             minHeight: '48px',
             borderBottom: '1px solid var(--dp-color-rule)',
-            backgroundColor: '#141414',
+            backgroundColor: '#1C1C1C',
             ...rowDragStyle(idx)
           }}
         >
@@ -281,7 +329,7 @@ export function SetPreferencesSection({ colors, setPreferences, setSetPreference
               border: 'none',
               borderLeft: '1px solid var(--dp-color-rule)',
               fontSize: '14px',
-              fontWeight: 800,
+              fontWeight: 500,
               textTransform: 'uppercase',
               color: '#FFFFFF',
               cursor: 'pointer'
@@ -303,9 +351,9 @@ export function SetPreferencesSection({ colors, setPreferences, setSetPreference
               background: 'none',
               border: 'none',
               borderLeft: '1px solid var(--dp-color-rule)',
-              color: '#8E8E93',
+              color: '#9A9A9A',
               fontSize: '16px',
-              fontWeight: 800,
+              fontWeight: 500,
               cursor: prefs.length <= 1 ? 'default' : 'pointer',
               opacity: prefs.length <= 1 ? 0.4 : 1
             }}
@@ -359,7 +407,7 @@ export function SocialSettingsSection({
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
           <div style={{ minWidth: 0 }}>
             <div style={UI.sectionTitle}>PRIVACY & SHARING</div>
-            <div style={{ fontSize: '12px', fontWeight: 700, color: '#A0A0A0', textTransform: 'uppercase' }}>
+            <div style={{ fontSize: '12px', fontWeight: 500, color: '#9A9A9A', textTransform: 'uppercase' }}>
               {profileIsPublic ? 'PUBLIC' : 'PRIVATE'} • STATS {shareStatsWithFriends ? 'SHARED' : 'NOT SHARED'} • ROUTINES{' '}
               {shareRoutinesWithFriends ? 'SHARED' : 'NOT SHARED'}
             </div>
@@ -381,17 +429,17 @@ export function SocialSettingsSection({
       colors={colors}
     >
       <IOSListRow colors={colors} onClick={() => setProfileIsPublic?.(p => !p)}>
-        <span style={UI.rowTitle}>PROFILE VISIBILITY</span>
+        <span style={UI.rowTitle}>Profile visibility</span>
         <span style={UI.badge(profileIsPublic)}>{profileIsPublic ? 'PUBLIC' : 'PRIVATE'}</span>
       </IOSListRow>
 
       <IOSListRow colors={colors} onClick={() => setShareStatsWithFriends(p => !p)}>
-        <span style={UI.rowTitle}>SHARE STATS WITH FRIENDS</span>
+        <span style={UI.rowTitle}>Share stats with friends</span>
         <span style={UI.badge(shareStatsWithFriends)}>{shareStatsWithFriends ? 'ON' : 'OFF'}</span>
       </IOSListRow>
 
       <IOSListRow isLast={true} colors={colors} onClick={() => setShareRoutinesWithFriends(p => !p)}>
-        <span style={UI.rowTitle}>SHARE ROUTINES WITH FRIENDS</span>
+        <span style={UI.rowTitle}>Share routines with friends</span>
         <span style={UI.badge(shareRoutinesWithFriends)}>{shareRoutinesWithFriends ? 'ON' : 'OFF'}</span>
       </IOSListRow>
     </IOSListSection>
@@ -413,12 +461,12 @@ export function DataBackupSection({
         colors={colors}
       >
         <IOSListRow colors={colors} onClick={handleExportBackupJSON}>
-          <span style={UI.rowTitle}>EXPORT DATA BACKUP (.JSON)</span>
+          <span style={UI.rowTitle}>Export a backup <span style={{ color: '#9A9A9A', fontWeight: 400 }}>.json</span></span>
           <span style={UI.badge(true)}>DOWNLOAD ↓</span>
         </IOSListRow>
   
         <IOSListRow colors={colors} onClick={() => importBackupInputRef.current?.click()}>
-          <span style={UI.rowTitle}>IMPORT DATA BACKUP (.JSON)</span>
+          <span style={UI.rowTitle}>Import a backup <span style={{ color: '#9A9A9A', fontWeight: 400 }}>.json</span></span>
           <span style={{ ...UI.badge(false), color: 'var(--dp-color-accent)' }}>UPLOAD ↑</span>
           <input
             ref={importBackupInputRef}
@@ -430,8 +478,8 @@ export function DataBackupSection({
         </IOSListRow>
   
         <IOSListRow isLast={true} colors={colors} onClick={handleResetToDemoDefaults}>
-          <span style={{ ...UI.rowTitle, color: '#FF3B30' }}>CLEAR & RESET ALL LOCAL DATA</span>
-          <span style={{ ...UI.badge(false), color: '#FF3B30' }}>RESET ↺</span>
+          <span style={{ ...UI.rowTitle, color: '#FF4A3D' }}>Clear and reset all local data</span>
+          <span style={{ ...UI.badge(false), color: '#FF4A3D' }}>RESET ↺</span>
         </IOSListRow>
       </IOSListSection>
   );
