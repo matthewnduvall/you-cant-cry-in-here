@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { IOSListSection, IOSListRow } from '../Primitives';
 import { Button, NestedTabBar, TabBar } from '../Controls';
-import { getBestHistory1RMInfo, oneRepMaxLabel } from '../../utils/workoutEngine';
+import { buildHistoryPRs, getBestHistory1RMInfo, oneRepMaxLabel } from '../../utils/workoutEngine';
 import { UI } from '../../styles/kineticTokens';
 import {
   EXERCISE_MAP,
@@ -20,6 +20,8 @@ const LEADERBOARD_TABS = [
 ];
 
 const BIG_THREE_LIFT_IDS = ['barbell_bench_press', 'barbell_back_squat', 'barbell_deadlift'];
+// An athlete's name is a link to their profile (the whole row is tappable)
+const NAME_LINK_STYLE = { textDecoration: 'underline', textDecorationThickness: '2px', textUnderlineOffset: '3px' };
 const STANDING_SCALE = ['Below Untrained', ...EXRX_CLASSES]; // ['Below Untrained', 'Untrained', 'Novice', 'Intermediate', 'Advanced', 'Elite']
 
 function formatRankLabel(rank) {
@@ -72,7 +74,9 @@ export function LeaderboardView({
   // Inside the Social page's LEADERBOARDS tab: no extra top padding, and its tabs nest under LEADERBOARDS
   embedded = false,
   // Signed out: the boards need an account, so a SIGN IN button stands in for them
-  onSignIn
+  onSignIn,
+  // Tapping a row opens that athlete's profile (yours or the friend's): onOpenProfile(entry)
+  onOpenProfile
 }) {
   const [activeTab, setActiveTab] = useState('big3_normalized');
   const selfName = user?.username || 'you (logged out)';
@@ -132,10 +136,12 @@ export function LeaderboardView({
     },
     ...distinctFriends.map((f, i) => {
       const fBw = Math.max(50, Number(f.bodyweightLbs || f.bodyweight) || 200);
-      const fBench = Number(f.prs?.barbell_bench_press) || 0;
-      const fSquat = Number(f.prs?.barbell_back_squat) || 0;
-      const fDead = Number(f.prs?.barbell_deadlift) || 0;
-      const fOhp = Number(f.prs?.overhead_press) || 0;
+      // Their PRs from their logged History only (no data = 0)
+      const fHistPrs = buildHistoryPRs(f.history);
+      const fBench = Number(fHistPrs.barbell_bench_press) || 0;
+      const fSquat = Number(fHistPrs.barbell_back_squat) || 0;
+      const fDead = Number(fHistPrs.barbell_deadlift) || 0;
+      const fOhp = Number(fHistPrs.overhead_press) || 0;
       const fTotal = fBench + fSquat + fDead;
       const fStanding = getAverageBig3Standing(
         {
@@ -152,6 +158,7 @@ export function LeaderboardView({
         id: f.id || `friend_${f.username}_${i}`,
         name: f.username || `athlete_${i + 1}`,
         isSelf: false,
+        friend: f,
         bw: fBw,
         total: fTotal,
         totalCalculated: big3Calculated([fBench, fSquat, fDead], f.history),
@@ -250,7 +257,7 @@ export function LeaderboardView({
   // Friends' lift improvements (strictly from logged startingPrs -> peakWeight, no synthetic fallback)
   distinctFriends.forEach((f, i) => {
     const fBw = Math.max(50, Number(f.bodyweightLbs || f.bodyweight) || 200);
-    const fPrs = f.prs || {};
+    const fPrs = buildHistoryPRs(f.history);
     const fStartPrs = f.startingPrs || {};
     Object.entries(fPrs).forEach(([exId, prVal]) => {
       const peakWeight = Number(prVal) || 0;
@@ -264,6 +271,7 @@ export function LeaderboardView({
           id: `friend_${f.username}_${i}_${exId}`,
           name: f.username || `athlete_${i + 1}`,
           isSelf: false,
+          friend: f,
           exerciseId: exId,
           exerciseName: exObj.name,
           startWeight,
@@ -315,6 +323,7 @@ export function LeaderboardView({
           <IOSListRow
             key={`big3_tot_${entry.id}_${idx}`}
             indexLabel={formatRankLabel(entry.rank)}
+            onClick={onOpenProfile ? () => onOpenProfile(entry) : undefined}
             isLast={idx === arr.length - 1}
             colors={colors}
           >
@@ -327,7 +336,7 @@ export function LeaderboardView({
                   color: entry.isSelf ? 'var(--dp-color-accent)' : '#FFFFFF'
                 }}
               >
-                @{entry.name}
+                <span style={onOpenProfile ? NAME_LINK_STYLE : undefined}>@{entry.name}</span>
               </span>
               <span style={{ fontSize: '11px', fontWeight: 700, color: '#888888', textTransform: 'uppercase' }}>
                 <span style={{ color: '#FFFFFF' }}>BENCH + SQUAT + DEADLIFT</span> • STANDING:{' '}
@@ -348,6 +357,7 @@ export function LeaderboardView({
           <IOSListRow
             key={`big3_norm_${entry.id}_${idx}`}
             indexLabel={formatRankLabel(entry.rank)}
+            onClick={onOpenProfile ? () => onOpenProfile(entry) : undefined}
             isLast={idx === arr.length - 1}
             colors={colors}
           >
@@ -360,7 +370,7 @@ export function LeaderboardView({
                   color: entry.isSelf ? 'var(--dp-color-accent)' : '#FFFFFF'
                 }}
               >
-                @{entry.name}
+                <span style={onOpenProfile ? NAME_LINK_STYLE : undefined}>@{entry.name}</span>
               </span>
               <span style={{ fontSize: '11px', fontWeight: 700, color: '#888888', textTransform: 'uppercase' }}>
                 {oneRepMaxLabel(entry.total, entry.totalCalculated)} LB ÷ {entry.bw} LB BW • STANDING:{' '}
@@ -381,6 +391,7 @@ export function LeaderboardView({
           <IOSListRow
             key={`ohp_norm_${entry.id}_${idx}`}
             indexLabel={formatRankLabel(entry.rank)}
+            onClick={onOpenProfile ? () => onOpenProfile(entry) : undefined}
             isLast={idx === arr.length - 1}
             colors={colors}
           >
@@ -393,7 +404,7 @@ export function LeaderboardView({
                   color: entry.isSelf ? 'var(--dp-color-accent)' : '#FFFFFF'
                 }}
               >
-                @{entry.name}
+                <span style={onOpenProfile ? NAME_LINK_STYLE : undefined}>@{entry.name}</span>
               </span>
               <span style={{ fontSize: '11px', fontWeight: 700, color: '#888888', textTransform: 'uppercase' }}>
                 {oneRepMaxLabel(entry.ohp, entry.ohpCalculated)} LB <span style={{ color: '#FFFFFF' }}>OHP</span> ÷ {entry.bw} LB BW • STANDING:{' '}
@@ -421,6 +432,7 @@ export function LeaderboardView({
             <IOSListRow
               key={`most_imp_${entry.id}_${idx}`}
               indexLabel={formatRankLabel(entry.rank)}
+            onClick={onOpenProfile ? () => onOpenProfile(entry) : undefined}
               isLast={idx === arr.length - 1}
               colors={colors}
             >
@@ -436,7 +448,7 @@ export function LeaderboardView({
                     textOverflow: 'ellipsis'
                   }}
                 >
-                  @{entry.name} <span style={{ color: '#888888' }}>•</span>{' '}
+                  <span style={onOpenProfile ? NAME_LINK_STYLE : undefined}>@{entry.name}</span> <span style={{ color: '#888888' }}>•</span>{' '}
                   <span style={{ color: '#FFFFFF' }}>{entry.exerciseName}</span>
                 </span>
                 <span style={{ fontSize: '11px', fontWeight: 700, color: '#888888', textTransform: 'uppercase' }}>

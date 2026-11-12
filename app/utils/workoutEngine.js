@@ -305,6 +305,38 @@ export const getBestHistory1RMInfo = (exerciseId, history = []) => {
   };
 };
 
+/**
+ * Every exercise's best 1RM from logged History only ({ [exerciseId]: lb }), the same estimate and set rules as
+ * getBestHistory1RMInfo. An exercise with nothing logged is simply absent (= 0): saved 1RM numbers in settings
+ * (old imports, removed workouts) never count as PRs.
+ */
+export const buildHistoryPRs = (history = []) => {
+  const prs = {};
+  const scan = (exId, setsList) => {
+    if (!exId || !Array.isArray(setsList)) return;
+    const hasCompleted = setsList.some(s => s && s.completed && Number(s.weight) > 0);
+    setsList.forEach(st => {
+      const w = Number(st?.weight) || 0;
+      if (w <= 0) return;
+      if (hasCompleted && !st.completed) return;
+      const reps = Math.max(1, Number(st.reps) || 1);
+      const est = reps === 1 ? w : Math.round(w * (1 + reps / 30));
+      if (est > (prs[exId] || 0)) prs[exId] = est;
+    });
+  };
+  (history || []).forEach(w => {
+    (w?.slots || []).forEach(slot => {
+      if (isSupersetCategory(slot.category) && Array.isArray(slot.supersetSetsByExercise)) {
+        const ids = slot.supersetExerciseIds || [slot.exerciseId, slot.secondaryExerciseId].filter(Boolean);
+        ids.forEach((id, idx) => scan(id, slot.supersetSetsByExercise[idx]));
+      } else {
+        scan(slot.exerciseId, slot.sets);
+      }
+    });
+  });
+  return prs;
+};
+
 export const getBestHistory1RM = (exerciseId, history = []) => {
   return getBestHistory1RMInfo(exerciseId, history).best;
 };

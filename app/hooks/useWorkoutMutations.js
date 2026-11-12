@@ -51,7 +51,8 @@ import {
   CLUSTER_REST_SECONDS,
   asHistoricalWorkout
 } from '../utils/workoutEngine';
-import { deleteCloudRoutineByKey, deleteCloudWorkoutsByIds } from '../utils/supabaseAuth';
+import { deleteCloudRoutineByKey, deleteCloudWorkoutsByIds, postSyncHistoryUpdate } from '../utils/supabaseAuth';
+import { buildHistoryUpdate, findAddedSlots, getWorkoutSyncInfo, withSyncInfo } from '../utils/syncedHistory';
 import { markWorkoutIdDeleted, clearDeletedWorkoutIds } from '../utils/cloudSyncLedger';
 
 // ---------------------------------------------------------------------------
@@ -641,22 +642,37 @@ export function useWorkoutMutations({
 
     if (sourceView === 'history' && expandedHistoryWorkoutId) {
       // Saves the History editor's draft (name, date, exercises and sets) over the logged workout
+      const original = (history || []).find(w => w.id === expandedHistoryWorkoutId) || null;
+      const syncInfo = getWorkoutSyncInfo(original) || getWorkoutSyncInfo(currentWorkout);
       setHistory(prev =>
         prev.map(w =>
           w.id === expandedHistoryWorkoutId
-            ? {
+            ? withSyncInfo({
                 ...w,
                 ...currentWorkout,
                 id: w.id,
                 title: finalTitle,
                 gymType: routineGymType,
                 updatedAt: new Date().toISOString(),
+                ...(syncInfo ? { syncedWith: syncInfo } : {}),
                 // The draft started done + locked (asHistoricalWorkout); keep what the athlete changed since
                 slots: normalizedSlots
-              }
+              })
             : w
         )
       );
+      // A synced workout with exercises added since it was saved: the friend in it is told, and can add them too
+      const addedSlots = syncInfo && original ? findAddedSlots(original.slots, normalizedSlots) : [];
+      if (syncInfo && addedSlots.length > 0 && user) {
+        postSyncHistoryUpdate(user, syncInfo.syncId, previous =>
+          buildHistoryUpdate({ user, workout: { ...original, ...currentWorkout }, addedSlots, previous })
+        ).then(res =>
+          appendSessionLog?.(
+            'SYNCED_HISTORY_UPDATE',
+            `${res?.ok ? 'Told' : 'Could not tell'} @${syncInfo.partnerName || 'friend'} about ${addedSlots.length} added exercise(s)`
+          )
+        );
+      }
       appendSessionLog?.('HISTORY_EDIT', `Saved edits to historical workout: ${finalTitle}`);
       setHistoryEditDraft?.(null);
       setConfirmedHistoryEditWorkoutId?.(null);
@@ -690,7 +706,8 @@ export function useWorkoutMutations({
       setCurrentView('home');
       return;
     }
-    const entry = {
+    // A synced session remembers who it was with (syncedWith on the workout and its exercises)
+    const entry = withSyncInfo({
       ...currentWorkout,
       title: finalTitle,
       gymType: inferRoutineGymCategory(doneSlots),
@@ -699,7 +716,7 @@ export function useWorkoutMutations({
       verifiedByUser: true,
       // Entering History: its sets are done; type / weight / reps locked
       slots: lockAndCompleteSets(doneSlots)
-    };
+    });
     setHistory(prev => {
       const exists = prev.some(w => w.id === entry.id);
       return exists ? prev.map(w => (w.id === entry.id ? entry : w)) : [entry, ...prev];
@@ -719,7 +736,7 @@ export function useWorkoutMutations({
     if (!anyDone) return false;
     // Only the sets marked done are logged
     const normalizedSlots = keepCompletedSets(normalizeSlotLabels(cloneSlots(slots)));
-    const entry = {
+    const entry = withSyncInfo({
       ...session,
       title: (session.title || '').trim() || getDefaultSessionName(),
       gymType: inferRoutineGymCategory(normalizedSlots),
@@ -729,7 +746,7 @@ export function useWorkoutMutations({
       autoFinished: true,
       // Entering History: its sets are done; type / weight / reps locked
       slots: lockAndCompleteSets(normalizedSlots)
-    };
+    });
     setHistory(prev => {
       const exists = prev.some(w => w.id === entry.id);
       return exists ? prev.map(w => (w.id === entry.id ? entry : w)) : [entry, ...prev];

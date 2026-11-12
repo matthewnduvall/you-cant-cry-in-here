@@ -175,7 +175,7 @@ export function ProfileView({
     : null;
   const profHistory = isFriend ? friendHistorySource || [] : history || [];
   const rawProfPRs = isFriend
-    ? { ...(viewingFriendProfile?.prs || {}), ...(liveFriendMatch?.prs || {}) }
+    ? {} // a friend's PRs come only from their logged History (below)
     : oneRepMaxes || {};
 
   const profPRs = { ...rawProfPRs };

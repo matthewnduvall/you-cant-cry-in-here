@@ -9,7 +9,7 @@ import {
   recordFriendFirstSeen,
   daysBetweenYMD
 } from '../../utils/friendFirstSeen';
-import { getBestHistory1RMInfo, oneRepMaxLabel } from '../../utils/workoutEngine';
+import { buildHistoryPRs, getBestHistory1RMInfo, oneRepMaxLabel } from '../../utils/workoutEngine';
 
 // ============================================================================
 // VIEW: HOME SCREEN
@@ -34,7 +34,8 @@ const deterministicHash = str => {
 
 function getAthleteScrollerEntries(friend, randomSeed = 1, todayFallbackStr = '') {
   const uname = (friend?.username || 'athlete').toUpperCase();
-  const prs = friend?.prs || {};
+  // Their PRs from logged History only (saved numbers without data don't count)
+  const prs = buildHistoryPRs(friend?.history);
   const histList = Array.isArray(friend?.history) ? friend.history : [];
 
   const sortedHist = [...histList].sort(

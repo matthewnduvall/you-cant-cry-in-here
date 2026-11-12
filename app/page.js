@@ -31,7 +31,14 @@ import { AuthView } from './components/views/AuthView';
 import { useCloudAndStorageSync } from './hooks/useCloudAndStorageSync';
 import { useTelemetryAndAnalytics } from './hooks/useTelemetryAndAnalytics';
 import { useSessionSync } from './hooks/useSessionSync';
-import { SessionSyncModal, IncomingSyncInviteModal, SyncNoticeModal } from './components/SessionSyncModals';
+import {
+  SessionSyncModal,
+  IncomingSyncInviteModal,
+  SyncNoticeModal,
+  SyncedHistoryUpdateModal
+} from './components/SessionSyncModals';
+import { useSyncedHistoryUpdates } from './hooks/useSyncedHistoryUpdates';
+import { EXERCISE_MAP, formatDateYMD } from './data/exerciseLibrary';
 import { useIdleAutoFinish } from './hooks/useIdleAutoFinish';
 import { collectSetValues, sameSetValues, overlaySetValues } from './utils/sessionSync';
 import { useWorkoutMutations } from './hooks/useWorkoutMutations';
@@ -835,6 +842,17 @@ export default function App() {
     }
   });
 
+  // A friend added exercises to a workout you did together (synced) after saving it: offer to add them to yours
+  const { pendingHistoryUpdate, acceptUpdate, dismissUpdate } = useSyncedHistoryUpdates({
+    user,
+    history,
+    setHistory,
+    oneRepMaxes: effectiveOneRepMaxes,
+    incrementLbs: currentIncrementLbs,
+    userBodyweightLbs,
+    appendSessionLog
+  });
+
   return (
     <div className="kinetic-app min-h-screen flex justify-center bg-[#080808] text-white">
       <style>{KINETIC_CSS}</style>
@@ -1084,6 +1102,15 @@ export default function App() {
               setCurrentView={setCurrentView}
               leaderboardProps={{
                 onSignIn: () => setCurrentView('auth'),
+                // A leaderboard row opens that athlete's profile
+                onOpenProfile: entry => {
+                  if (entry?.isSelf) {
+                    setCurrentView(user ? 'profile' : 'auth');
+                  } else if (entry?.friend) {
+                    setViewingFriendProfile(entry.friend);
+                    setCurrentView('friend_profile');
+                  }
+                },
                 oneRepMaxes: effectiveOneRepMaxes,
                 userBodyweightLbs,
                 totalHeightInches,
@@ -1244,6 +1271,14 @@ export default function App() {
             await sessionSync.unsync();
             setShowSessionSyncModal(false);
           }}
+        />
+
+        <SyncedHistoryUpdateModal
+          update={pendingHistoryUpdate}
+          exerciseName={id => EXERCISE_MAP[id]?.name || id}
+          formatDate={formatDateYMD}
+          onAdd={acceptUpdate}
+          onDismiss={dismissUpdate}
         />
 
         <IncomingSyncInviteModal
