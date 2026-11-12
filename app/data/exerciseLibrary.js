@@ -219,8 +219,10 @@ export const EXERCISE_NAME_ALIASES = {
   front_squat: ['Front Squat', 'Front Squats'],
   chin_ups: ['Pull-Up', 'Pull-Ups', 'Pullup', 'Pullups'],
   dumbbell_single_leg_rdl: ['One Legged RDL', 'One Legged RDLs', 'One-Leg RDL', 'Single Leg RDL', 'Single-Leg RDLs', 'SL RDL', 'Single Leg Deadlift', 'Kettlebell Single-Leg RDL'],
+  barbell_single_leg_rdl: ['Barbell Single Leg RDL', 'Barbell One Legged RDL', 'Barbell SL RDL', 'BB Single Leg RDL'],
   dumbbell_lu_raise: ['Lu Raise', 'Lu Raises', 'Overhead Lateral Raise', 'Plate Lu Raise'],
   bodyweight_standing_hip_abduction: ['Hip Abductions Standing', 'Standing Hip Abduction', 'Standing Hip Abductions'],
+  dumbbell_standing_hip_abduction: ['Dumbbell Hip Abduction', 'Dumbbell Hip Abductions Standing', 'DB Standing Hip Abduction', 'DB Hip Abduction'],
   bear_plank_shoulder_tap: ['Bear Plank Shoulder Taps', 'Bear Shoulder Tap', 'Bear Plank Shoulder Tap']
 };
 
