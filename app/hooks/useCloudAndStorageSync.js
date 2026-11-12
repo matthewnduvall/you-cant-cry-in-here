@@ -15,6 +15,7 @@ import {
   pushCloudStateForUser,
   deleteCloudWorkoutsByIds,
   syncFriendshipsForUser,
+  fetchLatestFriendWorkoutStamp,
   signOutUser,
   deleteMyAccount,
   purgeLegacyStoredPasswords,
@@ -31,6 +32,9 @@ import {
 } from '../utils/cloudSyncLedger';
 import { getInitial1RMs, buildHistoryPRs } from '../utils/workoutEngine';
 import { getEquipmentListForGymSelection, normalizeSlotCategory } from '../data/exerciseLibrary';
+
+// How often an on-screen app checks whether a friend has logged a new workout (one tiny request)
+const FRIEND_ACTIVITY_POLL_MS = 30000;
 
 export function useCloudAndStorageSync({
   isStorageHydrated,
@@ -105,6 +109,8 @@ export function useCloudAndStorageSync({
 }) {
   const cloudSyncReadyForUserKeyRef = useRef(null);
   const [cloudPullReadyTick, setCloudPullReadyTick] = useState(0);
+  // Bumped when a friend logs or changes a workout (3b), so friends' data reloads straight away
+  const [friendActivityTick, setFriendActivityTick] = useState(0);
   // Cloud sync health shown in the app: state 'idle' | 'syncing' | 'ok' | 'error'
   const [cloudSyncStatus, setCloudSyncStatus] = useState({ state: 'idle', error: null });
   // Bumped to pull again (RETRY button, app returning to the foreground, network back online)
@@ -517,7 +523,29 @@ export function useCloudAndStorageSync({
     return () => {
       cancelled = true;
     };
-  }, [isStorageHydrated, user?.id, cloudPullReadyTick]);
+  }, [isStorageHydrated, user?.id, cloudPullReadyTick, friendActivityTick]);
+
+  // 3b. Friends' new workouts (Home ticker, leaderboards, profiles) without waiting for the next full pull: every
+  // FRIEND_ACTIVITY_POLL_MS while the app is on screen, a one-row check of the newest friend workout; when it
+  // changes, the friendship sync above re-reads friends' data.
+  useEffect(() => {
+    if (typeof window === 'undefined' || !isStorageHydrated || !user) return undefined;
+    let lastStamp = null;
+    let stopped = false;
+    const check = async () => {
+      if (stopped || document.visibilityState !== 'visible') return;
+      const { ok, stamp } = await fetchLatestFriendWorkoutStamp(user);
+      if (stopped || !ok) return;
+      if (lastStamp !== null && stamp !== lastStamp) setFriendActivityTick(t => t + 1);
+      lastStamp = stamp;
+    };
+    check();
+    const timer = setInterval(check, FRIEND_ACTIVITY_POLL_MS);
+    return () => {
+      stopped = true;
+      clearInterval(timer);
+    };
+  }, [isStorageHydrated, user?.id]);
 
   // 4. Debounced Automatic Versioned Persistence & Cloud Push
   useEffect(() => {

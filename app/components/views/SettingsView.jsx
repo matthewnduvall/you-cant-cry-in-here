@@ -53,6 +53,40 @@ export function BodyMetricsSection({
 }
 
 /** STIMULUS thresholds (green / yellow days; red = yellow + 1). Shown on the Stimulus page. */
+/**
+ * A days box that edits like a normal text field: tapping selects the number, backspace clears it, and the typed
+ * value is applied on leaving the box or Enter (clamped to at least `min`). Empty or invalid goes back to the saved
+ * value. (Clamping on every keystroke put the number straight back when it was cleared and blocked typing "10".)
+ */
+function DayCountInput({ value, min = 1, onCommit, label }) {
+  const [draft, setDraft] = useState(null);
+  const commit = () => {
+    if (draft === null) return;
+    const n = parseInt(draft, 10);
+    setDraft(null);
+    if (Number.isFinite(n)) onCommit(Math.max(min, n));
+  };
+  return (
+    <input
+      type="text"
+      inputMode="numeric"
+      pattern="[0-9]*"
+      aria-label={label}
+      value={draft ?? String(value ?? '')}
+      onFocus={e => {
+        setDraft(String(value ?? ''));
+        e.target.select();
+      }}
+      onChange={e => setDraft(e.target.value.replace(/[^0-9]/g, '').slice(0, 3))}
+      onBlur={commit}
+      onKeyDown={e => {
+        if (e.key === 'Enter') e.currentTarget.blur();
+      }}
+      style={UI.numInput('58px')}
+    />
+  );
+}
+
 export function StimulusSettingsSection({ colors, stimulusGreenDays, setStimulusGreenDays, stimulusYellowDays, setStimulusYellowDays }) {
   return (
     <IOSListSection header="STIMULUS THRESHOLDS" footer="OVERDUE starts the day after RECOVERED ends." colors={colors}>
@@ -62,12 +96,15 @@ export function StimulusSettingsSection({ colors, stimulusGreenDays, setStimulus
           RECOVERING
         </span>
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-          <input
-            type="number"
-            min="1"
+          <DayCountInput
+            label="Recovering days"
             value={stimulusGreenDays}
-            onChange={e => setStimulusGreenDays(Math.max(1, Number(e.target.value) || 1))}
-            style={UI.numInput('58px')}
+            min={1}
+            onCommit={days => {
+              setStimulusGreenDays(days);
+              // RECOVERED must end after RECOVERING
+              if (Number(stimulusYellowDays) <= days) setStimulusYellowDays(days + 1);
+            }}
           />
           <span style={{ fontSize: '11px', fontWeight: 800 }}>DAYS</span>
         </div>
@@ -79,14 +116,11 @@ export function StimulusSettingsSection({ colors, stimulusGreenDays, setStimulus
           RECOVERED
         </span>
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-          <input
-            type="number"
-            min={Number(stimulusGreenDays) + 1}
+          <DayCountInput
+            label="Recovered days"
             value={stimulusYellowDays}
-            onChange={e =>
-              setStimulusYellowDays(Math.max(Number(stimulusGreenDays) + 1, Number(e.target.value) || 4))
-            }
-            style={UI.numInput('58px')}
+            min={Number(stimulusGreenDays) + 1}
+            onCommit={setStimulusYellowDays}
           />
           <span style={{ fontSize: '11px', fontWeight: 800 }}>DAYS</span>
         </div>

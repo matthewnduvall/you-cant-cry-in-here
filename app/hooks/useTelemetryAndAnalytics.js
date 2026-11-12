@@ -15,6 +15,18 @@ import { getPersonalRecord1RM, isCalculated1RMSet } from '../utils/workoutEngine
 // Muscle groups with no logged training: neutral grey, so a new account isn't shown as all "overdue"
 export const UNLOGGED_STIMULUS_COLOR = '#4A4A50';
 
+/**
+ * Calendar days between a workout and now, in local time: trained yesterday = 1, whatever the hour (a 24-hour count
+ * called a workout 47 hours ago "1 day" and kept it green a day too long). null for a missing or invalid date.
+ */
+const calendarDaysAgo = (startedAt, nowMs) => {
+  const then = new Date(startedAt);
+  if (!startedAt || Number.isNaN(then.getTime())) return null;
+  const now = new Date(nowMs);
+  const dayStart = d => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  return Math.max(0, Math.round((dayStart(now) - dayStart(then)) / 86400000));
+};
+
 /** Per exercise: one point per day with the best estimated 1RM and total volume (PROGRESS chart; also friends' profiles). */
 export function buildProgressionSeriesByLift(history) {
   const normalizedWorkouts = (history || []).map((w, rawIdx) => {
@@ -138,10 +150,26 @@ export function useTelemetryAndAnalytics({
     return (Number(userHeightFeet) || 5) * 12 + (Number(userHeightInches) || 10);
   }, [userHeightFeet, userHeightInches]);
 
+  // "Now" for the stimulus map. Kept current while the app stays open (an iPhone home-screen app can run for days):
+  // every minute and whenever the app comes back to the foreground, not only when History changes.
   const [stimulusNowMs, setStimulusNowMs] = useState(null);
   useEffect(() => {
     setStimulusNowMs(Date.now());
   }, [history]);
+  useEffect(() => {
+    const tick = () => setStimulusNowMs(Date.now());
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') tick();
+    };
+    const timer = setInterval(tick, 60000);
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('focus', tick);
+    return () => {
+      clearInterval(timer);
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('focus', tick);
+    };
+  }, []);
 
   const muscleStimulusStatus = useMemo(() => {
     const groups = MUSCLE_GROUP_OPTIONS.filter(g => g !== 'All Muscles');
@@ -151,7 +179,8 @@ export function useTelemetryAndAnalytics({
       let minDays = 99;
       if (stimulusNowMs !== null) {
         history.forEach(w => {
-          const daysAgo = Math.max(0, Math.floor((stimulusNowMs - new Date(w.startedAt).getTime()) / 86400000));
+          const daysAgo = calendarDaysAgo(w.startedAt, stimulusNowMs);
+          if (daysAgo === null) return;
           (w.slots || []).forEach(slot => {
             const ids =
               isSupersetCategory(slot.category) && slot.supersetExerciseIds
@@ -167,8 +196,8 @@ export function useTelemetryAndAnalytics({
         });
       }
 
-      const greenMax = Number(stimulusGreenDays) || 2;
-      const yellowMax = Number(stimulusYellowDays) || 4;
+      const greenMax = Number.isFinite(Number(stimulusGreenDays)) && Number(stimulusGreenDays) >= 0 ? Number(stimulusGreenDays) : 2;
+      const yellowMax = Math.max(greenMax + 1, Number(stimulusYellowDays) || 4);
       let statusColor = '#FF3B30';
       let statusLabel = `${yellowMax + 1}+ DAYS`;
       if (minDays <= greenMax) {

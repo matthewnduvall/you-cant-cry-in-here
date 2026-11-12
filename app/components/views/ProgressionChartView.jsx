@@ -82,7 +82,7 @@ const smoothPath = coords => {
 
 export function ProgressionChartView({
   // Lifts drawn on the chart (several at once); the legend rows under the chart pick them
-  selectedChartLifts = DEFAULT_CHART_LIFTS,
+  selectedChartLifts = null,
   setSelectedChartLifts,
   progressionSeriesByLift,
   oneRepMaxes,
@@ -114,14 +114,18 @@ export function ProgressionChartView({
   const dragRef = useRef(null);
   const suppressClickRef = useRef(false);
 
-  const selectedLifts = Array.isArray(selectedChartLifts) ? selectedChartLifts : DEFAULT_CHART_LIFTS;
+  // null (nothing chosen yet) = every lift, the CUSTOM exercise included, like the others
+  const chosenLifts = Array.isArray(selectedChartLifts) ? selectedChartLifts : null;
   const [customExerciseId, setCustomExerciseId] = useState(() => {
-    const picked = selectedLifts.find(id => !CORE_LIFT_IDS.includes(id) && EXERCISE_MAP[id]);
+    const picked = (chosenLifts || []).find(id => !CORE_LIFT_IDS.includes(id) && EXERCISE_MAP[id]);
     if (picked) return picked;
     return EXERCISE_MAP[DEFAULT_CUSTOM_EXERCISE_ID] ? DEFAULT_CUSTOM_EXERCISE_ID : EXERCISE_LIBRARY[0].id;
   });
 
   const activeCustomId = customExerciseId;
+  // Legend rows: the Big 3 + OHP, then the CUSTOM exercise
+  const legendLiftIds = [...CORE_LIFT_IDS, activeCustomId];
+  const selectedLifts = chosenLifts || legendLiftIds;
   const isCustomActive = selectedLifts.includes(activeCustomId);
   const customEx = EXERCISE_MAP[activeCustomId];
 
@@ -133,14 +137,12 @@ export function ProgressionChartView({
     }
   };
 
-  // Legend rows: the Big 3 + OHP, then the CUSTOM exercise
-  const legendLiftIds = [...CORE_LIFT_IDS, activeCustomId];
   const activeLifts = legendLiftIds.filter(id => selectedLifts.includes(id));
   const singleLift = activeLifts.length === 1;
 
-  // Tapping a lift shows only that lift; tapping the only lift shown brings every lift back
+  // Tapping a lift shows only that lift; tapping the only lift shown brings every lift back (null = all)
   const soloLift = liftId =>
-    setSelectedChartLifts?.(() => (singleLift && activeLifts[0] === liftId ? [...legendLiftIds] : [liftId]));
+    setSelectedChartLifts?.(() => (singleLift && activeLifts[0] === liftId ? null : [liftId]));
 
   // Time range of the data (the lifts shown, else every lift)
   const timestampsOf = ids => ids.flatMap(id => (progressionSeriesByLift[id] || []).map(getPointTimestampMs).filter(ms => ms > 0));
@@ -575,7 +577,9 @@ export function ProgressionChartView({
                       const prevId = activeCustomId;
                       setCustomExerciseId(nextId);
                       setSelectedChartLifts?.(prev => {
-                        const list = (Array.isArray(prev) ? prev : DEFAULT_CHART_LIFTS).filter(id => id !== prevId);
+                        // Every lift shown: still every lift, now with the new CUSTOM exercise
+                        if (!Array.isArray(prev)) return null;
+                        const list = prev.filter(id => id !== prevId);
                         return list.includes(nextId) ? list : [...list, nextId];
                       });
                     }}

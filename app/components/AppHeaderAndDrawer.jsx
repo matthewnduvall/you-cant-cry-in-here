@@ -7,8 +7,9 @@ import { getNextIncompleteSetInfo } from '../utils/workoutEngine';
 import { formatDateYMD, parseYMDToISO } from '../data/exerciseLibrary';
 import { Button } from './Controls';
 
-// Header centre title per view (the ← back button sits next to ☰ on the left)
-const PAGE_TITLES = {
+// Page name per view, shown at the top of the page itself (PageTitle, under the locked header); the header's
+// centre is the app title, a link to Home from every page
+export const PAGE_TITLES = {
   history: 'PERFORMANCE',
   stimulus_map: 'STIMULUS',
   social: 'SOCIAL',
@@ -23,6 +24,28 @@ const PAGE_TITLES = {
   routine_editor: 'ROUTINE',
   historical_entry: 'PAST WORKOUT'
 };
+
+/** The page's name at the top of the page, under the locked header (not on Home, which has its own big title). */
+export function PageTitle({ view }) {
+  const title = PAGE_TITLES[view];
+  if (!title) return null;
+  return (
+    <h1
+      style={{
+        margin: 0,
+        padding: '16px var(--dp-spacing-gutter) 0',
+        fontSize: '28px',
+        fontWeight: 800,
+        letterSpacing: '-0.045em',
+        lineHeight: 1,
+        textTransform: 'uppercase',
+        color: '#FFFFFF'
+      }}
+    >
+      {title}
+    </h1>
+  );
+}
 
 export function AppHeaderAndDrawer({
   currentView,
@@ -124,28 +147,34 @@ export function AppHeaderAndDrawer({
             )}
           </div>
 
-          {currentView !== 'home' ? (
-            <div style={{ display: 'flex', alignItems: 'center', minWidth: 0, justifySelf: 'center' }}>
-              {/* Page name (no longer a hidden Home link: HOME is in the menu, ← next to ☰ goes back) */}
-              <h1
-                style={{
-                  margin: 0,
-                  fontSize: '14px',
-                  fontWeight: 800,
-                  letterSpacing: '-0.03em',
-                  textTransform: 'uppercase',
-                  color: '#FFFFFF',
-                  whiteSpace: 'nowrap',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis'
-                }}
-              >
-                {PAGE_TITLES[currentView] || "YOU CAN'T CRY IN HERE"}
-              </h1>
-            </div>
-          ) : (
-            <div />
-          )}
+          {/* App title: a link to Home from every page (the page's own name sits at the top of the page) */}
+          <button
+            type="button"
+            aria-label="You Can't Cry in Here: go to Home"
+            onClick={() => {
+              setRoutineSelectReturnView(null);
+              setCurrentView('home');
+            }}
+            className="kinetic-btn"
+            style={{
+              minWidth: 0,
+              minHeight: '40px',
+              justifySelf: 'center',
+              padding: '0 2px',
+              background: 'none',
+              border: 'none',
+              color: '#FFFFFF',
+              fontSize: '13px',
+              fontWeight: 800,
+              letterSpacing: '-0.03em',
+              lineHeight: 1.05,
+              textTransform: 'uppercase',
+              textAlign: 'center',
+              cursor: 'pointer'
+            }}
+          >
+            YOU CAN&apos;T CRY IN <span style={{ color: 'var(--dp-color-accent)' }}>HERE</span>
+          </button>
 
           <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
             <button

@@ -1025,8 +1025,26 @@ const toWorkoutHistoryRow = (w, userId) => ({
     : w.workoutDate && !Number.isNaN(new Date(w.workoutDate).getTime())
       ? new Date(w.workoutDate).toISOString()
       : new Date().toISOString(),
+  // Only new or changed workouts are uploaded, so this marks a real change (friends' apps watch it)
+  updated_at: new Date().toISOString(),
   slots: Array.isArray(w.slots) ? w.slots : []
 });
+
+/**
+ * A cheap "has any friend logged or changed a workout?" check: the newest workout_history row that isn't yours (RLS
+ * only returns friends' rows). Returns { ok, stamp } where stamp changes whenever a friend saves a workout.
+ */
+export async function fetchLatestFriendWorkoutStamp(user) {
+  if (!user || !isUuid(user.id)) return { ok: false, stamp: null };
+  const me = encodeURIComponent(user.id);
+  const res = await authedRequest(
+    user,
+    `/rest/v1/workout_history?select=id,updated_at&user_id=neq.${me}&order=updated_at.desc&limit=1`
+  );
+  if (!res.ok || !Array.isArray(res.data)) return { ok: false, stamp: null };
+  const row = res.data[0];
+  return { ok: true, stamp: row ? `${row.id}|${row.updated_at}` : '' };
+}
 
 /**
  * Pushes the signed-in athlete's state to Supabase: the profile row (PRs + settings), History
@@ -1512,6 +1530,27 @@ export async function sendFriendRequestToAthlete(user, targetAthlete) {
     body: { requester_id: user.id, addressee_id: targetAthlete.id, status: 'pending' }
   });
   return { ok: res.ok, status: res.ok ? 'requested' : 'error' };
+}
+
+/**
+ * Email invites this athlete sent that nobody has joined from yet (friend_invites still 'pending'; joining
+ * through the link or with that email marks them 'accepted'). One entry per email, newest first.
+ * Returns { ok, invites: [{ email, sentAt }] }; RLS only returns the signed-in athlete's own invites.
+ */
+export async function fetchMyPendingEmailInvites(user) {
+  if (!user || !isUuid(user.id)) return { ok: false, invites: [] };
+  const me = encodeURIComponent(user.id);
+  const res = await authedRequest(
+    user,
+    `/rest/v1/friend_invites?select=invited_email,created_at&inviter_user_id=eq.${me}&status=eq.pending&order=created_at.desc&limit=100`
+  );
+  if (!res.ok || !Array.isArray(res.data)) return { ok: false, invites: [] };
+  const byEmail = new Map();
+  res.data.forEach(row => {
+    const email = String(row?.invited_email || '').trim().toLowerCase();
+    if (email && !byEmail.has(email)) byEmail.set(email, { email, sentAt: row.created_at || null });
+  });
+  return { ok: true, invites: Array.from(byEmail.values()) };
 }
 
 /**

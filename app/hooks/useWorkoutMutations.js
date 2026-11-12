@@ -130,6 +130,8 @@ export function useWorkoutMutations({
   currentIncrementLbs,
   userBodyweightLbs = 220,
   shareRoutinesWithFriends,
+  // Saved routines: a finished session updates the one it was loaded from (matched by key, never by name)
+  savedRoutines = [],
   setSavedRoutines,
   setSharedRoutines,
   setTimerTrigger,
@@ -595,8 +597,15 @@ export function useWorkoutMutations({
     const normalizedSlots = normalizeSlotLabels(cloneSlots(currentWorkout.slots));
     const routineGymType = inferRoutineGymCategory(normalizedSlots);
 
+    // Routines are matched by key, never by name: saving under a name another routine already uses must not
+    // overwrite or delete that routine (renaming a workout used to wipe a same-named routine). A session (no key)
+    // updates the routine it was loaded from only while it still has that routine's name; renamed, it is a new one.
+    const loadedFromRoutine =
+      !currentWorkout.key && currentWorkout.loadedRoutineTitle && finalTitle === currentWorkout.loadedRoutineTitle
+        ? (savedRoutines || []).find(r => r.label === currentWorkout.loadedRoutineTitle)
+        : null;
     const routineItem = {
-      key: currentWorkout.key || `routine_${currentWorkout.id || Date.now()}`,
+      key: currentWorkout.key || loadedFromRoutine?.key || `routine_${currentWorkout.id || Date.now()}`,
       label: finalTitle,
       author: user?.username || 'test_lifter',
       gymType: routineGymType,
@@ -606,30 +615,28 @@ export function useWorkoutMutations({
     const shouldSaveRoutine = sourceView === 'routine_editor' || Boolean(confirmed?.saveAsRoutine);
     if (shouldSaveRoutine) {
       setSavedRoutines(prev => {
-        const exists = prev.some(r => r.key === routineItem.key || r.label === finalTitle);
-        return exists
-          ? prev.map(r => (r.key === routineItem.key || r.label === finalTitle ? routineItem : r))
-          : [routineItem, ...prev];
+        const exists = prev.some(r => r.key === routineItem.key);
+        return exists ? prev.map(r => (r.key === routineItem.key ? routineItem : r)) : [routineItem, ...prev];
       });
     }
 
+    // This workout's own shared copy (by key): PUBLIC adds or updates it, PRIVATE removes only it
+    const sharedKey = `shared_${currentWorkout.id || currentWorkout.key || Date.now()}`;
     if (shouldShare) {
       const sharedItem = {
-        key: `shared_${currentWorkout.id || currentWorkout.key || Date.now()}`,
+        key: sharedKey,
         label: finalTitle,
         author: user?.username || 'test_lifter',
         gymType: routineGymType,
         slots: normalizedSlots
       };
       setSharedRoutines(prev => {
-        const exists = prev.some(r => r.label === sharedItem.label || r.key === sharedItem.key);
-        return exists
-          ? prev.map(r => (r.label === sharedItem.label || r.key === sharedItem.key ? sharedItem : r))
-          : [sharedItem, ...prev];
+        const exists = prev.some(r => r.key === sharedItem.key);
+        return exists ? prev.map(r => (r.key === sharedItem.key ? sharedItem : r)) : [sharedItem, ...prev];
       });
       setIsCurrentEditorShared(true);
     } else {
-      setSharedRoutines(prev => prev.filter(r => r.label !== finalTitle));
+      setSharedRoutines(prev => prev.filter(r => r.key !== sharedKey));
       setIsCurrentEditorShared(false);
     }
 
@@ -847,7 +854,7 @@ export function useWorkoutMutations({
     if (deleteConfirmTarget.type === 'saved_routine') {
       const { routineKey, routineLabel } = deleteConfirmTarget;
       setSavedRoutines(prev =>
-        (prev || []).filter(r => r.key !== routineKey && r.label !== routineLabel)
+        (prev || []).filter(r => (routineKey ? r.key !== routineKey : r.label !== routineLabel))
       );
       if (routineKey) {
         deleteCloudRoutineByKey(user, routineKey);
@@ -859,7 +866,7 @@ export function useWorkoutMutations({
     if (deleteConfirmTarget.type === 'shared_routine') {
       const { routineKey, routineLabel } = deleteConfirmTarget;
       setSharedRoutines(prev =>
-        (prev || []).filter(r => r.key !== routineKey && r.label !== routineLabel)
+        (prev || []).filter(r => (routineKey ? r.key !== routineKey : r.label !== routineLabel))
       );
       if (routineKey) {
         deleteCloudRoutineByKey(user, routineKey);
@@ -1162,7 +1169,7 @@ export function useWorkoutMutations({
       const nextSlots = prev.slots.map(slot => {
         if (slot.id !== slotId) return slot;
         // SETS / REPS boxes of the scheme row
-        if (changes.setCount !== undefined || changes.targetReps !== undefined) return reshapeSlot(slot, changes, prev.id);
+        if (changes.setCount !== undefined || changes.targetReps !== undefined) return reshapeSlot(slot, changes);
         if (isSupersetCategory(slot.category) && changes.endSuperset !== undefined) {
           const single = endSuperset(slot, changes.endSuperset);
           const wanted = changes.category ? normalizeSlotCategory(changes.category) : null;
@@ -1358,11 +1365,13 @@ export function useWorkoutMutations({
           slotScheme === slot.scheme && !isSupersetCategory(nextCategory) && !isSupersetCategory(slot.category);
         const prevCount = (slot.sets || []).length;
         if (keepShape && (slot.targetReps || (prevCount > 0 && prevCount !== rebuiltResult.sets.length))) {
-          return reshapeSlot(
-            rebuiltResult,
-            { setCount: prevCount || rebuiltResult.sets.length, ...(slot.targetReps ? { targetReps: slot.targetReps } : {}) },
-            prev.id
-          );
+          const shaped = reshapeSlot(rebuiltResult, {
+            setCount: prevCount || rebuiltResult.sets.length,
+            ...(slot.targetReps ? { targetReps: slot.targetReps } : {})
+          });
+          // A newly picked exercise: its weights are worked out for the carried-over REPS (the REPS box itself
+          // never changes weights)
+          return slot.targetReps ? recalculateSlot(shaped, prev.id) : shaped;
         }
         return rebuiltResult;
       });
@@ -1748,7 +1757,7 @@ export function useWorkoutMutations({
   // SETS / REPS boxes in the slot editor's scheme row. setCount: sets added (copies of the last set) or removed at
   // the bottom; a superset's count is for both exercises. targetReps: every unlocked, not-done set of that exercise
   // gets those reps and the weights are recalculated (stored as slot.targetReps / supersetTargetReps[half]).
-  const reshapeSlot = (slot, changes, workoutId) => {
+  const reshapeSlot = (slot, changes) => {
     const isSup = isSupersetCategory(slot.category) && Array.isArray(slot.supersetSetsByExercise);
     let lists = isSup ? [slot.supersetSetsByExercise[0] || [], slot.supersetSetsByExercise[1] || []] : [slot.sets || []];
     const half = isSup && changes.supersetHalf === 1 ? 1 : 0;
@@ -1778,15 +1787,24 @@ export function useWorkoutMutations({
       next = { ...slot, sets: lists[0], supersetSetsByExercise: [lists[0]] };
     }
     if (changes.targetReps !== undefined) {
+      // REPS box: only the reps change. Every set that isn't done or reps-locked gets the new count (a 1 Rep Max set
+      // stays at 1); weights are left exactly as they are (RECALCULATE re-works them on request).
       const reps = Math.max(1, Math.min(50, Math.round(Number(changes.targetReps) || 1)));
+      const withReps = list =>
+        (list || []).map(st =>
+          st.completed || st.lockReps || st.type === '1 Rep Max' || st.durationSeconds || st.timerStr
+            ? st
+            : { ...st, reps }
+        );
       if (isSup) {
         const targets = [slot.supersetTargetReps?.[0] ?? null, slot.supersetTargetReps?.[1] ?? null];
         targets[half] = reps;
-        next = { ...next, supersetTargetReps: targets };
+        const matrix = next.supersetSetsByExercise.map((list, i) => (i === half ? withReps(list) : list));
+        next = { ...next, supersetTargetReps: targets, supersetSetsByExercise: matrix, sets: matrix[0], secondarySets: matrix[1] };
       } else {
-        next = { ...next, targetReps: reps };
+        const sets = withReps(next.sets);
+        next = { ...next, targetReps: reps, sets, supersetSetsByExercise: [sets] };
       }
-      return recalculateSlot(next, workoutId);
     }
     return next;
   };
