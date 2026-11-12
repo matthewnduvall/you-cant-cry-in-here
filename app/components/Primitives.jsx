@@ -56,16 +56,18 @@ export function IOSListSection({ header, headerRight, footer, children, style })
           {headerRight}
         </div>
       )}
+      {/* List group: a graphite tile (no border around it), rows divided by hairlines; it clips its rows' corners */}
       <div
         style={{
-          border: '2px solid var(--dp-color-rule)',
-          backgroundColor: '#141414'
+          backgroundColor: '#1C1C1C',
+          borderRadius: '14px',
+          overflow: 'hidden'
         }}
       >
         {children}
       </div>
       {footer && (
-        <div style={{ fontSize: '12px', color: '#9A9A9A', marginTop: '6px', lineHeight: 1.35, fontWeight: 600 }}>
+        <div style={{ fontSize: '13px', color: '#9A9A9A', marginTop: '6px', paddingLeft: '4px', lineHeight: 1.35, fontWeight: 400 }}>
           {footer}
         </div>
       )}
@@ -97,9 +99,9 @@ export function IOSListRow({ children, onClick, isLast = false, indexLabel, bgNu
       className={interactive ? 'kinetic-row-interactive' : ''}
       style={{
         position: 'relative', overflow: 'hidden', display: 'flex', alignItems: 'center',
-        justifyContent: 'space-between', gap: '12px', padding: '14px 16px',
-        borderBottom: isLast ? 'none' : '2px solid var(--dp-color-rule)',
-        backgroundColor: '#141414', color: '#FFFFFF',
+        justifyContent: 'space-between', gap: '12px', padding: '14px 16px', minHeight: '56px',
+        borderBottom: isLast ? 'none' : '1px solid var(--dp-color-rule)',
+        backgroundColor: '#1C1C1C', color: '#FFFFFF',
         cursor: interactive ? 'pointer' : 'default',
         ...style
       }}
@@ -109,7 +111,7 @@ export function IOSListRow({ children, onClick, isLast = false, indexLabel, bgNu
           aria-hidden="true"
           style={{
             position: 'absolute', right: '36px', top: '50%', transform: 'translateY(-50%)',
-            fontSize: '54px', fontWeight: 800, color: 'var(--dp-color-decorative)',
+            fontSize: '54px', fontWeight: 300, color: 'var(--dp-color-decorative)',
             lineHeight: 1, pointerEvents: 'none', userSelect: 'none', zIndex: 0
           }}
         >
@@ -127,8 +129,8 @@ export function IOSListRow({ children, onClick, isLast = false, indexLabel, bgNu
             <span
               className="kinetic-sub"
               style={{
-                fontSize: '11px', fontWeight: 800, color: 'var(--dp-color-accent)',
-                letterSpacing: '0.06em', flexShrink: 0
+                fontSize: '11px', fontWeight: 500, color: '#9A9A9A',
+                letterSpacing: '0.1em', flexShrink: 0
               }}
             >
               {indexLabel}
@@ -181,8 +183,9 @@ export function SessionTitleBar({
     backgroundColor: bg,
     color,
     ...cellBorder,
-    fontSize: '12px',
-    fontWeight: 800,
+    fontSize: '11px',
+    fontWeight: 500,
+    letterSpacing: '0.06em',
     textTransform: 'uppercase',
     cursor: 'pointer',
     padding: 0
@@ -202,8 +205,10 @@ export function SessionTitleBar({
           .join(' '),
         alignItems: 'stretch',
         gap: 0,
-        borderTop: '1px solid var(--dp-color-rule)',
-        borderLeft: '1px solid var(--dp-color-rule)'
+        // Top half of the session tile (the rest-timer bar is the bottom half)
+        backgroundColor: '#1C1C1C',
+        borderRadius: '12px 12px 0 0',
+        overflow: 'hidden'
       }}
     >
       <label
@@ -211,7 +216,7 @@ export function SessionTitleBar({
           minWidth: 0,
           height: '40px',
           boxSizing: 'border-box',
-          backgroundColor: '#141416',
+          backgroundColor: '#1C1C1C',
           ...cellBorder,
           padding: '0 10px',
           display: 'flex',
@@ -219,7 +224,7 @@ export function SessionTitleBar({
           justifyContent: 'center'
         }}
       >
-        <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--dp-color-accent)', lineHeight: 1.1 }}>
+        <span style={{ fontSize: '10px', fontWeight: 500, letterSpacing: '0.1em', color: '#9A9A9A', lineHeight: 1.1 }}>
           SESSION NAME
         </span>
         <input
@@ -232,9 +237,8 @@ export function SessionTitleBar({
             backgroundColor: 'transparent',
             border: 'none',
             color: '#FFFFFF',
-            fontSize: '14px',
-            fontWeight: 800,
-            textTransform: 'uppercase',
+            fontSize: '15px',
+            fontWeight: 500,
             outline: 'none',
             padding: 0,
             marginTop: '2px',
@@ -249,7 +253,7 @@ export function SessionTitleBar({
             minWidth: 0,
             height: '40px',
             boxSizing: 'border-box',
-            backgroundColor: '#141416',
+            backgroundColor: '#1C1C1C',
             ...cellBorder,
             padding: '0 6px',
             display: 'flex',
@@ -257,7 +261,7 @@ export function SessionTitleBar({
             justifyContent: 'center'
           }}
         >
-          <span style={{ fontSize: '11px', fontWeight: 800, color: '#A0A0A0', lineHeight: 1.1 }}>DATE</span>
+          <span style={{ fontSize: '10px', fontWeight: 500, letterSpacing: '0.1em', color: '#9A9A9A', lineHeight: 1.1 }}>DATE</span>
           <input
             key={dateValue}
             type="text"
@@ -285,7 +289,7 @@ export function SessionTitleBar({
               border: 'none',
               color: '#FFFFFF',
               fontSize: '12px',
-              fontWeight: 800,
+              fontWeight: 500,
               outline: 'none',
               padding: 0,
               marginTop: '2px',
@@ -302,8 +306,9 @@ export function SessionTitleBar({
           aria-label={sync.status === 'synced' ? 'Session synced with a friend' : 'Sync session with a friend'}
           onClick={sync.onClick}
           style={{
-            ...actionStyle(sync.status === 'synced' ? '#12301C' : '#141416', sync.status === 'synced' ? '#30D158' : '#FFFFFF'),
-            fontSize: sync.status === 'synced' ? '10px' : '12px'
+            // Linked: white fill, black text (selected), like an active pill
+            ...actionStyle(sync.status === 'synced' ? '#FFFFFF' : '#2A2A2A', sync.status === 'synced' ? '#000000' : '#FFFFFF'),
+            fontSize: sync.status === 'synced' ? '10px' : '11px'
           }}
         >
           {sync.status === 'synced' ? 'SYNCED' : sync.status === 'pending' ? 'SYNC…' : 'SYNC'}
@@ -311,10 +316,16 @@ export function SessionTitleBar({
       )}
       {showActions && (
         <>
-          <button type="button" className="kinetic-btn" onClick={onSave} style={actionStyle('#30D158', '#101010')}>
+          {/* FINISH / SAVE: the screen's one red action; RESET: destructive red text on graphite */}
+          <button
+            type="button"
+            className="kinetic-btn"
+            onClick={onSave}
+            style={{ ...actionStyle('var(--cr-red)', '#FFFFFF'), fontWeight: 600 }}
+          >
             {saveLabel}
           </button>
-          <button type="button" className="kinetic-btn" onClick={onReset} style={actionStyle('#141416', '#FF3B30')}>
+          <button type="button" className="kinetic-btn" onClick={onReset} style={actionStyle('#1C1C1C', 'var(--cr-red-text)')}>
             RESET
           </button>
         </>
@@ -362,8 +373,10 @@ export const SessionRestTimerBar = React.memo(function SessionRestTimerBar({
         gap: 0,
         height: flushTop ? '40px' : '41px',
         boxSizing: 'border-box',
-        borderTop: flushTop ? 'none' : '1px solid var(--dp-color-rule)',
-        borderLeft: '1px solid var(--dp-color-rule)'
+        // Bottom half of the session tile under SessionTitleBar (a tile of its own when not flush)
+        backgroundColor: '#1C1C1C',
+        borderRadius: flushTop ? '0 0 12px 12px' : '12px',
+        overflow: 'hidden'
       }}
     >
       {timerTrigger.isRunning ? (
@@ -378,8 +391,9 @@ export const SessionRestTimerBar = React.memo(function SessionRestTimerBar({
             minHeight: '40px',
             maxHeight: '40px',
             boxSizing: 'border-box',
-            backgroundColor: '#FF3B30',
-            color: '#FFFFFF',
+            // Counting down: the time in red text on the tile (the red fill is kept for FINISH)
+            backgroundColor: '#1C1C1C',
+            color: 'var(--cr-red-text)',
             borderTop: 'none',
             borderLeft: 'none',
             borderRight: '1px solid var(--dp-color-rule)',
@@ -390,15 +404,15 @@ export const SessionRestTimerBar = React.memo(function SessionRestTimerBar({
             justifyContent: 'center',
             gap: '6px',
             fontSize: '13px',
-            fontWeight: 800,
+            fontWeight: 500,
             textTransform: 'uppercase',
             cursor: 'pointer',
             whiteSpace: 'nowrap',
             overflow: 'hidden'
           }}
         >
-          <SFSymbol name="clock" size={14} color="#FFFFFF" />
-          <span>{formatTimerSeconds(remaining)}</span>
+          <SFSymbol name="clock" size={14} color="var(--cr-red-text)" />
+          <span style={{ fontSize: '17px', fontWeight: 400 }}>{formatTimerSeconds(remaining)}</span>
         </button>
       ) : (
         <div
@@ -412,7 +426,7 @@ export const SessionRestTimerBar = React.memo(function SessionRestTimerBar({
             alignItems: 'center',
             justifyContent: 'center',
             gap: '6px',
-            backgroundColor: '#141416',
+            backgroundColor: '#1C1C1C',
             borderTop: 'none',
             borderLeft: 'none',
             borderRight: '1px solid var(--dp-color-rule)',
@@ -421,7 +435,7 @@ export const SessionRestTimerBar = React.memo(function SessionRestTimerBar({
             overflow: 'hidden'
           }}
         >
-          <SFSymbol name="clock" size={14} color="var(--dp-color-accent)" />
+          <SFSymbol name="clock" size={14} color="#9A9A9A" />
           <select
             value={defaultRestSeconds}
             onChange={e => onChangeDefaultRest(Number(e.target.value))}
@@ -434,16 +448,16 @@ export const SessionRestTimerBar = React.memo(function SessionRestTimerBar({
               color: '#FFFFFF',
               border: 'none',
               fontSize: '12px',
-              fontWeight: 800,
+              fontWeight: 500,
               textTransform: 'uppercase',
               outline: 'none',
               cursor: 'pointer'
             }}
           >
-            <option value={60} style={{ backgroundColor: '#101010' }}>REST 1:00</option>
-            <option value={90} style={{ backgroundColor: '#101010' }}>REST 1:30</option>
-            <option value={120} style={{ backgroundColor: '#101010' }}>REST 2:00</option>
-            <option value={180} style={{ backgroundColor: '#101010' }}>REST 3:00</option>
+            <option value={60} style={{ backgroundColor: '#000000' }}>REST 1:00</option>
+            <option value={90} style={{ backgroundColor: '#000000' }}>REST 1:30</option>
+            <option value={120} style={{ backgroundColor: '#000000' }}>REST 2:00</option>
+            <option value={180} style={{ backgroundColor: '#000000' }}>REST 3:00</option>
           </select>
         </div>
       )}
@@ -459,9 +473,11 @@ export const SessionRestTimerBar = React.memo(function SessionRestTimerBar({
           display: 'flex',
           flexDirection: 'column',
           justifyContent: 'center',
-          padding: '0 12px',
-          backgroundColor: 'var(--dp-color-accent)',
-          color: '#101010',
+          padding: '0 12px 0 22px',
+          position: 'relative',
+          // NEXT: an info line on graphite, with a red dot while there is a set to do
+          backgroundColor: '#1C1C1C',
+          color: '#FFFFFF',
           borderTop: 'none',
           borderLeft: 'none',
           borderRight: '1px solid var(--dp-color-rule)',
@@ -469,10 +485,20 @@ export const SessionRestTimerBar = React.memo(function SessionRestTimerBar({
           overflow: 'hidden'
         }}
       >
+        {nextLiftInfo.topLine ? (
+          <span
+            aria-hidden="true"
+            style={{
+              position: 'absolute', left: '10px', top: '50%', width: '6px', height: '6px', marginTop: '-3px',
+              borderRadius: '50%', backgroundColor: 'var(--cr-red)'
+            }}
+          />
+        ) : null}
         <div
           style={{
-            fontSize: '12px',
-            fontWeight: 800,
+            fontSize: '11px',
+            fontWeight: 500,
+            letterSpacing: '0.06em',
             lineHeight: 1.15,
             whiteSpace: 'nowrap',
             overflow: 'hidden',
@@ -486,9 +512,9 @@ export const SessionRestTimerBar = React.memo(function SessionRestTimerBar({
           <div
             style={{
               fontSize: '11px',
-              fontWeight: 800,
+              fontWeight: 400,
               lineHeight: 1.15,
-              opacity: 0.9,
+              color: '#BDBDBD',
               whiteSpace: 'nowrap',
               overflow: 'hidden',
               textOverflow: 'ellipsis',
@@ -513,8 +539,8 @@ export const SessionRestTimerBar = React.memo(function SessionRestTimerBar({
             width: '100%',
             height: '40px',
             boxSizing: 'border-box',
-            backgroundColor: markDoneActive ? '#30D158' : '#242428',
-            color: markDoneActive ? '#101010' : '#9A9A9A',
+            backgroundColor: markDoneActive ? '#FFFFFF' : '#2A2A2A',
+            color: markDoneActive ? '#000000' : '#9A9A9A',
             border: 'none',
             borderRight: '1px solid var(--dp-color-rule)',
             borderBottom: '1px solid var(--dp-color-rule)',
@@ -522,7 +548,7 @@ export const SessionRestTimerBar = React.memo(function SessionRestTimerBar({
             alignItems: 'center',
             justifyContent: 'center',
             fontSize: '22px',
-            fontWeight: 800,
+            fontWeight: 500,
             cursor: 'pointer',
             padding: 0
           }}

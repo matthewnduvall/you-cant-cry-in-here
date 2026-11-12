@@ -62,13 +62,18 @@ export function AuthView({
   const [recoveryError, setRecoveryError] = useState('');
   const [recoverySuccess, setRecoverySuccess] = useState('');
 
+  // SHOW / HIDE: a 44 px pill (white fill while the password is shown)
   const showHideBtnStyle = isShown => ({
-    padding: '5px 10px',
-    backgroundColor: isShown ? 'var(--dp-color-accent)' : '#101010',
-    color: isShown ? '#101010' : '#FFFFFF',
-    border: '2px solid var(--dp-color-rule)',
+    minHeight: '44px',
+    minWidth: '64px',
+    padding: '0 12px',
+    backgroundColor: isShown ? '#FFFFFF' : 'transparent',
+    color: isShown ? '#000000' : '#FFFFFF',
+    border: `1px solid ${isShown ? '#FFFFFF' : 'var(--cr-outline)'}`,
+    borderRadius: '999px',
+    letterSpacing: '0.06em',
     fontSize: '11px',
-    fontWeight: 800,
+    fontWeight: 500,
     textTransform: 'uppercase',
     cursor: 'pointer',
     flexShrink: 0
@@ -139,7 +144,7 @@ export function AuthView({
         setSignupPassword('');
         setAuthEmail(result.user.email);
         setSignupNotice(
-          `ACCOUNT CREATED. OPEN THE CONFIRMATION LINK SENT TO ${result.user.email.toUpperCase()}, THEN SIGN IN ABOVE.`
+          `Account created. Open the confirmation link sent to ${result.user.email}, then sign in above.`
         );
         return;
       }
@@ -177,7 +182,7 @@ export function AuthView({
       const res = await requestPasswordRecoveryEmail({ email: targetEmail });
       setRecoverySuccess(res.message);
     } catch (err) {
-      setRecoveryError(err?.message || 'FAILED TO SEND RECOVERY EMAIL.');
+      setRecoveryError(err?.message || 'Failed to send the recovery email.');
     } finally {
       setAuthSubmitting(null);
     }
@@ -201,7 +206,7 @@ export function AuthView({
       setRecoveryNewPassword('');
       setCurrentView('home');
     } catch (err) {
-      setRecoveryError(err?.message || 'FAILED TO UPDATE PASSWORD.');
+      setRecoveryError(err?.message || 'Failed to update the password.');
     } finally {
       setAuthSubmitting(null);
     }
@@ -214,16 +219,17 @@ export function AuthView({
           style={{
             margin: '0 var(--dp-spacing-gutter) 16px',
             padding: '10px 12px',
-            backgroundColor: '#0A1A0E',
-            border: '2px solid #30D158',
-            color: '#30D158',
-            fontSize: '11px',
-            fontWeight: 800,
-            textTransform: 'uppercase',
+            backgroundColor: '#1C1C1C',
+            border: 'none',
+              borderRadius: '10px',
+            color: '#FFFFFF',
+            fontSize: '14px',
+            fontWeight: 400,
+            textTransform: 'none',
             lineHeight: 1.4
           }}
         >
-          ✓ INVITED BY @{pendingInviter.username} — BETA CODE &quot;IMNOTCRYING&quot; APPLIED. CREATE YOUR ACCOUNT BELOW TO AUTOMATICALLY BECOME FRIENDS.
+          ✓ Invited by @{pendingInviter.username}. The beta code &quot;imnotcrying&quot; is filled in; create your account below to become friends automatically.
         </div>
       )}
       {/* EMAIL LINK RECOVERY COMPLETION BANNER (SHOWN WHEN USER ARRIVES FROM EMAIL RESET LINK) */}
@@ -240,7 +246,7 @@ export function AuthView({
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <input
                     type={showRecoveryPassword ? 'text' : 'password'}
-                    placeholder="MIN 6 CHARACTERS"
+                    placeholder="At least 6 characters"
                     value={recoveryNewPassword}
                     onChange={e => {
                       setRecoveryNewPassword(e.target.value);
@@ -269,12 +275,13 @@ export function AuthView({
                 style={{
                   marginBottom: '10px',
                   padding: '10px 12px',
-                  backgroundColor: '#1A0A0A',
-                  border: '2px solid #FF3B30',
-                  color: '#FF3B30',
-                  fontSize: '11px',
-                  fontWeight: 800,
-                  textTransform: 'uppercase',
+                  backgroundColor: '#1C1C1C',
+                  border: 'none',
+              borderRadius: '10px',
+                  color: '#FF4A3D',
+                  fontSize: '14px',
+                  fontWeight: 400,
+                  textTransform: 'none',
                   lineHeight: 1.4
                 }}
               >
@@ -297,16 +304,16 @@ export function AuthView({
           style={{
             margin: '0 var(--dp-spacing-gutter) 16px',
             padding: '10px 12px',
-            backgroundColor: '#1A160A',
-            border: '2px solid #FFD60A',
-            color: '#FFD60A',
-            fontSize: '11px',
-            fontWeight: 800,
-            textTransform: 'uppercase',
+            backgroundColor: '#1C1C1C',
+            border: 'none',
+            borderRadius: '10px',
+            color: '#BDBDBD',
+            fontSize: '14px',
+            fontWeight: 400,
             lineHeight: 1.4
           }}
         >
-          YOUR SESSION ENDED. SIGN IN AGAIN TO RESUME SYNCING — YOUR WORKOUTS ON THIS DEVICE ARE SAFE.
+          Your session ended. Sign in again to resume syncing; your workouts on this device are safe.
         </div>
       )}
       <IOSListSection header="SIGN IN // EXISTING ACCOUNT" colors={colors}>
@@ -315,7 +322,7 @@ export function AuthView({
             <div style={UI.fieldLabel}>USERNAME OR EMAIL</div>
             <input
               type="text"
-              placeholder="USERNAME OR YOU@DOMAIN.COM"
+              placeholder="Username or you@domain.com"
               value={authEmail}
               onChange={e => {
                 setAuthEmail(e.target.value);
@@ -361,12 +368,13 @@ export function AuthView({
             style={{
               marginBottom: '10px',
               padding: '10px 12px',
-              backgroundColor: '#1A0A0A',
-              border: '2px solid #FF3B30',
-              color: '#FF3B30',
-              fontSize: '11px',
-              fontWeight: 800,
-              textTransform: 'uppercase',
+              backgroundColor: '#1C1C1C',
+              border: 'none',
+              borderRadius: '10px',
+              color: '#FF4A3D',
+              fontSize: '14px',
+              fontWeight: 400,
+              textTransform: 'none',
               lineHeight: 1.4
             }}
           >
@@ -374,7 +382,7 @@ export function AuthView({
           </div>
         )}
         <Button
-          variant="secondary"
+          variant="primary"
           disabled={authSubmitting === 'login'}
           onClick={handleSignInSubmit}
           style={{ opacity: authSubmitting === 'login' ? 0.6 : 1 }}
@@ -394,9 +402,9 @@ export function AuthView({
             style={{
               background: 'none',
               border: 'none',
-              color: showRecoveryPanel ? 'var(--dp-color-accent)' : '#A0A0A0',
+              color: showRecoveryPanel ? 'var(--dp-color-accent)' : '#9A9A9A',
               fontSize: '11px',
-              fontWeight: 800,
+              fontWeight: 500,
               textTransform: 'uppercase',
               cursor: 'pointer',
               padding: '4px 0',
@@ -421,7 +429,7 @@ export function AuthView({
                 <div style={UI.fieldLabel}>REGISTERED EMAIL ADDRESS</div>
                 <input
                   type="email"
-                  placeholder="YOU@DOMAIN.COM"
+                  placeholder="you@domain.com"
                   value={recoveryEmail}
                   onChange={e => {
                     setRecoveryEmail(e.target.value);
@@ -453,12 +461,13 @@ export function AuthView({
                 style={{
                   marginBottom: '10px',
                   padding: '10px 12px',
-                  backgroundColor: '#1A0A0A',
-                  border: '2px solid #FF3B30',
-                  color: '#FF3B30',
-                  fontSize: '11px',
-                  fontWeight: 800,
-                  textTransform: 'uppercase',
+                  backgroundColor: '#1C1C1C',
+                  border: 'none',
+              borderRadius: '10px',
+                  color: '#FF4A3D',
+                  fontSize: '14px',
+                  fontWeight: 400,
+                  textTransform: 'none',
                   lineHeight: 1.4
                 }}
               >
@@ -470,12 +479,13 @@ export function AuthView({
                 style={{
                   marginBottom: '10px',
                   padding: '10px 12px',
-                  backgroundColor: '#0A1A0E',
-                  border: '2px solid #30D158',
-                  color: '#30D158',
-                  fontSize: '11px',
-                  fontWeight: 800,
-                  textTransform: 'uppercase',
+                  backgroundColor: '#1C1C1C',
+                  border: 'none',
+              borderRadius: '10px',
+                  color: '#FFFFFF',
+                  fontSize: '14px',
+                  fontWeight: 400,
+                  textTransform: 'none',
                   lineHeight: 1.4
                 }}
               >
@@ -496,7 +506,7 @@ export function AuthView({
             <div style={UI.fieldLabel}>CHOOSE USERNAME</div>
             <input
               type="text"
-              placeholder="E.G. IRON_LIFTER"
+              placeholder="e.g. iron_lifter"
               value={signupUsername}
               onChange={e => {
                 setSignupUsername(e.target.value);
@@ -512,7 +522,7 @@ export function AuthView({
             <div style={UI.fieldLabel}>EMAIL ADDRESS</div>
             <input
               type="email"
-              placeholder="YOU@DOMAIN.COM"
+              placeholder="you@domain.com"
               value={signupEmail}
               onChange={e => {
                 setSignupEmail(e.target.value);
@@ -529,7 +539,7 @@ export function AuthView({
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <input
                 type={showSignupPassword ? 'text' : 'password'}
-                placeholder="MIN 6 CHARACTERS"
+                placeholder="At least 6 characters"
                 value={signupPassword}
                 onChange={e => {
                   setSignupPassword(e.target.value);
@@ -553,7 +563,7 @@ export function AuthView({
             <div style={UI.fieldLabel}>BETA TESTER CODE (REQUIRED)</div>
             <input
               type="text"
-              placeholder="ENTER BETA CODE"
+              placeholder="Beta code"
               value={signupBetaCode}
               onChange={e => {
                 setSignupBetaCode(e.target.value);
@@ -574,12 +584,13 @@ export function AuthView({
             style={{
               marginBottom: '10px',
               padding: '10px 12px',
-              backgroundColor: '#0A1A0E',
-              border: '2px solid #30D158',
-              color: '#30D158',
-              fontSize: '11px',
-              fontWeight: 800,
-              textTransform: 'uppercase',
+              backgroundColor: '#1C1C1C',
+              border: 'none',
+              borderRadius: '10px',
+              color: '#FFFFFF',
+              fontSize: '14px',
+              fontWeight: 400,
+              textTransform: 'none',
               lineHeight: 1.4
             }}
           >
@@ -591,12 +602,13 @@ export function AuthView({
             style={{
               marginBottom: '10px',
               padding: '10px 12px',
-              backgroundColor: '#1A0A0A',
-              border: '2px solid #FF3B30',
-              color: '#FF3B30',
-              fontSize: '11px',
-              fontWeight: 800,
-              textTransform: 'uppercase',
+              backgroundColor: '#1C1C1C',
+              border: 'none',
+              borderRadius: '10px',
+              color: '#FF4A3D',
+              fontSize: '14px',
+              fontWeight: 400,
+              textTransform: 'none',
               lineHeight: 1.4
             }}
           >
@@ -604,7 +616,7 @@ export function AuthView({
           </div>
         )}
         <Button
-          variant="primary"
+          variant="success"
           disabled={authSubmitting === 'signup'}
           onClick={handleSignUpSubmit}
           style={{ opacity: authSubmitting === 'signup' ? 0.6 : 1 }}

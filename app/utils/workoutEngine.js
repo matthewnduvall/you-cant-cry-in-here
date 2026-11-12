@@ -131,6 +131,9 @@ export const CLUSTER_REST_SECONDS = 6;
 export const isClusterScheme = scheme => scheme === CLUSTER_SCHEME;
 
 export const SCHEME_OPTIONS = [
+  '3x5',
+  '3x8',
+  '3x12',
   '5x5',
   '5x6',
   '5x8',
@@ -463,7 +466,8 @@ export const getEffectiveIncrementForExercise = (exerciseId, baseIncrementLbs = 
 };
 
 // Exercise Set Preferences (Configuration → ROUTINES): the type of each set, by position, for new exercises on the
-// uniform rep schemes (5x5, 5x6, 5x8, 5x10, 8x8). Sets beyond the list are Working.
+// uniform rep schemes (5x5, 5x6, 5x8, 5x10, 8x8). Sets beyond the list are Working. The 3-set schemes (3x5, 3x8,
+// 3x12) take the last 3 of the first 5 positions (by default Working, Working, Working), like a superset's last 3 sets.
 export const DEFAULT_SET_PREFERENCES = ['Warmup', 'Warmup', 'Working', 'Working', 'Working'];
 export const SET_PREFERENCE_TYPES = ['Warmup', 'Working', 'Top Out', 'Burn Out'];
 const typesFromSetPreferences = (count, setPreferences) => {
@@ -530,6 +534,14 @@ export const generateSetsForScheme = (
           durationSeconds: 120,
           timerStr: '02:00'
         }))
+      );
+    case '3x5':
+    case '3x8':
+    case '3x12':
+      return buildWithLastAndTarget(
+        typesFromSetPreferences(5, setPreferences)
+          .slice(-3)
+          .map(type => ({ type, reps: getSchemeUniformReps(scheme) }))
       );
     case '5x5':
       return buildWithLastAndTarget(typesFromSetPreferences(5, setPreferences).map(type => ({ type, reps: 5 })));
@@ -619,7 +631,7 @@ export const generateSetsForScheme = (
 // weighted exercises (not bodyweight). Nothing known yet (no 1RM, no previous session) → the scheme defaults.
 // ============================================================================
 
-export const GOAL_PROGRESS_SCHEMES = ['5x5', '5x6', '5x8', '5x10', '8x8', 'Pyramid', 'Reverse Pyramid', 'Cluster'];
+export const GOAL_PROGRESS_SCHEMES = ['3x5', '3x8', '3x12', '5x5', '5x6', '5x8', '5x10', '8x8', 'Pyramid', 'Reverse Pyramid', 'Cluster'];
 
 const roundToStep = (val, step) => Math.round(val / step) * step;
 

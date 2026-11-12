@@ -37,7 +37,7 @@ export function EquipmentToggleList({
   return (
     <IOSListSection header={header} footer={footer} colors={colors} style={sectionStyle}>
       <IOSListRow colors={colors} onClick={() => onChange?.(allOn ? [] : [...GYM_EQUIPMENT_OPTIONS])}>
-        <span style={{ ...UI.rowTitle, color: 'var(--dp-color-accent)' }}>{allOn ? 'TURN ALL OFF' : 'TURN ALL ON'}</span>
+        <span style={{ ...UI.rowTitle, color: 'var(--dp-color-accent)' }}>{allOn ? 'Turn all off' : 'Turn all on'}</span>
         <span style={UI.badge(allOn)}>
           {selected.size}/{GYM_EQUIPMENT_OPTIONS.length}
         </span>
@@ -52,7 +52,7 @@ export function EquipmentToggleList({
             onClick={() => toggle(item)}
           >
             <span role="switch" aria-checked={on} style={UI.rowTitle}>
-              {item.toUpperCase()}
+              {item}
             </span>
             <span style={UI.badge(on)}>{on ? 'ON' : 'OFF'}</span>
           </IOSListRow>

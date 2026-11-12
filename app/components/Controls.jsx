@@ -2,30 +2,31 @@
 
 // ============================================================================
 // SHARED CONTROLS — buttons, delete/close buttons, drag badges, gym selector.
-// Use these instead of hand-styling <button>/<select> so the Kinetic Brutalist
-// look stays consistent. Every component accepts `style` for one-off overrides.
+// Use these instead of hand-styling <button>/<select> so the Crying look
+// (black ground, graphite tiles, white pills, one red action) stays consistent. Every component accepts `style` for one-off overrides.
 // ============================================================================
 
 import React from 'react';
-import { UI, SHARED_CELL_BORDER, SHARED_GROUP_OUTER } from '../styles/kineticTokens';
+import { UI, SHARED_CELL_BORDER } from '../styles/kineticTokens';
 import { DEFAULT_GYM_EQUIPMENT_PRESETS, getGymSelectionLabel } from '../data/exerciseLibrary';
 
-const RED = '#FF3B30';
-const GREEN = '#30D158';
+// Red as text on graphite (destructive actions); red fills are only the screen's one primary action
+const RED = 'var(--cr-red-text)';
 
 const BUTTON_VARIANTS = {
-  // Orange fill, white border, centered label
+  // The screen's one primary action: red fill, white caps label, 52 px, 12 px radius
   primary: () => UI.primaryBtnCenter,
-  // Orange fill with label + trailing arrow spread apart
+  // Primary with label + trailing arrow spread apart
   'primary-row': () => UI.primaryBtn,
-  // Dark fill, rule border
+  // Graphite fill, white caps label
   secondary: () => UI.secondaryBtnCenter,
   // Dashed "add" button
   dashed: () => UI.dashedBtn,
-  // Bright green confirm (CALCULATE 1RM)
-  success: () => ({ ...UI.primaryBtnCenter, backgroundColor: GREEN, color: '#000000' }),
-  // Red destructive action
-  danger: () => ({ ...UI.primaryBtnCenter, backgroundColor: RED, color: '#FFFFFF' }),
+  // Confirm that isn't the screen's main action (CALCULATE 1RM): white fill, black label
+  success: () => ({ ...UI.primaryBtnCenter, backgroundColor: '#FFFFFF', color: '#000000' }),
+  // Destructive: red text on a transparent button with an outline (never a red fill; red text only sits on black or
+  // the base tile, where it keeps >= 5:1 contrast)
+  danger: () => ({ ...UI.secondaryBtnCenter, backgroundColor: 'transparent', border: '1px solid var(--cr-outline)', color: RED }),
   // Small on/off pill (filters, segmented choices)
   toggle: active => UI.pillBtn(active),
   // Full-width navigation row (drawer)
@@ -42,7 +43,7 @@ export function Button({ variant = 'primary', active = false, style, className =
     <button
       type={type}
       className={`kinetic-btn ${className}`.trim()}
-      style={{ ...base, ...(rest.disabled ? { opacity: 0.5, cursor: 'default' } : null), ...style }}
+      style={{ ...base, ...(rest.disabled ? { opacity: 0.4, cursor: 'default' } : null), ...style }}
       {...rest}
     >
       {children}
@@ -51,8 +52,8 @@ export function Button({ variant = 'primary', active = false, style, className =
 }
 
 /**
- * Segmented-control option sitting in a shared-border grid. `activeColor` is 'accent' (orange)
- * or 'ink' (white) when selected. Override height/padding/fontSize through `style`.
+ * Segmented-control option sitting in a hairline grid inside a graphite group. Selected = white fill, black text
+ * (`activeColor` 'accent' and 'ink' are both white in the Crying style). Override height/padding/fontSize through `style`.
  */
 export function SegmentButton({
   active = false,
@@ -70,11 +71,12 @@ export function SegmentButton({
       aria-pressed={active}
       style={{
         padding: '10px 6px',
-        backgroundColor: active ? activeBg : '#141416',
+        backgroundColor: active ? activeBg : '#1C1C1C',
         color: active ? '#000000' : inactiveColor,
         ...SHARED_CELL_BORDER,
         fontSize: '12px',
-        fontWeight: 800,
+        fontWeight: 500,
+        letterSpacing: '0.06em',
         textTransform: 'uppercase',
         cursor: 'pointer',
         ...style
@@ -101,8 +103,8 @@ export function NestedTabBar({ style, ...tabBarProps }) {
           top: '-4px',
           width: '16px',
           height: '30px',
-          borderLeft: '2px solid var(--dp-color-rule)',
-          borderBottom: '2px solid var(--dp-color-rule)'
+          borderLeft: '1px solid var(--dp-color-rule)',
+          borderBottom: '1px solid var(--dp-color-rule)'
         }}
       />
       <TabBar {...tabBarProps} style={{ marginLeft: '28px', marginTop: '6px' }} />
@@ -111,7 +113,7 @@ export function NestedTabBar({ style, ...tabBarProps }) {
 }
 
 /**
- * Page tabs: one row of SegmentButtons (selected = orange fill). `tabs` is [{ id, label }].
+ * Page tabs: one row of 44 px pills (outlined; selected = white fill, black text). `tabs` is [{ id, label }].
  * Labels may wrap to two lines on narrow screens; every tab keeps a 44 px tap target.
  */
 export function TabBar({ tabs = [], value, onChange, ariaLabel = 'Tabs', style }) {
@@ -122,8 +124,7 @@ export function TabBar({ tabs = [], value, onChange, ariaLabel = 'Tabs', style }
       style={{
         display: 'grid',
         gridTemplateColumns: `repeat(${Math.max(1, tabs.length)}, minmax(0, 1fr))`,
-        gap: 0,
-        ...SHARED_GROUP_OUTER,
+        gap: '6px',
         ...style
       }}
     >
@@ -134,7 +135,16 @@ export function TabBar({ tabs = [], value, onChange, ariaLabel = 'Tabs', style }
           aria-selected={value === tab.id}
           active={value === tab.id}
           onClick={() => onChange?.(tab.id)}
-          style={{ minHeight: '44px', padding: '6px 4px', lineHeight: 1.15, textAlign: 'center' }}
+          style={{
+            minHeight: '44px',
+            padding: '6px 4px',
+            lineHeight: 1.15,
+            textAlign: 'center',
+            fontSize: '11px',
+            borderRadius: '999px',
+            border: `1px solid ${value === tab.id ? '#FFFFFF' : 'var(--cr-outline)'}`,
+            backgroundColor: value === tab.id ? '#FFFFFF' : 'transparent'
+          }}
         >
           {tab.label}
         </SegmentButton>
@@ -143,7 +153,7 @@ export function TabBar({ tabs = [], value, onChange, ariaLabel = 'Tabs', style }
   );
 }
 
-/** SHOW ▾ / HIDE ▴ button for collapsible sections (40 px tap target, orange caret). */
+/** SHOW ▾ / HIDE ▴ button for collapsible sections (44 px tap target, grey caret). */
 export function CollapseToggle({ collapsed, onClick, label }) {
   return (
     <button
@@ -154,33 +164,36 @@ export function CollapseToggle({ collapsed, onClick, label }) {
       className="kinetic-btn"
       style={{
         minWidth: '76px',
-        height: '40px',
+        height: '44px',
         padding: '0 12px',
-        backgroundColor: '#161618',
+        backgroundColor: 'var(--cr-tile-raised)',
         color: '#FFFFFF',
-        border: '1px solid var(--dp-color-rule)',
+        border: 'none',
+        borderRadius: '10px',
         fontSize: '12px',
-        fontWeight: 800,
+        fontWeight: 500,
+        letterSpacing: '0.06em',
         textTransform: 'uppercase',
         cursor: 'pointer',
         flexShrink: 0
       }}
     >
-      {collapsed ? 'SHOW' : 'HIDE'} <span style={{ color: 'var(--dp-color-accent)' }}>{collapsed ? '▾' : '▴'}</span>
+      {collapsed ? 'SHOW' : 'HIDE'} <span style={{ color: 'var(--cr-text-label)' }}>{collapsed ? '▾' : '▴'}</span>
     </button>
   );
 }
 
 /**
- * Red ✕ delete button.
- * - variant "solid": red fill (removing whole items: history entries, friends, routines).
- * - variant "outline": dark fill, red ✕ (inline editor rows: sets, exercises).
+ * Red ✕ delete button (red text, never a red fill).
+ * - variant "solid": an outlined square (removing whole items: history entries, friends, routines).
+ * - variant "outline": transparent, red ✕ (inline editor rows: sets, exercises).
  * - `fill`: stretches to the row height with shared cell borders (editor grids).
  */
 export function DeleteButton({
   label = 'Delete',
   variant = 'solid',
-  size = 32,
+  // 44 px: the minimum tap target
+  size = 44,
   fill = false,
   minHeight,
   style,
@@ -207,11 +220,13 @@ export function DeleteButton({
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        backgroundColor: solid ? RED : '#101010',
-        color: solid ? '#101010' : RED,
-        ...(fill ? SHARED_CELL_BORDER : { border: '2px solid var(--dp-color-rule)' }),
-        fontSize: '14px',
-        fontWeight: 800,
+        backgroundColor: 'transparent',
+        color: RED,
+        ...(fill
+          ? SHARED_CELL_BORDER
+          : { border: solid ? '1px solid var(--cr-outline)' : 'none', borderRadius: '10px' }),
+        fontSize: '15px',
+        fontWeight: 400,
         cursor: rest.disabled ? 'default' : 'pointer',
         opacity: rest.disabled ? 0.4 : 1,
         ...style
@@ -223,7 +238,7 @@ export function DeleteButton({
   );
 }
 
-/** Orange ✕ used to close modals and panels. */
+/** ✕ used to close modals and panels (graphite icon button). */
 export function CloseButton({ label = 'Close', style, ...rest }) {
   return (
     <button type="button" aria-label={label} title={label} style={{ ...UI.closeXBtn, ...style }} {...rest}>
@@ -238,7 +253,7 @@ export function DragNumberBadge({
   color = 'var(--dp-color-accent)',
   height = '44px',
   minHeight,
-  bg = '#121212',
+  bg = '#1C1C1C',
   title = 'Click and drag to rearrange',
   // Extra handlers / attributes (e.g. pointer-drag props from usePointerReorder)
   style: extraStyle,
@@ -283,10 +298,10 @@ export function DragNumberBadge({
         style={{
           position: 'relative',
           zIndex: 1,
-          backgroundColor: 'rgba(16, 16, 16, 0.88)',
+          backgroundColor: 'rgba(0, 0, 0, 0.88)',
           padding: '2px 4px',
           fontSize: '14px',
-          fontWeight: 800,
+          fontWeight: 500,
           color,
           lineHeight: 1,
           whiteSpace: 'nowrap'
@@ -350,7 +365,7 @@ export function GymSelect({
       color: '#FFFFFF',
       ...SHARED_CELL_BORDER,
       fontSize: '12px',
-      fontWeight: 800,
+      fontWeight: 500,
       textTransform: 'uppercase',
       padding: '0 8px',
       cursor: 'pointer',
@@ -368,7 +383,7 @@ export function GymSelect({
         height: '48px',
         boxSizing: 'border-box',
         position: 'relative',
-        backgroundColor: '#161618',
+        backgroundColor: '#1C1C1C',
         ...SHARED_CELL_BORDER,
         padding: '0 8px',
         display: 'flex',
@@ -381,12 +396,12 @@ export function GymSelect({
       }}
     >
       <div style={{ ...UI.fieldLabel, lineHeight: 1.15 }}>
-        {tileLabel} <span aria-hidden="true" style={{ color: 'var(--dp-color-accent)' }}>▾</span>
+        {tileLabel} <span aria-hidden="true" style={{ color: 'var(--cr-text-label)' }}>▾</span>
       </div>
       <div
         style={{
           fontSize: '13px',
-          fontWeight: 800,
+          fontWeight: 500,
           color: '#FFFFFF',
           textTransform: 'uppercase',
           whiteSpace: 'nowrap',
@@ -406,7 +421,7 @@ export function GymSelect({
         width: '100%',
         height: '100%',
         opacity: 0,
-        backgroundColor: '#101010',
+        backgroundColor: '#000000',
         color: '#FFFFFF',
         cursor: 'pointer'
       })}

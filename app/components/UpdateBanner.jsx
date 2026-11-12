@@ -12,8 +12,8 @@ export function UpdateBanner({ show, onReload }) {
       style={{
         display: 'flex',
         alignItems: 'stretch',
-        borderBottom: '2px solid var(--dp-color-rule)',
-        backgroundColor: '#161618'
+        borderBottom: '1px solid var(--dp-color-rule)',
+        backgroundColor: '#1C1C1C'
       }}
     >
       <div
@@ -21,7 +21,7 @@ export function UpdateBanner({ show, onReload }) {
           flex: 1,
           padding: '10px 12px',
           fontSize: '12px',
-          fontWeight: 700,
+          fontWeight: 500,
           lineHeight: 1.35,
           color: '#FFFFFF'
         }}
@@ -29,9 +29,9 @@ export function UpdateBanner({ show, onReload }) {
         A new version of the app is ready. Your workout is saved.
       </div>
       <Button
-        variant="primary"
+        variant="success"
         onClick={onReload}
-        style={{ width: '92px', flexShrink: 0, border: 'none', borderLeft: '2px solid var(--dp-color-rule)', fontSize: '12px' }}
+        style={{ width: '92px', flexShrink: 0, border: 'none', borderLeft: '1px solid var(--dp-color-rule)', fontSize: '12px' }}
       >
         RELOAD
       </Button>

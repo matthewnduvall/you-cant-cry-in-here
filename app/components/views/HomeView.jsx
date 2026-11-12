@@ -245,36 +245,18 @@ export function HomeView({
 
   return (
     <div>
-      {/* HERO TITLE BANNER */}
-      <section
+      {/* No big title on Home (the locked header already says YOU CAN'T CRY IN HERE): the ticker sits at the top,
+          straight under the header. The page's heading is kept for screen readers. */}
+      <h1
         style={{
-          padding: '18px var(--dp-spacing-gutter) 16px',
-          borderBottom: '2px solid var(--dp-color-rule)'
+          position: 'absolute', width: '1px', height: '1px', margin: '-1px', padding: 0, overflow: 'hidden',
+          clip: 'rect(0 0 0 0)', whiteSpace: 'nowrap', border: 0
         }}
       >
-        <div
-          style={{
-            fontSize: 'clamp(40px, 12.5cqw, 58px)', fontWeight: 800,
-            lineHeight: 0.92, letterSpacing: '-0.045em', textTransform: 'uppercase'
-          }}
-        >
-          <div style={{ textAlign: 'left', marginBottom: '6px' }}>YOU CAN'T</div>
-          <div
-            style={{
-              backgroundColor: 'var(--dp-color-accent)', color: '#101010',
-              padding: '4px 12px', margin: '6px 0', textAlign: 'right'
-            }}
-          >
-            CRY
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '6px' }}>
-            <span>IN HERE</span>
-            <span style={{ color: 'var(--dp-color-accent)' }}>↘</span>
-          </div>
-        </div>
-      </section>
+        You can&apos;t cry in here
+      </h1>
 
-      {/* REPEATED-TEXT MARQUEE BAND (BETWEEN TITLE & PRIMARY ACTION BUTTONS) — tap anywhere on it to pause / play */}
+      {/* NEWS TICKER (top of Home, above the primary actions) — tap anywhere on it to pause / play */}
       <button
         type="button"
         aria-pressed={marqueePaused}
@@ -286,8 +268,8 @@ export function HomeView({
           minHeight: '40px',
           padding: 0,
           border: 'none',
-          borderBottom: '2px solid var(--dp-color-rule)',
-          backgroundColor: '#141414',
+          borderBottom: '1px solid var(--dp-color-rule)',
+          backgroundColor: '#1C1C1C',
           color: '#FFFFFF',
           display: 'flex',
           alignItems: 'center',
@@ -303,7 +285,7 @@ export function HomeView({
             style={{
               '--dp-marquee-duration': `${marqueeDurationSec}s`,
               fontSize: '11px',
-              fontWeight: 800,
+              fontWeight: 500,
               letterSpacing: '0.08em',
               textTransform: 'uppercase'
             }}
@@ -318,7 +300,7 @@ export function HomeView({
       <section
         style={{
           padding: '16px var(--dp-spacing-gutter)',
-          borderBottom: '2px solid var(--dp-color-rule)',
+          borderBottom: '1px solid var(--dp-color-rule)',
           marginBottom: '22px'
         }}
       >
@@ -326,28 +308,25 @@ export function HomeView({
           style={{
             display: 'grid',
             gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
-            gap: 0,
-            borderTop: '1px solid var(--dp-color-rule)',
-            borderLeft: '1px solid var(--dp-color-rule)'
+            gap: '8px'
           }}
         >
+          {/* NEW / CURRENT SESSION: Home's one red action */}
           <button
             type="button"
             onClick={handleOpenNewSession}
             className="kinetic-btn"
             style={{
-              height: '46px',
+              height: '52px',
               boxSizing: 'border-box',
               padding: '0 6px',
-              backgroundColor: 'var(--dp-color-accent)',
-              color: '#101010',
-              borderTop: 'none',
-              borderLeft: 'none',
-              borderRight: '1px solid var(--dp-color-rule)',
-              borderBottom: '1px solid var(--dp-color-rule)',
-              fontWeight: 800,
+              backgroundColor: 'var(--cr-red)',
+              color: '#FFFFFF',
+              border: 'none',
+              borderRadius: '12px',
+              fontWeight: 600,
               fontSize: '12px',
-              letterSpacing: '-0.02em',
+              letterSpacing: '0.08em',
               lineHeight: 1,
               whiteSpace: 'nowrap',
               overflow: 'hidden',
@@ -369,19 +348,17 @@ export function HomeView({
             onClick={handleOpenNewAutoSession}
             className="kinetic-btn"
             style={{
-              height: '46px',
+              height: '52px',
               boxSizing: 'border-box',
               padding: '0 6px',
-              // Secondary to NEW / CURRENT SESSION: dark with orange text
-              backgroundColor: '#161616',
-              color: 'var(--dp-color-accent)',
-              borderTop: 'none',
-              borderLeft: 'none',
-              borderRight: '1px solid var(--dp-color-rule)',
-              borderBottom: '1px solid var(--dp-color-rule)',
-              fontWeight: 800,
+              // Secondary to NEW / CURRENT SESSION: a graphite button
+              backgroundColor: '#1C1C1C',
+              color: '#FFFFFF',
+              border: 'none',
+              borderRadius: '12px',
+              fontWeight: 500,
               fontSize: '12px',
-              letterSpacing: '-0.02em',
+              letterSpacing: '0.08em',
               lineHeight: 1,
               whiteSpace: 'nowrap',
               textTransform: 'uppercase',
@@ -402,9 +379,9 @@ export function HomeView({
       <IOSListSection header="YOUR TRAINING" colors={colors}>
         {[
           // PROGRESS is one page with the chart, Personal Records and logged History (view id 'history')
-          { id: 'history', title: 'PERFORMANCE', sub: 'Trends, Personal Records & Workout History' },
-          { id: 'stimulus_map', title: 'STIMULUS', sub: 'Recovery Windows & Muscle Readiness' },
-          { id: 'social', title: 'SOCIAL', sub: `${friendsList.length} ${friendsList.length === 1 ? 'Friend' : 'Friends'} • ${pendingIncomingRequests.length} Pending ${pendingIncomingRequests.length === 1 ? 'Request' : 'Requests'} • Leaderboards` }
+          { id: 'history', title: 'Performance', sub: 'Trends, personal records and workout history' },
+          { id: 'stimulus_map', title: 'Stimulus', sub: 'Recovery windows and muscle readiness' },
+          { id: 'social', title: 'Social', sub: `${friendsList.length} ${friendsList.length === 1 ? 'friend' : 'friends'} · ${pendingIncomingRequests.length} pending ${pendingIncomingRequests.length === 1 ? 'request' : 'requests'} · leaderboards` }
         ].map((item, i, arr) => (
           <IOSListRow
             key={item.id}
@@ -416,14 +393,12 @@ export function HomeView({
             }}
           >
             <div>
-              <div style={{ fontSize: '18px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '-0.03em' }}>
-                {item.title}
-              </div>
-              <div className="kinetic-sub" style={{ fontSize: '12px', color: '#A0A0A0', fontWeight: 600 }}>
+              <div style={{ fontSize: '17px', fontWeight: 500 }}>{item.title}</div>
+              <div className="kinetic-sub" style={{ fontSize: '13px', color: '#9A9A9A', fontWeight: 400, marginTop: '2px' }}>
                 {item.sub}
               </div>
             </div>
-            <span style={{ fontSize: '20px', fontWeight: 800 }}>→</span>
+            <span aria-hidden="true" style={{ fontSize: '20px', fontWeight: 300, color: '#8A8A8A' }}>›</span>
           </IOSListRow>
         ))}
       </IOSListSection>

@@ -258,7 +258,7 @@ export function LeaderboardView({
         <IOSListSection colors={colors}>
           <IOSListRow isLast={true} colors={colors}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', width: '100%' }}>
-              <span style={{ fontSize: '13px', fontWeight: 700, color: '#C8C8C8', lineHeight: 1.4 }}>
+              <span style={{ fontSize: '13px', fontWeight: 500, color: '#BDBDBD', lineHeight: 1.4 }}>
                 Sign in to see where you rank against your friends.
               </span>
               {onSignIn && (
@@ -286,19 +286,19 @@ export function LeaderboardView({
               <span
                 style={{
                   fontSize: '16px',
-                  fontWeight: 800,
+                  fontWeight: 500,
                   textTransform: 'uppercase',
                   color: entry.isSelf ? 'var(--dp-color-accent)' : '#FFFFFF'
                 }}
               >
                 <span style={onOpenProfile ? NAME_LINK_STYLE : undefined}>@{entry.name}</span>
               </span>
-              <span style={{ fontSize: '11px', fontWeight: 700, color: '#888888', textTransform: 'uppercase' }}>
+              <span style={{ fontSize: '11px', fontWeight: 500, color: '#9A9A9A', textTransform: 'uppercase' }}>
                 <span style={{ color: '#FFFFFF' }}>BENCH + SQUAT + DEADLIFT</span> • STANDING:{' '}
                 <strong style={{ color: 'var(--dp-color-accent)' }}>{entry.standing.toUpperCase()}</strong>
               </span>
             </div>
-            <span style={{ fontSize: '16px', fontWeight: 800, color: 'var(--dp-color-accent)' }}>
+            <span style={{ fontSize: '16px', fontWeight: 500, color: 'var(--dp-color-accent)' }}>
               {oneRepMaxLabel(entry.total, entry.totalCalculated)} LB
             </span>
           </IOSListRow>
@@ -320,19 +320,19 @@ export function LeaderboardView({
               <span
                 style={{
                   fontSize: '16px',
-                  fontWeight: 800,
+                  fontWeight: 500,
                   textTransform: 'uppercase',
                   color: entry.isSelf ? 'var(--dp-color-accent)' : '#FFFFFF'
                 }}
               >
                 <span style={onOpenProfile ? NAME_LINK_STYLE : undefined}>@{entry.name}</span>
               </span>
-              <span style={{ fontSize: '11px', fontWeight: 700, color: '#888888', textTransform: 'uppercase' }}>
+              <span style={{ fontSize: '11px', fontWeight: 500, color: '#9A9A9A', textTransform: 'uppercase' }}>
                 {oneRepMaxLabel(entry.total, entry.totalCalculated)} LB ÷ {entry.bw} LB BW • STANDING:{' '}
                 <strong style={{ color: 'var(--dp-color-accent)' }}>{entry.standing.toUpperCase()}</strong>
               </span>
             </div>
-            <span style={{ fontSize: '16px', fontWeight: 800, color: 'var(--dp-color-accent)' }}>
+            <span style={{ fontSize: '16px', fontWeight: 500, color: 'var(--dp-color-accent)' }}>
               {entry.normalized.toFixed(2)}x BW
             </span>
           </IOSListRow>
@@ -354,19 +354,19 @@ export function LeaderboardView({
               <span
                 style={{
                   fontSize: '16px',
-                  fontWeight: 800,
+                  fontWeight: 500,
                   textTransform: 'uppercase',
                   color: entry.isSelf ? 'var(--dp-color-accent)' : '#FFFFFF'
                 }}
               >
                 <span style={onOpenProfile ? NAME_LINK_STYLE : undefined}>@{entry.name}</span>
               </span>
-              <span style={{ fontSize: '11px', fontWeight: 700, color: '#888888', textTransform: 'uppercase' }}>
+              <span style={{ fontSize: '11px', fontWeight: 500, color: '#9A9A9A', textTransform: 'uppercase' }}>
                 {oneRepMaxLabel(entry.ohp, entry.ohpCalculated)} LB <span style={{ color: '#FFFFFF' }}>OHP</span> ÷ {entry.bw} LB BW • STANDING:{' '}
                 <strong style={{ color: 'var(--dp-color-accent)' }}>{entry.ohpStanding.toUpperCase()}</strong>
               </span>
             </div>
-            <span style={{ fontSize: '16px', fontWeight: 800, color: 'var(--dp-color-accent)' }}>
+            <span style={{ fontSize: '16px', fontWeight: 500, color: 'var(--dp-color-accent)' }}>
               {entry.ohpNormalized.toFixed(2)}x BW
             </span>
           </IOSListRow>
@@ -378,7 +378,7 @@ export function LeaderboardView({
       <IOSListSection colors={colors}>
         {mostImprovedEntries.length === 0 ? (
           <IOSListRow isLast={true} colors={colors}>
-            <span style={{ fontSize: '12px', fontWeight: 700, color: '#888888', textTransform: 'uppercase' }}>
+            <span style={{ fontSize: '12px', fontWeight: 500, color: '#9A9A9A', textTransform: 'uppercase' }}>
               NO LOGGED IMPROVEMENTS YET.
             </span>
           </IOSListRow>
@@ -395,7 +395,7 @@ export function LeaderboardView({
                 <span
                   style={{
                     fontSize: '14px',
-                    fontWeight: 800,
+                    fontWeight: 500,
                     textTransform: 'uppercase',
                     color: entry.isSelf ? 'var(--dp-color-accent)' : '#FFFFFF',
                     whiteSpace: 'nowrap',
@@ -403,14 +403,14 @@ export function LeaderboardView({
                     textOverflow: 'ellipsis'
                   }}
                 >
-                  <span style={onOpenProfile ? NAME_LINK_STYLE : undefined}>@{entry.name}</span> <span style={{ color: '#888888' }}>•</span>{' '}
+                  <span style={onOpenProfile ? NAME_LINK_STYLE : undefined}>@{entry.name}</span> <span style={{ color: '#9A9A9A' }}>•</span>{' '}
                   <span style={{ color: '#FFFFFF' }}>{entry.exerciseName}</span>
                 </span>
-                <span style={{ fontSize: '11px', fontWeight: 700, color: '#888888', textTransform: 'uppercase' }}>
+                <span style={{ fontSize: '11px', fontWeight: 500, color: '#9A9A9A', textTransform: 'uppercase' }}>
                   {entry.startWeight} LB → {entry.peakWeight} LB ({entry.normalizedGain.toFixed(2)}x BW GAIN)
                 </span>
               </div>
-              <span style={{ fontSize: '15px', fontWeight: 800, color: 'var(--dp-color-accent)', flexShrink: 0 }}>
+              <span style={{ fontSize: '15px', fontWeight: 500, color: 'var(--dp-color-accent)', flexShrink: 0 }}>
                 +{entry.deltaLbs} LB
               </span>
             </IOSListRow>

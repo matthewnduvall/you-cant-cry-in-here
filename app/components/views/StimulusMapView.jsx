@@ -29,7 +29,7 @@ function MuscleRect({ group, statusMap, selected, onSelect, strokeWidth, ...rect
       }}
       style={{ cursor: 'pointer', outline: 'none' }}
     >
-      <rect {...rect} fill={status?.color || '#4A4A50'} stroke={selected ? '#FFFFFF' : '#101010'} strokeWidth={selected ? 2.5 : strokeWidth} />
+      <rect {...rect} fill={status?.color || '#3A3A3A'} stroke={selected ? '#FFFFFF' : '#000000'} strokeWidth={selected ? 2.5 : strokeWidth} />
       {pattern && <rect {...rect} fill={pattern} stroke="none" pointerEvents="none" />}
     </g>
   );
@@ -66,7 +66,9 @@ export function StimulusMapView({
   stimulusYellowDays,
   setStimulusGreenDays,
   setStimulusYellowDays,
-  muscleStimulusStatus
+  muscleStimulusStatus,
+  // The shared value pop-up (STIMULUS THRESHOLDS day boxes)
+  setSetValueTarget
 }) {
   // Tapped muscle group (null = none yet)
   const [selectedGroup, setSelectedGroup] = useState(null);
@@ -87,22 +89,22 @@ export function StimulusMapView({
             style={{ display: 'grid', gridTemplateColumns: 'auto auto 1fr', columnGap: '6px', rowGap: '4px', alignItems: 'center', lineHeight: 1.4 }}
           >
             {[
-              { color: '#30D158', label: 'RECOVERING', text: '#30D158', range: `0–${stimulusGreenDays} DAYS` },
+              { color: '#FFFFFF', label: 'RECOVERING', text: '#FFFFFF', range: `0–${stimulusGreenDays} DAYS` },
               {
-                color: '#FFD60A',
+                color: '#8A8A8A',
                 pattern: 'url(#stim-dots)',
                 label: 'RECOVERED',
-                text: '#FFD60A',
+                text: '#8A8A8A',
                 range: `${Number(stimulusGreenDays) + 1}–${stimulusYellowDays} DAYS`
               },
               {
-                color: '#FF3B30',
+                color: '#FF4A3D',
                 pattern: 'url(#stim-stripes)',
                 label: 'OVERDUE',
-                text: '#FF3B30',
+                text: '#FF4A3D',
                 range: `${Number(stimulusYellowDays) + 1}+ DAYS`
               },
-              { color: '#4A4A50', label: 'UNLOGGED', text: '#8E8E93', range: 'NOT LOGGED YET' }
+              { color: '#3A3A3A', label: 'UNLOGGED', text: '#9A9A9A', range: 'NOT LOGGED YET' }
             ].map(item => (
               <React.Fragment key={item.label}>
                 <span style={{ lineHeight: 0 }}>
@@ -120,15 +122,15 @@ export function StimulusMapView({
           <div style={{ width: '100%', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', padding: '8px 0' }}>
             <div
               style={{
-                border: '2px solid var(--dp-color-rule)', backgroundColor: '#101010',
+                border: 'none', borderRadius: '10px', backgroundColor: '#000000',
                 padding: '10px', display: 'flex', flexDirection: 'column', alignItems: 'center'
               }}
             >
-              <div style={{ fontSize: '11px', fontWeight: 800, color: 'var(--dp-color-accent)', letterSpacing: '0.06em', marginBottom: '8px' }}>
+              <div style={{ fontSize: '11px', fontWeight: 500, color: 'var(--dp-color-accent)', letterSpacing: '0.06em', marginBottom: '8px' }}>
                 ANTERIOR // FRONT
               </div>
               <svg viewBox="0 0 120 230" style={{ width: '100%', maxWidth: '135px', height: 'auto' }}>
-                <rect x="50" y="6" width="20" height="22" fill="#262626" stroke="#5C5C5C" strokeWidth="1.5" />
+                <rect x="50" y="6" width="20" height="22" fill="#262626" stroke="#3A3A3A" strokeWidth="1.5" />
                 <MuscleRect x="54" y="28" width="12" height="8" {...part('Neck')} strokeWidth="1" />
                 <MuscleRect x="22" y="36" width="16" height="22" {...part('Shoulders')} strokeWidth="1.5" />
                 <MuscleRect x="82" y="36" width="16" height="22" {...part('Shoulders')} strokeWidth="1.5" />
@@ -139,9 +141,9 @@ export function StimulusMapView({
                 <MuscleRect x="18" y="85" width="15" height="23" {...part('Forearms')} strokeWidth="1.5" />
                 <MuscleRect x="87" y="85" width="15" height="23" {...part('Forearms')} strokeWidth="1.5" />
                 <MuscleRect x="40" y="66" width="40" height="46" {...part('Core')} strokeWidth="1.5" />
-                <line x1="60" y1="66" x2="60" y2="112" stroke="#101010" strokeWidth="1.5" />
-                <line x1="40" y1="81" x2="80" y2="81" stroke="#101010" strokeWidth="1.5" />
-                <line x1="40" y1="96" x2="80" y2="96" stroke="#101010" strokeWidth="1.5" />
+                <line x1="60" y1="66" x2="60" y2="112" stroke="#000000" strokeWidth="1.5" />
+                <line x1="40" y1="81" x2="80" y2="81" stroke="#000000" strokeWidth="1.5" />
+                <line x1="40" y1="96" x2="80" y2="96" stroke="#000000" strokeWidth="1.5" />
                 <MuscleRect x="38" y="116" width="20" height="58" {...part('Thighs')} strokeWidth="1.5" />
                 <MuscleRect x="62" y="116" width="20" height="58" {...part('Thighs')} strokeWidth="1.5" />
                 <MuscleRect x="40" y="177" width="16" height="44" {...part('Calves')} strokeWidth="1.5" />
@@ -151,20 +153,20 @@ export function StimulusMapView({
 
             <div
               style={{
-                border: '2px solid var(--dp-color-rule)', backgroundColor: '#101010',
+                border: 'none', borderRadius: '10px', backgroundColor: '#000000',
                 padding: '10px', display: 'flex', flexDirection: 'column', alignItems: 'center'
               }}
             >
-              <div style={{ fontSize: '11px', fontWeight: 800, color: 'var(--dp-color-accent)', letterSpacing: '0.06em', marginBottom: '8px' }}>
+              <div style={{ fontSize: '11px', fontWeight: 500, color: 'var(--dp-color-accent)', letterSpacing: '0.06em', marginBottom: '8px' }}>
                 POSTERIOR // BACK
               </div>
               <svg viewBox="0 0 120 230" style={{ width: '100%', maxWidth: '135px', height: 'auto' }}>
-                <rect x="50" y="6" width="20" height="22" fill="#262626" stroke="#5C5C5C" strokeWidth="1.5" />
+                <rect x="50" y="6" width="20" height="22" fill="#262626" stroke="#3A3A3A" strokeWidth="1.5" />
                 <MuscleRect x="54" y="28" width="12" height="8" {...part('Neck')} strokeWidth="1" />
                 <MuscleRect x="22" y="36" width="16" height="22" {...part('Shoulders')} strokeWidth="1.5" />
                 <MuscleRect x="82" y="36" width="16" height="22" {...part('Shoulders')} strokeWidth="1.5" />
                 <MuscleRect x="38" y="36" width="44" height="52" {...part('Back')} strokeWidth="1.5" />
-                <line x1="60" y1="36" x2="60" y2="88" stroke="#101010" strokeWidth="1.5" />
+                <line x1="60" y1="36" x2="60" y2="88" stroke="#000000" strokeWidth="1.5" />
                 <MuscleRect x="18" y="60" width="15" height="24" {...part('Upper Arms')} strokeWidth="1.5" />
                 <MuscleRect x="87" y="60" width="15" height="24" {...part('Upper Arms')} strokeWidth="1.5" />
                 <MuscleRect x="18" y="85" width="15" height="23" {...part('Forearms')} strokeWidth="1.5" />
@@ -184,22 +186,22 @@ export function StimulusMapView({
           <div aria-live="polite" style={{ display: 'flex', alignItems: 'center', gap: '8px', minHeight: '24px', width: '100%' }}>
             {selectedGroup ? (
               <>
-                <StatusSwatch color={selectedStatus?.color || '#4A4A50'} pattern={statusPattern(selectedStatus?.label)} size={14} />
-                <span style={{ fontSize: '15px', fontWeight: 800, textTransform: 'uppercase' }}>{selectedGroup}</span>
+                <StatusSwatch color={selectedStatus?.color || '#3A3A3A'} pattern={statusPattern(selectedStatus?.label)} size={14} />
+                <span style={{ fontSize: '15px', fontWeight: 500, textTransform: 'uppercase' }}>{selectedGroup}</span>
                 <span
                   style={{
                     marginLeft: 'auto',
                     fontSize: '12px',
-                    fontWeight: 800,
+                    fontWeight: 500,
                     textTransform: 'uppercase',
-                    color: !selectedStatus || selectedStatus.label === 'UNLOGGED' ? '#8E8E93' : selectedStatus.color
+                    color: !selectedStatus || selectedStatus.label === 'UNLOGGED' ? '#9A9A9A' : selectedStatus.color
                   }}
                 >
                   {selectedStatus?.label === 'UNLOGGED' || !selectedStatus ? 'NOT LOGGED YET' : selectedStatus.label}
                 </span>
               </>
             ) : (
-              <span style={{ fontSize: '12px', fontWeight: 700, color: '#A0A0A0' }}>
+              <span style={{ fontSize: '12px', fontWeight: 500, color: '#9A9A9A' }}>
                 Tap a muscle group to see when you last trained it.
               </span>
             )}
@@ -213,6 +215,7 @@ export function StimulusMapView({
         setStimulusGreenDays={setStimulusGreenDays}
         stimulusYellowDays={stimulusYellowDays}
         setStimulusYellowDays={setStimulusYellowDays}
+        setSetValueTarget={setSetValueTarget}
       />
     </div>
   );

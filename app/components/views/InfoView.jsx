@@ -18,7 +18,7 @@ export function InfoView({
     <div style={UI.pagePad}>
       <IOSListSection header="01 // APP LOGIC & 1RM APPROACH" colors={colors}>
         <IOSListRow isLast={true} colors={colors}>
-          <div style={{ width: '100%', lineHeight: 1.55, fontSize: '14px', color: '#E0E0E0' }}>
+          <div style={{ width: '100%', lineHeight: 1.55, fontSize: '14px', color: '#BDBDBD' }}>
             <p style={{ marginBottom: '12px' }}>
               <strong style={{ color: 'var(--dp-color-accent)' }}>1.1 1-REP MAX (1RM) FOUNDATION:</strong> Everything in{' '}
               <em>You Can&apos;t Cry in Here</em> is anchored to your <strong>1 Rep Max (1RM)</strong> for each lift. Your Personal Records start as{' '}
@@ -55,7 +55,7 @@ export function InfoView({
 
       <IOSListSection header="02 // DATA POLICIES" colors={colors}>
         <IOSListRow isLast={true} colors={colors}>
-          <div style={{ width: '100%', lineHeight: 1.5, fontSize: '14px', color: '#E0E0E0' }}>
+          <div style={{ width: '100%', lineHeight: 1.5, fontSize: '14px', color: '#BDBDBD' }}>
             {/* 2.1 CROSS-DEVICE CLOUD SYNC */}
             <p style={{ marginBottom: '12px' }}>
               <strong style={{ color: 'var(--dp-color-accent)' }}>2.1 CROSS-DEVICE CLOUD SYNC:</strong> When signed in to your account, your workout history, personal records (1RMs), custom routines, gym equipment presets, active sessions, and settings automatically synchronize with Supabase Cloud so your training data seamlessly follows you across your phone, tablet, and computer.
@@ -90,7 +90,7 @@ export function InfoView({
       />
 
       <div style={UI.gutterWrap}>
-        <Button variant="primary" onClick={() => setCurrentView('home')}>
+        <Button variant="secondary" onClick={() => setCurrentView('home')}>
           RETURN TO HOME →
         </Button>
       </div>

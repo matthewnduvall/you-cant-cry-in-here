@@ -79,7 +79,7 @@ export function SocialView({
     if (!isEmailAddress(cleanEmail)) {
       setInviteEmailFeedback({
         ok: false,
-        message: 'PLEASE ENTER A VALID EMAIL ADDRESS.'
+        message: 'Please enter a valid email address.'
       });
       return;
     }
@@ -90,7 +90,7 @@ export function SocialView({
       // The invite is recorded as coming from the signed-in account (verified server-side)
       const accessToken = user ? await getValidSupabaseAccessToken(user) : null;
       if (!accessToken) {
-        setInviteEmailFeedback({ ok: false, message: 'SIGN IN TO SEND INVITES.' });
+        setInviteEmailFeedback({ ok: false, message: 'Sign in to send invites.' });
         return;
       }
       const res = await fetch('/api/invite', {
@@ -102,7 +102,7 @@ export function SocialView({
       if (!res.ok || data?.ok === false) {
         setInviteEmailFeedback({
           ok: false,
-          message: (data?.error || 'FAILED TO SEND INVITE EMAIL.').toUpperCase()
+          message: data?.error || 'Failed to send the invite email.'
         });
         return;
       }
@@ -118,13 +118,13 @@ export function SocialView({
       setInviteEmailFeedback({
         ok: true,
         message: data?.warning
-          ? `INVITE SENT TO ${cleanEmail.toUpperCase()}. ${String(data.warning).toUpperCase()}`
-          : `INVITE SENT TO ${cleanEmail.toUpperCase()}!`
+          ? `Invite sent to ${cleanEmail}. ${String(data.warning)}`
+          : `Invite sent to ${cleanEmail}.`
       });
     } catch {
       setInviteEmailFeedback({
         ok: false,
-        message: 'NETWORK ERROR SENDING INVITE EMAIL.'
+        message: 'Network error sending the invite email.'
       });
     } finally {
       setIsSendingInviteEmail(false);
@@ -266,7 +266,7 @@ export function SocialView({
     : [];
   const sentEmailInvites = user ? pendingEmailInvites : [];
   const sentCount = sentFriendRequests.length + sentEmailInvites.length;
-  const sentSubStyle = { fontSize: '11px', fontWeight: 700, color: '#A0A0A0', textTransform: 'uppercase', marginTop: '2px' };
+  const sentSubStyle = { fontSize: '11px', fontWeight: 500, color: '#9A9A9A', textTransform: 'uppercase', marginTop: '2px' };
 
   return (
     <div style={{ paddingTop: '12px' }}>
@@ -297,7 +297,7 @@ export function SocialView({
           <div style={{ display: 'flex', width: '100%', gap: 0, height: '52px' }}>
             <input
               type="text"
-              placeholder="SEARCH USERNAME OR EMAIL..."
+              placeholder="Username or email"
               value={friendSearchQuery}
               onChange={e => {
                 setFriendSearchQuery(e.target.value);
@@ -318,14 +318,13 @@ export function SocialView({
                 minWidth: 0,
                 height: '100%',
                 boxSizing: 'border-box',
-                backgroundColor: '#141414',
+                backgroundColor: '#1C1C1C',
                 color: '#FFFFFF',
-                border: '2px solid var(--dp-color-rule)',
-                borderRight: 'none',
+                border: 'none',
+                borderRadius: '12px 0 0 12px',
                 padding: '0 14px',
                 fontSize: '15px',
-                fontWeight: 800,
-                textTransform: 'uppercase',
+                fontWeight: 400,
                 outline: 'none'
               }}
             />
@@ -338,11 +337,14 @@ export function SocialView({
                 height: '100%',
                 boxSizing: 'border-box',
                 padding: '0 18px',
-                backgroundColor: canSendInvite ? '#30D158' : 'var(--dp-color-accent)',
-                color: '#101010',
-                border: '2px solid var(--dp-color-rule)',
-                fontSize: '13px',
-                fontWeight: 800,
+                // SEND INVITE (an email with no athlete yet) is the action: red; SEARCH is white
+                backgroundColor: canSendInvite ? 'var(--cr-red)' : '#FFFFFF',
+                color: canSendInvite ? '#FFFFFF' : '#000000',
+                border: 'none',
+                borderRadius: '0 12px 12px 0',
+                fontSize: '12px',
+                letterSpacing: '0.08em',
+                fontWeight: 600,
                 textTransform: 'uppercase',
                 cursor: 'pointer',
                 flexShrink: 0,
@@ -360,15 +362,15 @@ export function SocialView({
           </div>
 
         {(inviteEmailFeedback || hasSearched) && (
-        <div style={{ marginTop: '8px', border: '2px solid var(--dp-color-rule)', backgroundColor: '#141414' }}>
+        <div style={{ marginTop: '8px', backgroundColor: '#1C1C1C', borderRadius: '14px', overflow: 'hidden' }}>
         {inviteEmailFeedback && (
           <IOSListRow isLast={!hasSearched} colors={colors}>
             <span
               style={{
-                fontSize: '12px',
-                fontWeight: 800,
-                color: inviteEmailFeedback.ok ? '#30D158' : '#FF3B30',
-                textTransform: 'uppercase'
+                fontSize: '14px',
+                fontWeight: 400,
+                lineHeight: 1.4,
+                color: inviteEmailFeedback.ok ? '#FFFFFF' : '#FF4A3D'
               }}
             >
               {inviteEmailFeedback.message}
@@ -379,7 +381,7 @@ export function SocialView({
         {hasSearched && (
           searchedAthletes.length === 0 ? (
             <IOSListRow isLast={true} colors={colors}>
-              <span style={{ fontSize: '12px', fontWeight: 700, color: '#A0A0A0' }}>
+              <span style={{ fontSize: '12px', fontWeight: 500, color: '#9A9A9A' }}>
                 {!user || searchError === 'signed_out'
                   ? 'Sign in to search for athletes.'
                   : searchError === 'session'
@@ -406,7 +408,7 @@ export function SocialView({
                   isLast={idx === searchedAthletes.length - 1}
                   colors={colors}
                 >
-                  <div style={{ fontSize: '15px', fontWeight: 800, textTransform: 'uppercase' }}>
+                  <div style={{ fontSize: '15px', fontWeight: 500, textTransform: 'uppercase' }}>
                     @{athlete.username}
                   </div>
                   {isAlreadyFriend ? (
@@ -418,11 +420,11 @@ export function SocialView({
                       }}
                       style={{
                         padding: '6px 12px',
-                        backgroundColor: '#161618',
+                        backgroundColor: '#1C1C1C',
                         color: 'var(--dp-color-accent)',
-                        border: '2px solid var(--dp-color-rule)',
+                        border: 'none', borderRadius: '10px',
                         fontSize: '11px',
-                        fontWeight: 800,
+                        fontWeight: 500,
                         textTransform: 'uppercase',
                         cursor: 'pointer'
                       }}
@@ -436,10 +438,10 @@ export function SocialView({
                       style={{
                         padding: '6px 12px',
                         backgroundColor: 'var(--dp-color-accent)',
-                        color: '#101010',
+                        color: '#000000',
                         border: '2px solid #FFFFFF',
                         fontSize: '11px',
-                        fontWeight: 800,
+                        fontWeight: 500,
                         textTransform: 'uppercase',
                         cursor: 'pointer'
                       }}
@@ -450,11 +452,11 @@ export function SocialView({
                     <span
                       style={{
                         padding: '6px 12px',
-                        backgroundColor: '#18181B',
-                        color: '#A0A0A0',
-                        border: '2px solid var(--dp-color-rule)',
+                        backgroundColor: '#1C1C1C',
+                        color: '#9A9A9A',
+                        border: 'none', borderRadius: '10px',
                         fontSize: '11px',
-                        fontWeight: 800,
+                        fontWeight: 500,
                         textTransform: 'uppercase',
                         userSelect: 'none'
                       }}
@@ -468,10 +470,10 @@ export function SocialView({
                       style={{
                         padding: '6px 12px',
                         backgroundColor: 'var(--dp-color-accent)',
-                        color: '#101010',
+                        color: '#000000',
                         border: '2px solid #FFFFFF',
                         fontSize: '11px',
-                        fontWeight: 800,
+                        fontWeight: 500,
                         textTransform: 'uppercase',
                         cursor: 'pointer'
                       }}
@@ -493,7 +495,7 @@ export function SocialView({
           {pendingIncomingRequests.map((req, idx) => (
             <IOSListRow key={req.id || req.username || idx} isLast={idx === pendingIncomingRequests.length - 1} colors={colors}>
               <div>
-                <div style={{ fontSize: '15px', fontWeight: 800, textTransform: 'uppercase' }}>@{req.username}</div>
+                <div style={{ fontSize: '15px', fontWeight: 500, textTransform: 'uppercase' }}>@{req.username}</div>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
                 <button
@@ -501,7 +503,7 @@ export function SocialView({
                   onClick={() => handleAcceptFriendInvite(req)}
                   style={{
                     padding: '6px 12px', backgroundColor: 'var(--dp-color-accent)',
-                    color: '#101010', border: '2px solid #FFFFFF', fontSize: '11px', fontWeight: 800, cursor: 'pointer'
+                    color: '#000000', border: '2px solid #FFFFFF', fontSize: '11px', fontWeight: 500, cursor: 'pointer'
                   }}
                 >
                   ACCEPT
@@ -522,7 +524,7 @@ export function SocialView({
               colors={colors}
             >
               <div style={{ minWidth: 0 }}>
-                <div style={{ fontSize: '15px', fontWeight: 800, textTransform: 'uppercase' }}>@{req.username}</div>
+                <div style={{ fontSize: '15px', fontWeight: 500, textTransform: 'uppercase' }}>@{req.username}</div>
                 <div style={sentSubStyle}>
                   FRIEND REQUEST{req.invitedAt ? ` • SENT ${formatDateYMD(req.invitedAt)}` : ''} • WAITING
                 </div>
@@ -537,7 +539,7 @@ export function SocialView({
               colors={colors}
             >
               <div style={{ minWidth: 0 }}>
-                <div style={{ fontSize: '14px', fontWeight: 800, overflowWrap: 'anywhere' }}>{inv.email}</div>
+                <div style={{ fontSize: '14px', fontWeight: 500, overflowWrap: 'anywhere' }}>{inv.email}</div>
                 <div style={sentSubStyle}>
                   EMAIL INVITE{inv.sentAt ? ` • SENT ${formatDateYMD(inv.sentAt)}` : ''} • NOT JOINED YET
                 </div>
@@ -553,7 +555,7 @@ export function SocialView({
       >
         {friendsList.length === 0 && (
           <IOSListRow isLast={true} colors={colors}>
-            <span style={{ fontSize: '12px', fontWeight: 700, color: '#A0A0A0', textTransform: 'uppercase' }}>NO FRIENDS YET</span>
+            <span style={{ fontSize: '12px', fontWeight: 500, color: '#9A9A9A', textTransform: 'uppercase' }}>NO FRIENDS YET</span>
           </IOSListRow>
         )}
         {friendsList
@@ -578,9 +580,9 @@ export function SocialView({
                   onClick={() => handleRemoveFriend(friend)}
                 />
                 <ProfileAvatar photo={friend.profilePhoto} username={friend.username} size={36} />
-                <div style={{ fontSize: '16px', fontWeight: 800, textTransform: 'uppercase' }}>@{friend.username}</div>
+                <div style={{ fontSize: '16px', fontWeight: 500, textTransform: 'uppercase' }}>@{friend.username}</div>
               </div>
-              <span style={{ fontSize: '14px', fontWeight: 800, color: 'var(--dp-color-accent)', flexShrink: 0 }}>
+              <span style={{ fontSize: '14px', fontWeight: 500, color: 'var(--dp-color-accent)', flexShrink: 0 }}>
                 VIEW PROFILE →
               </span>
             </IOSListRow>

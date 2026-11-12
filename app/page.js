@@ -887,7 +887,7 @@ export default function App() {
   });
 
   return (
-    <div className="kinetic-app min-h-screen flex justify-center bg-[#080808] text-white">
+    <div className="kinetic-app min-h-screen flex justify-center bg-black text-white">
       <style>{KINETIC_CSS}</style>
 
       <div
@@ -896,8 +896,8 @@ export default function App() {
           maxWidth: '480px',
           minHeight: '100vh',
           backgroundColor: 'var(--dp-color-ground)',
-          borderLeft: '2px solid var(--dp-color-rule)',
-          borderRight: '2px solid var(--dp-color-rule)',
+          borderLeft: '1px solid var(--dp-color-rule)',
+          borderRight: '1px solid var(--dp-color-rule)',
           display: 'flex',
           flexDirection: 'column',
           position: 'relative',
@@ -1114,6 +1114,7 @@ export default function App() {
               setStimulusGreenDays={setStimulusGreenDays}
               setStimulusYellowDays={setStimulusYellowDays}
               muscleStimulusStatus={muscleStimulusStatus}
+              setSetValueTarget={setSetValueTarget}
             />
           )}
 
@@ -1244,14 +1245,14 @@ export default function App() {
         {/* COPYRIGHT FOOTER (every view) */}
         <footer
           style={{
-            borderTop: '2px solid var(--dp-color-rule)',
+            borderTop: '1px solid var(--dp-color-rule)',
             // Extra room above the iPhone home indicator (0 elsewhere)
             padding: `14px var(--dp-spacing-gutter) calc(14px + env(safe-area-inset-bottom, 0px))`,
             textAlign: 'center',
             fontSize: '11px',
-            fontWeight: 700,
+            fontWeight: 500,
             letterSpacing: '0.02em',
-            color: '#A0A0A0'
+            color: '#9A9A9A'
           }}
         >
           Copyright © 2026 MaNoDuV LLC
