@@ -157,22 +157,7 @@ export function SocialView({
     };
   }, [user?.id]);
 
-  // Removing a friend deletes the friendship on the server, which revokes access both ways.
-  const handleRemoveFriend = friend => {
-    setDeleteConfirmTarget?.({
-      type: 'friend',
-      title: 'REMOVE FRIEND?',
-      verb: 'remove',
-      label: `@${friend.username}`,
-      confirmLabel: 'REMOVE ✕',
-      onConfirm: async () => {
-        setFriendsList(prev => (Array.isArray(prev) ? prev : []).filter(f => !isSameFriend(f, friend)));
-        const ok = await removeFriendshipWithAthlete(user, friend);
-        appendSessionLog?.('FRIEND_REMOVED', `Removed friend @${friend.username}${ok ? '' : ' (server delete failed)'}`);
-        if (!ok) await refreshFriendships();
-      }
-    });
-  };
+  // Removing a friend happens on their profile (REMOVE FRIEND), not in this list
 
   const handleSendFriendInvite = async athlete => {
     if (!athlete) return;
@@ -585,11 +570,6 @@ export function SocialView({
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
-                <DeleteButton
-                  label={`Remove @${friend.username} from friends`}
-                  onClick={() => handleRemoveFriend(friend)}
-                  style={GREY_X}
-                />
                 <ProfileAvatar photo={friend.profilePhoto} username={friend.username} size={36} />
                 <div style={{ fontSize: '16px', fontWeight: 500, textTransform: 'uppercase' }}>@{friend.username}</div>
               </div>
