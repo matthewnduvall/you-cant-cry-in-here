@@ -12,6 +12,7 @@ import {
   CORE_LIFT_META,
   CUSTOM_LIFT_COLOR as CUSTOM_COLOR,
   LiftGoalRow,
+  SELECTED_STATS_BG,
   StrengthClassGoalPicker,
   formatLiftLabel as formatProgressExerciseLabel,
   getLiftGoalStats
@@ -124,7 +125,7 @@ const smoothPath = coords => {
 };
 
 /** The DISTANCE TO GOAL row under the chart: a title strip (red while selected) over four readouts. */
-function GoalDistanceRow({ className, selected, onTitleClick, cells }) {
+function GoalDistanceRow({ className, selected, onTitleClick, cells, onOpenWorkout }) {
   const empty = cells.every(c => c.value === null || c.value === undefined);
   return (
     <div>
@@ -162,22 +163,45 @@ function GoalDistanceRow({ className, selected, onTitleClick, cells }) {
         </span>
       </button>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 0 }}>
-        {cells.map(cell => (
-          <div
+        {cells.map(cell => {
+          const opens = Boolean(onOpenWorkout && cell.workoutId && cell.value !== null && cell.value !== undefined);
+          const Tag = opens ? 'button' : 'div';
+          return (
+          <Tag
             key={cell.label}
+            {...(opens
+              ? {
+                  type: 'button',
+                  'aria-label': `${cell.label} ${cell.value}: open this workout in History`,
+                  onClick: () => onOpenWorkout(cell.workoutId)
+                }
+              : {})}
             style={{
+              border: 'none',
+              padding: 0,
+              fontFamily: 'inherit',
+              cursor: opens ? 'pointer' : 'default',
               display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '2px',
-              minWidth: 0, height: '48px', boxSizing: 'border-box', backgroundColor: '#1C1C1C', ...SHARED_CELL_BORDER
+              minWidth: 0, height: '48px', boxSizing: 'border-box',
+              // Selected: a step brighter, like a selected lift's stats
+              backgroundColor: selected ? SELECTED_STATS_BG : '#1C1C1C', ...SHARED_CELL_BORDER
             }}
           >
             <span style={{ fontFamily: 'var(--cr-face-display)', fontSize: '11px', fontWeight: 500, color: '#9A9A9A', letterSpacing: '0.1em' }}>
               {cell.label}
             </span>
-            <span style={{ fontFamily: 'var(--cr-face-display)', fontSize: '15px', fontWeight: 500, color: cell.value === null || cell.value === undefined ? '#9A9A9A' : '#FFFFFF', whiteSpace: 'nowrap' }}>
+            <span
+              style={{
+                fontFamily: 'var(--cr-face-display)', fontSize: '15px', fontWeight: 500,
+                color: cell.value === null || cell.value === undefined ? '#9A9A9A' : '#FFFFFF', whiteSpace: 'nowrap',
+                ...(opens ? { textDecoration: 'underline', textUnderlineOffset: '3px', textDecorationColor: '#8A8A8A' } : {})
+              }}
+            >
               {cell.value === null || cell.value === undefined ? '—' : cell.label === 'LATEST' && cell.value === 0 ? 'DONE ✓' : cell.value}
             </span>
-          </div>
-        ))}
+          </Tag>
+          );
+        })}
       </div>
     </div>
   );
@@ -215,6 +239,16 @@ export function ProgressionChartView({
   }, []);
   const svgRef = useRef(null);
   const dragRef = useRef(null);
+  // The chart block pins under the locked header while the lift rows scroll; the header's height changes (notch
+  // inset, session bars), so it is measured and followed
+  const [stickyTop, setStickyTop] = useState(0);
+  useEffect(() => {
+    const header = document.querySelector('.kinetic-app header');
+    if (!header || typeof ResizeObserver === 'undefined') return undefined;
+    const observer = new ResizeObserver(() => setStickyTop(header.getBoundingClientRect().height));
+    observer.observe(header);
+    return () => observer.disconnect();
+  }, []);
   const suppressClickRef = useRef(false);
 
   // null (nothing chosen yet) = every lift, the CUSTOM exercise included, like the others
@@ -242,8 +276,8 @@ export function ProgressionChartView({
 
   // One series is always selected (red, with its row): DISTANCE TO GOAL by default (your own chart), or the lift tapped
   // in the list. Every other series is drawn grey behind it, and the chart is framed on the selected one. A friend's
-  // chart (no goals) has no goal line and starts on its first lift.
-  const hasGoalView = showGoalDistance;
+  // profile shows the distance to THEIR goal (page.js passes their goal settings).
+  const hasGoalView = true;
   const defaultSeriesId = hasGoalView ? GOAL_SERIES_ID : legendLiftIds[0];
   const allSeriesIds = hasGoalView ? [GOAL_SERIES_ID, ...legendLiftIds] : [...legendLiftIds];
   const highlightId =
@@ -479,12 +513,26 @@ export function ProgressionChartView({
             ...SHARED_PICKER_GROUP
           }}
         >
+          {/* The chart block (time frame, chart, EARLIER / LATER) sits in the page, and pins under the header once the
+              page scrolls past it, so the lift rows scroll underneath with the chart still in view; it lets go at the
+              end of the list (sticky inside this tile) */}
+          <div
+            style={{
+              position: 'sticky',
+              top: `${stickyTop}px`,
+              zIndex: 5,
+              // Black behind the rounded top corners: when pinned, rows scrolling underneath don't show through them
+              backgroundColor: '#000000'
+            }}
+          >
           {/* TIME FRAME: 30 DAYS | 90 DAYS | 1 YEAR | ALL — the chart's zoom */}
           <div
             style={{
               display: 'grid',
               gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
-              gap: 0
+              gap: 0,
+              borderRadius: '14px 14px 0 0',
+              overflow: 'hidden'
             }}
           >
             {TIME_FRAME_OPTIONS.map(tf => (
@@ -712,6 +760,7 @@ export function ProgressionChartView({
               </div>
             )}
           </div>
+          </div>
 
           {/* DISTANCE TO GOAL: the default view. START = how far below the goals you were when the line starts, LATEST =
               how far now, CLOSED = start − latest, REACHED = lifts at or past their goal */}
@@ -721,6 +770,8 @@ export function ProgressionChartView({
             const reached = tracked.filter(id => goalStatsById[id].pr >= goalsById[id]).length;
             const start = dist.length ? dist[0].weight : null;
             const latest = dist.length ? dist[dist.length - 1].weight : null;
+            const startWorkoutId = dist[0]?.workoutId || null;
+            const latestWorkoutId = dist[dist.length - 1]?.workoutId || null;
             const isHighlighted = highlightId === GOAL_SERIES_ID;
             const classLabel = String(targetStandardClass || 'Intermediate').toUpperCase();
             return (
@@ -728,9 +779,10 @@ export function ProgressionChartView({
                 className={classLabel}
                 selected={isHighlighted}
                 onTitleClick={() => soloLift(GOAL_SERIES_ID)}
+                onOpenWorkout={onOpenHistoryWorkout}
                 cells={[
-                  { label: 'START', value: start },
-                  { label: 'LATEST', value: latest, unit: latest === 0 ? null : 'LB' },
+                  { label: 'START', value: start, workoutId: startWorkoutId },
+                  { label: 'LATEST', value: latest, unit: latest === 0 ? null : 'LB', workoutId: latestWorkoutId },
                   { label: 'CLOSED', value: start !== null && latest !== null ? Math.max(0, start - latest) : null },
                   { label: 'REACHED', value: tracked.length ? `${reached}/${tracked.length}` : null }
                 ]}
@@ -769,6 +821,7 @@ export function ProgressionChartView({
                 onTitleClick={() => soloLift(liftId)}
                 titlePressed={isHighlighted}
                 titleAriaLabel={`${label}: ${isHighlighted ? 'selected; tap to go back to the default view' : 'show on the chart'}`}
+                onOpenWorkout={onOpenHistoryWorkout}
                 onEditGoal={
                   showGoalDistance && openPlateCalculatorForGoal
                     ? () => openPlateCalculatorForGoal(liftId, ex.name, stats.goal)

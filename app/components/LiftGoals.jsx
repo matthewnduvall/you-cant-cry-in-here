@@ -71,7 +71,12 @@ export const getLiftGoalStats = ({
     customGoalWeights,
     oneRepMaxes
   );
+  // The History workouts the values come from (START / PR / LATEST open them); a PR from saved numbers has none
+  const bestPoint = points.find(pt => Number(pt.weight) === best && !pt.calculated) || points.find(pt => Number(pt.weight) === best);
   return {
+    startWorkoutId: first?.workoutId || null,
+    latestWorkoutId: last?.workoutId || null,
+    prWorkoutId: pr > 0 && pr === best ? bestPoint?.workoutId || null : null,
     start: points.length ? Number(first.weight) : 0,
     startCalculated: Boolean(first?.calculated),
     latest: points.length ? Number(last.weight) : 0,
@@ -86,6 +91,8 @@ export const getLiftGoalStats = ({
 
 const cellLabel = { fontFamily: 'var(--cr-face-display)', fontSize: '11px', fontWeight: 500, color: '#9A9A9A', letterSpacing: '0.1em' };
 const cellValue = { fontFamily: 'var(--cr-face-display)', fontSize: '15px', fontWeight: 500, color: '#FFFFFF', whiteSpace: 'nowrap' };
+// The selected lift's stat cells: a step brighter than the tile so it's clear which row is selected
+export const SELECTED_STATS_BG = '#242424';
 const statCell = {
   display: 'flex',
   flexDirection: 'column',
@@ -101,7 +108,8 @@ const statCell = {
 
 /**
  * A tracked lift. `onTitleClick` makes the title strip a button (the Progress page: show only this lift);
- * `onEditGoal` makes GOAL ✎ editable; `showGoal={false}` (a friend's profile) shows START | PR | LATEST only.
+ * `onEditGoal` makes GOAL ✎ editable; `showGoal={false}` (a friend's profile) shows START | PR | LATEST only;
+ * `onOpenWorkout(workoutId)` makes START / PR / LATEST open the History workout each value comes from.
  */
 export function LiftGoalRow({
   name,
@@ -115,9 +123,32 @@ export function LiftGoalRow({
   selected = false,
   showGoal = true,
   onEditGoal,
+  // START / PR / LATEST open the History workout they come from (Performance and Configuration → GOALS)
+  onOpenWorkout,
   children
 }) {
   const dash = <span style={{ color: '#9A9A9A' }}>—</span>;
+  const cellStyle = selected ? { ...statCell, backgroundColor: SELECTED_STATS_BG } : statCell;
+  // A stat cell; with a workout to open it's a button (same look, value underlined like a link)
+  const statCellOf = (label, valueNode, workoutId, ariaValue) =>
+    onOpenWorkout && workoutId ? (
+      <button
+        type="button"
+        aria-label={`${label} ${ariaValue}: open this workout in History`}
+        onClick={() => onOpenWorkout(workoutId)}
+        style={{ ...cellStyle, border: 'none', ...SHARED_CELL_BORDER, cursor: 'pointer', fontFamily: 'inherit', padding: 0 }}
+      >
+        <span style={cellLabel}>{label}</span>
+        <span style={{ ...cellValue, textDecoration: 'underline', textUnderlineOffset: '3px', textDecorationColor: '#8A8A8A' }}>
+          {valueNode}
+        </span>
+      </button>
+    ) : (
+      <div style={cellStyle}>
+        <span style={cellLabel}>{label}</span>
+        <span style={cellValue}>{valueNode}</span>
+      </div>
+    );
   const titleInner = (
     <>
       <span style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
@@ -177,6 +208,7 @@ export function LiftGoalRow({
       ) : (
         <div style={titleStyle}>{titleInner}</div>
       )}
+      {/* The selected lift's stats are a step brighter than the rest (#242424 keeps red TO GO readable) */}
       <div
         style={{
           display: 'grid',
@@ -184,20 +216,26 @@ export function LiftGoalRow({
           gap: 0
         }}
       >
-        <div style={statCell}>
-          <span style={cellLabel}>START</span>
-          <span style={cellValue}>{stats.start > 0 ? oneRepMaxLabel(stats.start, stats.startCalculated) : dash}</span>
-        </div>
-        <div style={statCell}>
-          <span style={cellLabel}>PR</span>
-          <span style={cellValue}>{stats.pr > 0 ? oneRepMaxLabel(stats.pr, stats.prCalculated) : dash}</span>
-        </div>
-        <div style={statCell}>
-          <span style={cellLabel}>LATEST</span>
-          <span style={cellValue}>{stats.latest > 0 ? oneRepMaxLabel(stats.latest, stats.latestCalculated) : dash}</span>
-        </div>
+        {statCellOf(
+          'START',
+          stats.start > 0 ? oneRepMaxLabel(stats.start, stats.startCalculated) : dash,
+          stats.start > 0 ? stats.startWorkoutId : null,
+          `${stats.start} lb`
+        )}
+        {statCellOf(
+          'PR',
+          stats.pr > 0 ? oneRepMaxLabel(stats.pr, stats.prCalculated) : dash,
+          stats.pr > 0 ? stats.prWorkoutId : null,
+          `${stats.pr} lb`
+        )}
+        {statCellOf(
+          'LATEST',
+          stats.latest > 0 ? oneRepMaxLabel(stats.latest, stats.latestCalculated) : dash,
+          stats.latest > 0 ? stats.latestWorkoutId : null,
+          `${stats.latest} lb`
+        )}
         {showGoal && (
-          <div style={statCell}>
+          <div style={cellStyle}>
             <span style={cellLabel}>TO GO</span>
             <span style={{ ...cellValue, color: !stats.logged ? '#9A9A9A' : stats.toGo > 0 ? TO_GO_RED : '#FFFFFF' }}>
               {!stats.logged ? '—' : stats.toGo > 0 ? stats.toGo : 'DONE ✓'}
@@ -211,8 +249,7 @@ export function LiftGoalRow({
             aria-label={`Goal ${stats.goal} lb${onEditGoal ? ': edit' : ''}`}
             onClick={onEditGoal}
             style={{
-              ...statCell,
-              backgroundColor: '#1C1C1C',
+              ...cellStyle,
               border: 'none',
               ...SHARED_CELL_BORDER,
               cursor: onEditGoal ? 'pointer' : 'default',

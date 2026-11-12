@@ -17,10 +17,98 @@ import {
   parseYMDToISO,
   roundTo5,
   roundToIncrement,
-  stripEquipmentFromExerciseName
+  stripEquipmentFromExerciseName,
+  stripDateFromTitle,
+  getDefaultSessionName,
+  getDefaultAutoSessionName
 } from '../data/exerciseLibrary';
 
 export const SET_TYPES_LIST = ['Warmup', 'Working', 'Top Out', 'Burn Out', '1 Rep Max'];
+
+// ---------------------------------------------------------------------------
+// Session auto-naming: a session nobody has named ("Session", "Auto Session") is named after the two muscles its
+// exercises train most, e.g. Bench + Squat → "Chest and Quads".
+// ---------------------------------------------------------------------------
+
+// An exercise's main muscle (the first of its specific muscles) → the short name used in session names
+const SESSION_MUSCLE_NAMES = [
+  [/^Pectoralis/, 'Chest'],
+  [/^Quadriceps/, 'Quads'],
+  [/^Gluteus/, 'Glutes'],
+  [/^Hamstrings/, 'Hamstrings'],
+  [/^Latissimus/, 'Lats'],
+  [/^(General Back|Rhomboids)/, 'Back'],
+  [/^Trapezius/, 'Traps'],
+  [/^(Deltoid|Supraspinatus|Infraspinatus|Subscapularis)/, 'Shoulders'],
+  [/^Triceps/, 'Triceps'],
+  [/^(Biceps|Brachialis)/, 'Biceps'],
+  [/^(Brachioradialis|Wrist|Pronators|Supinators)/, 'Forearms'],
+  [/^(Rectus Abdominis|Obliques|Transverse Abdominis)/, 'Core'],
+  [/^Erector Spinae/, 'Lower Back'],
+  [/^(Gastrocnemius|Soleus|Tibialis)/, 'Calves'],
+  [/^Hip Flexors/, 'Hip Flexors'],
+  [/^Hip Abductors/, 'Abductors'],
+  [/^Hip Adductors/, 'Adductors'],
+  [/^(Sternocleidomastoid|Splenius)/, 'Neck'],
+  [/^Serratus/, 'Serratus']
+];
+const sessionMuscleOf = exerciseId => {
+  const ex = EXERCISE_MAP[exerciseId];
+  const main = (ex?.specificMuscles || [])[0] || '';
+  const hit = SESSION_MUSCLE_NAMES.find(([re]) => re.test(main));
+  return hit ? hit[1] : ex?.muscleGroup || null;
+};
+
+/** "Chest and Quads": the two muscles the session's exercises train most (ties: the one added first); "" if none. */
+export const getSessionMuscleName = slots => {
+  const counts = new Map();
+  (slots || []).forEach(slot => {
+    const ids = isSupersetCategory(slot?.category)
+      ? slot.supersetExerciseIds || [slot.exerciseId, slot.secondaryExerciseId]
+      : [slot?.exerciseId];
+    ids.filter(Boolean).forEach(id => {
+      const muscle = sessionMuscleOf(id);
+      if (muscle) counts.set(muscle, (counts.get(muscle) || 0) + 1);
+    });
+  });
+  // Map keeps insertion order, so a stable sort leaves ties in the order they were added
+  const top = [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 2).map(([m]) => m);
+  return top.join(' and ');
+};
+
+const isDefaultSessionTitle = title => {
+  const t = stripDateFromTitle(title || '').trim();
+  return t === '' || t === getDefaultSessionName() || t === getDefaultAutoSessionName();
+};
+const slotIdsOf = session => (session?.slots || []).map(s => s.id).join('|');
+
+/**
+ * Applied to every change of the live session (page.js wraps setActiveSession with it). A session still called
+ * "Session" / "Auto Session" — or one this named — is renamed after its two main muscles as exercises change
+ * (`autoNamed: true`). Typing a name (the title changes while the exercises don't) stops it for that session
+ * (`titleEdited: true`); a name set together with new exercises (a loaded routine) is kept. An auto-named session that
+ * becomes empty goes back to "Session".
+ */
+export const withAutoSessionName = (prev, next) => {
+  if (!next || next.titleEdited) return next;
+  const sameSession = Boolean(prev && prev.id === next.id);
+  const titleChanged = sameSession && stripDateFromTitle(next.title || '') !== stripDateFromTitle(prev.title || '');
+  // A rename typed into the name box is built from the current session ({ ...prev, title }), so it carries prev's
+  // autoNamed flag; a whole session put back from storage (restored at startup, possibly twice) is its own object
+  // and is not a rename
+  const derivedFromPrev = sameSession && Boolean(next.autoNamed) === Boolean(prev.autoNamed);
+  if (titleChanged && derivedFromPrev && slotIdsOf(prev) === slotIdsOf(next)) {
+    return { ...next, titleEdited: true, autoNamed: false };
+  }
+  if (titleChanged && !isDefaultSessionTitle(next.title)) return { ...next, autoNamed: false };
+  const eligible = isDefaultSessionTitle(next.title) || (next.autoNamed && !titleChanged);
+  if (!eligible) return next;
+  const name = getSessionMuscleName(next.slots);
+  if (!name) {
+    return next.autoNamed ? { ...next, title: getDefaultSessionName(), autoNamed: false } : next;
+  }
+  return name === next.title && next.autoNamed ? next : { ...next, title: name, autoNamed: true };
+};
 
 // Effort multiplier per set type used when converting a logged set to a 1RM estimate.
 export const SET_TYPE_MULTIPLIER_MAP = {

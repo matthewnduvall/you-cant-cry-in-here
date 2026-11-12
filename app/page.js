@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { IOS_DARK, KINETIC_CSS } from './styles/kineticTokens';
-import { getIncrementInLbs, getInitial1RMs, asHistoricalWorkout } from './utils/workoutEngine';
+import { getIncrementInLbs, getInitial1RMs, asHistoricalWorkout, withAutoSessionName } from './utils/workoutEngine';
 import { fetchAthleteProfileSnapshot, signOutUser } from './utils/supabaseAuth';
 import { AppHeaderAndDrawer, PageTitle } from './components/AppHeaderAndDrawer';
 import {
@@ -83,7 +83,14 @@ export default function App() {
   const [history, setHistory] = useState([]);
 
   // --- Active Session, Historical Entry, Routine Editor & Preview State ---
-  const [activeSession, setActiveSession] = useState(null);
+  const [activeSession, setActiveSessionRaw] = useState(null);
+  // Every change to the live session goes through the auto-namer: an unnamed session is named after its two main
+  // muscles as exercises are added ("Chest and Quads"); a name you type is never changed (withAutoSessionName)
+  const setActiveSession = useCallback(
+    update =>
+      setActiveSessionRaw(prev => withAutoSessionName(prev, typeof update === 'function' ? update(prev) : update)),
+    []
+  );
   const [historicalDraft, setHistoricalDraft] = useState(null);
   const [routineDraft, setRoutineDraft] = useState(null);
   const [previewRoutineDraft, setPreviewRoutineDraft] = useState(null);
@@ -523,6 +530,13 @@ export default function App() {
     setPartnerSlotTabs({});
     if (sessionSync.syncId) await sessionSync.unsync();
     handleResetCurrentEditor();
+    // RESET also stops and clears the rest timer (back to the session's default rest)
+    setTimerTrigger(prev => ({
+      ...prev,
+      isRunning: false,
+      startedAtMs: null,
+      targetSeconds: activeSession?.defaultRestSeconds || 90
+    }));
   };
   const handleFinishSession = () => {
     setPartnerSlotTabs({});
@@ -708,6 +722,9 @@ export default function App() {
     oneRepMaxes: prs = effectiveOneRepMaxes,
     seriesByLift = progressionSeriesByLift,
     tab = progressTab,
+    // A friend's profile: their goal settings, so their chart's distance-to-goal view uses THEIR strength class goal
+    // ({ targetStandardClass, customGoalWeights, bodyweightLbs }); yours otherwise
+    goalSettings = null,
     // On a profile the page sits under the profile's own PERFORMANCE tab: its tabs are indented with an elbow
     // line so they read as that tab's children rather than a second row of page tabs
     nested = false,
@@ -746,12 +763,12 @@ export default function App() {
                   setCurrentView('configuration');
                 }
           }
-          targetStandardClass={targetStandardClass}
+          targetStandardClass={goalSettings?.targetStandardClass || targetStandardClass}
           setTargetStandardClass={readOnly ? undefined : setTargetStandardClass}
           openPlateCalculatorForGoal={readOnly ? undefined : openPlateCalculatorForGoal}
-          userBodyweightLbs={userBodyweightLbs}
+          userBodyweightLbs={goalSettings?.bodyweightLbs || userBodyweightLbs}
           totalHeightInches={totalHeightInches}
-          customGoalWeights={customGoalWeights}
+          customGoalWeights={goalSettings ? goalSettings.customGoalWeights || {} : customGoalWeights}
         />
       )}
       {tab !== 'progress' && (
@@ -1089,6 +1106,7 @@ export default function App() {
                 customGoalWeights,
                 progressionSeriesByLift,
                 openPlateCalculatorForGoal,
+                onOpenHistoryWorkout: openHistoryWorkout,
                 customPrExerciseIds,
                 setCustomPrExerciseIds
               }}
