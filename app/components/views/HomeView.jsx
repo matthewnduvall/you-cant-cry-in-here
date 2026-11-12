@@ -369,8 +369,9 @@ export function HomeView({
               height: '46px',
               boxSizing: 'border-box',
               padding: '0 6px',
-              backgroundColor: 'var(--dp-color-accent)',
-              color: '#101010',
+              // Secondary to NEW / CURRENT SESSION: dark with orange text
+              backgroundColor: '#161616',
+              color: 'var(--dp-color-accent)',
               borderTop: 'none',
               borderLeft: 'none',
               borderRight: '1px solid var(--dp-color-rule)',

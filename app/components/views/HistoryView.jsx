@@ -573,7 +573,7 @@ export function HistoryView({
                 boxSizing: 'border-box'
               }}
             >
-              <span>+ ADD WORKOUT / EXERCISE TO PERSONAL RECORDS</span>
+              <span>+ ADD EXERCISE</span>
               <span>→</span>
             </button>
           ) : (

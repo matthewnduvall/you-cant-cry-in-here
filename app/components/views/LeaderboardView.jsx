@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { IOSListSection, IOSListRow } from '../Primitives';
-import { TabBar } from '../Controls';
+import { Button, NestedTabBar, TabBar } from '../Controls';
 import { getBestHistory1RMInfo, oneRepMaxLabel } from '../../utils/workoutEngine';
 import { UI } from '../../styles/kineticTokens';
 import {
@@ -69,8 +69,10 @@ export function LeaderboardView({
   history = [],
   // Section heading above the tabs (optional)
   title,
-  // Inside the Social page's LEADERBOARDS tab: no extra top padding
-  embedded = false
+  // Inside the Social page's LEADERBOARDS tab: no extra top padding, and its tabs nest under LEADERBOARDS
+  embedded = false,
+  // Signed out: the boards need an account, so a SIGN IN button stands in for them
+  onSignIn
 }) {
   const [activeTab, setActiveTab] = useState('big3_normalized');
   const selfName = user?.username || 'you (logged out)';
@@ -282,10 +284,32 @@ export function LeaderboardView({
     <div style={{ paddingTop: embedded ? 0 : '12px' }}>
       <div style={{ padding: '0 var(--dp-spacing-gutter)', marginBottom: '14px' }}>
         {title && <div style={{ ...UI.sectionTitle, marginBottom: '8px' }}>{title}</div>}
-        <TabBar ariaLabel="Leaderboards" tabs={LEADERBOARD_TABS} value={activeTab} onChange={setActiveTab} />
+        {!user ? null : embedded ? (
+          <NestedTabBar ariaLabel="Leaderboards" tabs={LEADERBOARD_TABS} value={activeTab} onChange={setActiveTab} />
+        ) : (
+          <TabBar ariaLabel="Leaderboards" tabs={LEADERBOARD_TABS} value={activeTab} onChange={setActiveTab} />
+        )}
       </div>
 
-      {activeTab === 'big3_total' && (
+      {!user && (
+        <IOSListSection colors={colors}>
+          <IOSListRow isLast={true} colors={colors}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', width: '100%' }}>
+              <span style={{ fontSize: '13px', fontWeight: 700, color: '#C8C8C8', lineHeight: 1.4 }}>
+                Sign in to see where you rank against your friends.
+              </span>
+              {onSignIn && (
+                <Button variant="primary-row" onClick={onSignIn}>
+                  <span>SIGN IN</span>
+                  <span>→</span>
+                </Button>
+              )}
+            </div>
+          </IOSListRow>
+        </IOSListSection>
+      )}
+
+      {user && activeTab === 'big3_total' && (
       <IOSListSection colors={colors}>
         {big3TotalEntries.map((entry, idx, arr) => (
           <IOSListRow
@@ -318,7 +342,7 @@ export function LeaderboardView({
       </IOSListSection>
       )}
 
-      {activeTab === 'big3_normalized' && (
+      {user && activeTab === 'big3_normalized' && (
       <IOSListSection colors={colors}>
         {big3NormalizedEntries.map((entry, idx, arr) => (
           <IOSListRow
@@ -351,7 +375,7 @@ export function LeaderboardView({
       </IOSListSection>
       )}
 
-      {activeTab === 'ohp_normalized' && (
+      {user && activeTab === 'ohp_normalized' && (
       <IOSListSection colors={colors}>
         {ohpNormalizedEntries.map((entry, idx, arr) => (
           <IOSListRow
@@ -384,7 +408,7 @@ export function LeaderboardView({
       </IOSListSection>
       )}
 
-      {activeTab === 'most_improved' && (
+      {user && activeTab === 'most_improved' && (
       <IOSListSection colors={colors}>
         {mostImprovedEntries.length === 0 ? (
           <IOSListRow isLast={true} colors={colors}>

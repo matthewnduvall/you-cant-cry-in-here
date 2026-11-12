@@ -81,7 +81,6 @@ export function StimulusMapView({
     <div style={{ paddingTop: '14px' }}>
       <StimulusPatternDefs />
       <IOSListSection
-        header="STIMULUS"
         footer={
           // Vertical legend: swatch (colour + pattern) | status | days since last trained
           <span

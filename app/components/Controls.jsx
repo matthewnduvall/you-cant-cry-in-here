@@ -87,6 +87,30 @@ export function SegmentButton({
 }
 
 /**
+ * A second row of tabs under a page's tabs (e.g. Profile → PERFORMANCE → PROGRESS / …, Social → LEADERBOARDS →
+ * BIG 3 / BW / …): indented 28 px with a grey elbow line so it reads as the selected tab's children.
+ */
+export function NestedTabBar({ style, ...tabBarProps }) {
+  return (
+    <div style={{ position: 'relative', ...style }}>
+      <span
+        aria-hidden="true"
+        style={{
+          position: 'absolute',
+          left: '12px',
+          top: '-4px',
+          width: '16px',
+          height: '30px',
+          borderLeft: '2px solid var(--dp-color-rule)',
+          borderBottom: '2px solid var(--dp-color-rule)'
+        }}
+      />
+      <TabBar {...tabBarProps} style={{ marginLeft: '28px', marginTop: '6px' }} />
+    </div>
+  );
+}
+
+/**
  * Page tabs: one row of SegmentButtons (selected = orange fill). `tabs` is [{ id, label }].
  * Labels may wrap to two lines on narrow screens; every tab keeps a 44 px tap target.
  */
