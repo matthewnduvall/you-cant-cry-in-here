@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useMemo, useState } from 'react';
+import { ProfileAvatar } from '../ProfileAvatar';
 import { IOSListSection, IOSListRow } from '../Primitives';
 import { Button, NestedTabBar, TabBar } from '../Controls';
 import { buildHistoryPRRanges, buildHistoryPRs, getBestHistory1RMInfo, oneRepMaxLabel } from '../../utils/workoutEngine';
@@ -86,7 +87,9 @@ export function LeaderboardView({
   // Signed out: the boards need an account, so a SIGN IN button stands in for them
   onSignIn,
   // Tapping a row opens that athlete's profile (yours or the friend's): onOpenProfile(entry)
-  onOpenProfile
+  onOpenProfile,
+  // Your profile photo (beside your name on the boards; friends' come from their profiles)
+  profilePhoto = null
 }) {
   const [activeTab, setActiveTab] = useState('big3_normalized');
   const selfName = user?.username || 'you (logged out)';
@@ -140,6 +143,7 @@ export function LeaderboardView({
     {
       id: user?.id || 'self_user',
       name: selfName,
+      photo: profilePhoto,
       isSelf: true,
       bw: selfBw,
       total: selfBig3Total,
@@ -175,6 +179,7 @@ export function LeaderboardView({
       return {
         id: f.id || `friend_${f.username}_${i}`,
         name: f.username || `athlete_${i + 1}`,
+        photo: f.profilePhoto,
         isSelf: false,
         friend: f,
         bw: fBw,
@@ -228,11 +233,12 @@ export function LeaderboardView({
       });
     });
   };
-  pushImprovements(selfStats.ranges, { idPrefix: 'self_imp', name: selfName, isSelf: true, bw: selfBw });
+  pushImprovements(selfStats.ranges, { idPrefix: 'self_imp', name: selfName, photo: profilePhoto, isSelf: true, bw: selfBw });
   distinctFriends.forEach((f, i) => {
     pushImprovements(friendStats.get(f).ranges, {
       idPrefix: `friend_${f.username}_${i}`,
       name: f.username || `athlete_${i + 1}`,
+      photo: f.profilePhoto,
       isSelf: false,
       friend: f,
       bw: Math.max(50, Number(f.bodyweightLbs || f.bodyweight) || 200)
@@ -282,13 +288,15 @@ export function LeaderboardView({
             isLast={idx === arr.length - 1}
             colors={colors}
           >
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
+            <ProfileAvatar photo={entry.photo} username={entry.name} size={32} />
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', minWidth: 0 }}>
               <span
                 style={{
                   fontSize: '16px',
                   fontWeight: 500,
                   textTransform: 'uppercase',
-                  color: entry.isSelf ? 'var(--dp-color-accent)' : '#FFFFFF'
+                  color: entry.rank === 1 ? 'var(--cr-red-text)' : '#FFFFFF'
                 }}
               >
                 <span style={onOpenProfile ? NAME_LINK_STYLE : undefined}>@{entry.name}</span>
@@ -297,6 +305,7 @@ export function LeaderboardView({
                 <span style={{ color: '#FFFFFF' }}>BENCH + SQUAT + DEADLIFT</span> • STANDING:{' '}
                 <strong style={{ color: 'var(--dp-color-accent)' }}>{entry.standing.toUpperCase()}</strong>
               </span>
+            </div>
             </div>
             <span style={{ fontSize: '16px', fontWeight: 500, color: 'var(--dp-color-accent)' }}>
               {oneRepMaxLabel(entry.total, entry.totalCalculated)} LB
@@ -316,13 +325,15 @@ export function LeaderboardView({
             isLast={idx === arr.length - 1}
             colors={colors}
           >
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
+            <ProfileAvatar photo={entry.photo} username={entry.name} size={32} />
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', minWidth: 0 }}>
               <span
                 style={{
                   fontSize: '16px',
                   fontWeight: 500,
                   textTransform: 'uppercase',
-                  color: entry.isSelf ? 'var(--dp-color-accent)' : '#FFFFFF'
+                  color: entry.rank === 1 ? 'var(--cr-red-text)' : '#FFFFFF'
                 }}
               >
                 <span style={onOpenProfile ? NAME_LINK_STYLE : undefined}>@{entry.name}</span>
@@ -331,6 +342,7 @@ export function LeaderboardView({
                 {oneRepMaxLabel(entry.total, entry.totalCalculated)} LB ÷ {entry.bw} LB BW • STANDING:{' '}
                 <strong style={{ color: 'var(--dp-color-accent)' }}>{entry.standing.toUpperCase()}</strong>
               </span>
+            </div>
             </div>
             <span style={{ fontSize: '16px', fontWeight: 500, color: 'var(--dp-color-accent)' }}>
               {entry.normalized.toFixed(2)}x BW
@@ -350,13 +362,15 @@ export function LeaderboardView({
             isLast={idx === arr.length - 1}
             colors={colors}
           >
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
+            <ProfileAvatar photo={entry.photo} username={entry.name} size={32} />
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', minWidth: 0 }}>
               <span
                 style={{
                   fontSize: '16px',
                   fontWeight: 500,
                   textTransform: 'uppercase',
-                  color: entry.isSelf ? 'var(--dp-color-accent)' : '#FFFFFF'
+                  color: entry.rank === 1 ? 'var(--cr-red-text)' : '#FFFFFF'
                 }}
               >
                 <span style={onOpenProfile ? NAME_LINK_STYLE : undefined}>@{entry.name}</span>
@@ -365,6 +379,7 @@ export function LeaderboardView({
                 {oneRepMaxLabel(entry.ohp, entry.ohpCalculated)} LB <span style={{ color: '#FFFFFF' }}>OHP</span> ÷ {entry.bw} LB BW • STANDING:{' '}
                 <strong style={{ color: 'var(--dp-color-accent)' }}>{entry.ohpStanding.toUpperCase()}</strong>
               </span>
+            </div>
             </div>
             <span style={{ fontSize: '16px', fontWeight: 500, color: 'var(--dp-color-accent)' }}>
               {entry.ohpNormalized.toFixed(2)}x BW
@@ -391,13 +406,15 @@ export function LeaderboardView({
               isLast={idx === arr.length - 1}
               colors={colors}
             >
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', minWidth: 0, paddingRight: '8px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0, paddingRight: '8px' }}>
+              <ProfileAvatar photo={entry.photo} username={entry.name} size={32} />
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', minWidth: 0 }}>
                 <span
                   style={{
                     fontSize: '14px',
                     fontWeight: 500,
                     textTransform: 'uppercase',
-                    color: entry.isSelf ? 'var(--dp-color-accent)' : '#FFFFFF',
+                    color: entry.rank === 1 ? 'var(--cr-red-text)' : '#FFFFFF',
                     whiteSpace: 'nowrap',
                     overflow: 'hidden',
                     textOverflow: 'ellipsis'
@@ -409,6 +426,7 @@ export function LeaderboardView({
                 <span style={{ fontSize: '11px', fontWeight: 500, color: '#9A9A9A', textTransform: 'uppercase' }}>
                   {entry.startWeight} LB → {entry.peakWeight} LB ({entry.normalizedGain.toFixed(2)}x BW GAIN)
                 </span>
+              </div>
               </div>
               <span style={{ fontSize: '15px', fontWeight: 500, color: 'var(--dp-color-accent)', flexShrink: 0 }}>
                 +{entry.deltaLbs} LB

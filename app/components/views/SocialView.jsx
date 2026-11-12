@@ -26,6 +26,9 @@ const SOCIAL_TABS = [
   { id: 'privacy', label: 'PRIVACY' }
 ];
 
+// One red per component: a list's ✕ buttons are grey (they still ask first, or are reversible)
+const GREY_X = { color: '#9A9A9A' };
+
 const isEmailAddress = value => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || '').trim());
 
 export function SocialView({
@@ -50,6 +53,8 @@ export function SocialView({
   leaderboardProps
 }) {
   const [socialTab, setSocialTab] = useState('leaderboards');
+  // A photo for any athlete who is your friend (search results and requests only carry a username)
+  const photoOf = id => (friendsList || []).find(f => f.id === id)?.profilePhoto || null;
   const [searchedAthletes, setSearchedAthletes] = useState([]);
   const [hasSearched, setHasSearched] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
@@ -408,8 +413,9 @@ export function SocialView({
                   isLast={idx === searchedAthletes.length - 1}
                   colors={colors}
                 >
-                  <div style={{ fontSize: '15px', fontWeight: 500, textTransform: 'uppercase' }}>
-                    @{athlete.username}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
+                    <ProfileAvatar photo={photoOf(athlete.id)} username={athlete.username} size={32} />
+                    <span style={{ fontSize: '15px', fontWeight: 500, textTransform: 'uppercase' }}>@{athlete.username}</span>
                   </div>
                   {isAlreadyFriend ? (
                     <button
@@ -494,7 +500,8 @@ export function SocialView({
         <IOSListSection header="INCOMING REQUESTS" colors={colors}>
           {pendingIncomingRequests.map((req, idx) => (
             <IOSListRow key={req.id || req.username || idx} isLast={idx === pendingIncomingRequests.length - 1} colors={colors}>
-              <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
+                <ProfileAvatar photo={photoOf(req.id)} username={req.username} size={32} />
                 <div style={{ fontSize: '15px', fontWeight: 500, textTransform: 'uppercase' }}>@{req.username}</div>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
@@ -508,7 +515,7 @@ export function SocialView({
                 >
                   ACCEPT
                 </button>
-                <DeleteButton label={`Decline @${req.username}`} onClick={() => handleDeclineFriendInvite(req)} />
+                <DeleteButton label={`Decline @${req.username}`} onClick={() => handleDeclineFriendInvite(req)} style={GREY_X} />
               </div>
             </IOSListRow>
           ))}
@@ -523,13 +530,16 @@ export function SocialView({
               isLast={idx === sentCount - 1}
               colors={colors}
             >
-              <div style={{ minWidth: 0 }}>
+              <div style={{ minWidth: 0, display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <ProfileAvatar photo={photoOf(req.id)} username={req.username} size={32} />
+                <div style={{ minWidth: 0 }}>
                 <div style={{ fontSize: '15px', fontWeight: 500, textTransform: 'uppercase' }}>@{req.username}</div>
                 <div style={sentSubStyle}>
                   FRIEND REQUEST{req.invitedAt ? ` • SENT ${formatDateYMD(req.invitedAt)}` : ''} • WAITING
                 </div>
+                </div>
               </div>
-              <DeleteButton label={`Withdraw friend request to @${req.username}`} onClick={() => handleCancelSentRequest(req)} />
+              <DeleteButton label={`Withdraw friend request to @${req.username}`} onClick={() => handleCancelSentRequest(req)} style={GREY_X} />
             </IOSListRow>
           ))}
           {sentEmailInvites.map((inv, idx) => (
@@ -578,6 +588,7 @@ export function SocialView({
                 <DeleteButton
                   label={`Remove @${friend.username} from friends`}
                   onClick={() => handleRemoveFriend(friend)}
+                  style={GREY_X}
                 />
                 <ProfileAvatar photo={friend.profilePhoto} username={friend.username} size={36} />
                 <div style={{ fontSize: '16px', fontWeight: 500, textTransform: 'uppercase' }}>@{friend.username}</div>
