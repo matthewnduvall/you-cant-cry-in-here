@@ -22,7 +22,8 @@ import {
   createWorkoutSlot,
   generateSetsForScheme,
   parseTimerDurationSeconds,
-  estimate1RMFromSet
+  estimate1RMFromSet,
+  oneRepMaxLabel
 } from '../utils/workoutEngine';
 import { SlotEditor } from './SlotEditor';
 import { CloseButton } from './Controls';
@@ -204,9 +205,20 @@ export function OneRepMaxCalculatorModal({
     );
   })();
 
+  // A true 1RM only when that weight was actually lifted for 1 rep; otherwise it's calculated (shown with *)
+  const estimatedIsCalculated = !(slot.sets || []).some(
+    s => Math.max(1, Number(s.reps) || 1) === 1 && Number(s.weight) === estimated1RM
+  );
+
   const handleCalculate = () => {
     if (estimated1RM <= 0) return;
-    onSave?.({ exerciseId: slot.exerciseId, oneRepMax: estimated1RM, dateYMD: prDate, scheme: slot.scheme || '5x5' });
+    onSave?.({
+      exerciseId: slot.exerciseId,
+      oneRepMax: estimated1RM,
+      dateYMD: prDate,
+      scheme: slot.scheme || '5x5',
+      estimated: estimatedIsCalculated
+    });
     onClose?.();
   };
 
@@ -276,7 +288,7 @@ export function OneRepMaxCalculatorModal({
         ESTIMATED 1 REP MAX
       </span>
       <span style={{ fontSize: '20px', fontWeight: 800, color: 'var(--dp-color-accent)', fontVariantNumeric: 'tabular-nums' }}>
-        {estimated1RM > 0 ? `${estimated1RM} LB` : 'TBD'}
+        {estimated1RM > 0 ? `${oneRepMaxLabel(estimated1RM, estimatedIsCalculated)} LB` : 'TBD'}
       </span>
     </div>
   );

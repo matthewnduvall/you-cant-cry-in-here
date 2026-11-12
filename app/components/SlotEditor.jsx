@@ -35,6 +35,8 @@ import {
   isClusterScheme,
   normalizeSetType,
   getBestHistory1RMInfo,
+  best1RMInfoOfSets,
+  oneRepMaxLabel,
   getLastLoggedSetsForExercise,
   PYRAMID_SCHEMES,
   getSchemeUniformReps,
@@ -107,13 +109,8 @@ const equipmentOf = ex => ex?.equipment || 'Bodyweight';
 
 // Calculated 1RM of a list of sets: the best weight × (1 + reps / 30) (1 rep = the weight), the estimate History
 // uses for Personal Records and the weight pop-up uses for its 1RM box; 0 = no weights
-const best1RM = sets =>
-  (Array.isArray(sets) ? sets : []).reduce((best, st) => {
-    const w = Number(st?.weight) || 0;
-    if (w <= 0) return best;
-    const r = Math.max(1, Number(st.reps) || 1);
-    return Math.max(best, r === 1 ? w : Math.round(w * (1 + r / 30)));
-  }, 0);
+// ({ value, calculated }: calculated = from a multi-rep set, shown with *)
+const best1RM = sets => best1RMInfoOfSets(Array.isArray(sets) ? sets : []);
 
 // Set type dropdown labels (short enough for the set row's type column)
 const SET_TYPE_LABELS = { Warmup: 'WARMUP', Working: 'WORKING', 'Top Out': 'TOP OUT', 'Burn Out': 'BURN OUT', '1 Rep Max': '1RM' };
@@ -404,11 +401,15 @@ export function SlotEditor({
       const exSets = (isSuperset ? slot.supersetSetsByExercise?.[half] : slot.sets) || [];
       const lastSession = getLastLoggedSetsForExercise(exObj.id, history, workoutId);
       const lastDone = lastSession.filter(st => st && st.completed && Number(st.weight) > 0);
-      const last1RM = best1RM(lastDone.length > 0 ? lastDone : lastSession);
+      const lastInfo = best1RM(lastDone.length > 0 ? lastDone : lastSession);
       // Timer sets count seconds, not reps
-      const now1RM = schemes[half] === 'Timer' ? 0 : best1RM(exSets);
-      const pr1RM = getBestHistory1RMInfo(exObj.id, history).best;
-      const statCell = (label, value, color = '#C8C8C8') => (
+      const nowInfo = schemes[half] === 'Timer' ? { value: 0, calculated: false } : best1RM(exSets);
+      const prInfoHeader = getBestHistory1RMInfo(exObj.id, history);
+      const last1RM = lastInfo.value;
+      const now1RM = nowInfo.value;
+      const pr1RM = prInfoHeader.best;
+      // * = calculated from reps (not lifted for 1 rep)
+      const statCell = (label, value, color = '#C8C8C8', calculated = false) => (
         <div
           style={{
             flex: '1 1 0',
@@ -422,7 +423,7 @@ export function SlotEditor({
         >
           <span style={{ fontSize: '11px', fontWeight: 800, color: '#8E8E93', lineHeight: 1 }}>{label}</span>
           <span style={{ fontSize: '13px', fontWeight: 800, color: value > 0 ? color : '#6E6E73', lineHeight: 1.2, marginTop: '2px' }}>
-            {value > 0 ? value : '—'}
+            {value > 0 ? oneRepMaxLabel(value, calculated) : '—'}
           </span>
         </div>
       );
@@ -468,7 +469,7 @@ export function SlotEditor({
           </button>
           <div
             role="group"
-            aria-label={`Calculated 1 rep max: last session ${last1RM || 'none'}, now ${now1RM || 'none'}, record ${pr1RM || 'none'}`}
+            aria-label={`1 rep max (an asterisk means calculated from reps): last session ${last1RM ? oneRepMaxLabel(last1RM, lastInfo.calculated) : 'none'}, now ${now1RM ? oneRepMaxLabel(now1RM, nowInfo.calculated) : 'none'}, record ${pr1RM ? oneRepMaxLabel(pr1RM, prInfoHeader.calculated) : 'none'}`}
             style={{
               gridColumn: '5 / 7',
               gridRow: 1,
@@ -480,10 +481,10 @@ export function SlotEditor({
               alignItems: 'stretch'
             }}
           >
-            {statCell('LAST', last1RM)}
+            {statCell('LAST', last1RM, undefined, lastInfo.calculated)}
             {/* NOW turns green once it beats the record */}
-            {statCell('NOW', now1RM, pr1RM > 0 && now1RM > pr1RM ? '#30D158' : '#FFFFFF')}
-            {statCell('PR', pr1RM, 'var(--dp-color-accent)')}
+            {statCell('NOW', now1RM, pr1RM > 0 && now1RM > pr1RM ? '#30D158' : '#FFFFFF', nowInfo.calculated)}
+            {statCell('PR', pr1RM, 'var(--dp-color-accent)', prInfoHeader.calculated)}
           </div>
         </>
       );
@@ -1019,6 +1020,7 @@ export function SlotEditor({
                   // This exercise's sets in the session, for the pop-up's CURRENT (session) 1RM
                   sessionSets: (isSuperset ? slot.supersetSetsByExercise?.[exIdx] : slot.sets) || [],
                   prValue: prInfo.best,
+                  prCalculated: prInfo.calculated,
                   prWorkoutId: prInfo.workoutId
                 })
               }

@@ -15,6 +15,7 @@ import { Button, TabBar } from '../Controls';
 import { RoutinesView } from './RoutinesView';
 import { buildProgressionSeriesByLift } from '../../hooks/useTelemetryAndAnalytics';
 import { ProfileAvatar, resizeImageFileToDataUrl } from '../ProfileAvatar';
+import { SHARED_CELL_BORDER, SHARED_GROUP_OUTER } from '../../styles/kineticTokens';
 
 // Profile tabs: PERFORMANCE (their Progress page: progress / personal records / history — not called PROGRESS,
 // so it doesn't read PROGRESS > PROGRESS) · ROUTINES · FRIENDS
@@ -65,6 +66,8 @@ export function ProfileView({
   const [accountDeleteStatus, setAccountDeleteStatus] = useState(null);
   // null | 'saving' | error message
   const [photoStatus, setPhotoStatus] = useState(null);
+  // The pencil's CHANGE PHOTO / REMOVE PHOTO menu (only when there is a photo)
+  const [photoMenuOpen, setPhotoMenuOpen] = useState(false);
 
   const handlePhotoPicked = async e => {
     const file = e.target.files?.[0];
@@ -235,11 +238,60 @@ export function ProfileView({
       <IOSListSection header="ATHLETE IDENTITY" colors={colors}>
         <IOSListRow isLast={true} colors={colors}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0 }}>
-            <ProfileAvatar
-              photo={isFriend ? liveFriendMatch?.profilePhoto || viewingFriendProfile?.profilePhoto : user ? profilePhoto : null}
-              username={profUser.username}
-              size={64}
-            />
+            <div style={{ position: 'relative', flexShrink: 0 }}>
+              <ProfileAvatar
+                photo={isFriend ? liveFriendMatch?.profilePhoto || viewingFriendProfile?.profilePhoto : user ? profilePhoto : null}
+                username={profUser.username}
+                size={64}
+              />
+              {/* Your own photo: a small pencil on the corner. No photo yet = pick one; with a photo = CHANGE / REMOVE */}
+              {!isFriend && user && (
+                <button
+                  type="button"
+                  aria-label={profilePhoto ? 'Change or remove profile photo' : 'Add a profile photo'}
+                  aria-expanded={profilePhoto ? photoMenuOpen : undefined}
+                  disabled={photoStatus === 'saving'}
+                  onClick={() => (profilePhoto ? setPhotoMenuOpen(open => !open) : fileInputRef.current?.click())}
+                  style={{
+                    position: 'absolute',
+                    right: '-14px',
+                    bottom: '-14px',
+                    width: '40px',
+                    height: '40px',
+                    padding: 0,
+                    background: 'transparent',
+                    border: 'none',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer'
+                  }}
+                >
+                  <span
+                    aria-hidden="true"
+                    style={{
+                      width: '24px',
+                      height: '24px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      backgroundColor: 'var(--dp-color-accent)',
+                      border: '2px solid #101010',
+                      boxSizing: 'border-box'
+                    }}
+                  >
+                    {photoStatus === 'saving' ? (
+                      <span style={{ fontSize: '11px', fontWeight: 900, color: '#101010' }}>…</span>
+                    ) : (
+                      <svg width="12" height="12" viewBox="0 0 16 16">
+                        <path d="M11.5 1.5l3 3L5 14H2v-3z" fill="none" stroke="#101010" strokeWidth="2" strokeLinejoin="miter" />
+                        <line x1="9.5" y1="3.5" x2="12.5" y2="6.5" stroke="#101010" strokeWidth="2" />
+                      </svg>
+                    )}
+                  </span>
+                </button>
+              )}
+            </div>
             <div style={{ minWidth: 0 }}>
               <div style={{ fontSize: '22px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '-0.03em', overflowWrap: 'anywhere' }}>
                 @{profUser.username}
@@ -272,48 +324,48 @@ export function ProfileView({
             </div>
           </div>
 
-          {!isFriend && user && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 0, flexShrink: 0 }}>
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={photoStatus === 'saving'}
-                style={{
-                  height: '40px',
-                  padding: '0 12px',
-                  backgroundColor: '#101010',
-                  color: 'var(--dp-color-accent)',
-                  border: '2px solid var(--dp-color-rule)',
-                  fontSize: '11px',
-                  fontWeight: 800,
-                  cursor: 'pointer'
-                }}
-              >
-                {photoStatus === 'saving' ? 'SAVING…' : profilePhoto ? 'CHANGE PHOTO' : 'ADD PHOTO'}
-              </button>
-              {profilePhoto && (
-                <button
-                  type="button"
-                  onClick={() => setProfilePhoto?.(null)}
-                  style={{
-                    height: '40px',
-                    padding: '0 12px',
-                    backgroundColor: '#101010',
-                    color: '#A0A0A0',
-                    border: '2px solid var(--dp-color-rule)',
-                    borderTop: 'none',
-                    fontSize: '11px',
-                    fontWeight: 800,
-                    cursor: 'pointer'
-                  }}
-                >
-                  REMOVE
-                </button>
-              )}
-            </div>
-          )}
           <input ref={fileInputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handlePhotoPicked} />
         </IOSListRow>
+        {/* The pencil's menu (with a photo): its own row, so the list card never clips it */}
+        {photoMenuOpen && profilePhoto && !isFriend && (
+          <IOSListRow isLast={true} colors={colors}>
+            <div role="menu" aria-label="Profile photo" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 44px', width: '100%', gap: 0, ...SHARED_GROUP_OUTER }}>
+              <button
+                type="button"
+                role="menuitem"
+                className="kinetic-btn"
+                onClick={() => {
+                  setPhotoMenuOpen(false);
+                  fileInputRef.current?.click();
+                }}
+                style={{ ...SHARED_CELL_BORDER, height: '44px', backgroundColor: '#161616', color: '#FFFFFF', fontSize: '12px', fontWeight: 800, cursor: 'pointer' }}
+              >
+                CHANGE PHOTO
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                className="kinetic-btn"
+                onClick={() => {
+                  setPhotoMenuOpen(false);
+                  setProfilePhoto?.(null);
+                }}
+                style={{ ...SHARED_CELL_BORDER, height: '44px', backgroundColor: '#161616', color: '#FF3B30', fontSize: '12px', fontWeight: 800, cursor: 'pointer' }}
+              >
+                REMOVE PHOTO
+              </button>
+              <button
+                type="button"
+                aria-label="Close photo menu"
+                className="kinetic-btn"
+                onClick={() => setPhotoMenuOpen(false)}
+                style={{ ...SHARED_CELL_BORDER, height: '44px', backgroundColor: '#161616', color: '#A0A0A0', fontSize: '14px', fontWeight: 800, cursor: 'pointer' }}
+              >
+                ✕
+              </button>
+            </div>
+          </IOSListRow>
+        )}
         {photoStatus && photoStatus !== 'saving' && (
           <IOSListRow isLast={true} colors={colors}>
             <span style={{ fontSize: '12px', fontWeight: 700, color: '#FF3B30' }}>{photoStatus}</span>
@@ -329,6 +381,7 @@ export function ProfileView({
         renderProgressPage?.(
           isFriend
             ? {
+                nested: true,
                 readOnly: true,
                 history: profHistory,
                 oneRepMaxes: profPRs,
@@ -336,7 +389,7 @@ export function ProfileView({
                 tab: friendProgressTab,
                 onTabChange: setFriendProgressTab
               }
-            : {}
+            : { nested: true }
         )}
 
       {profileTab === 'routines' &&

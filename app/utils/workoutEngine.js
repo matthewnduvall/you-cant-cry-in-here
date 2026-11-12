@@ -52,7 +52,8 @@ export const estimate1RMFromSet = (setItem, totalSetsCount = 1) => {
  * Builds the single-set "PERSONAL RECORD" History entry logged whenever a PR is entered
  * (plate calculator, 1RM calculator). `dateYMD` defaults to today.
  */
-export const buildPersonalRecordHistoryEntry = ({ exerciseId, oneRepMax, dateYMD, scheme = 'Pyramid 1RM' }) => {
+// estimated: the 1RM came from the 1RM calculator (worked out from reps), so it shows with an asterisk
+export const buildPersonalRecordHistoryEntry = ({ exerciseId, oneRepMax, dateYMD, scheme = 'Pyramid 1RM', estimated = false }) => {
   const exObj = EXERCISE_MAP[exerciseId] || {
     id: exerciseId,
     name: exerciseId,
@@ -69,7 +70,8 @@ export const buildPersonalRecordHistoryEntry = ({ exerciseId, oneRepMax, dateYMD
     lastWeight: oneRepMax,
     increment: 0,
     weight: oneRepMax,
-    completed: true
+    completed: true,
+    ...(estimated ? { estimated: true } : {})
   };
   const category = normalizeSlotCategory(exObj.category || 'Compound');
   const prSlot = {
@@ -229,8 +231,32 @@ export const normalizeSetType = rawType => {
   return 'Working';
 };
 
+// A 1RM is "true" when it was actually lifted for 1 rep; one worked out from a multi-rep set (weight × (1 + reps / 30))
+// or entered from the 1RM calculator (set.estimated) is "calculated" and shows with an asterisk (oneRepMaxLabel).
+export const isCalculated1RMSet = set => Math.max(1, Number(set?.reps) || 1) > 1 || Boolean(set?.estimated);
+/** "225" for a true 1RM, "225*" for a calculated one. */
+export const oneRepMaxLabel = (value, calculated) => `${value}${calculated ? '*' : ''}`;
+/** Best 1RM over sets: { value, calculated } (on a tie a true single wins). */
+export const best1RMInfoOfSets = (sets = []) => {
+  let value = 0;
+  let calculated = false;
+  (sets || []).forEach(st => {
+    const w = Number(st?.weight) || 0;
+    if (w <= 0) return;
+    const reps = Math.max(1, Number(st.reps) || 1);
+    const est = reps === 1 ? w : Math.round(w * (1 + reps / 30));
+    const calc = isCalculated1RMSet(st);
+    if (est > value || (est === value && calculated && !calc)) {
+      value = est;
+      calculated = calc;
+    }
+  });
+  return { value, calculated };
+};
+
 export const getBestHistory1RMInfo = (exerciseId, history = []) => {
   let best = 0;
+  let bestCalculated = false;
   let bestWorkoutId = null;
   let bestSlotId = null;
   let bestDateLabel = '';
@@ -245,8 +271,10 @@ export const getBestHistory1RMInfo = (exerciseId, history = []) => {
           if (hasCompleted && !st.completed) return;
           const reps = Math.max(1, Number(st.reps) || 1);
           const est = reps === 1 ? Number(st.weight) : Math.round(Number(st.weight) * (1 + reps / 30));
-          if (est > best) {
+          const calc = isCalculated1RMSet(st);
+          if (est > best || (est === best && bestCalculated && !calc)) {
             best = est;
+            bestCalculated = calc;
             bestWorkoutId = w?.id || null;
             bestSlotId = slot?.id || null;
             bestDateLabel = w?.startedAt ? formatDateYMD(w.startedAt) : '';
@@ -269,6 +297,8 @@ export const getBestHistory1RMInfo = (exerciseId, history = []) => {
 
   return {
     best,
+    // true = worked out from a multi-rep set or the 1RM calculator, not lifted for 1 rep
+    calculated: best > 0 && bestCalculated,
     workoutId: bestWorkoutId,
     slotId: bestSlotId,
     dateLabel: bestDateLabel

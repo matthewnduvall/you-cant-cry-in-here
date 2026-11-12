@@ -414,16 +414,8 @@ export function useWorkoutMutations({
     const datedTitle = formatTitleWithDate(routineObj.label);
     const routineLabel = routineObj.label || datedTitle;
 
-    if (wasOnRoutinesPage) {
-      setOpenedFromRoutines(true);
-      if (typeof window !== 'undefined') {
-        try {
-          window.history.pushState({ yccihFromRoutines: true }, '');
-        } catch {
-          // ignore
-        }
-      }
-    }
+    // (BACK from the loaded routine returns to the routine browser through page.js's back stack)
+    if (wasOnRoutinesPage) setOpenedFromRoutines(true);
     appendSessionLog?.('LOAD_ROUTINE', `Loaded routine: ${routineLabel}`);
 
     if (returnToView === 'history' && expandedHistoryWorkoutId) {

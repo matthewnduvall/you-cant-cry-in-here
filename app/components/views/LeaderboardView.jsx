@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { IOSListSection, IOSListRow } from '../Primitives';
 import { TabBar } from '../Controls';
+import { getBestHistory1RMInfo, oneRepMaxLabel } from '../../utils/workoutEngine';
 import { UI } from '../../styles/kineticTokens';
 import {
   EXERCISE_MAP,
@@ -90,6 +91,14 @@ export function LeaderboardView({
   const selfDead = Number(oneRepMaxes.barbell_deadlift) || 0;
   const selfOhp = Number(oneRepMaxes.overhead_press) || 0;
   const selfBig3Total = selfBench + selfSquat + selfDead;
+  // * = a 1RM in it was calculated from reps (not lifted for 1 rep); a total is marked if any lift in it is
+  const isCalc = (liftId, value, hist) => {
+    if (!(value > 0)) return false;
+    const info = getBestHistory1RMInfo(liftId, hist || []);
+    return value === info.best && info.calculated;
+  };
+  const big3Calculated = (vals, hist) =>
+    BIG_THREE_LIFT_IDS.some((liftId, i) => isCalc(liftId, vals[i], hist));
   const selfStanding = getAverageBig3Standing(
     {
       barbell_bench_press: selfBench,
@@ -111,9 +120,11 @@ export function LeaderboardView({
       isSelf: true,
       bw: selfBw,
       total: selfBig3Total,
+      totalCalculated: big3Calculated([selfBench, selfSquat, selfDead], history),
       normalized: selfBig3Total / selfBw,
       standing: selfStanding,
       ohp: selfOhp,
+      ohpCalculated: isCalc('overhead_press', selfOhp, history),
       ohpNormalized: selfOhp / selfBw,
       ohpStanding: selfOhpStanding
     },
@@ -141,9 +152,11 @@ export function LeaderboardView({
         isSelf: false,
         bw: fBw,
         total: fTotal,
+        totalCalculated: big3Calculated([fBench, fSquat, fDead], f.history),
         normalized: fTotal / fBw,
         standing: fStanding,
         ohp: fOhp,
+        ohpCalculated: isCalc('overhead_press', fOhp, f.history),
         ohpNormalized: fOhp / fBw,
         ohpStanding: fOhpStanding
       };
@@ -298,7 +311,7 @@ export function LeaderboardView({
               </span>
             </div>
             <span style={{ fontSize: '16px', fontWeight: 800, color: 'var(--dp-color-accent)' }}>
-              {entry.total} LB
+              {oneRepMaxLabel(entry.total, entry.totalCalculated)} LB
             </span>
           </IOSListRow>
         ))}
@@ -326,7 +339,7 @@ export function LeaderboardView({
                 @{entry.name}
               </span>
               <span style={{ fontSize: '11px', fontWeight: 700, color: '#888888', textTransform: 'uppercase' }}>
-                {entry.total} LB ÷ {entry.bw} LB BW • STANDING:{' '}
+                {oneRepMaxLabel(entry.total, entry.totalCalculated)} LB ÷ {entry.bw} LB BW • STANDING:{' '}
                 <strong style={{ color: 'var(--dp-color-accent)' }}>{entry.standing.toUpperCase()}</strong>
               </span>
             </div>
@@ -359,7 +372,7 @@ export function LeaderboardView({
                 @{entry.name}
               </span>
               <span style={{ fontSize: '11px', fontWeight: 700, color: '#888888', textTransform: 'uppercase' }}>
-                {entry.ohp} LB <span style={{ color: '#FFFFFF' }}>OHP</span> ÷ {entry.bw} LB BW • STANDING:{' '}
+                {oneRepMaxLabel(entry.ohp, entry.ohpCalculated)} LB <span style={{ color: '#FFFFFF' }}>OHP</span> ÷ {entry.bw} LB BW • STANDING:{' '}
                 <strong style={{ color: 'var(--dp-color-accent)' }}>{entry.ohpStanding.toUpperCase()}</strong>
               </span>
             </div>
