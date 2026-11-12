@@ -1185,9 +1185,12 @@ export async function deleteCloudWorkoutsByIds(user, workoutIds) {
 
 const scanSetArrayIntoPrs = (exId, setsArr, targetPrs) => {
   if (!exId || !Array.isArray(setsArr)) return;
+  // Same rule as History's PRs: when some sets are ticked, only the ticked ones count
+  const hasCompleted = setsArr.some(s => s && s.completed && Number(s.weight) > 0);
   setsArr.forEach(st => {
     const sw = Number(st?.weight) || 0;
     if (sw <= 0) return;
+    if (hasCompleted && !st.completed) return;
     const sr = Math.max(1, Number(st?.reps) || 1);
     const est = sr === 1 ? sw : Math.round(sw * (1 + sr / 30));
     if (est > (Number(targetPrs[exId]) || 0)) {
@@ -1269,11 +1272,9 @@ function buildAthleteFromProfileRow(
     });
   };
 
-  mergePrSource(row?.one_rep_maxes);
-  mergePrSource(row?.settings?.oneRepMaxes);
-  mergePrSource(row?.settings?.prs);
-  mergePrSource(row?.settings?.yccih_cloud_state_v3?.oneRepMaxes);
-
+  // PRs come only from logged History (no data = no PR): saved 1RM numbers in settings / one_rep_maxes can be
+  // left over from old imports or removed workouts, so they are not merged in (mergePrSource is unused)
+  void mergePrSource;
   rowHistory.forEach(w => scanSlotsIntoPrs(w?.slots, mergedPrs));
 
   return {
@@ -1635,6 +1636,38 @@ export async function updateSessionSync(user, syncId, changes) {
   );
   const row = Array.isArray(res.data) ? res.data[0] || null : null;
   return { ok: res.ok && Boolean(row), row, status: res.status };
+}
+
+/**
+ * Syncs (any status) whose row carries History updates — exercises one athlete added to their saved copy of the
+ * synced workout (structure.historyUpdates, see app/utils/syncedHistory.js). Returns { ok, rows }.
+ */
+export async function fetchSyncsWithHistoryUpdates(user) {
+  if (!user || !isUuid(user.id)) return { ok: false, rows: [] };
+  const me = encodeURIComponent(user.id);
+  const res = await authedRequest(
+    user,
+    `/rest/v1/shared_sessions?select=${SHARED_SESSION_COLUMNS}&or=(owner_id.eq.${me},participant_id.eq.${me})&structure->historyUpdates=not.is.null&order=updated_at.desc&limit=30`
+  );
+  return { ok: res.ok && Array.isArray(res.data), rows: Array.isArray(res.data) ? res.data : [], status: res.status };
+}
+
+/**
+ * Tells the friend in a sync that exercises were added to this athlete's saved copy of the synced workout:
+ * reads the row and writes structure.historyUpdates[myId] = buildUpdate(previousUpdate) (the rest of the row's
+ * structure is kept). Returns { ok }.
+ */
+export async function postSyncHistoryUpdate(user, syncId, buildUpdate) {
+  if (!user || !isUuid(user.id) || !isUuid(syncId) || typeof buildUpdate !== 'function') return { ok: false };
+  const current = await fetchSessionSync(user, syncId);
+  if (!current.ok || !current.row) return { ok: false };
+  const structure = current.row.structure && typeof current.row.structure === 'object' ? current.row.structure : {};
+  const updates = structure.historyUpdates && typeof structure.historyUpdates === 'object' ? structure.historyUpdates : {};
+  const next = buildUpdate(updates[user.id] || null);
+  const res = await updateSessionSync(user, syncId, {
+    structure: { ...structure, historyUpdates: { ...updates, [user.id]: next } }
+  });
+  return { ok: res.ok };
 }
 
 /** Accepts or declines an incoming sync invite. */

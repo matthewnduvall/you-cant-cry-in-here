@@ -158,3 +158,45 @@ export function SyncNoticeModal({ message, onClose, title = 'SYNC' }) {
     </div>
   );
 }
+
+/**
+ * A friend added exercises to a workout you did together (synced) after it was saved:
+ * ADD TO MY WORKOUT (they join your copy, weights from your own history) or DISMISS.
+ * update: { partnerName, workoutDate, slots } from useSyncedHistoryUpdates.
+ */
+export function SyncedHistoryUpdateModal({ update, exerciseName = id => id, formatDate = d => d, onAdd, onDismiss }) {
+  if (!update) return null;
+  const names = (update.slots || [])
+    .map(slot => (slot.exerciseIds || []).filter(Boolean).map(exerciseName).join(' + '))
+    .filter(Boolean);
+  return (
+    <div style={{ ...UI.modalBackdrop, zIndex: 1400 }}>
+      <div style={UI.modalCard('390px')} role="dialog" aria-label="Synced workout updated">
+        <div style={UI.modalHeader}>
+          <div style={titleBlock}>
+            <div style={UI.fieldLabel}>SYNCED WORKOUT UPDATED</div>
+            <div style={{ fontSize: '16px', fontWeight: 800, textTransform: 'uppercase' }}>
+              @{update.partnerName} added {names.length === 1 ? 'an exercise' : `${names.length} exercises`}
+            </div>
+          </div>
+        </div>
+        <div style={bodyText}>
+          They added to the workout you did together{update.workoutDate ? ` on ${formatDate(update.workoutDate)}` : ''}:
+        </div>
+        <div style={{ ...bodyText, color: '#FFFFFF', fontWeight: 800, textTransform: 'uppercase' }}>{names.join(' · ')}</div>
+        <div style={bodyText}>
+          {names.length === 1 ? 'Add it to your copy? Its weights start' : 'Add them to your copy? Their weights start'} from
+          your own history; you can edit them after.
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
+          <Button variant="secondary" onClick={onDismiss} style={{ ...centredButton, height: '46px' }}>
+            DISMISS
+          </Button>
+          <Button variant="success" onClick={onAdd} style={{ ...centredButton, height: '46px' }}>
+            ADD TO MY WORKOUT
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}

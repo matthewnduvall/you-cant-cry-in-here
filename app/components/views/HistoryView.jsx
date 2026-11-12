@@ -25,6 +25,7 @@ import {
 } from '../../utils/workoutEngine';
 import { CloseButton, DeleteButton } from '../Controls';
 import { CalculatedOneRepMaxKey } from '../LiftGoals';
+import { getWorkoutSyncInfo } from '../../utils/syncedHistory';
 import { ExercisePicker, resolvePickerExerciseId } from '../ExercisePicker';
 import {
   HistoryExerciseFilter,
@@ -81,6 +82,9 @@ export function HistoryView({
   // --- 1RM Converter Popup Slot State (Matches New/Current Session Exercise Editor) ---
   // Exercise the 1RM calculator pop-up is open for (null = closed)
   const [calcExerciseId, setCalcExerciseId] = useState(null);
+
+  // A friend's profile: Personal Records show only the core lifts until SHOW ALL
+  const [showAllPrs, setShowAllPrs] = useState(false);
 
   // --- CSV Import Modal State ---
   const [showImportCsvModal, setShowImportCsvModal] = useState(false);
@@ -459,12 +463,18 @@ export function HistoryView({
     ? filteredHistory.slice(historyPage * PAGE_SIZE, (historyPage + 1) * PAGE_SIZE)
     : filteredHistory.slice(0, INITIAL_LIMIT);
 
-  // Strictly display the 5 Core PR exercises + any explicitly user-added custom exercises
+  // The core lifts (the same list as the PROGRESS chart) + your added exercises. A friend's profile shows the
+  // core lifts first and SHOW ALL adds every other exercise they have logged.
+  const otherLoggedPrIds = readOnly
+    ? Object.keys(oneRepMaxes || {}).filter(id => Number(oneRepMaxes[id]) > 0 && !CORE_PR_EXERCISE_IDS.includes(id))
+    : [];
   const displayedPrExerciseIds = Array.from(
     new Set([
       ...CORE_PR_EXERCISE_IDS,
       ...(readOnly
-        ? Object.keys(oneRepMaxes || {}).filter(id => Number(oneRepMaxes[id]) > 0)
+        ? showAllPrs
+          ? otherLoggedPrIds
+          : []
         : Array.isArray(customPrExerciseIds)
           ? customPrExerciseIds
           : [])
@@ -787,6 +797,29 @@ export function HistoryView({
             );
           })}
         </div>
+        {/* A friend's profile: the core lifts first, SHOW ALL for everything else they have logged */}
+        {readOnly && otherLoggedPrIds.length > 0 && (
+          <button
+            type="button"
+            className="kinetic-btn"
+            aria-expanded={showAllPrs}
+            onClick={() => setShowAllPrs(v => !v)}
+            style={{
+              width: '100%',
+              minHeight: '44px',
+              marginTop: '8px',
+              backgroundColor: '#141416',
+              color: '#FFFFFF',
+              border: '2px solid var(--dp-color-rule)',
+              fontSize: '12px',
+              fontWeight: 800,
+              textTransform: 'uppercase',
+              cursor: 'pointer'
+            }}
+          >
+            {showAllPrs ? 'SHOW FEWER ▴' : `SHOW ALL (${CORE_PR_EXERCISE_IDS.length + otherLoggedPrIds.length}) ▾`}
+          </button>
+        )}
         {displayedPrExercises.some(ex => {
           const info = getBestHistory1RMInfo(ex.id, history);
           const val = Number(oneRepMaxes?.[ex.id]) || info.best || 0;
@@ -1048,6 +1081,12 @@ export function HistoryView({
                           {`${formatDateYMD(w.startedAt)} • `}
                           {(w.slots || []).length} {(w.slots || []).length === 1 ? 'EXERCISE' : 'EXERCISES'}
                         </div>
+                        {/* Done together with a friend (synced session) */}
+                        {getWorkoutSyncInfo(w) && (
+                          <div style={{ fontSize: '11px', fontWeight: 800, color: '#BF5AF2', marginTop: '1px', textTransform: 'uppercase' }}>
+                            SYNCED WITH @{getWorkoutSyncInfo(w).partnerName || 'FRIEND'}
+                          </div>
+                        )}
                         {/* The exercises done, so rows with the same name are easy to tell apart */}
                         {!historyFilter.exerciseId && getWorkoutExerciseNames(w) && (
                           <div
