@@ -27,7 +27,8 @@ import {
 // The routine lists, one per tab (in this order)
 const ROUTINE_LISTS = [
   { id: 'saved', tab: 'SAVED', title: 'SAVED ROUTINES', none: 'No saved routines yet. Turn on ROUTINE when you finish a session to save one.', deleteType: 'saved_routine' },
-  { id: 'shared', tab: 'SHARED', title: 'SHARED ROUTINES', none: 'No shared routines yet. Save a session as PUBLIC to share it with friends.', deleteType: 'shared_routine' },
+  // Everything you shared: public to friends (@all) and copies sent to chosen friends
+  { id: 'shared', tab: 'SHARED', title: 'SHARED ROUTINES', none: 'Nothing shared yet. Use SHARE when you finish or save, or SEND on a saved routine.', deleteType: 'shared_routine' },
   { id: 'friends', tab: 'FRIENDS', title: "FRIENDS' ROUTINES", none: 'Your friends haven’t shared any routines yet.' },
   // Routines friends sent you (public.routine_shares, pending): SAVE / LOAD / ✕ dismiss
   { id: 'received', tab: 'INBOX', title: 'INBOX', none: 'Nothing received yet. Routines friends send you show up here.' }
@@ -64,6 +65,9 @@ export function RoutinesView({
   onEditRoutine,
   // RECEIVED tab: routine_shares rows friends sent you, with their answers
   received = [],
+  // SHARED tab: routine_shares rows you sent (grouped per routine and minute), and withdrawing them
+  sent = [],
+  onWithdrawSent,
   onSaveReceived,
   onLoadReceived,
   onDismissReceived
@@ -119,7 +123,28 @@ export function RoutinesView({
 
   const byList = {
     saved: split(savedRoutines),
-    shared: split(sharedRoutines),
+    shared: split([
+      ...(sharedRoutines || []).map(r => ({ ...r, sharedTo: ['all'] })),
+      ...(() => {
+        // One entry per routine sent at the same time (one row per friend)
+        const groups = new Map();
+        (sent || []).forEach(row => {
+          const key = `${row.label || 'Routine'}|${String(row.created_at || '').slice(0, 16)}`;
+          const g = groups.get(key) || {
+            key: `sent_${row.id}`,
+            label: row.label || row.routine?.label || 'Routine',
+            slots: Array.isArray(row.routine?.slots) ? row.routine.slots : [],
+            savedAt: row.created_at,
+            sentIds: [],
+            sharedTo: []
+          };
+          g.sentIds.push(row.id);
+          g.sharedTo.push((friendsList || []).find(f => f.id === row.recipient_id)?.username || 'friend');
+          groups.set(key, g);
+        });
+        return [...groups.values()];
+      })()
+    ]),
     friends: split((friendsList || []).flatMap(f => (f.sharedRoutines || []).map(r => ({ ...r, friendName: f.username })))),
     received: split(
       (received || []).map(share => ({
@@ -146,7 +171,7 @@ export function RoutinesView({
   // How many routines each list holds before any filter (to tell "none yet" from "none match")
   const rawCount = {
     saved: (savedRoutines || []).length,
-    shared: (sharedRoutines || []).length,
+    shared: (sharedRoutines || []).length + (sent || []).length,
     friends: (friendsList || []).reduce((n, f) => n + (f.sharedRoutines || []).length, 0),
     received: (received || []).length
   };
@@ -193,8 +218,8 @@ export function RoutinesView({
       const count = getWorkoutExerciseIds(r).length;
       // Your own routines (not friends', not read-only) can be sent straight to a friend
       const canSend = Boolean(onSendRoutine) && !readOnly && !isOthers && (r.slots || []).length > 0;
-      // Your own routines open in the session editor when tapped (the Routines page); others' load
-      const canEdit = Boolean(onEditRoutine) && !readOnly && !isOthers;
+      // Your saved routines open in the session editor when tapped (the Routines page); the rest load
+      const canEdit = Boolean(onEditRoutine) && !readOnly && list.id === 'saved';
       const openRow = () => (canEdit ? onEditRoutine(r) : isReceived ? onLoadReceived?.(r.share) : load(r));
       return (
         <div
@@ -240,7 +265,7 @@ export function RoutinesView({
               {[
                 r.savedAt ? formatDateYMD(r.savedAt) : null,
                 `${count} ${count === 1 ? 'EXERCISE' : 'EXERCISES'}`,
-                isReceived ? `FROM @${author}` : `BY @${author}`,
+                isReceived ? `FROM @${author}` : r.sharedTo ? `TO ${r.sharedTo.map(u => `@${u}`).join(', ')}` : `BY @${author}`,
                 canEdit ? 'EDIT ›' : null
               ]
                 .filter(Boolean)
@@ -333,7 +358,26 @@ export function RoutinesView({
             LOAD
           </button>
           )}
-          {!readOnly && list.deleteType && (
+          {!readOnly && r.sentIds && (
+            <DeleteButton
+              label={`Withdraw ${r.label} from ${r.sharedTo.map(u => `@${u}`).join(', ')}`}
+              variant="outline"
+              fill
+              minHeight="48px"
+              style={{ width: '48px', height: 'auto', color: '#9A9A9A' }}
+              onClick={() =>
+                setDeleteConfirmTarget?.({
+                  type: 'generic',
+                  title: 'WITHDRAW ROUTINE?',
+                  verb: 'withdraw',
+                  label: `${r.label} from ${r.sharedTo.map(u => `@${u}`).join(', ')}`,
+                  confirmLabel: 'WITHDRAW',
+                  onConfirm: () => onWithdrawSent?.(r.sentIds)
+                })
+              }
+            />
+          )}
+          {!readOnly && list.deleteType && !r.sentIds && (
             <DeleteButton
               label={`Delete ${r.label}`}
               variant="outline"

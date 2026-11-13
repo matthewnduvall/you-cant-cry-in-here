@@ -7,6 +7,7 @@ import {
   getSlotEquipmentChoice,
   isBandEquipment,
   getSetBandColor,
+  getBandWeightLbs,
   getBandLoadLabel,
   EXERCISE_LIBRARY,
   EXERCISE_MAP,
@@ -358,6 +359,96 @@ export const setReportedRir = st => {
  * A set's estimated 1RM (Epley), counting the reps it had left: weight × (1 + (reps + RIR) ÷ 30); a single with
  * nothing in reserve is the weight itself. E.g. 200 × 5 at RIR 2 = 200 × (1 + 7 ÷ 30) = 246.7.
  */
+// ---------------------------------------------------------------------------
+// Bodyweight loads. Bodyweight-type exercises (pull-ups, dips, push-ups…: isBodyweightExercise) count the athlete's
+// bodyweight in their 1RM: a set's stored weight is what is added (Weighted, +25) or taken off by a band
+// (Band-Assisted, −35), so the load = bodyweight + weight. Timed sets (planks) are left alone. The bodyweight is the
+// signed-in athlete's (setEngineBodyweight, called by page.js on every render); 0 = not known, loads as stored.
+// ---------------------------------------------------------------------------
+let ENGINE_BODYWEIGHT_LBS = 0;
+export const setEngineBodyweight = lbs => {
+  ENGINE_BODYWEIGHT_LBS = Math.max(0, Number(lbs) || 0);
+};
+export const getEngineBodyweight = () => ENGINE_BODYWEIGHT_LBS;
+const isTimedSet = st => Number(st?.durationSeconds) > 0 || (typeof st?.timerStr === 'string' && st.timerStr.includes(':'));
+/** Does this exercise's 1RM count bodyweight? */
+export const countsBodyweight = exerciseId => ENGINE_BODYWEIGHT_LBS > 0 && isBodyweightExercise(exerciseId);
+/**
+ * One set's load in lb. Bodyweight-type exercises go by their equipment choice (`option`, the slot's
+ * getSlotEquipmentChoice): Weighted = bodyweight + the added weight; a band (Band-Assisted) = bodyweight − the band;
+ * anything else (Bodyweight) = bodyweight, whatever weight was stored. Other exercises: their weight.
+ */
+export const setLoadLbs = (exerciseId, st, option = null) => {
+  const w = Number(st?.weight) || 0;
+  if (!st || isTimedSet(st) || !countsBodyweight(exerciseId)) return w;
+  if (isBandEquipment(option) || (!option && st.bandColor)) return Math.max(0, ENGINE_BODYWEIGHT_LBS - getBandWeightLbs(getSetBandColor(st)));
+  if (/weighted/i.test(String(option || ''))) return Math.max(0, ENGINE_BODYWEIGHT_LBS + Math.max(0, w));
+  return ENGINE_BODYWEIGHT_LBS;
+};
+/** The sets with `weight` = their load (see setLoadLbs), for the 1RM scanners. Other exercises come back as they are. */
+export const withEffectiveLoad = (exerciseId, sets = [], option = null) =>
+  countsBodyweight(exerciseId)
+    ? (Array.isArray(sets) ? sets : []).map(st => (st && !isTimedSet(st) ? { ...st, weight: setLoadLbs(exerciseId, st, option) } : st))
+    : Array.isArray(sets) ? sets : [];
+
+/**
+ * Bodyweight-type exercises store what is added: 0 on Bodyweight, the plate on Weighted (suggested weights come out
+ * as total loads, so bodyweight is taken off them). Sets that are done or have their weight locked are left alone;
+ * bands are applyBandWeights' job. Used after new sets are worked out (createWorkoutSlot, RECALCULATE).
+ */
+export const toAddedWeights = slot => {
+  if (!slot) return slot;
+  const fix = (sets, exId, half) => {
+    if (!countsBodyweight(exId)) return sets;
+    const option = getSlotEquipmentChoice(slot, half);
+    if (isBandEquipment(option)) return sets;
+    const weighted = /weighted/i.test(String(option || ''));
+    return (sets || []).map(st => {
+      if (!st || st.completed || st.lockWeight || isTimedSet(st)) return st;
+      const w = Number(st.weight) || 0;
+      const added = weighted ? Math.max(0, Math.round((w - ENGINE_BODYWEIGHT_LBS) / 2.5) * 2.5) : 0;
+      return added === w ? st : { ...st, weight: added };
+    });
+  };
+  if (isSupersetCategory(slot.category) && Array.isArray(slot.supersetSetsByExercise)) {
+    const ids = slot.supersetExerciseIds || [slot.exerciseId, slot.secondaryExerciseId];
+    const matrix = slot.supersetSetsByExercise.map((sets, half) => fix(sets, ids[half], half));
+    return { ...slot, supersetSetsByExercise: matrix, sets: matrix[0] || [] };
+  }
+  return { ...slot, sets: fix(slot.sets, slot.exerciseId, 0) };
+};
+
+/**
+ * Band sets carry their band's weight: on a band exercise (pushdown) weight = the band (10 / 35 / 45); on a
+ * band-assisted bodyweight one (pull-up) weight = −band, so its load is bodyweight − band. Applied to every slot by
+ * normalizeSlotLabels (each edit), for the halves whose equipment choice is a band.
+ */
+export const applyBandWeights = slot => {
+  if (!slot) return slot;
+  const fixSets = (sets, exId, half) => {
+    if (!isBandEquipment(getSlotEquipmentChoice(slot, half))) return sets;
+    const assisted = isBodyweightExercise(exId);
+    let changed = false;
+    const next = (sets || []).map(st => {
+      if (!st || isTimedSet(st)) return st;
+      const load = getBandWeightLbs(getSetBandColor(st));
+      const weight = assisted ? -load : load;
+      if (Number(st.weight) === weight) return st;
+      changed = true;
+      return { ...st, weight };
+    });
+    return changed ? next : sets;
+  };
+  if (isSupersetCategory(slot.category) && Array.isArray(slot.supersetSetsByExercise)) {
+    const ids = slot.supersetExerciseIds || [slot.exerciseId, slot.secondaryExerciseId];
+    const matrix = slot.supersetSetsByExercise.map((sets, half) => fixSets(sets, ids[half], half));
+    if (matrix.every((m, i) => m === slot.supersetSetsByExercise[i])) return slot;
+    return { ...slot, supersetSetsByExercise: matrix, sets: matrix[0] || [] };
+  }
+  const sets = fixSets(slot.sets, slot.exerciseId, 0);
+  return sets === slot.sets ? slot : { ...slot, sets };
+};
+
 export const estimateSet1RM = st => {
   const w = Number(st?.weight) || 0;
   if (w <= 0) return 0;
@@ -421,8 +512,8 @@ export const findIntensityMismatches = workout => {
     const halves = isSup
       ? slot.supersetSetsByExercise.map((sets, i) => ({ sets, exId: slot.supersetExerciseIds?.[i] }))
       : [{ sets: slot?.sets, exId: slot?.exerciseId }];
-    halves.forEach(({ sets, exId }) => {
-      const all = Array.isArray(sets) ? sets : [];
+    halves.forEach(({ sets, exId }, half) => {
+      const all = withEffectiveLoad(exId, sets, getSlotEquipmentChoice(slot, half));
       const done = all.filter(st => st?.completed);
       const pool = (done.length > 0 ? done : all).filter(
         st => (Number(st?.weight) || 0) > 0 && normalizeSetType(st?.type) !== 'Warmup' && !st?.timerStr && !st?.durationSeconds
@@ -470,13 +561,13 @@ export const getBestHistory1RMInfo = (exerciseId, history = []) => {
 
   (history || []).forEach(w => {
     (w?.slots || []).forEach(slot => {
-      const scanSets = setsList => {
-        const arr = Array.isArray(setsList) ? setsList : [];
+      const scanSets = (setsList, half = 0) => {
+        // Bodyweight-type exercises: their load by the slot's equipment choice (withEffectiveLoad)
+        const arr = withEffectiveLoad(exerciseId, setsList, getSlotEquipmentChoice(slot, half));
         const hasCompleted = arr.some(s => s && s.completed && Number(s.weight) > 0);
         arr.forEach(st => {
           if (!st || Number(st.weight) <= 0) return;
           if (hasCompleted && !st.completed) return;
-          const reps = Math.max(1, Number(st.reps) || 1);
           const est = Math.round(estimateSet1RM(st));
           const calc = isCalculated1RMSet(st);
           if (est > best || (est === best && bestCalculated && !calc)) {
@@ -494,7 +585,7 @@ export const getBestHistory1RMInfo = (exerciseId, history = []) => {
         const ids = slot.supersetExerciseIds || [slot.exerciseId, slot.secondaryExerciseId].filter(Boolean);
         ids.forEach((id, idx) => {
           if (id === exerciseId) {
-            scanSets(slot.supersetSetsByExercise[idx]);
+            scanSets(slot.supersetSetsByExercise[idx], idx);
           }
         });
       } else if (slot.exerciseId === exerciseId) {
@@ -533,8 +624,9 @@ export const buildHistoryPRs = (history = []) => {
 /** One workout's best estimated 1RM per exercise ({ [exerciseId]: lb }), History's set rules. */
 const bestPerWorkout1RMs = workout => {
   const best = {};
-  const scan = (exId, setsList) => {
-    if (!exId || !Array.isArray(setsList)) return;
+  const scan = (exId, rawSets, option = null) => {
+    if (!exId || !Array.isArray(rawSets)) return;
+    const setsList = withEffectiveLoad(exId, rawSets, option);
     const hasCompleted = setsList.some(s => s && s.completed && Number(s.weight) > 0);
     setsList.forEach(st => {
       const w = Number(st?.weight) || 0;
@@ -547,9 +639,9 @@ const bestPerWorkout1RMs = workout => {
   (workout?.slots || []).forEach(slot => {
     if (isSupersetCategory(slot.category) && Array.isArray(slot.supersetSetsByExercise)) {
       const ids = slot.supersetExerciseIds || [slot.exerciseId, slot.secondaryExerciseId].filter(Boolean);
-      ids.forEach((id, idx) => scan(id, slot.supersetSetsByExercise[idx]));
+      ids.forEach((id, idx) => scan(id, slot.supersetSetsByExercise[idx], getSlotEquipmentChoice(slot, idx)));
     } else {
-      scan(slot.exerciseId, slot.sets);
+      scan(slot.exerciseId, slot.sets, getSlotEquipmentChoice(slot, 0));
     }
   });
   return best;
@@ -905,10 +997,11 @@ const getLoggedSessionsForExercise = (exerciseId, history = [], excludeWorkoutId
         if (isSupersetCategory(slot.category) && Array.isArray(slot.supersetSetsByExercise)) {
           const ids = slot.supersetExerciseIds || [slot.exerciseId, slot.secondaryExerciseId];
           ids.forEach((id, idx) => {
-            if (id === exerciseId) sets.push(...(slot.supersetSetsByExercise[idx] || []));
+            if (id === exerciseId) sets.push(...withEffectiveLoad(id, slot.supersetSetsByExercise[idx] || [], getSlotEquipmentChoice(slot, idx)));
           });
         } else if (slot.exerciseId === exerciseId) {
-          sets.push(...(slot.sets || []));
+          // Bodyweight-type exercises: their load by the slot's equipment choice
+          sets.push(...withEffectiveLoad(exerciseId, slot.sets || [], getSlotEquipmentChoice(slot, 0)));
         }
       });
       return { workoutId: w.id, isPersonalRecord: w.loadedRoutineTitle === 'PERSONAL RECORD', sets };
@@ -1225,6 +1318,7 @@ export const normalizeSlotLabels = slots => {
   let accessoryCount = 0;
   return (slots || [])
     .filter(slot => slot && slot.category !== 'Warm-Up Routine' && slot.exerciseId !== 'warmup_12_step')
+    .map(applyBandWeights)
     .map(slot => {
       const normCat = normalizeSlotCategory(slot.category);
       if (normCat === 'Compound') {

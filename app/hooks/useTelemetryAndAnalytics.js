@@ -10,10 +10,34 @@ import {
   formatDateYMD,
   parseYMDToISO
 } from '../data/exerciseLibrary';
-import { getPersonalRecord1RM, isCalculated1RMSet, estimateSet1RM } from '../utils/workoutEngine';
+import { getPersonalRecord1RM, isCalculated1RMSet, estimateSet1RM,
+  withEffectiveLoad
+} from '../utils/workoutEngine';
+import { getSlotEquipmentChoice } from '../data/exerciseLibrary';
 
 // Muscle groups with no logged training: neutral grey, so a new account isn't shown as all "overdue"
 export const UNLOGGED_STIMULUS_COLOR = '#3A3A3A';
+
+// Stimulus colour is a smooth blend by time since a muscle was trained: white just after training, yellow when it
+// has recovered (the end of RECOVERING), red once it is overdue (the end of RECOVERED). Yellow appears only here.
+export const STIMULUS_WHITE = '#FFFFFF';
+export const STIMULUS_YELLOW = '#FFD23F';
+export const STIMULUS_RED = '#FF4A3D';
+const hexToRgb = hex => [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16));
+const mix = (a, b, t) => {
+  const [ra, ga, ba] = hexToRgb(a);
+  const [rb, gb, bb] = hexToRgb(b);
+  const ch = (x, y) => Math.round(x + (y - x) * Math.min(1, Math.max(0, t))).toString(16).padStart(2, '0');
+  return `#${ch(ra, rb)}${ch(ga, gb)}${ch(ba, bb)}`;
+};
+/** The colour for `days` (may be fractional) since training, with RECOVERING up to greenMax and RECOVERED up to
+ * yellowMax: white at 0 → yellow at greenMax + 1 → red at yellowMax + 1. */
+export const stimulusColorForDays = (days, greenMax = 2, yellowMax = 4) => {
+  const d = Math.max(0, Number(days) || 0);
+  const g = Math.max(0.5, Number(greenMax) + 1);
+  const y = Math.max(g + 0.5, Number(yellowMax) + 1);
+  return d <= g ? mix(STIMULUS_WHITE, STIMULUS_YELLOW, d / g) : mix(STIMULUS_YELLOW, STIMULUS_RED, (d - g) / (y - g));
+};
 
 /**
  * Calendar days between a workout and now, in local time: trained yesterday = 1, whatever the hour (a 24-hour count
@@ -64,8 +88,9 @@ export function buildProgressionSeriesByLift(history) {
       let topCalculated = false;
       let totalVol = 0;
 
-      const accumulateSetsForExercise = setsList => {
-        const arr = Array.isArray(setsList) ? setsList : [];
+      const accumulateSetsForExercise = (setsList, option = null) => {
+        // Bodyweight-type exercises: their load by the slot's equipment choice
+        const arr = withEffectiveLoad(liftId, setsList, option);
         const hasCompleted = arr.some(s => s && s.completed && Number(s.weight) > 0);
         arr.forEach(s => {
           if (!s || Number(s.weight) <= 0) return;
@@ -89,11 +114,11 @@ export function buildProgressionSeriesByLift(history) {
             slot.supersetExerciseIds || [slot.exerciseId, slot.secondaryExerciseId].filter(Boolean);
           ids.forEach((id, idx) => {
             if (id === liftId) {
-              accumulateSetsForExercise(slot.supersetSetsByExercise[idx]);
+              accumulateSetsForExercise(slot.supersetSetsByExercise[idx], getSlotEquipmentChoice(slot, idx));
             }
           });
         } else if (slot.exerciseId === liftId) {
-          accumulateSetsForExercise(slot.sets);
+          accumulateSetsForExercise(slot.sets, getSlotEquipmentChoice(slot, 0));
         }
       });
 
@@ -135,7 +160,9 @@ export function useTelemetryAndAnalytics({
   userHeightFeet,
   userHeightInches,
   stimulusGreenDays,
-  stimulusYellowDays
+  stimulusYellowDays,
+  // Bodyweight-type exercises count it in their 1RM: the 1RMs and chart are worked out again when it changes
+  bodyweightLbs = 0
 }) {
   // Computed Personal Records (Updated from Highest Calculated 1RM in History + Manual Overrides)
   const effectiveOneRepMaxes = useMemo(() => {
@@ -145,7 +172,8 @@ export function useTelemetryAndAnalytics({
       if (best > 0) map[ex.id] = best;
     });
     return map;
-  }, [history, oneRepMaxes]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [history, oneRepMaxes, bodyweightLbs]);
 
   const totalHeightInches = useMemo(() => {
     return (Number(userHeightFeet) || 5) * 12 + (Number(userHeightInches) || 10);
@@ -178,10 +206,13 @@ export function useTelemetryAndAnalytics({
 
     groups.forEach(g => {
       let minDays = 99;
+      // The latest time it was trained (for the colour's smooth blend: fractional days)
+      let lastMs = 0;
       if (stimulusNowMs !== null) {
         history.forEach(w => {
           const daysAgo = calendarDaysAgo(w.startedAt, stimulusNowMs);
           if (daysAgo === null) return;
+          const wMs = typeof w.startedAt === 'number' ? w.startedAt : Date.parse(w.startedAt || '');
           (w.slots || []).forEach(slot => {
             const ids =
               isSupersetCategory(slot.category) && slot.supersetExerciseIds
@@ -189,8 +220,9 @@ export function useTelemetryAndAnalytics({
                 : [slot.exerciseId, slot.secondaryExerciseId].filter(Boolean);
             ids.forEach(id => {
               const ex = EXERCISE_MAP[id];
-              if (ex && doesExerciseInteractWithMuscleGroup(ex, g) && daysAgo < minDays) {
-                minDays = daysAgo;
+              if (ex && doesExerciseInteractWithMuscleGroup(ex, g)) {
+                if (daysAgo < minDays) minDays = daysAgo;
+                if (Number.isFinite(wMs) && wMs > lastMs) lastMs = wMs;
               }
             });
           });
@@ -199,13 +231,13 @@ export function useTelemetryAndAnalytics({
 
       const greenMax = Number.isFinite(Number(stimulusGreenDays)) && Number(stimulusGreenDays) >= 0 ? Number(stimulusGreenDays) : 2;
       const yellowMax = Math.max(greenMax + 1, Number(stimulusYellowDays) || 4);
-      let statusColor = '#FF4A3D';
+      // Colour: a blend along white → yellow → red by fractional days (labels and patterns still step by whole days)
+      const fracDays = lastMs > 0 && stimulusNowMs !== null ? Math.max(0, (stimulusNowMs - lastMs) / 86400000) : minDays;
+      let statusColor = stimulusColorForDays(Math.max(fracDays, minDays), greenMax, yellowMax);
       let statusLabel = `${yellowMax + 1}+ DAYS`;
       if (minDays <= greenMax) {
-        statusColor = '#FFFFFF';
         statusLabel = `${minDays}D AGO (RECOVERING)`;
       } else if (minDays <= yellowMax) {
-        statusColor = '#8A8A8A';
         statusLabel = `${minDays}D AGO (RECOVERED)`;
       } else if (minDays < 99) {
         statusLabel = `${minDays}D AGO (OVERDUE)`;
@@ -220,7 +252,8 @@ export function useTelemetryAndAnalytics({
     return result;
   }, [history, stimulusGreenDays, stimulusYellowDays, stimulusNowMs]);
 
-  const progressionSeriesByLift = useMemo(() => buildProgressionSeriesByLift(history), [history]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const progressionSeriesByLift = useMemo(() => buildProgressionSeriesByLift(history), [history, bodyweightLbs]);
 
   return {
     effectiveOneRepMaxes,

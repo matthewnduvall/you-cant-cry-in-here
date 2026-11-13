@@ -16,7 +16,8 @@ import {
   getBestHistory1RMInfo,
   historyAsOf
 } from '../../utils/workoutEngine';
-import { Button } from '../Controls';
+import { Button, TabBar } from '../Controls';
+import { downloadRoutineCsv } from '../../utils/routineCsv';
 import { SlotEditor } from '../SlotEditor';
 
 // A YYYY/MM/DD date box that only hands back a complete, real date (on blur or Enter); otherwise it shows the
@@ -64,6 +65,10 @@ const PARTNER_TAB_COLOR = '#BDBDBD';
 
 export function RoutineEditorView({
   colors,
+  // The live session's EASY / ADVANCED tabs: sessionMode ('easy' | 'advanced') + onChangeSessionMode(mode).
+  // EASY hides the 1RM box, the filter row, set types, intensity, locks and RECALCULATE.
+  sessionMode = 'advanced',
+  onChangeSessionMode,
   // Programs other than Crying: an INTENSITY strip under each set (%1RM / RIR / RPE)
   showIntensity = false,
   currentView,
@@ -117,6 +122,9 @@ export function RoutineEditorView({
   // Inside an open History workout the History list already has the page gutter, so the editor adds none (set rows
   // keep their full width and set types like WORKING aren't cut off)
   const sideGutter = isEmbeddedHistorySession ? '0' : '0 var(--dp-spacing-gutter)';
+  // The tabs show in a live session (not History, routines or past workouts); EASY only applies there
+  const showModeTabs = currentView === 'session' && !isEmbeddedHistorySession && Boolean(onChangeSessionMode);
+  const easyMode = showModeTabs && sessionMode === 'easy';
 
   const fieldLabelStyle = {
     fontSize: '11px',
@@ -348,6 +356,20 @@ export function RoutineEditorView({
 
       {/* ALWAYS-EXPANDED EXERCISES — SHARED BORDERS, LARGER CONTROLS & TEXT */}
       <section style={{ marginBottom: '20px', padding: sideGutter }}>
+        {/* EASY / ADVANCED (live session only) */}
+        {showModeTabs && (
+          <div style={{ marginBottom: '12px' }}>
+            <TabBar
+              ariaLabel="Session mode"
+              tabs={[
+                { id: 'easy', label: 'EASY' },
+                { id: 'advanced', label: 'ADVANCED' }
+              ]}
+              value={easyMode ? 'easy' : 'advanced'}
+              onChange={onChangeSessionMode}
+            />
+          </div>
+        )}
         {!isEmbeddedHistorySession && (
           <div
             style={{
@@ -500,7 +522,8 @@ export function RoutineEditorView({
                     onSetBandColor={({ exIdx, set, color }) =>
                       slotHandler('handleUpdateSetField')?.(slot.id, exIdx, set.id, 'bandColor', color)
                     }
-                    showIntensity={showIntensity}
+                    showIntensity={showIntensity && !easyMode}
+                    simple={easyMode}
                     onChangeSetIntensity={({ exIdx, set, intensity }) =>
                       slotHandler('handleUpdateSetField')?.(slot.id, exIdx, set.id, 'intensity', intensity)
                     }
@@ -522,7 +545,7 @@ export function RoutineEditorView({
                     actionLabel="RECALCULATE"
                     onAction={() => slotHandler('handleRecalculateSlotWeights')(slot.id)}
                     onToggleSetLock={
-                      handleToggleSetLock
+                      handleToggleSetLock && !easyMode
                         ? ({ exIdx, set, field }) => slotHandler('handleToggleSetLock')(slot.id, exIdx, set.id, field)
                         : undefined
                     }
@@ -563,6 +586,16 @@ export function RoutineEditorView({
                   style={bottomButtonStyle}
                 >
                   LOAD ROUTINE
+                </Button>
+              )}
+              {/* The routine editor: the routine as a .csv file (one row per set) */}
+              {currentView === 'routine_editor' && hasExercises && (
+                <Button
+                  variant="secondary"
+                  onClick={() => downloadRoutineCsv({ label: currentEditorWorkout.title, slots: currentEditorWorkout.slots })}
+                  style={bottomButtonStyle}
+                >
+                  EXPORT .CSV
                 </Button>
               )}
             </div>

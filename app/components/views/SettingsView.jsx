@@ -156,8 +156,8 @@ export function StimulusSettingsSection({
       </IOSListRow>
 
       <IOSListRow colors={colors}>
-<span style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', fontWeight: 500, color: '#8A8A8A' }}>
-          <svg width="14" height="14" aria-hidden="true"><rect width="14" height="14" fill="#8A8A8A" /><rect width="14" height="14" fill="url(#stim-dots)" /></svg>
+<span style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', fontWeight: 500, color: '#FFD23F' }}>
+          <svg width="14" height="14" aria-hidden="true"><rect width="14" height="14" fill="#FFD23F" /><rect width="14" height="14" fill="url(#stim-dots)" /></svg>
           RECOVERED
         </span>
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>

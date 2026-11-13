@@ -91,6 +91,9 @@ export const DEFAULT_SETTINGS_V2 = {
   programCycleStart: null,
   // The athlete's own training weekdays per program ({ [programId]: ['Mon', 'Wed', 'Fri'] }; none = the program's)
   programSchedules: {},
+  // Crying's Variety 0–10 (5 = default) and the session page's mode ('easy' | 'advanced')
+  cryingVariety: 5,
+  sessionMode: 'advanced',
   // shareBodyweightWithFriends: off unless the athlete turns it on (also for accounts saved before it existed)
   social: { shareStatsWithFriends: true, shareRoutinesWithFriends: true, profileIsPublic: true, shareBodyweightWithFriends: false },
   selectedGymId: '',
@@ -219,7 +222,9 @@ export const loadHydratedAppState = () => {
       program: normalizeProgramId(parsed.settings?.program),
       programCycleStart: typeof parsed.settings?.programCycleStart === 'string' ? parsed.settings.programCycleStart : null,
       programSchedules:
-        parsed.settings?.programSchedules && typeof parsed.settings.programSchedules === 'object' ? parsed.settings.programSchedules : {}
+        parsed.settings?.programSchedules && typeof parsed.settings.programSchedules === 'object' ? parsed.settings.programSchedules : {},
+      cryingVariety: Number.isFinite(Number(parsed.settings?.cryingVariety)) ? Math.min(10, Math.max(0, Math.round(Number(parsed.settings.cryingVariety)))) : 5,
+      sessionMode: parsed.settings?.sessionMode === 'easy' ? 'easy' : 'advanced'
     };
 
     const hydratedHistory = Array.isArray(parsed.history)

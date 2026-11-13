@@ -46,7 +46,8 @@ import {
   getSetTimerMMSS,
   getLastLoggedTimerDisplay,
   getSupersetSchemes,
-  SET_TYPES_LIST
+  SET_TYPES_LIST,
+  withEffectiveLoad
 } from '../utils/workoutEngine';
 import { DeleteButton, DragNumberBadge } from './Controls';
 import { usePointerReorder } from '../hooks/usePointerReorder';
@@ -120,7 +121,9 @@ const equipmentOf = ex => ex?.equipment || 'Bodyweight';
 // uses for Personal Records and the weight pop-up uses for its 1RM box; 0 = no weights
 // ({ value, calculated }: calculated = from a multi-rep set, shown with *)
 // The exercise's calculated 1RM: the average over its working sets (each with its own reps and intensity)
-const best1RM = sets => exercise1RMInfoOfSets(Array.isArray(sets) ? sets : []);
+// Bodyweight-type exercises count bodyweight (withEffectiveLoad); LAST comes from History already loaded
+const best1RM = (sets, exId = null, option = null) =>
+  exercise1RMInfoOfSets(exId ? withEffectiveLoad(exId, sets, option) : Array.isArray(sets) ? sets : []);
 
 // Set type dropdown labels (short enough for the set row's type column)
 const SET_TYPE_LABELS = { Warmup: 'WARMUP', Working: 'WORKING', 'Top Out': 'TOP OUT', 'Burn Out': 'BURN OUT', '1 Rep Max': '1RM' };
@@ -284,7 +287,10 @@ export function SlotEditor({
   onToggleSetLock,
   onChangeSetType,
   showIntensity = false,
-  onChangeSetIntensity
+  onChangeSetIntensity,
+  // EASY mode (the session page's tabs): no 1RM box, no filter row (type / muscle / equipment / rest), no set type
+  // cell and no RECALCULATE; the host also leaves out locks and intensity
+  simple = false
 }) {
   // The INTENSITY pop-up: { exIdx, set, label } while open
   const [intensityTarget, setIntensityTarget] = useState(null);
@@ -485,7 +491,7 @@ export function SlotEditor({
       const lastDone = lastSession.filter(st => st && st.completed && Number(st.weight) > 0);
       const lastInfo = best1RM(lastDone.length > 0 ? lastDone : lastSession);
       // Timer sets count seconds, not reps
-      const nowInfo = schemes[half] === 'Timer' ? { value: 0, calculated: false } : best1RM(exSets);
+      const nowInfo = schemes[half] === 'Timer' ? { value: 0, calculated: false } : best1RM(exSets, exObj.id, equipment);
       const prInfoHeader = getBestHistory1RMInfo(exObj.id, history);
       const last1RM = lastInfo.value;
       const now1RM = nowInfo.value;
@@ -526,7 +532,7 @@ export function SlotEditor({
             onClick={() => setSearch({ half, query: '' })}
             style={{
               ...cellBase,
-              gridColumn: '1 / 9',
+              gridColumn: simple ? '1 / 13' : '1 / 9',
               display: 'flex',
               alignItems: 'center',
               gap: '6px',
@@ -561,6 +567,7 @@ export function SlotEditor({
               <SearchGlyph />
             </span>
           </button>
+          {!simple && (
           <div
             role="group"
             aria-label={`1 rep max (an asterisk means calculated from reps): last session ${last1RM ? oneRepMaxLabel(last1RM, lastInfo.calculated) : 'none'}, now ${now1RM ? oneRepMaxLabel(now1RM, nowInfo.calculated) : 'none'}, record ${pr1RM ? oneRepMaxLabel(pr1RM, prInfoHeader.calculated) : 'none'}`}
@@ -580,6 +587,7 @@ export function SlotEditor({
             {statCell('NOW', now1RM, pr1RM > 0 && now1RM > pr1RM ? '#FFFFFF' : '#FFFFFF', nowInfo.calculated)}
             {statCell('PR', pr1RM, 'var(--dp-color-accent)', prInfoHeader.calculated)}
           </div>
+          )}
         </>
       );
     }
@@ -791,7 +799,7 @@ export function SlotEditor({
           display: 'grid',
           // 12 columns: row 1 = title (8) + 1RM box (4); row 2 = TYPE (4) | MUSCLE (3) | EQUIPMENT (3) | REST (2)
           gridTemplateColumns: 'repeat(12, minmax(0, 1fr))',
-          gridTemplateRows: '44px 40px',
+          gridTemplateRows: simple ? '44px' : '44px 40px',
           gap: 0,
           minWidth: 0,
           ...(half === 1 ? { borderTop: '1px solid var(--dp-color-rule)' } : {}),
@@ -800,6 +808,9 @@ export function SlotEditor({
       >
         {renderTitleCell(half)}
 
+        {/* Row 2 (filters + REST): not in EASY mode */}
+        {!simple && (
+        <>
         <select
           aria-label={`${tag}Exercise Category`.trim()}
           value={isSuperset ? 'Superset' : category}
@@ -864,8 +875,8 @@ export function SlotEditor({
             </option>
           ))}
         </select>
-
-
+        </>
+        )}
 
         {renderSearchResults(half)}
       </div>
@@ -1035,7 +1046,7 @@ export function SlotEditor({
               // so they fit beside their padlocks), else 52 px
               // + an INTENSITY cell after reps when the program uses intensity (not on Timer sets)
               // Every value cell is the same width, with a caps label over its value (TYPE, LB, REPS, the scale)
-              gridTemplateColumns: `repeat(${showIntensity && !isTimerScheme ? 4 : 3}, minmax(0, 1fr)) ${
+              gridTemplateColumns: `repeat(${(showIntensity && !isTimerScheme ? 4 : 3) - (simple ? 1 : 0)}, minmax(0, 1fr)) ${
                 onToggleSetLock ? '40px' : '52px'
               }`,
               gap: 0,
@@ -1044,7 +1055,7 @@ export function SlotEditor({
           >
             {/* Set type dropdown (with its lock): picking a type re-works the set's weight and reps
                 (handleUpdateSetType); a locked type is kept by RECALCULATE */}
-            {withSetLock(exIdx, st, 'type', cellBg,
+            {!simple && withSetLock(exIdx, st, 'type', cellBg,
             <div style={{ ...setCellStyle(cellBg), position: 'relative', overflow: 'hidden' }}>
               <span style={cellLabelStyle}>TYPE</span>
               <span
@@ -1332,7 +1343,7 @@ export function SlotEditor({
           style={{
             display: 'grid',
             // Equal-width buttons: SCHEME | RECALCULATE | DELETE
-            gridTemplateColumns: `repeat(${onRemove ? 3 : 2}, minmax(0, 1fr))`,
+            gridTemplateColumns: `repeat(${(onRemove ? 3 : 2) - (simple ? 1 : 0)}, minmax(0, 1fr))`,
             gap: 0
           }}
         >
@@ -1347,6 +1358,7 @@ export function SlotEditor({
             <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{schemeSummary}</span>
             <span aria-hidden="true" style={{ color: '#9A9A9A', fontSize: '10px' }}>▾</span>
           </button>
+          {!simple && (
           <button
             type="button"
             className="kinetic-btn"
@@ -1355,6 +1367,7 @@ export function SlotEditor({
           >
             {actionLabel}
           </button>
+          )}
           {onRemove && (
             <button
               type="button"

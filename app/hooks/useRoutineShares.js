@@ -11,12 +11,20 @@
 // ============================================================================
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { answerRoutineShare, fetchIncomingRoutineShares, sendRoutineToFriend } from '../utils/supabaseAuth';
+import {
+  answerRoutineShare,
+  deleteSentRoutineShares,
+  fetchIncomingRoutineShares,
+  fetchSentRoutineShares,
+  sendRoutineToFriend
+} from '../utils/supabaseAuth';
 
 const CHECK_EVERY_MS = 2 * 60 * 1000;
 
 export function useRoutineShares({ user, setSavedRoutines, onLoadRoutine, appendSessionLog }) {
   const [incoming, setIncoming] = useState([]);
+  // Routines you sent (SHARED tab): routine_shares rows you are the sender of
+  const [sent, setSent] = useState([]);
   const [busy, setBusy] = useState(false);
   // SEND: the routine being sent, and how it went
   const [sendTarget, setSendTarget] = useState(null);
@@ -24,12 +32,25 @@ export function useRoutineShares({ user, setSavedRoutines, onLoadRoutine, append
   // Shares answered on this device, so a check that was already on its way doesn't bring one back
   const answeredRef = useRef(new Set());
 
+  const refreshSent = useCallback(async () => {
+    if (!user?.id) return;
+    const res = await fetchSentRoutineShares(user);
+    if (res.ok) setSent(res.rows);
+  }, [user]);
+
   const check = useCallback(async () => {
     if (!user?.id) return;
     const res = await fetchIncomingRoutineShares(user);
-    if (!res.ok) return;
-    setIncoming(res.rows.filter(row => !answeredRef.current.has(row.id)));
-  }, [user]);
+    if (res.ok) setIncoming(res.rows.filter(row => !answeredRef.current.has(row.id)));
+    refreshSent();
+  }, [user, refreshSent]);
+
+  // Withdraw a routine you sent (all its rows: one per friend)
+  const withdrawSent = async shareIds => {
+    setSent(list => list.filter(row => !shareIds.includes(row.id)));
+    const res = await deleteSentRoutineShares(user, shareIds);
+    if (!res.ok) refreshSent();
+  };
 
   useEffect(() => {
     if (!user?.id || typeof window === 'undefined') return undefined;
@@ -111,9 +132,24 @@ export function useRoutineShares({ user, setSavedRoutines, onLoadRoutine, append
       const label = list.length > 1 ? `@friends (${sent.length} of ${list.length})` : `@${sent[0].username}`;
       setSendState({ busy: false, sentTo: label, error: failed ? `not every friend got it (${failed.error || 'server error'})` : '' });
     }
+    refreshSent();
+  };
+
+  // From the finish / save pop-up's SHARE list: a copy of the routine to each chosen friend (no pop-up state)
+  const sendRoutine = async (routine, friends) => {
+    const list = (friends || []).filter(f => f?.id);
+    if (!user?.id || !routine || list.length === 0) return { ok: true, sent: 0 };
+    const results = await Promise.all(list.map(f => sendRoutineToFriend(user, f.id, routine)));
+    const sent = list.filter((f, i) => results[i]?.ok);
+    appendSessionLog?.('ROUTINE_SHARE_SENT', `Sent "${routine.label}" to ${sent.map(f => `@${f.username}`).join(', ') || 'nobody'}`);
+    refreshSent();
+    return { ok: sent.length === list.length, sent: sent.length };
   };
 
   return {
+    sendRoutine,
+    sent,
+    withdrawSent,
     incoming,
     incomingBusy: busy,
     saveShare,

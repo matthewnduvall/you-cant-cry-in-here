@@ -4,7 +4,7 @@ import { FormulaConsole } from './components/FormulaConsole';
 import { getProgram, getWorkoutProgramInfo } from './data/programs';
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { IOS_DARK, KINETIC_CSS } from './styles/kineticTokens';
-import { getIncrementInLbs, getInitial1RMs, asHistoricalWorkout, withAutoSessionName } from './utils/workoutEngine';
+import { getIncrementInLbs, getInitial1RMs, asHistoricalWorkout, withAutoSessionName, setEngineBodyweight } from './utils/workoutEngine';
 import { fetchAthleteProfileSnapshot, signOutUser } from './utils/supabaseAuth';
 import { AppHeaderAndDrawer, PageTitle } from './components/AppHeaderAndDrawer';
 import {
@@ -149,6 +149,8 @@ export default function App() {
   const [targetStandardClass, setTargetStandardClass] = useState('Novice');
   const [customGoalWeights, setCustomGoalWeights] = useState({});
   const [userBodyweightLbs, setUserBodyweightLbs] = useState(220);
+  // Bodyweight-type exercises count your bodyweight in their 1RM (workoutEngine setLoadLbs); kept current every render
+  setEngineBodyweight(userBodyweightLbs);
   const [userHeightFeet, setUserHeightFeet] = useState(5);
   const [userHeightInches, setUserHeightInches] = useState(10);
   const [stimulusGreenDays, setStimulusGreenDays] = useState(2);
@@ -169,6 +171,10 @@ export default function App() {
   const [programCycleStart, setProgramCycleStart] = useState(null);
   // The athlete's training weekdays per program ({ [programId]: ['Mon', 'Wed', 'Fri'] }; none = the program's own)
   const [programSchedules, setProgramSchedules] = useState({});
+  // Crying's Variety (0 = the fewest different exercises, 10 = none repeats within 20 sessions; 5 = default)
+  const [cryingVariety, setCryingVariety] = useState(5);
+  // The session page's EASY / ADVANCED tabs (easy hides the program row, 1RM box, filters, types, intensity, locks…)
+  const [sessionMode, setSessionMode] = useState('advanced');
   // Picking a different program starts its cycle today (week 1)
   const selectTrainingProgram = id => {
     if (id === trainingProgram) return;
@@ -328,6 +334,10 @@ export default function App() {
     setProgramCycleStart,
     programSchedules,
     setProgramSchedules,
+    cryingVariety,
+    setCryingVariety,
+    sessionMode,
+    setSessionMode,
     shareStatsWithFriends,
     setShareStatsWithFriends,
     shareRoutinesWithFriends,
@@ -360,7 +370,8 @@ export default function App() {
     userHeightFeet,
     userHeightInches,
     stimulusGreenDays,
-    stimulusYellowDays
+    stimulusYellowDays,
+    bodyweightLbs: userBodyweightLbs
   });
 
   // --- 3a. Live session sync with a friend (SYNC in the session header) ---
@@ -493,6 +504,7 @@ export default function App() {
     trainingProgram,
     programCycleStart,
     programSchedules,
+    cryingVariety,
     targetStandardClass,
     heightInches: totalHeightInches
   };
@@ -1063,6 +1075,7 @@ export default function App() {
           onFinishSession={handleFinishSession}
           onResetSession={requestResetSession}
           receivedRoutineCount={routineShares.incoming.length}
+          sessionMode={sessionMode}
           sessionSync={
             sessionSync.canSync
               ? {
@@ -1115,6 +1128,8 @@ export default function App() {
           {isRoutineEditorView && currentEditorWorkout && (
             <RoutineEditorView
               colors={colors}
+              sessionMode={sessionMode}
+              onChangeSessionMode={setSessionMode}
               showIntensity={getProgram(currentEditorWorkout?.program || trainingProgram).usesIntensity}
               currentView={currentView}
               currentEditorWorkout={currentEditorWorkout}
@@ -1198,10 +1213,12 @@ export default function App() {
               }
               handleCancelRoutineSelection={handleCancelRoutineSelection}
               showCancel={!routinesAsPage}
-              sections={user ? ['saved', 'shared', 'friends', 'received'] : ['saved', 'shared', 'friends']}
+              sections={user ? ['saved', 'shared', 'received'] : ['saved', 'shared']}
               onNewRoutine={routinesAsPage ? handleNewRoutine : undefined}
               onEditRoutine={routinesAsPage ? handleEditRoutine : undefined}
               received={routineShares.incoming}
+              sent={routineShares.sent}
+              onWithdrawSent={routineShares.withdrawSent}
               onSaveReceived={routineShares.saveShare}
               onLoadReceived={share =>
                 confirmReplaceSession(share?.label || 'this routine', () => routineShares.loadShare(share))
@@ -1283,6 +1300,8 @@ export default function App() {
                 history,
                 programSchedules,
                 setProgramSchedule: (programId, days) => setProgramSchedules(prev => ({ ...(prev || {}), [programId]: days })),
+                cryingVariety,
+                setCryingVariety,
                 onRestartCycle: () => setProgramCycleStart(new Date().toISOString())
               }}
             />
@@ -1457,7 +1476,9 @@ export default function App() {
 
         {/* FORMULAS console (workout editors): the formulas behind RECALCULATE and new exercises, for checking */}
         {(['session', 'routine_editor', 'historical_entry', 'routine_preview'].includes(currentView) ||
-          (currentView === 'history' && expandedHistoryWorkoutId)) && <FormulaConsole />}
+          (currentView === 'history' && expandedHistoryWorkoutId)) &&
+          // EASY mode (live session) hides the FORMULAS drawer
+          !(currentView === 'session' && sessionMode === 'easy') && <FormulaConsole />}
 
         {/* MODALS */}
         <DeleteConfirmModal
@@ -1540,9 +1561,22 @@ export default function App() {
         <SyncNoticeModal title="SESSION SAVED" message={idleFinishNotice} onClose={() => setIdleFinishNotice('')} />
 
         <SaveConfirmModal
+          key={saveConfirmTarget ? 'open' : 'closed'}
           saveConfirmTarget={saveConfirmTarget}
           setSaveConfirmTarget={setSaveConfirmTarget}
-          handleConfirmSaveWorkout={handleConfirmSaveWorkout}
+          friends={user ? friendsList : []}
+          handleConfirmSaveWorkout={confirmed => {
+            // SHARE → chosen friends: each gets a copy in their INBOX (taken before the session closes)
+            const chosen = (friendsList || []).filter(f => (confirmed?.shareFriendIds || []).includes(f.id));
+            const workout = currentEditorWorkout;
+            if (user && chosen.length > 0 && workout?.slots?.length) {
+              routineShares.sendRoutine(
+                { key: `share_${Date.now()}`, label: stripDateFromTitle(confirmed?.name) || stripDateFromTitle(workout.title) || 'Routine', slots: workout.slots },
+                chosen
+              );
+            }
+            handleConfirmSaveWorkout(confirmed);
+          }}
         />
 
         <HistoricalEditConfirmModal
