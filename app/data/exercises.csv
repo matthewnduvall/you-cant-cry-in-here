@@ -251,6 +251,7 @@ exrx_forearms_sled_selectorized_one_hand_grip,Sled (selectorized) One Hand Grip,
 exrx_forearms_stretch_standing_brachioradialis_stretch,Standing Brachioradialis Stretch,Forearms,Accessory,Stretch,,Brachioradialis,false,25,
 wrist_roller,Suspended Wrist Roller,Forearms,Accessory,Barbell / Bodyweight,,Wrist Extensors|Wrist Flexors,false,35,barbell_wrist_curl
 barbell_deadlift,Barbell Deadlift,Back,Compound,Barbell,Barbell|Weight Plates,Erector Spinae|Gluteus Maximus|Hamstrings|General Back|Trapezius - Upper|Forearms,true,350,landmine_rdl|dumbbell_rdl|barbell_row
+barbell_power_clean,Barbell Power Clean,Hips,Compound,Barbell,Barbell|Weight Plates,Gluteus Maximus|Quadriceps|Hamstrings|Erector Spinae|Trapezius - Upper|Deltoid - Anterior|Gastrocnemius,false,185,barbell_deadlift|barbell_shrug|barbell_upright_row
 chin_ups,Chin-Up / Pull-Up,Back,Compound,Bodyweight / Weighted,,Latissimus Dorsi|Biceps Brachii|Brachialis|Rhomboids|Trapezius - Lower,true,220,cable_pulldown|barbell_row|dumbbell_row
 exrx_back_assisted_machine_chin_up,Assisted Machine Chin-up,Back,Compound,Assisted Machine,Lever / Machine,Latissimus Dorsi|Biceps Brachii,false,150,
 exrx_back_assisted_machine_parallel_close_grip_pull_up,Assisted Machine Parallel Close Grip Pull-up,Back,Compound,Assisted Machine,Lever / Machine,Latissimus Dorsi|Biceps Brachii,false,150,

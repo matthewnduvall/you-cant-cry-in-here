@@ -64,6 +64,8 @@ export function AppHeaderAndDrawer({
   onChangeProgramWeek,
   // The PROGRAM box: this session's program (useWorkoutMutations.handleChangeSessionProgram)
   onChangeSessionProgram,
+  // The DAY box (programs with set days): useWorkoutMutations.handleChangeProgramDay
+  onChangeProgramDay,
   // Logged workouts: the program's week keeps track of itself from them (getAutoProgramWeek)
   history = [],
   onFinishSession,
@@ -256,7 +258,12 @@ export function AppHeaderAndDrawer({
                 onChangeWeek: week =>
                   onChangeProgramWeek
                     ? onChangeProgramWeek(week)
-                    : updateCurrentWorkoutState(prev => ({ ...prev, program: prev.program || trainingProgram, programWeek: week }))
+                    : updateCurrentWorkoutState(prev => ({ ...prev, program: prev.program || trainingProgram, programWeek: week })),
+                // Programs with set days: the session's day (Workout A / B, push / pull / legs…)
+                dayOptions: program.days ? program.days.map(d => ({ id: d.id, label: d.name })) : null,
+                dayId: ctx?.day?.id || null,
+                dayLabel: ctx?.day?.name || '',
+                onChangeDay: id => onChangeProgramDay?.(id)
               };
             })()}
           />

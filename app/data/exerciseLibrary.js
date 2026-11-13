@@ -206,6 +206,7 @@ export const getGymSelectionLabel = (gymSelectionId, customGyms = []) => {
 // Other names an exercise goes by: exercise search and the History .csv import both match them
 export const EXERCISE_NAME_ALIASES = {
   barbell_rdl: ['RDL', 'RDLs', 'Romanian Deadlift'],
+  barbell_power_clean: ['Power Clean', 'Power Cleans', 'Clean', 'Cleans', 'Barbell Clean'],
   sit_up: ['Situp', 'Situps', 'Sit-Up', 'Sit-Ups'],
   tricep_dip: ['Dip', 'Dips'],
   dumbbell_shoulder_press: ['Dumbbell Overhead Press', 'DB Overhead Press', 'DB Press', 'DB Shoulder Press', 'Dumbbell OHP', 'DB OHP'],
@@ -227,6 +228,8 @@ export const EXERCISE_NAME_ALIASES = {
 };
 
 const SECONDARY_MUSCLE_GROUPS = {
+  // A power clean drives through the hips and legs and finishes with the traps (upper back)
+  barbell_power_clean: ['Thighs', 'Back'],
   barbell_thruster: ['Shoulders'],
   dumbbell_thruster: ['Shoulders']
 };
