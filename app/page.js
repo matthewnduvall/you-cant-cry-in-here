@@ -1486,7 +1486,17 @@ export default function App() {
               importBackupInputRef={importBackupInputRef}
               handleExportBackupJSON={handleExportBackupJSON}
               handleImportBackupJSON={handleImportBackupJSON}
-              handleResetToDemoDefaults={handleResetToDemoDefaults}
+              // Asks first: it signs out and erases everything on this device
+              handleResetToDemoDefaults={() =>
+                setDeleteConfirmTarget({
+                  type: 'generic',
+                  title: 'CLEAR THIS DEVICE?',
+                  verb: 'clear',
+                  label: 'everything saved on this device and sign out (what is in your account stays on the server)',
+                  confirmLabel: 'CLEAR',
+                  onConfirm: handleResetToDemoDefaults
+                })
+              }
             />
           )}
 

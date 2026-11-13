@@ -4,7 +4,7 @@ import React, { useMemo, useState } from 'react';
 import { ProfileAvatar } from '../ProfileAvatar';
 import { IOSListSection, IOSListRow } from '../Primitives';
 import { Button, NestedTabBar, TabBar } from '../Controls';
-import { buildHistoryPRRanges, buildHistoryPRs, getBestHistory1RMInfo, oneRepMaxLabel } from '../../utils/workoutEngine';
+import { buildHistoryPRRanges, buildHistoryPRs, getBestHistory1RMInfo, oneRepMaxLabel, withEngineBodyweight } from '../../utils/workoutEngine';
 import { UI } from '../../styles/kineticTokens';
 import {
   EXERCISE_MAP,
@@ -124,8 +124,13 @@ export function LeaderboardView({
   }, [friendsList, userId]);
 
   // Each athlete's History stats (statsOf), worked out once per History change, not on every tab tap
-  const selfStats = useMemo(() => statsOf(history), [history]);
-  const friendStats = useMemo(() => new Map(distinctFriends.map(f => [f, statsOf(f.history)])), [distinctFriends]);
+  // (yours with your bodyweight — it's a dependency now; each friend's with theirs, unknown = as stored)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const selfStats = useMemo(() => statsOf(history), [history, userBodyweightLbs]);
+  const friendStats = useMemo(
+    () => new Map(distinctFriends.map(f => [f, withEngineBodyweight(rankingBwOf(f), () => statsOf(f.history))])),
+    [distinctFriends]
+  );
 
   // 1. BIG 3 TOTAL, BIG 3 NORMALIZED & OVERHEAD PRESS NORMALIZED (Strictly from logged PRs — no fake fallbacks)
   const selfBench = Number(oneRepMaxes.barbell_bench_press) || 0;

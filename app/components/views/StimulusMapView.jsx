@@ -12,6 +12,9 @@ const statusPattern = label =>
 
 // One body part on the map. Tapping (or Enter / Space) selects its muscle group: the readout under the map
 // names it and says when it was last trained, and every box of that group gets a white outline.
+// Extra tap area around each body part, in map units
+const HIT_PAD = 6;
+
 function MuscleRect({ group, statusMap, selected, onSelect, strokeWidth, ...rect }) {
   const status = statusMap?.[group];
   const pattern = statusPattern(status?.label);
@@ -30,6 +33,15 @@ function MuscleRect({ group, statusMap, selected, onSelect, strokeWidth, ...rect
       }}
       style={{ cursor: 'pointer', outline: 'none' }}
     >
+      {/* A bigger, invisible tap area around the box (small parts like the neck are hard to hit); parts drawn later sit
+          on top, so it only reaches into empty space and the head */}
+      <rect
+        x={Number(rect.x) - HIT_PAD}
+        y={Number(rect.y) - HIT_PAD}
+        width={Number(rect.width) + HIT_PAD * 2}
+        height={Number(rect.height) + HIT_PAD * 2}
+        fill="transparent"
+      />
       <rect {...rect} fill={status?.color || '#3A3A3A'} stroke={selected ? '#FFFFFF' : '#000000'} strokeWidth={selected ? 2.5 : strokeWidth} />
       {pattern && <rect {...rect} fill={pattern} stroke="none" pointerEvents="none" />}
     </g>
@@ -129,9 +141,9 @@ export function StimulusMapView({
               }}
             >
               <div style={{ fontSize: '11px', fontWeight: 500, color: 'var(--dp-color-accent)', letterSpacing: '0.06em', marginBottom: '8px' }}>
-                ANTERIOR // FRONT
+                FRONT
               </div>
-              <svg viewBox="0 0 120 230" style={{ width: '100%', maxWidth: '135px', height: 'auto' }}>
+              <svg viewBox="0 0 120 230" style={{ width: '100%', maxWidth: '160px', height: 'auto' }}>
                 <rect x="50" y="6" width="20" height="22" fill="#262626" stroke="#3A3A3A" strokeWidth="1.5" />
                 <MuscleRect x="54" y="28" width="12" height="8" {...part('Neck')} strokeWidth="1" />
                 <MuscleRect x="22" y="36" width="16" height="22" {...part('Shoulders')} strokeWidth="1.5" />
@@ -160,9 +172,9 @@ export function StimulusMapView({
               }}
             >
               <div style={{ fontSize: '11px', fontWeight: 500, color: 'var(--dp-color-accent)', letterSpacing: '0.06em', marginBottom: '8px' }}>
-                POSTERIOR // BACK
+                BACK
               </div>
-              <svg viewBox="0 0 120 230" style={{ width: '100%', maxWidth: '135px', height: 'auto' }}>
+              <svg viewBox="0 0 120 230" style={{ width: '100%', maxWidth: '160px', height: 'auto' }}>
                 <rect x="50" y="6" width="20" height="22" fill="#262626" stroke="#3A3A3A" strokeWidth="1.5" />
                 <MuscleRect x="54" y="28" width="12" height="8" {...part('Neck')} strokeWidth="1" />
                 <MuscleRect x="22" y="36" width="16" height="22" {...part('Shoulders')} strokeWidth="1.5" />

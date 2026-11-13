@@ -126,10 +126,10 @@ export function RoutinesView({
     shared: split([
       ...(sharedRoutines || []).map(r => ({ ...r, sharedTo: ['all'] })),
       ...(() => {
-        // One entry per routine sent at the same time (one row per friend)
+        // One entry per send (one row per friend, sharing the send's batch id; older sends stand alone)
         const groups = new Map();
         (sent || []).forEach(row => {
-          const key = `${row.label || 'Routine'}|${String(row.created_at || '').slice(0, 16)}`;
+          const key = row.routine?.batchId || row.id;
           const g = groups.get(key) || {
             key: `sent_${row.id}`,
             label: row.label || row.routine?.label || 'Routine',

@@ -2,7 +2,7 @@
 // SUPABASE & LOCAL ACCOUNT AUTHENTICATION ENGINE
 // ============================================================================
 
-import { buildHistoryPRs } from './workoutEngine';
+import { buildHistoryPRs, withEngineBodyweight } from './workoutEngine';
 import { canonicalExerciseData } from '../data/exerciseLibrary';
 
 const LOCAL_ACCOUNTS_KEY = 'yccih_registered_accounts_v1';
@@ -1089,7 +1089,11 @@ export async function pushCloudStateForUser(user, payload, { historyToUpload } =
   };
   // Refused by row-level security: the row's id / key already exists under another account (the data on this device
   // came from that account, e.g. after switching accounts). Such rows aren't this athlete's to upload.
-  const isForeignRow = result => !result.ok && (result.status === 403 || /row-level security/i.test(String(result.error || '')));
+  // Only that exact refusal counts: an upsert that turned into an UPDATE of a row this athlete can't see fails its
+  // USING check ("new row violates row-level security policy (USING expression)"). Any other 403 (e.g. "permission
+  // denied for table", a server misconfiguration) stays an ordinary error, so it can never delete local data.
+  const isForeignRow = result =>
+    !result.ok && result.status === 403 && /row-level security policy \(USING expression\)/i.test(String(result.error || ''));
   const foreignWorkoutIds = [];
   const foreignRoutineKeys = [];
 
@@ -1285,7 +1289,8 @@ function buildAthleteFromProfileRow(
   // ticker). On by default.
   const statsShared = row?.settings?.social?.shareStatsWithFriends !== false;
   const sharedHistory = statsShared ? rowHistory : [];
-  const mergedPrs = buildHistoryPRs(sharedHistory);
+  // Their bodyweight-type lifts count their own bodyweight (unknown = as stored), never the viewer's
+  const mergedPrs = withEngineBodyweight(Number(row?.settings?.bodyMetrics?.bodyweightLbs) || 0, () => buildHistoryPRs(sharedHistory));
 
   return {
     id: row?.id || `friend_${uname.toLowerCase()}`,
@@ -1809,6 +1814,8 @@ const ROUTINE_SHARE_COLUMNS = 'id,sender_id,recipient_id,sender_username,label,r
 /** What a sent routine carries: its name and exercises (never the sender's done marks or locks). */
 const routinePayloadForShare = routine => ({
   label: routine?.label || 'Routine',
+  // One send to several friends shares a batch id (the sender's SHARED tab shows it as one row)
+  ...(routine?.batchId ? { batchId: String(routine.batchId) } : {}),
   slots: (Array.isArray(routine?.slots) ? routine.slots : []).map(slot => {
     const clean = sets => (Array.isArray(sets) ? sets.map(st => ({ ...st, completed: false })) : sets);
     return {

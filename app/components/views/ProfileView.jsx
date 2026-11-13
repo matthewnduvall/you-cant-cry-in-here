@@ -2,7 +2,7 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import { IOSListSection, IOSListRow } from '../Primitives';
-import { buildHistoryPRs } from '../../utils/workoutEngine';
+import { buildHistoryPRs, withEngineBodyweight } from '../../utils/workoutEngine';
 import {
   fetchAthleteProfileSnapshot,
   fetchFriendsOfAthlete,
@@ -232,8 +232,12 @@ export function ProfileView({
     : sharedRoutines;
   // A friend's PROGRESS chart is built from their logged History
   const friendSeriesByLift = useMemo(
-    () => (isFriend ? buildProgressionSeriesByLift(friendHistorySource || []) : null),
-    [isFriend, friendHistorySource]
+    () =>
+      isFriend
+        ? // their bodyweight-type lifts with their own bodyweight (unknown = as stored)
+          withEngineBodyweight(Number(profUser?.rankingBodyweightLbs) || 0, () => buildProgressionSeriesByLift(friendHistorySource || []))
+        : null,
+    [isFriend, friendHistorySource, profUser?.rankingBodyweightLbs]
   );
 
   return (
