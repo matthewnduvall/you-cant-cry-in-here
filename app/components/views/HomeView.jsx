@@ -258,7 +258,9 @@ export function HomeView({
   goalToGoLbs = null,
   goalClassName = '',
   // The TODAY panel while a session is open: { title, done, total } (sets)
-  activeSessionSummary = null
+  activeSessionSummary = null,
+  // Bodyweight / height not entered yet: the ticker starts with a reminder
+  bodyMetricsSet = true
 }) {
   const [scrollerSeed, setScrollerSeed] = useState(1);
   const [todayFallbackStr, setTodayFallbackStr] = useState('');
@@ -337,6 +339,8 @@ export function HomeView({
 
   // Order: new friends, then your muscle groups, then friends' lifts (or a prompt when there are none)
   const tickerItems = [
+    // Goals, standards and bodyweight lifts use them: a reminder first until they are entered
+    ...(bodyMetricsSet ? [] : ['SET YOUR BODYWEIGHT AND HEIGHT IN CONFIGURATION → BODY METRICS']),
     ...newFriendEntries,
     ...muscleEntries,
     ...(sortedTickerEntries.length > 0
@@ -428,7 +432,7 @@ export function HomeView({
       label: 'FRIENDS',
       value: String(friendCount),
       unit: '',
-      sub: requestCount > 0 ? `${requestCount} ${requestCount === 1 ? 'REQUEST' : 'REQUESTS'}` : 'LEADERBOARDS',
+      sub: requestCount > 0 ? `${requestCount} ${requestCount === 1 ? 'REQUEST' : 'REQUESTS'}` : 'FIND ATHLETES',
       badge: requestCount,
       view: 'social'
     }

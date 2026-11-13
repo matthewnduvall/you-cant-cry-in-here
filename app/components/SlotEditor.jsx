@@ -288,7 +288,7 @@ export function SlotEditor({
   onChangeSetType,
   showIntensity = false,
   onChangeSetIntensity,
-  // EASY mode (the session page's tabs): no 1RM box, no filter row (type / muscle / equipment / rest), no set type
+  // SIMPLE mode (the session page's tabs): no 1RM box, no filter row (type / muscle / equipment / rest), no set type
   // cell and no RECALCULATE; the host also leaves out locks and intensity
   simple = false
 }) {
@@ -808,7 +808,7 @@ export function SlotEditor({
       >
         {renderTitleCell(half)}
 
-        {/* Row 2 (filters + REST): not in EASY mode */}
+        {/* Row 2 (filters + REST): not in SIMPLE mode */}
         {!simple && (
         <>
         <select

@@ -35,7 +35,9 @@ export function AuthView({
   setUser,
   setCurrentView,
   // Workout History already on this device (then a first sign-in skips Configuration)
-  hasLocalHistory = false
+  hasLocalHistory = false,
+  // A brand-new account is sent through Configuration from its first tab
+  onStartSetup
 }) {
   const [loginError, setLoginError] = useState('');
   // Set by useCloudAndStorageSync when a session ends (revoked/expired or never saved on this device)
@@ -111,12 +113,22 @@ export function AuthView({
         hasOnboarded = true;
       }
       // Couldn't reach the server: fall back to "already set up on this device"
-      const isBrandNew = savedOnServer === false ? !hasLocalHistory : savedOnServer === null && !hasOnboarded && !hasLocalHistory;
+      // Workouts on this device only count if they are this account's (or made signed out): another account's data
+      // left on the device is cleared on sign-in and says nothing about this one
+      let localIsTheirs = hasLocalHistory;
+      try {
+        const owner = window.localStorage.getItem('yccih_data_owner_v1');
+        if (owner && owner !== result.user.id) localIsTheirs = false;
+      } catch {
+        // storage unavailable: keep hasLocalHistory
+      }
+      const isBrandNew = savedOnServer === false ? !localIsTheirs : savedOnServer === null && !hasOnboarded && !localIsTheirs;
       setUser(result.user);
       if (onInviteAccepted) onInviteAccepted(result.user);
       setAuthUsername(result.user.username);
       setAuthEmail(result.user.email);
       setAuthPassword('');
+      if (isBrandNew) onStartSetup?.();
       setCurrentView(isBrandNew ? 'configuration' : 'home');
     } catch (err) {
       setLoginError(err?.message || 'SIGN IN FAILED. CHECK YOUR USERNAME/EMAIL AND PASSWORD.');
@@ -164,6 +176,7 @@ export function AuthView({
           // ignore
         }
       }
+      onStartSetup?.();
       setCurrentView('configuration');
     } catch (err) {
       setSignupError(err?.message || 'Account creation failed. Check every field and the beta code.');

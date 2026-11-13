@@ -13,7 +13,8 @@ import { UI } from '../styles/kineticTokens';
 export const PAGE_TITLES = {
   history: 'PERFORMANCE',
   stimulus_map: 'STIMULUS',
-  social: 'SOCIAL',
+  social: 'FRIENDS',
+  leaderboards: 'LEADERBOARDS',
   configuration: 'CONFIGURATION',
   info: 'INFO',
   auth: 'SIGN IN',
@@ -116,7 +117,7 @@ export function AppHeaderAndDrawer({
   onBack,
   // Routines friends sent you, still waiting (ROUTINES row's count)
   receivedRoutineCount = 0,
-  // The session page's EASY / ADVANCED mode (EASY hides the PROGRAM / WEEK / DAY row)
+  // The session page's SIMPLE / ADVANCED mode (SIMPLE hides the PROGRAM / WEEK / DAY row)
   sessionMode = 'advanced',
   // The menu's TRAIN → New / Current session row, and the Social row's request count
   onOpenSession,
@@ -271,7 +272,7 @@ export function AppHeaderAndDrawer({
             }
             onChangeDate={ymd => updateCurrentWorkoutState(prev => ({ ...prev, startedAt: parseYMDToISO(ymd) }))}
             programRow={(() => {
-              // EASY mode (live session): no PROGRAM / WEEK / DAY row
+              // SIMPLE mode (live session): no PROGRAM / WEEK / DAY row
               if (currentView === 'session' && sessionMode === 'easy') return null;
               // Shown while a program other than Crying is chosen, or this session has one
               const sessionProgramId = currentEditorWorkout.program || trainingProgram;
@@ -458,7 +459,14 @@ export function AppHeaderAndDrawer({
                     ]
                   },
                   { title: 'TRACK', rows: [{ id: 'history', label: 'Performance' }, { id: 'stimulus_map', label: 'Stimulus' }] },
-                  { title: 'PEOPLE', rows: [{ id: 'social', label: 'Social', badge: pendingRequestCount }] },
+                  {
+                    title: 'PEOPLE',
+                    rows: [
+                      // Friends (view id 'social'): find athletes, requests, your friends, privacy
+                      { id: 'social', label: 'Friends', badge: pendingRequestCount },
+                      { id: 'leaderboards', label: 'Leaderboards' }
+                    ]
+                  },
                   {
                     title: 'SETUP',
                     rows: [
