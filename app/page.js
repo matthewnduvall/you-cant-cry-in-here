@@ -166,6 +166,8 @@ export default function App() {
   const [trainingProgram, setTrainingProgram] = useState('crying');
   // When the program's current cycle began (ISO): the week a session falls in is counted from it
   const [programCycleStart, setProgramCycleStart] = useState(null);
+  // The athlete's training weekdays per program ({ [programId]: ['Mon', 'Wed', 'Fri'] }; none = the program's own)
+  const [programSchedules, setProgramSchedules] = useState({});
   // Picking a different program starts its cycle today (week 1)
   const selectTrainingProgram = id => {
     if (id === trainingProgram) return;
@@ -324,6 +326,8 @@ export default function App() {
     setTrainingProgram,
     programCycleStart,
     setProgramCycleStart,
+    programSchedules,
+    setProgramSchedules,
     shareStatsWithFriends,
     setShareStatsWithFriends,
     shareRoutinesWithFriends,
@@ -488,6 +492,7 @@ export default function App() {
     goalType,
     trainingProgram,
     programCycleStart,
+    programSchedules,
     targetStandardClass,
     heightInches: totalHeightInches
   };
@@ -987,6 +992,7 @@ export default function App() {
         <AppHeaderAndDrawer
           trainingProgram={trainingProgram}
           programCycleStart={programCycleStart}
+          programSchedules={programSchedules}
           currentView={currentView}
           setCurrentView={setCurrentView}
           onBack={handleBack}
@@ -1197,6 +1203,8 @@ export default function App() {
                 setTrainingProgram: selectTrainingProgram,
                 programCycleStart,
                 history,
+                programSchedules,
+                setProgramSchedule: (programId, days) => setProgramSchedules(prev => ({ ...(prev || {}), [programId]: days })),
                 onRestartCycle: () => setProgramCycleStart(new Date().toISOString())
               }}
             />

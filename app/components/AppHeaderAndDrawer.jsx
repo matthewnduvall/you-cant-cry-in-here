@@ -60,6 +60,7 @@ export function AppHeaderAndDrawer({
   // Training program id (Configuration → PROGRAM): programs other than Crying add a PROGRAM / WEEK row
   trainingProgram = 'crying',
   programCycleStart = null,
+  programSchedules = null,
   // The WEEK box: saves the week and re-plans the program's exercises (useWorkoutMutations.handleChangeProgramWeek)
   onChangeProgramWeek,
   // The PROGRAM box: this session's program (useWorkoutMutations.handleChangeSessionProgram)
@@ -240,7 +241,7 @@ export function AppHeaderAndDrawer({
               const program = getProgram(sessionProgramId);
               if (!getProgram(trainingProgram).usesWeeks && !program.usesWeeks) return null;
               // The session's week, else the automatic one from the logged sessions
-              const ctx = getProgramContext(trainingProgram, programCycleStart, currentEditorWorkout, history);
+              const ctx = getProgramContext(trainingProgram, programCycleStart, currentEditorWorkout, history, programSchedules);
               return {
                 label: program.label,
                 programId: program.id,

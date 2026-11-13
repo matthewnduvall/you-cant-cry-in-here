@@ -47,18 +47,17 @@ export const getCycleTarget1RM = ({
 };
 
 /** Does the program change this slot? */
-export const isProgrammedSlot = (slot, ctx) =>
-  // Day programs: the slots a day created (programRef), unless their scheme was picked by hand
-  ctx?.program?.days
-    ? Boolean(slot?.programRef?.program === ctx.program.id && !slot.programOff && !isSupersetCategory(slot.category))
-    : Boolean(
-    ctx?.program?.weekPlan &&
-      slot &&
-      // A hand-picked Timer has no reps to give an intensity to
+export const isProgrammedSlot = (slot, ctx) => {
+  if (!ctx?.program || !slot || isSupersetCategory(slot.category)) return false;
+  // A slot a program day created (programRef): planned by its day's rule, unless its scheme was picked by hand
+  if (slot.programRef) return Boolean(ctx.program.days && slot.programRef.program === ctx.program.id && !slot.programOff);
+  // Society's stimulus sessions: the week plan covers its compound lifts (a hand-picked Timer has no reps to plan)
+  return Boolean(
+    ctx.program.weekPlan &&
       !(slot.programOff && slot.scheme === 'Timer') &&
-      !isSupersetCategory(slot.category) &&
       (ctx.program.appliesTo || []).includes(normalizeSlotCategory(slot.category))
   );
+};
 
 /**
  * The slot with the program's week applied (unchanged when the program doesn't cover it).
@@ -67,7 +66,7 @@ export const isProgrammedSlot = (slot, ctx) =>
  */
 export const applyProgramToSlot = (slot, ctx, opts = {}) => {
   if (!isProgrammedSlot(slot, ctx)) return slot;
-  if (ctx.program.days) return applyDayProgramToSlot(slot, ctx, opts);
+  if (slot.programRef) return applyDayProgramToSlot(slot, ctx, opts);
   const { program, week, cycleStartMs } = ctx;
   const {
     history = [],
@@ -475,7 +474,7 @@ export const applyDayProgramToSlot = (slot, ctx, opts = {}) => {
     ...slot,
     scheme: planned.scheme,
     targetReps: null,
-    restSeconds: program.restSeconds || slot.restSeconds || 90,
+    restSeconds: day?.restSeconds || program.restSeconds || slot.restSeconds || 90,
     programmed: { ...planned.programmed, day: ref.day, label: planned.label },
     supersetSetsByExercise: [sets],
     sets
