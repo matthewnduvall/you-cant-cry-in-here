@@ -7,8 +7,7 @@ import {
   DEFAULT_ROUTINES,
   EXERCISE_MAP,
   getRoutineGymCategory,
-  doesRoutineMatchGymFilter,
-  isExerciseAvailableWithEquipment
+  getEquipmentListForGymSelection
 } from '../../data/exerciseLibrary';
 
 // The filter option for Configuration → EQUIPMENT (the athlete's own ON list): the default when it is set
@@ -54,21 +53,40 @@ export function RoutinesView({
   const fallbackAuthor = (user?.username || 'athlete').replace(/^@/, '');
   const routineExerciseIds = r =>
     (r.slots || []).flatMap(slot => (slot?.supersetExerciseIds || [slot?.exerciseId, slot?.secondaryExerciseId]).filter(Boolean));
-  const matches = r => {
-    if (filterId !== MY_EQUIPMENT) return doesRoutineMatchGymFilter(r, filterId, gyms);
-    // Every exercise in it fits your equipment (the built-in routines adapt to any equipment)
-    if (!Array.isArray(r.slots)) return true;
-    return routineExerciseIds(r).every(id => isExerciseAvailableWithEquipment(EXERCISE_MAP[id], availableEquipment));
+  // Every filter option stands for a list of equipment (MY EQUIPMENT = Configuration → EQUIPMENT; a preset or saved
+  // setup = its list; All Equipment = everything). A routine fits when every exercise in it has all the equipment it
+  // needs (`requiredEquipment`, e.g. a barbell squat needs a barbell, a squat rack and weight plates) on that list.
+  // Exercises the library doesn't know don't count against it; the built-in routines adapt to any equipment.
+  const filterEquipment = filterId === MY_EQUIPMENT ? availableEquipment || [] : getEquipmentListForGymSelection(filterId, gyms);
+  const have = new Set(filterEquipment);
+  const missingFor = r => {
+    if (!Array.isArray(r.slots)) return [];
+    const missing = new Set();
+    routineExerciseIds(r).forEach(id => {
+      (EXERCISE_MAP[id]?.requiredEquipment || []).forEach(req => {
+        if (req && req !== 'Bodyweight' && !have.has(req)) missing.add(req);
+      });
+    });
+    return [...missing];
+  };
+  const split = routines => {
+    const fits = [];
+    const needsMore = [];
+    (routines || []).forEach(r => {
+      const missing = missingFor(r);
+      if (missing.length === 0) fits.push(r);
+      else needsMore.push({ ...r, missingEquipment: missing });
+    });
+    return { fits, needsMore };
   };
 
-  const routinesByList = {
-    default: DEFAULT_ROUTINES.filter(matches),
-    saved: (savedRoutines || []).filter(matches),
-    shared: (sharedRoutines || []).filter(matches),
-    friends: (friendsList || [])
-      .flatMap(f => (f.sharedRoutines || []).map(r => ({ ...r, friendName: f.username })))
-      .filter(matches)
+  const byList = {
+    default: split(DEFAULT_ROUTINES),
+    saved: split(savedRoutines),
+    shared: split(sharedRoutines),
+    friends: split((friendsList || []).flatMap(f => (f.sharedRoutines || []).map(r => ({ ...r, friendName: f.username }))))
   };
+  const routinesByList = Object.fromEntries(Object.entries(byList).map(([id, v]) => [id, v.fits]));
   const lists = ROUTINE_LISTS.filter(l => sections.includes(l.id));
   const useTabs = lists.length > 1;
   const activeList = lists.find(l => l.id === tabChoice) || lists[0];
@@ -81,27 +99,22 @@ export function RoutinesView({
     return `BY @${author} • EQUIPMENT: ${gymCat}`;
   };
 
-  const renderList = list => {
-    const routines = routinesByList[list.id];
-    return (
-      <IOSListSection key={list.id} header={useTabs ? null : `${list.title} (${routines.length})`} colors={colors}>
-        {routines.length === 0 ? (
-          <IOSListRow isLast={true} colors={colors}>
-            <span style={UI.rowSub}>{list.empty}</span>
-          </IOSListRow>
-        ) : (
-          routines.map((r, i) => (
+  const renderRows = (list, routines, dim = false) =>
+    routines.map((r, i) => (
             <IOSListRow
               key={`${r.key}_${i}`}
               isLast={i === routines.length - 1}
               colors={colors}
               onClick={() => load(r)}
             >
-              <div>
+              <div style={{ minWidth: 0, opacity: dim ? 0.7 : 1 }}>
                 <div style={UI.rowTitle}>{r.label}</div>
                 <div className="kinetic-sub" style={UI.rowSub}>
                   {subtitleFor(list.id, r)}
                 </div>
+                {r.missingEquipment && (
+                  <div style={{ ...UI.rowSub, color: '#BDBDBD' }}>Needs: {r.missingEquipment.join(', ').toLowerCase()}</div>
+                )}
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
                 <Button
@@ -129,9 +142,29 @@ export function RoutinesView({
                 )}
               </div>
             </IOSListRow>
-          ))
+          ));
+
+  const renderList = list => {
+    const routines = routinesByList[list.id];
+    const needsMore = byList[list.id].needsMore;
+    return (
+      <React.Fragment key={list.id}>
+        <IOSListSection header={useTabs ? null : `${list.title} (${routines.length})`} colors={colors}>
+          {routines.length === 0 ? (
+            <IOSListRow isLast={true} colors={colors}>
+              <span style={UI.rowSub}>{needsMore.length > 0 ? 'None fit this equipment; see below for what they need.' : list.empty}</span>
+            </IOSListRow>
+          ) : (
+            renderRows(list, routines)
+          )}
+        </IOSListSection>
+        {/* Routines that need equipment this filter doesn't have: still loadable, with what's missing */}
+        {needsMore.length > 0 && (
+          <IOSListSection header={`NEEDS MORE EQUIPMENT (${needsMore.length})`} colors={colors}>
+            {renderRows(list, needsMore, true)}
+          </IOSListSection>
         )}
-      </IOSListSection>
+      </React.Fragment>
     );
   };
 

@@ -40,7 +40,7 @@ import {
   SyncedHistoryUpdateModal
 } from './components/SessionSyncModals';
 import { useSyncedHistoryUpdates } from './hooks/useSyncedHistoryUpdates';
-import { EXERCISE_MAP, formatDateYMD } from './data/exerciseLibrary';
+import { EXERCISE_MAP, formatDateYMD, stripDateFromTitle } from './data/exerciseLibrary';
 import { useIdleAutoFinish } from './hooks/useIdleAutoFinish';
 import { collectSetValues, sameSetValues, overlaySetValues } from './utils/sessionSync';
 import { useWorkoutMutations } from './hooks/useWorkoutMutations';
@@ -747,6 +747,33 @@ export default function App() {
   // The PROGRESS page: tabs PROGRESS (chart) / PERSONAL RECORDS / HISTORY. Also each profile's PROGRESS tab;
   // a friend's profile passes their history / PRs / chart series, its own tab state and readOnly.
   // An open History workout (e.g. from the 1RM box's PR link) always shows your HISTORY tab.
+  // A friend's logged workout → your session: their exercises and sets (none done), your weights (handleDirectLoadRoutine
+  // re-works a friend's routine to your History). A session with exercises asks before it is replaced.
+  const handleLoadFriendWorkout = (workout, friendName) => {
+    const load = () =>
+      handleDirectLoadRoutine(
+        {
+          key: `friend_workout_${workout.id}`,
+          label: stripDateFromTitle(workout.title) || 'Session',
+          slots: workout.slots || [],
+          friendName: friendName || 'friend'
+        },
+        'session'
+      );
+    if ((activeSession?.slots || []).length > 0) {
+      setDeleteConfirmTarget({
+        type: 'generic',
+        title: 'REPLACE YOUR SESSION?',
+        verb: 'replace',
+        label: `your current session with @${friendName}'s ${stripDateFromTitle(workout.title) || 'workout'}`,
+        confirmLabel: 'LOAD',
+        onConfirm: load
+      });
+      return;
+    }
+    load();
+  };
+
   const renderProgressPage = ({
     readOnly = false,
     history: profileHistory = history,
@@ -756,6 +783,8 @@ export default function App() {
     // A friend's profile: their goal settings, so their chart's distance-to-goal view uses THEIR strength class goal
     // ({ targetStandardClass, customGoalWeights, bodyweightLbs }); yours otherwise
     goalSettings = null,
+    // A friend's profile: LOAD on their History rows (onLoadHistoryWorkout(workout))
+    onLoadHistoryWorkout = null,
     // On a profile the page sits under the profile's own PERFORMANCE tab: its tabs are indented with an elbow
     // line so they read as that tab's children rather than a second row of page tabs
     nested = false,
@@ -806,6 +835,7 @@ export default function App() {
         <HistoryView
           section={tab}
           readOnly={readOnly}
+          onLoadWorkout={onLoadHistoryWorkout}
           colors={colors}
           history={profileHistory}
           setHistory={setHistory}
@@ -1259,6 +1289,7 @@ export default function App() {
               shareStatsWithFriends={shareStatsWithFriends}
               shareBodyweightWithFriends={shareBodyweightWithFriends}
               profileIsPublic={profileIsPublic}
+              onLoadFriendWorkout={handleLoadFriendWorkout}
               onOpenPrivacy={() => {
                 setSocialInitialTab('privacy');
                 setCurrentView('social');

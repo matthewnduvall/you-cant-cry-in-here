@@ -1,7 +1,7 @@
 'use client';
 
 // FORMULAS: a collapsible debugging console at the bottom of the workout editor. Collapsed it is a small tab; open it
-// is a 5-line terminal showing the formulas behind the last calculations (RECALCULATE, an added exercise, AUTO
+// is a terminal (5 lines; drag the bar on top to make it taller, double-tap it to toggle between 5 lines and the most) showing the formulas behind the last calculations (RECALCULATE, an added exercise, AUTO
 // SESSION, a program / week / day change, an exercise swap): the 1RM everything is based on, then each value worked
 // out from it, with the numbers used, so a result can be checked by hand. Lines come from utils/calcTrace.js.
 
@@ -9,6 +9,8 @@ import React, { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { subscribeTrace, getTraceLog, clearTrace } from '../utils/calcTrace';
 
 const OPEN_KEY = 'yccih_formula_console_open_v1';
+const HEIGHT_KEY = 'yccih_formula_console_lines_v1';
+const MAX_SHARE_OF_SCREEN = 0.75;
 const LINE_PX = 16;
 const VISIBLE_LINES = 5;
 const HEADER_PX = 36;
@@ -22,13 +24,48 @@ const readOpen = () => {
   }
 };
 
+const readLines = () => {
+  try {
+    const n = Number(typeof window !== 'undefined' && window.localStorage.getItem(HEIGHT_KEY));
+    return n >= VISIBLE_LINES ? n : VISIBLE_LINES;
+  } catch {
+    return VISIBLE_LINES;
+  }
+};
+
 const mono = "ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace";
 
 export function FormulaConsole() {
   const log = useSyncExternalStore(subscribeTrace, getTraceLog, () => EMPTY);
   const [open, setOpen] = useState(readOpen);
   const [copied, setCopied] = useState(false);
+  // Visible lines: 5 by default; drag the bar at the top to show more (remembered on this device)
+  const [lines, setLines] = useState(readLines);
+  const dragRef = useRef(null);
   const bodyRef = useRef(null);
+
+  const maxLines = () =>
+    Math.max(VISIBLE_LINES, Math.floor(((typeof window !== 'undefined' ? window.innerHeight : 800) * MAX_SHARE_OF_SCREEN - HEADER_PX - 12) / LINE_PX));
+  const onDragStart = e => {
+    e.preventDefault();
+    dragRef.current = { y: e.clientY, lines };
+    e.currentTarget.setPointerCapture?.(e.pointerId);
+  };
+  const onDragMove = e => {
+    if (!dragRef.current) return;
+    const dy = dragRef.current.y - e.clientY; // up = taller
+    const next = Math.min(maxLines(), Math.max(VISIBLE_LINES, Math.round(dragRef.current.lines + dy / LINE_PX)));
+    setLines(next);
+  };
+  const onDragEnd = () => {
+    if (!dragRef.current) return;
+    dragRef.current = null;
+    try {
+      window.localStorage.setItem(HEIGHT_KEY, String(lines));
+    } catch {
+      // not remembered
+    }
+  };
 
   const toggle = () => {
     setOpen(prev => {
@@ -58,7 +95,7 @@ export function FormulaConsole() {
     }
   };
   const latest = log[log.length - 1];
-  const panelHeight = HEADER_PX + LINE_PX * VISIBLE_LINES + 12;
+  const panelHeight = HEADER_PX + LINE_PX * lines + 12 + 14;
 
   const headerBtn = {
     height: '28px',
@@ -125,6 +162,28 @@ export function FormulaConsole() {
                 paddingBottom: 'env(safe-area-inset-bottom, 0px)'
               }}
             >
+              {/* Drag this bar up or down to resize (pointer events: works with touch and a mouse) */}
+              <div
+                role="separator"
+                aria-orientation="horizontal"
+                aria-label="Drag to resize the formulas"
+                aria-valuenow={lines}
+                onPointerDown={onDragStart}
+                onPointerMove={onDragMove}
+                onPointerUp={onDragEnd}
+                onPointerCancel={onDragEnd}
+                onDoubleClick={() => setLines(prev => (prev > VISIBLE_LINES ? VISIBLE_LINES : maxLines()))}
+                style={{
+                  height: '14px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'ns-resize',
+                  touchAction: 'none'
+                }}
+              >
+                <span aria-hidden="true" style={{ width: '40px', height: '4px', borderRadius: '2px', backgroundColor: '#3A3A3A' }} />
+              </div>
               <div style={{ height: `${HEADER_PX}px`, display: 'flex', alignItems: 'center', gap: '6px', padding: '0 8px 0 12px' }}>
                 <span style={{ fontFamily: mono, fontSize: '11px', color: '#FFFFFF', flexShrink: 0 }}>ƒx</span>
                 <span
@@ -156,7 +215,7 @@ export function FormulaConsole() {
                 role="log"
                 aria-live="polite"
                 style={{
-                  height: `${LINE_PX * VISIBLE_LINES}px`,
+                  height: `${LINE_PX * lines}px`,
                   overflowY: 'auto',
                   padding: '0 12px 12px',
                   fontFamily: mono,

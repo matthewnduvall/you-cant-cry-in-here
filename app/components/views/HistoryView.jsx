@@ -65,7 +65,9 @@ export function HistoryView({
   openPlateCalculatorForSet,
   setSetValueTarget,
   setDeleteConfirmTarget,
-  buildHistoryWorkoutEditorProps
+  buildHistoryWorkoutEditorProps,
+  // A friend's profile: LOAD on each row starts a session from that workout (onLoadWorkout(workout))
+  onLoadWorkout = null
 }) {
   const [showAllHistory, setShowAllHistory] = useState(false);
   // HISTORY tab search & filters (type / muscle / equipment / exercise)
@@ -1000,7 +1002,11 @@ export function HistoryView({
                     <div
                       style={{
                         display: 'grid',
-                        gridTemplateColumns: readOnly ? 'minmax(0, 1fr)' : 'minmax(0, 1fr) 48px 48px',
+                        gridTemplateColumns: readOnly
+                          ? onLoadWorkout
+                            ? 'minmax(0, 1fr) 72px'
+                            : 'minmax(0, 1fr)'
+                          : 'minmax(0, 1fr) 48px 48px',
                         gap: 0,
                         alignItems: 'stretch',
                         backgroundColor: isExp ? '#1C1C1C' : '#1C1C1C'
@@ -1109,6 +1115,31 @@ export function HistoryView({
                           </div>
                         )}
                       </div>
+
+                      {/* A friend's workout: LOAD it as your session (their exercises, your weights) */}
+                      {readOnly && onLoadWorkout && (
+                        <button
+                          type="button"
+                          className="kinetic-btn"
+                          aria-label={`Load ${stripDateFromTitle(w.title) || getDefaultSessionName()} (${formatDateYMD(w.startedAt)}) as a session`}
+                          onClick={() => onLoadWorkout(w)}
+                          style={{
+                            minHeight: '48px',
+                            boxSizing: 'border-box',
+                            backgroundColor: '#2A2A2A',
+                            color: '#FFFFFF',
+                            border: 'none',
+                            ...SHARED_CELL_BORDER,
+                            fontFamily: 'inherit',
+                            fontSize: '12px',
+                            fontWeight: 500,
+                            letterSpacing: '0.08em',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          LOAD
+                        </button>
+                      )}
 
                       {!readOnly && (
                       <>

@@ -63,7 +63,9 @@ export function ProfileView({
   shareStatsWithFriends = true,
   shareBodyweightWithFriends = false,
   profileIsPublic = true,
-  onOpenPrivacy
+  onOpenPrivacy,
+  // (workout, friendName) → loads a friend's logged workout as your session
+  onLoadFriendWorkout
 }) {
   // A boolean: effects depend on it, and the profile object is replaced after every server refresh (using the
   // object here made each refresh re-run both effects, looping between LOADING FRIENDS and the empty state)
@@ -498,7 +500,9 @@ export function ProfileView({
                   bodyweightLbs: profUser?.bodyweightLbs
                 },
                 tab: friendProgressTab,
-                onTabChange: setFriendProgressTab
+                onTabChange: setFriendProgressTab,
+                // LOAD on their History rows: start a session from that workout
+                onLoadHistoryWorkout: onLoadFriendWorkout ? w => onLoadFriendWorkout(w, profUser?.username) : null
               }
             : { nested: true }
         )}
