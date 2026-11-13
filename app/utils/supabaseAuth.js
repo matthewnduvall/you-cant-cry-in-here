@@ -1161,22 +1161,27 @@ export async function pushCloudStateForUser(user, payload, { historyToUpload } =
       ...(Array.isArray(payload.sharedRoutines) ? payload.sharedRoutines.map(r => ({ ...r, isShared: true })) : [])
     ].filter(r => r && r.key);
     if (allRoutines.length === 0) return;
-    const result = await send(
-      '/rest/v1/routines?on_conflict=key',
-      'POST',
-      allRoutines.map(r => ({
-        key: String(r.key),
-        user_id: userId,
-        author_username: r.author || user.username || 'athlete',
-        label: r.label || 'Custom Routine',
-        is_shared: Boolean(r.isShared),
-        slots: Array.isArray(r.slots) ? r.slots : [],
-        // The saved date (routines saved before dates were kept keep the server's own)
-        ...(r.savedAt ? { updated_at: r.savedAt } : {})
-      })),
-      'resolution=merge-duplicates'
-    );
-    if (!result.ok) errors.push(result.error);
+    // One row per key (a key twice in one upsert is rejected); the last one wins
+    const byKey = new Map();
+    allRoutines.forEach(r => byKey.set(String(r.key), r));
+    const rowOf = r => ({
+      key: String(r.key),
+      user_id: userId,
+      author_username: r.author || user.username || 'athlete',
+      label: r.label || 'Custom Routine',
+      is_shared: Boolean(r.isShared),
+      slots: Array.isArray(r.slots) ? r.slots : [],
+      // The saved date (routines saved before dates were kept keep the server's own)
+      ...(r.savedAt ? { updated_at: r.savedAt } : {})
+    });
+    // Every row in one request must have the same keys (PostgREST: "All object keys must match"), so routines with a
+    // saved date and older ones without go up in separate requests
+    const rows = [...byKey.values()].map(rowOf);
+    const groups = [rows.filter(row => 'updated_at' in row), rows.filter(row => !('updated_at' in row))].filter(g => g.length > 0);
+    for (const group of groups) {
+      const result = await send('/rest/v1/routines?on_conflict=key', 'POST', group, 'resolution=merge-duplicates');
+      if (!result.ok) errors.push(result.error);
+    }
   })();
 
   await Promise.allSettled([profileTask, historyTask, routinesTask]);
