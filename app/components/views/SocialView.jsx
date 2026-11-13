@@ -407,7 +407,7 @@ export function SocialView({
                 >
                   <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
                     <ProfileAvatar photo={photoOf(athlete.id)} username={athlete.username} size={32} />
-                    <span style={{ fontSize: '15px', fontWeight: 500, textTransform: 'uppercase' }}>@{athlete.username}</span>
+                    <span style={{ fontSize: '15px', fontWeight: 500 }}>@{athlete.username}</span>
                   </div>
                   {isAlreadyFriend ? (
                     <button
@@ -494,7 +494,7 @@ export function SocialView({
             <IOSListRow key={req.id || req.username || idx} isLast={idx === pendingIncomingRequests.length - 1} colors={colors}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
                 <ProfileAvatar photo={photoOf(req.id)} username={req.username} size={32} />
-                <div style={{ fontSize: '15px', fontWeight: 500, textTransform: 'uppercase' }}>@{req.username}</div>
+                <div style={{ fontSize: '15px', fontWeight: 500 }}>@{req.username}</div>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
                 <button
@@ -525,7 +525,7 @@ export function SocialView({
               <div style={{ minWidth: 0, display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <ProfileAvatar photo={photoOf(req.id)} username={req.username} size={32} />
                 <div style={{ minWidth: 0 }}>
-                <div style={{ fontSize: '15px', fontWeight: 500, textTransform: 'uppercase' }}>@{req.username}</div>
+                <div style={{ fontSize: '15px', fontWeight: 500 }}>@{req.username}</div>
                 <div style={sentSubStyle}>
                   FRIEND REQUEST{req.invitedAt ? ` • SENT ${formatDateYMD(req.invitedAt)}` : ''} • WAITING
                 </div>
@@ -578,7 +578,7 @@ export function SocialView({
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
                 <ProfileAvatar photo={friend.profilePhoto} username={friend.username} size={36} />
-                <div style={{ fontSize: '16px', fontWeight: 500, textTransform: 'uppercase' }}>@{friend.username}</div>
+                <div style={{ fontSize: '16px', fontWeight: 500 }}>@{friend.username}</div>
               </div>
               <span style={{ fontSize: '14px', fontWeight: 500, color: 'var(--dp-color-accent)', flexShrink: 0 }}>
                 VIEW PROFILE →

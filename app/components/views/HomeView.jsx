@@ -305,7 +305,7 @@ export function HomeView({
       ? sortedTickerEntries
       : [uniqueAthletes.length === 0 ? 'INVITE FRIENDS TO KEEP TRACK OF PROGRESS!' : 'NO RECENT LIFTS FROM YOUR FRIENDS YET'])
   ];
-  const baseTickerText = tickerItems.join('   ///   ') + '   ///   ';
+  const baseTickerText = tickerItems.join('   ·   ') + '   ·   ';
 
   const repeatCount = Math.max(1, Math.ceil(90 / Math.max(1, baseTickerText.length)));
   const friendsTickerText = baseTickerText.repeat(repeatCount);

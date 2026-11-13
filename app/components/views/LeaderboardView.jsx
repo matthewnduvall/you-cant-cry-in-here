@@ -15,9 +15,10 @@ import {
 // One tab per leaderboard (BIG 3 / BW first and default); the tabs name the board, so no section titles
 const LEADERBOARD_TABS = [
   { id: 'big3_normalized', label: 'BIG 3 / BW' },
-  { id: 'big3_total', label: 'BIG 3 TOTAL' },
+  // Short labels so the nested tab row stays on one line at phone width
+  { id: 'big3_total', label: 'BIG 3 LB' },
   { id: 'ohp_normalized', label: 'OHP / BW' },
-  { id: 'most_improved', label: 'MOST IMPROVED' }
+  { id: 'most_improved', label: 'IMPROVED' }
 ];
 
 // The bodyweight a friend's BW ratios are worked out with (never shown): saved bodyweight, shared or not
@@ -28,7 +29,6 @@ const rankingBwOf = f => {
 
 const BIG_THREE_LIFT_IDS = ['barbell_bench_press', 'barbell_back_squat', 'barbell_deadlift'];
 // An athlete's name is a link to their profile (the whole row is tappable)
-const NAME_LINK_STYLE = { textDecoration: 'underline', textDecorationThickness: '2px', textUnderlineOffset: '3px' };
 const STANDING_SCALE = ['Below Untrained', ...EXRX_CLASSES]; // ['Below Untrained', 'Untrained', 'Novice', 'Intermediate', 'Advanced', 'Elite']
 
 // Unranked (nothing logged for this board): a dash instead of a number
@@ -245,6 +245,7 @@ export function LeaderboardView({
       improvementEntries.push({
         id: `${who.idPrefix}_${exId}`,
         name: who.name,
+        photo: who.photo,
         isSelf: who.isSelf,
         friend: who.friend,
         exerciseId: exId,
@@ -328,21 +329,19 @@ export function LeaderboardView({
                 style={{
                   fontSize: '16px',
                   fontWeight: 500,
-                  textTransform: 'uppercase',
                   color: entry.rank === 1 ? 'var(--cr-red-text)' : '#FFFFFF'
                 }}
               >
-                <span style={onOpenProfile ? NAME_LINK_STYLE : undefined}>@{entry.name}</span>
+                <span>@{entry.name}</span>
               </span>
               {entry.unlogged ? (
                 <span style={NOT_LOGGED_STYLE}>BIG 3 NOT LOGGED YET</span>
               ) : (
               <span style={{ fontSize: '11px', fontWeight: 500, color: '#9A9A9A', textTransform: 'uppercase' }}>
-                <span style={{ color: '#FFFFFF' }}>BENCH + SQUAT + DEADLIFT</span>
-                {entry.standing && (
-                  <>
-                    {' '}• STANDING: <strong style={{ color: 'var(--dp-color-accent)' }}>{entry.standing.toUpperCase()}</strong>
-                  </>
+                {entry.standing ? (
+                  <strong style={{ color: 'var(--dp-color-accent)', fontWeight: 500 }}>{entry.standing.toUpperCase()}</strong>
+                ) : (
+                  'BENCH + SQUAT + DEADLIFT'
                 )}
               </span>
               )}
@@ -373,18 +372,17 @@ export function LeaderboardView({
                 style={{
                   fontSize: '16px',
                   fontWeight: 500,
-                  textTransform: 'uppercase',
                   color: entry.rank === 1 ? 'var(--cr-red-text)' : '#FFFFFF'
                 }}
               >
-                <span style={onOpenProfile ? NAME_LINK_STYLE : undefined}>@{entry.name}</span>
+                <span>@{entry.name}</span>
               </span>
               {entry.unlogged ? (
                 <span style={NOT_LOGGED_STYLE}>BIG 3 NOT LOGGED YET</span>
               ) : (
                 <span style={{ fontSize: '11px', fontWeight: 500, color: '#9A9A9A', textTransform: 'uppercase' }}>
-                  {oneRepMaxLabel(entry.total, entry.totalCalculated)} LB TOTAL • STANDING:{' '}
-                  <strong style={{ color: 'var(--dp-color-accent)' }}>{entry.standing.toUpperCase()}</strong>
+                  {oneRepMaxLabel(entry.total, entry.totalCalculated)} LB •{' '}
+                  <strong style={{ color: 'var(--dp-color-accent)', fontWeight: 500 }}>{entry.standing.toUpperCase()}</strong>
                 </span>
               )}
             </div>
@@ -414,18 +412,17 @@ export function LeaderboardView({
                 style={{
                   fontSize: '16px',
                   fontWeight: 500,
-                  textTransform: 'uppercase',
                   color: entry.rank === 1 ? 'var(--cr-red-text)' : '#FFFFFF'
                 }}
               >
-                <span style={onOpenProfile ? NAME_LINK_STYLE : undefined}>@{entry.name}</span>
+                <span>@{entry.name}</span>
               </span>
               {entry.unlogged ? (
                 <span style={NOT_LOGGED_STYLE}>OVERHEAD PRESS NOT LOGGED YET</span>
               ) : (
                 <span style={{ fontSize: '11px', fontWeight: 500, color: '#9A9A9A', textTransform: 'uppercase' }}>
-                  {oneRepMaxLabel(entry.ohp, entry.ohpCalculated)} LB <span style={{ color: '#FFFFFF' }}>OHP</span> • STANDING:{' '}
-                  <strong style={{ color: 'var(--dp-color-accent)' }}>{entry.ohpStanding.toUpperCase()}</strong>
+                  {oneRepMaxLabel(entry.ohp, entry.ohpCalculated)} LB •{' '}
+                  <strong style={{ color: 'var(--dp-color-accent)', fontWeight: 500 }}>{entry.ohpStanding.toUpperCase()}</strong>
                 </span>
               )}
             </div>
@@ -462,14 +459,13 @@ export function LeaderboardView({
                   style={{
                     fontSize: '14px',
                     fontWeight: 500,
-                    textTransform: 'uppercase',
                     color: entry.rank === 1 ? 'var(--cr-red-text)' : '#FFFFFF',
                     whiteSpace: 'nowrap',
                     overflow: 'hidden',
                     textOverflow: 'ellipsis'
                   }}
                 >
-                  <span style={onOpenProfile ? NAME_LINK_STYLE : undefined}>@{entry.name}</span> <span style={{ color: '#9A9A9A' }}>•</span>{' '}
+                  <span>@{entry.name}</span> <span style={{ color: '#9A9A9A' }}>•</span>{' '}
                   <span style={{ color: '#FFFFFF' }}>{entry.exerciseName}</span>
                 </span>
                 <span style={{ fontSize: '11px', fontWeight: 500, color: '#9A9A9A', textTransform: 'uppercase' }}>

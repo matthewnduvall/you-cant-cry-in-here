@@ -422,7 +422,8 @@ export function SocialSettingsSection({
   }
   return (
     <IOSListSection
-      header="PRIVACY & SHARING"
+      // On the Social page's PRIVACY tab the tab names it, so no heading there
+      header={collapsible ? 'PRIVACY & SHARING' : null}
       headerRight={collapsible ? toggle : null}
       footer={
         profileIsPublic

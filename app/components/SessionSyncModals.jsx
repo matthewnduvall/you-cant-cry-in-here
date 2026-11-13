@@ -71,8 +71,9 @@ export function SessionSyncModal({
         ) : (
           <>
             <div style={bodyText}>
-              Pick a friend. They get a pop-up to join; once they accept, any change to the exercises is mirrored
-              between you (weights and reps stay your own).
+              Pick a friend. They get a pop-up to join; once they accept, changes to the exercises are mirrored between
+              you. Each of you keeps your own weights and reps, and a @friend tab on each exercise lets you see and
+              change theirs.
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 0, maxHeight: '320px', overflowY: 'auto' }}>
               {syncableFriends.map(friend => (
