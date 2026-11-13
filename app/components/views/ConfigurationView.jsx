@@ -34,7 +34,10 @@ function ProgramSection({ colors, trainingProgram = 'crying', setTrainingProgram
   const chosen = getProgram(trainingProgram);
   const nowIso = useSyncExternalStore(subscribeMinute, minuteNowIso, noNowOnServer);
   // The week a session started now would get (it keeps track of itself from the logged sessions)
-  const currentWeek = chosen.weekPlan && nowIso ? getAutoProgramWeek(chosen, history, nowIso, programCycleStart).week : null;
+  const runsWeeks = Boolean(chosen.weekPlan || chosen.days);
+  const next = runsWeeks && nowIso ? getAutoProgramWeek(chosen, history, nowIso, programCycleStart) : null;
+  const currentWeek = next?.week || null;
+  const nextDayName = next?.day ? (chosen.days || []).find(d => d.id === next.day)?.name : null;
   return (
     <IOSListSection header="PROGRAM" colors={colors}>
       <div role="group" aria-label="Training program" style={{ display: 'flex', flexDirection: 'column' }}>
@@ -91,7 +94,7 @@ function ProgramSection({ colors, trainingProgram = 'crying', setTrainingProgram
         </dl>
       )}
       {/* Where the cycle stands; RESTART puts today at week 1 */}
-      {chosen.weekPlan && (
+      {runsWeeks && (
         <div
           style={{
             display: 'flex',
@@ -106,9 +109,11 @@ function ProgramSection({ colors, trainingProgram = 'crying', setTrainingProgram
             <div style={UI.capsLabel}>NEXT SESSION</div>
             <div style={{ fontSize: '17px', fontWeight: 500, color: '#FFFFFF', marginTop: '2px' }}>
               {currentWeek ? `${chosen.weekName(currentWeek)} of ${chosen.cycleWeeks}` : `Week 1 of ${chosen.cycleWeeks}`}
+              {nextDayName ? ` · ${nextDayName}` : ''}
             </div>
             <div style={{ ...UI.sentence, fontSize: '12px', marginTop: '2px' }}>
-              Moves on a week the first time you train in a new week (Monday to Sunday).
+              Moves on a week the first time you train in a new week (Monday to Sunday)
+              {chosen.days ? '; the days follow on in order from your last logged session.' : '.'}
             </div>
           </div>
           <button

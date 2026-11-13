@@ -349,6 +349,8 @@ export function SlotEditor({
   };
   // The scheme button: "5 × 8" / "PYRAMID"; a superset with different schemes shows both
   const schemeSummary = (() => {
+    // A program day's exercise shows its plan ("3 × 5", "5 / 3 / 1+", "4 × 6–8")
+    if (slot.programmed?.label && slot.programRef && !slot.programOff && !isSuperset) return slot.programmed.label;
     const labels = halves.map(h => {
       const { scheme, sets, reps } = schemeHalf(h);
       return schemeButtonLabel(scheme, sets, reps);

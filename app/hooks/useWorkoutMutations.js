@@ -55,7 +55,15 @@ import {
   asHistoricalWorkout
 } from '../utils/workoutEngine';
 import { deleteCloudRoutineByKey, deleteCloudWorkoutsByIds, postSyncHistoryUpdate } from '../utils/supabaseAuth';
-import { withProgramInfo, getProgram, getProgramContext, BIG3_IDS, isBig3Variant } from '../data/programs';
+import {
+  withProgramInfo,
+  getProgram,
+  getProgramContext,
+  getSlotSpecExercise,
+  hasProgramDays,
+  BIG3_IDS,
+  isBig3Variant
+} from '../data/programs';
 import { applyProgramToSlot, isProgrammedSlot, fitsProgramEquipment } from '../utils/programEngine';
 import { SET_TYPE_RPE, solveSet, deriveIntensity } from '../utils/intensity';
 import { getStarting1RM } from '../utils/starting1RM';
@@ -341,9 +349,13 @@ export function useWorkoutMutations({
     };
 
     // Best unused exercise of a category for the gym filter: most-behind muscle group first
-    const pickBest = (category, fallbackId) => {
+    // filter (optional): only exercises it accepts (a program day's muscle group, e.g. calves or biceps)
+    const pickBest = (category, fallbackId, filter = null) => {
       const preferBig4 = category === 'Compound';
-      let pool = fallbackPool.filter(ex => ex.category === category && !usedIds.has(ex.id) && isTrainingExercise(ex));
+      let pool = fallbackPool.filter(
+        ex => ex.category === category && !usedIds.has(ex.id) && isTrainingExercise(ex) && (!filter || filter(ex))
+      );
+      if (pool.length === 0 && filter) pool = fallbackPool.filter(ex => !usedIds.has(ex.id) && isTrainingExercise(ex) && filter(ex));
       // The program's equipment (e.g. Society: barbells, dumbbells, bands, landmine, EZ bar) for the types it covers
       if ((programCtx?.program?.appliesTo || []).includes(category)) {
         const fitting = pool.filter(ex => fitsProgramEquipment(ex, programCtx, getExerciseEquipmentOptions));
@@ -419,6 +431,46 @@ export function useWorkoutMutations({
       });
     };
 
+    // A program with set days (Starting Strength, 5/3/1, PPL…): the session is that day's exercises, in order; + ADD
+    // EXERCISE adds the next one not in the session yet, then carries on with Routine Preferences
+    if (hasProgramDays(programCtx?.program) && programCtx.day) {
+      const { program, day, week } = programCtx;
+      const present = new Set(
+        cleanExisting
+          .filter(slot => slot.programRef?.program === program.id && slot.programRef?.day === day.id)
+          .map(slot => slot.programRef.key)
+      );
+      const missing = day.slots.filter(spec => !present.has(spec.key));
+      const buildDaySlot = spec => {
+        let exId = getSlotSpecExercise(spec, week);
+        if (exId) {
+          // The day's lift, or its closest equivalent for your equipment
+          exId = findEquivalentExerciseForEquipment(exId, availableEquipment) || exId;
+        } else {
+          const pick = spec.pick || {};
+          const fits = ex =>
+            (!pick.muscleGroup || ex.muscleGroup === pick.muscleGroup) &&
+            (!pick.specific || pick.specific.test((ex.specificMuscles || []).join(' ')));
+          exId = pickBest(pick.category || spec.category, 'dumbbell_hammer_curl', fits).id;
+        }
+        usedIds.add(exId);
+        const slot = createWorkoutSlot({
+          category: spec.category,
+          slotLabel: spec.category,
+          exerciseId: exId,
+          scheme: '5x5',
+          oneRepMaxes,
+          history,
+          incrementLbs: currentIncrementLbs,
+          setPreferences,
+          userBodyweightLbs
+        });
+        return programSlot({ ...slot, programRef: { program: program.id, day: day.id, key: spec.key } }, programWorkout);
+      };
+      if (!addOne) return normalizeSlotLabels([...cleanExisting, ...missing.map(buildDaySlot)]);
+      if (missing.length > 0) return [...cleanExisting, buildDaySlot(missing[0])];
+    }
+
     // A program with its own routine (Society: 2 compounds, 2 supersets, 1 accessory) replaces Routine Preferences
     const activePrefs = (programCtx?.program?.routine || routinePreferences || []).filter(pref => pref !== 'Warmup');
     const prefsToFill = [];
@@ -463,7 +515,9 @@ export function useWorkoutMutations({
       defaultRestSeconds: ctx?.program?.restSeconds || 90,
       gymId: selectedGymId,
       slots: [],
-      ...(ctx ? { program: ctx.program.id, programWeek: ctx.program.weekName(ctx.week) } : {})
+      ...(ctx
+        ? { program: ctx.program.id, programWeek: ctx.program.weekName(ctx.week), ...(ctx.day ? { programDay: ctx.day.id } : {}) }
+        : {})
     };
   };
 
@@ -1453,7 +1507,9 @@ export function useWorkoutMutations({
           muscleGroupFilter: nextMuscleFilter,
           equipmentFilter: changes.equipmentFilter ?? slot.equipmentFilter,
           // A scheme picked by hand takes the exercise off the program (it keeps that scheme)
-          programOff: changes.scheme !== undefined && changes.scheme !== slot.scheme ? true : slot.programOff
+          programOff: changes.scheme !== undefined && changes.scheme !== slot.scheme ? true : slot.programOff,
+          // A program day's slot stays that slot (its rule plans the new exercise)
+          ...(slot.programRef ? { programRef: slot.programRef } : {})
         };
         // Covered by the program (Society's compounds): the program week sets the scheme, sets and weights
         if (isProgrammedSlot(rebuiltResult, programContextFor(prev))) return programSlot(rebuiltResult, prev);
@@ -1876,10 +1932,22 @@ export function useWorkoutMutations({
   const handleChangeSessionProgram = programId => {
     updateCurrentWorkoutState(prev => {
       if (!prev) return prev;
-      const base = { ...prev, program: programId, programWeek: '' };
+      const base = { ...prev, program: programId, programWeek: '', programDay: null };
       const ctx = programContextFor(base);
-      const next = { ...base, programWeek: ctx ? ctx.program.weekName(ctx.week) : '' };
+      const next = { ...base, programWeek: ctx ? ctx.program.weekName(ctx.week) : '', programDay: ctx?.day?.id || null };
       return { ...next, slots: (next.slots || []).map(slot => (isProgrammedSlot(slot, ctx) ? programSlot(slot, next) : slot)) };
+    });
+  };
+
+  // The session's DAY box (programs with set days): the day's exercises replace the program exercises not started
+  // yet; exercises you added yourself and any with a set done stay
+  const handleChangeProgramDay = dayId => {
+    updateCurrentWorkoutState(prev => {
+      if (!prev) return prev;
+      const next = { ...prev, program: prev.program || trainingProgram, programDay: dayId };
+      const started = slot => [slot.sets, ...(slot.supersetSetsByExercise || [])].some(list => (list || []).some(st => st?.completed));
+      const kept = (next.slots || []).filter(slot => !slot.programRef || started(slot));
+      return { ...next, slots: buildGeneratedAutoSlots(kept, { programTarget: next }) };
     });
   };
 
@@ -2050,6 +2118,7 @@ export function useWorkoutMutations({
     handleRecalculateSlotWeights,
     handleChangeProgramWeek,
     handleChangeSessionProgram,
+    handleChangeProgramDay,
     handleToggleSetLock,
     handleToggleSetDone,
     handleChangeGymSelection

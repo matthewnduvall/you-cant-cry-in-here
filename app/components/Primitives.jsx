@@ -355,14 +355,17 @@ export function SessionTitleBar({
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)',
+          gridTemplateColumns: programRow.dayOptions ? 'minmax(0, 1.2fr) minmax(0, 0.8fr) minmax(0, 1fr)' : 'minmax(0, 1fr) minmax(0, 1fr)',
           backgroundColor: '#1C1C1C'
         }}
       >
         {[
           { key: 'program', label: 'PROGRAM', value: programRow.label, aria: `Program: ${programRow.label}. Tap to change` },
-          { key: 'week', label: 'WEEK', value: programRow.week || '—', aria: `Week: ${programRow.week || 'not set'}. Tap to change` }
-        ].map((cell, i) => (
+          { key: 'week', label: 'WEEK', value: programRow.week || '—', aria: `Week: ${programRow.week || 'not set'}. Tap to change` },
+          ...(programRow.dayOptions
+            ? [{ key: 'day', label: 'DAY', value: programRow.dayLabel || '—', aria: `Day: ${programRow.dayLabel || 'not set'}. Tap to change` }]
+            : [])
+        ].map((cell, i, cells) => (
           <button
             key={cell.key}
             type="button"
@@ -377,7 +380,7 @@ export function SessionTitleBar({
               boxSizing: 'border-box',
               backgroundColor: '#1C1C1C',
               ...cellBorder,
-              ...(i === 1 ? { borderRight: 'none' } : {}),
+              ...(i === cells.length - 1 ? { borderRight: 'none' } : {}),
               padding: '0 8px',
               display: 'flex',
               alignItems: 'center',
@@ -418,18 +421,57 @@ export function SessionTitleBar({
       <div style={{ ...UI.modalBackdrop, zIndex: 90 }} onClick={() => setProgramPicker(null)}>
         <div
           role="dialog"
-          aria-label={programPicker === 'program' ? 'Session program' : 'Program week'}
+          aria-label={programPicker === 'program' ? 'Session program' : programPicker === 'day' ? 'Program day' : 'Program week'}
           onClick={e => e.stopPropagation()}
           style={UI.modalCard('380px')}
         >
           <div style={UI.modalHeader}>
-            <span>{programPicker === 'program' ? 'PROGRAM' : 'WEEK'}</span>
+            <span>{programPicker === 'program' ? 'PROGRAM' : programPicker === 'day' ? 'DAY' : 'WEEK'}</span>
             <button type="button" aria-label="Close" onClick={() => setProgramPicker(null)} style={UI.closeXBtn}>
               ✕
             </button>
           </div>
 
-          {programPicker === 'program' ? (
+          {programPicker === 'day' ? (
+            <>
+              <div style={{ ...UI.sentence, marginBottom: '10px' }}>
+                Days rotate by themselves: each session is the day after the last one you logged. Picking another day
+                swaps in its exercises (any you started stay).
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                {(programRow.dayOptions || []).map(opt => {
+                  const on = opt.id === programRow.dayId;
+                  return (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      className="kinetic-btn"
+                      aria-pressed={on}
+                      onClick={() => {
+                        if (!on) programRow.onChangeDay?.(opt.id);
+                        setProgramPicker(null);
+                      }}
+                      style={{
+                        minHeight: '44px',
+                        padding: '0 14px',
+                        backgroundColor: on ? '#FFFFFF' : '#2A2A2A',
+                        color: on ? '#000000' : '#FFFFFF',
+                        border: 'none',
+                        borderRadius: '10px',
+                        fontFamily: 'inherit',
+                        fontSize: '15px',
+                        fontWeight: 500,
+                        textAlign: 'left',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      {opt.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </>
+          ) : programPicker === 'program' ? (
             <>
               <div style={{ ...UI.sentence, marginBottom: '10px' }}>
                 This session&apos;s program. Its exercises are re-planned for the program&apos;s week.

@@ -12,7 +12,7 @@
 
 import { EXERCISE_MAP, isBodyweightExercise, isSupersetCategory, normalizeSlotCategory } from '../data/exerciseLibrary';
 import { generateSetsForScheme, getBestHistory1RM, normalizeSetType, DEFAULT_SET_PREFERENCES } from './workoutEngine';
-import { INTENSITY_OPTIONS, intensityToRir, solveSet, deriveIntensity } from './intensity';
+import { INTENSITY_OPTIONS, intensityToRir, solveSet, deriveIntensity, weightForIntensity } from './intensity';
 import { getStarting1RM } from './starting1RM';
 
 const WARMUP_SHARE = 0.755; // the app's warm-up step (× 0.74 / 0.98 of the working weight)
@@ -47,7 +47,10 @@ export const getCycleTarget1RM = ({
 
 /** Does the program change this slot? */
 export const isProgrammedSlot = (slot, ctx) =>
-  Boolean(
+  // Day programs: the slots a day created (programRef), unless their scheme was picked by hand
+  ctx?.program?.days
+    ? Boolean(slot?.programRef?.program === ctx.program.id && !slot.programOff && !isSupersetCategory(slot.category))
+    : Boolean(
     ctx?.program?.weekPlan &&
       slot &&
       // A hand-picked Timer has no reps to give an intensity to
@@ -63,6 +66,7 @@ export const isProgrammedSlot = (slot, ctx) =>
  */
 export const applyProgramToSlot = (slot, ctx, opts = {}) => {
   if (!isProgrammedSlot(slot, ctx)) return slot;
+  if (ctx.program.days) return applyDayProgramToSlot(slot, ctx, opts);
   const { program, week, cycleStartMs } = ctx;
   const {
     history = [],
@@ -167,4 +171,261 @@ export const fitsProgramEquipment = (ex, ctx, getOptions) => {
   const list = ctx?.program?.equipment;
   if (!Array.isArray(list) || list.length === 0) return true;
   return getOptions(ex).some(opt => list.includes(opt));
+};
+
+// ===============================================================================================================
+// Day programs (Starting Strength, StrongLifts, 5/3/1, Texas Method, PPL, Upper / Lower): each slot of a session
+// carries `programRef: { program, day, key }` pointing at its SlotSpec in the program's day; its sets are planned by
+// the spec's rule from what you logged before (the planned slot stores `programmed: { program, week, day, key, rule,
+// base, tm, role, plan, cycleStartMs }`, which is kept in History and read back next time).
+// ===============================================================================================================
+
+const toTime = w => new Date(w?.startedAt || 0).getTime();
+const isWarmupSet = st => normalizeSetType(st?.type) === 'Warmup';
+const doneWorkingSets = slot => (slot?.sets || []).filter(st => st && st.completed && !isWarmupSet(st) && Number(st.reps) > 0);
+
+/** Logged slots of an exercise (newest first), optionally only those a rule of this program planned. */
+const loggedSlotsFor = (history, exerciseId, { programId = null, match = null, excludeWorkoutId = null } = {}) =>
+  (history || [])
+    .filter(w => w && w.id !== excludeWorkoutId)
+    .sort((a, b) => toTime(b) - toTime(a))
+    .flatMap(w =>
+      (w.slots || [])
+        .filter(slot => slot && slot.exerciseId === exerciseId)
+        .filter(slot => !programId || slot.programmed?.program === programId)
+        .filter(slot => !match || match(slot))
+        .map(slot => ({ slot, workout: w }))
+    );
+
+/** Did a logged slot get every planned rep ({ sets, reps } = its plan)? */
+const hitPlan = (slot, plan) => {
+  const done = doneWorkingSets(slot);
+  const need = Math.max(1, Number(plan?.sets) || 1);
+  const reps = Math.max(1, Number(plan?.reps) || 1);
+  return done.length >= need && done.slice(0, need).every(st => Number(st.reps) >= reps);
+};
+const topWeight = slot => Math.max(0, ...doneWorkingSets(slot).map(st => Number(st.weight) || 0));
+
+// Warm-up ramp before the working weight: 1 → 60 %; 2 → 50 / 75 %; 3 → 40 / 60 / 80 %
+const WARMUP_RAMPS = { 1: [[0.6, 5]], 2: [[0.5, 5], [0.75, 3]], 3: [[0.4, 5], [0.6, 5], [0.8, 3]] };
+const warmupsFor = (weight, n) => (WARMUP_RAMPS[n] || []).map(([pct, reps]) => ({ type: 'Warmup', reps, weight: roundTo(weight * pct) }));
+
+// 5/3/1: [percent of the training max, reps, as-many-as-possible] by week; warm-ups 40 / 50 / 60 % × 5 / 5 / 3
+const WAVE = {
+  1: [[0.65, 5], [0.75, 5], [0.85, 5, true]],
+  2: [[0.7, 3], [0.8, 3], [0.9, 3, true]],
+  3: [[0.75, 5], [0.85, 3], [0.95, 1, true]],
+  4: [[0.4, 5], [0.5, 5], [0.6, 5]]
+};
+const WAVE_LABELS = { 1: '5 / 5 / 5+', 2: '3 / 3 / 3+', 3: '5 / 3 / 1+', 4: 'DELOAD' };
+
+/**
+ * The plan of one day slot: { sets: [{ type, reps, weight, intensity? }], scheme, label, programmed, est1RM }.
+ * o = { history, workoutId, userBodyweightLbs, startOpts, week, cycleStartMs, programId }
+ */
+const planDaySlot = (spec, exerciseId, o) => {
+  const { history, workoutId, programId, week, cycleStartMs } = o;
+  const isBw = isBodyweightExercise(exerciseId);
+  const bw = Math.max(0, Number(o.userBodyweightLbs) || 220);
+  const est1RM = getBestHistory1RM(exerciseId, history) || getStarting1RM(exerciseId, { ...o.startOpts, history });
+  const inc = Number(spec.inc) || 5;
+  const base = { program: programId, week, key: spec.key, rule: spec.rule, role: spec.role || null };
+
+  if (spec.rule === 'linear') {
+    const plan = { sets: spec.sets, reps: spec.reps };
+    const past = loggedSlotsFor(history, exerciseId, { programId, match: s => s.programmed?.rule === 'linear', excludeWorkoutId: workoutId });
+    let weight;
+    if (isBw) weight = bw;
+    else if (past.length === 0) {
+      // First session: a weight with about 3 reps in reserve
+      weight = roundTo(weightForIntensity(est1RM, spec.reps, { mode: 'rir', value: 3 }) || est1RM * 0.7);
+    } else {
+      const last = past[0].slot;
+      const lastWeight = Number(last.programmed?.base) || topWeight(last);
+      if (hitPlan(last, last.programmed?.plan || plan)) weight = lastWeight + inc;
+      else {
+        // Misses in a row at this weight: 3 → deload 10 %
+        let misses = 0;
+        for (const { slot } of past) {
+          if ((Number(slot.programmed?.base) || topWeight(slot)) !== lastWeight || hitPlan(slot, slot.programmed?.plan || plan)) break;
+          misses += 1;
+        }
+        weight = misses >= 3 ? roundTo(lastWeight * 0.9) : lastWeight;
+      }
+    }
+    const sets = [
+      ...(isBw ? [] : warmupsFor(weight, spec.warmups || 0)),
+      ...Array.from({ length: spec.sets }, () => ({ type: 'Working', reps: spec.reps, weight }))
+    ];
+    return { sets, scheme: spec.sets >= 5 ? '5x5' : '3x5', label: `${spec.sets} × ${spec.reps}`, est1RM, programmed: { ...base, base: weight, plan } };
+  }
+
+  if (spec.rule === '531' || spec.rule === 'bbb') {
+    // Training max: last cycle's + the increment, the same within a cycle, else 90 % of the 1RM
+    const past = loggedSlotsFor(history, exerciseId, { programId, match: s => Number(s.programmed?.tm) > 0, excludeWorkoutId: workoutId });
+    const last = past[0]?.slot?.programmed;
+    const tm = last
+      ? last.cycleStartMs === cycleStartMs
+        ? Number(last.tm)
+        : Number(last.tm) + inc
+      : roundTo(est1RM * 0.9);
+    const oneRM = tm / 0.9;
+    const w = Math.min(4, Math.max(1, Number(week) || 1));
+    if (spec.rule === 'bbb') {
+      const weight = roundTo(tm * (w === 4 ? 0.4 : 0.5));
+      return {
+        sets: Array.from({ length: 5 }, () => ({ type: 'Working', reps: w === 4 ? 5 : 10, weight })),
+        scheme: '5x10',
+        label: w === 4 ? '5 × 5 @ 40 %' : '5 × 10 @ 50 %',
+        est1RM: oneRM,
+        programmed: { ...base, tm, cycleStartMs, plan: { sets: 5, reps: w === 4 ? 5 : 10 } }
+      };
+    }
+    const working = WAVE[w].map(([pct, reps, amrap]) => ({
+      type: amrap ? 'Top Out' : 'Working',
+      reps,
+      weight: roundTo(tm * pct),
+      ...(amrap ? { intensity: { mode: 'rir', value: 0 } } : {})
+    }));
+    const warm = w === 4 ? [] : [[0.4, 5], [0.5, 5], [0.6, 3]].map(([pct, reps]) => ({ type: 'Warmup', reps, weight: roundTo(tm * pct) }));
+    return {
+      sets: [...warm, ...working],
+      scheme: 'Pyramid',
+      label: WAVE_LABELS[w],
+      est1RM: oneRM,
+      programmed: { ...base, tm, cycleStartMs, plan: { sets: 3, reps: WAVE[w][2][1] } }
+    };
+  }
+
+  if (spec.rule === 'texas') {
+    // This week's 5-rep max: last intensity day's + the increment when all 5 reps were done, else repeated
+    const past = loggedSlotsFor(history, exerciseId, {
+      programId,
+      match: s => s.programmed?.rule === 'texas' && s.programmed?.role === 'intensity',
+      excludeWorkoutId: workoutId
+    });
+    let fiveRM;
+    if (past.length === 0) fiveRM = roundTo(weightForIntensity(est1RM, 5, { mode: 'rir', value: 1 }) || est1RM * 0.82);
+    else {
+      const last = past[0].slot;
+      const lastFive = Number(last.programmed?.base) || topWeight(last);
+      fiveRM = hitPlan(last, { sets: 1, reps: 5 }) ? lastFive + inc : lastFive;
+    }
+    const volume = roundTo(fiveRM * 0.9);
+    const programmed = { ...base, base: fiveRM };
+    if (spec.role === 'volume') {
+      return { sets: [...warmupsFor(volume, 2), ...Array.from({ length: 5 }, () => ({ type: 'Working', reps: 5, weight: volume }))], scheme: '5x5', label: '5 × 5 @ 90 %', est1RM, programmed: { ...programmed, plan: { sets: 5, reps: 5 } } };
+    }
+    if (spec.role === 'recovery') {
+      const isSquat = spec.key === 'squat';
+      const weight = roundTo(volume * (isSquat ? 0.8 : 0.9));
+      const n = isSquat ? 2 : 3;
+      return { sets: [...warmupsFor(weight, 1), ...Array.from({ length: n }, () => ({ type: 'Working', reps: 5, weight }))], scheme: '3x5', label: `${n} × 5 light`, est1RM, programmed: { ...programmed, plan: { sets: n, reps: 5 } } };
+    }
+    return {
+      sets: [...warmupsFor(fiveRM, 3), { type: 'Top Out', reps: 5, weight: fiveRM, intensity: { mode: 'rir', value: 0 } }],
+      scheme: '5x5',
+      label: '1 × 5 (5RM)',
+      est1RM,
+      programmed: { ...programmed, plan: { sets: 1, reps: 5 } }
+    };
+  }
+
+  // 'double': reps climb to the top of the range, then the weight goes up and the reps start again at the bottom
+  const [lo, hi] = Array.isArray(spec.reps) ? spec.reps : [spec.reps, spec.reps];
+  const rir = Number(spec.rir) || 0;
+  // Only a session this rule planned carries on (another scheme's sets start again from the 1RM at the RIR)
+  const past = loggedSlotsFor(history, exerciseId, { match: s => s.programmed?.rule === 'double', excludeWorkoutId: workoutId });
+  let weight;
+  let reps = lo;
+  if (isBw) {
+    weight = bw;
+    const done = past[0] ? doneWorkingSets(past[0].slot) : [];
+    if (done.length) reps = Math.min(hi, Math.max(lo, Math.min(...done.map(st => Number(st.reps) || lo)) + 1));
+  } else if (past.length === 0) {
+    weight = roundTo(weightForIntensity(est1RM, lo, { mode: 'rir', value: rir }) || est1RM * 0.7);
+  } else {
+    const done = doneWorkingSets(past[0].slot);
+    const lastWeight = topWeight(past[0].slot);
+    const allTop = done.length >= spec.sets && done.every(st => Number(st.reps) >= hi);
+    if (allTop) {
+      weight = lastWeight + inc;
+      reps = lo;
+    } else {
+      weight = lastWeight;
+      reps = Math.min(hi, Math.max(lo, Math.min(...done.map(st => Number(st.reps) || lo)) + 1));
+    }
+  }
+  return {
+    sets: [
+      ...(isBw ? [] : warmupsFor(weight, spec.warmups || 0)),
+      ...Array.from({ length: spec.sets }, () => ({ type: 'Working', reps, weight, intensity: { mode: 'rir', value: rir } }))
+    ],
+    scheme: '5x8',
+    label: `${spec.sets} × ${lo === hi ? lo : `${lo}–${hi}`}`,
+    est1RM,
+    programmed: { ...base, base: weight, plan: { sets: spec.sets, reps: hi } }
+  };
+};
+
+/** The slot with its program day's plan (unchanged when it has no programRef in this program). */
+export const applyDayProgramToSlot = (slot, ctx, opts = {}) => {
+  const program = ctx?.program;
+  const ref = slot?.programRef;
+  if (!program || !ref || ref.program !== program.id || slot.programOff) return slot;
+  const day = (program.days || []).find(d => d.id === ref.day) || ctx.day;
+  const spec = day?.slots?.find(s => s.key === ref.key);
+  if (!spec) return slot;
+  const exId = slot.exerciseId;
+  const { history = [], userBodyweightLbs = 220, workoutId = null, targetStandardClass = 'Intermediate', heightInches = 70 } = opts;
+  const planned = planDaySlot(spec, exId, {
+    history,
+    workoutId,
+    userBodyweightLbs,
+    startOpts: { targetStandardClass, bodyweightLbs: userBodyweightLbs, heightInches },
+    programId: program.id,
+    week: ctx.week,
+    cycleStartMs: ctx.cycleStartMs
+  });
+  const old = Array.isArray(slot.sets) ? slot.sets : [];
+  const ts = Date.now();
+  const sets = planned.sets.map((p, idx) => {
+    const prev = old[idx];
+    if (prev?.completed) return prev;
+    const type = prev?.lockType ? prev.type : p.type;
+    const reps = prev?.lockReps ? prev.reps : p.reps;
+    const weight = prev?.lockWeight ? prev.weight : p.weight;
+    // Percentage programs (5/3/1, Boring But Big) show %1RM; the rest RPE
+    const mode = spec.rule === '531' || spec.rule === 'bbb' ? 'pct' : 'rpe';
+    const intensity =
+      p.intensity || (isBodyweightExercise(exId) ? null : deriveIntensity(planned.est1RM, weight, reps, mode)) || null;
+    let out = {
+      id: prev?.id || `set_${ts}_${idx}_${Math.random().toString(36).slice(2, 5)}`,
+      setNumber: idx + 1,
+      type,
+      reps,
+      weight,
+      lastWeight: weight,
+      increment: 0,
+      completed: false,
+      ...(intensity ? { intensity } : {}),
+      ...(prev ? { lockType: prev.lockType, lockWeight: prev.lockWeight, lockReps: prev.lockReps, lockIntensity: prev.lockIntensity } : {})
+    };
+    if (isBodyweightExercise(exId)) return out;
+    if (prev?.lockIntensity && prev.intensity) out = solveSet({ ...out, intensity: prev.intensity }, planned.est1RM);
+    else if (prev?.lockWeight) {
+      const derived = deriveIntensity(planned.est1RM, out.weight, out.reps, out.intensity?.mode || 'rpe');
+      if (derived) out = { ...out, intensity: derived };
+    }
+    return out;
+  });
+  return {
+    ...slot,
+    scheme: planned.scheme,
+    targetReps: null,
+    restSeconds: program.restSeconds || slot.restSeconds || 90,
+    programmed: { ...planned.programmed, day: ref.day, label: planned.label },
+    supersetSetsByExercise: [sets],
+    sets
+  };
 };

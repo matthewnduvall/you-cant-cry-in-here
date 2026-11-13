@@ -530,6 +530,7 @@ export default function App() {
     handleRecalculateSlotWeights,
     handleChangeProgramWeek,
     handleChangeSessionProgram,
+    handleChangeProgramDay,
     handleToggleSetLock,
     handleToggleSetDone,
     handleChangeGymSelection
@@ -980,6 +981,7 @@ export default function App() {
           updateCurrentWorkoutState={updateCurrentWorkoutState}
           onChangeProgramWeek={handleChangeProgramWeek}
           onChangeSessionProgram={handleChangeSessionProgram}
+          onChangeProgramDay={handleChangeProgramDay}
           history={history}
           user={user}
           profilePhoto={profilePhoto}
