@@ -314,7 +314,8 @@ export function SessionTitleBar({
           >
             {saveLabel}
           </button>
-          <button type="button" className="kinetic-btn" onClick={onReset} style={actionStyle('#1C1C1C', 'var(--cr-red-text)')}>
+          {/* RESET: grey text, so FINISH is the bar's one red */}
+          <button type="button" className="kinetic-btn" onClick={onReset} style={actionStyle('#1C1C1C', '#9A9A9A')}>
             RESET
           </button>
         </>
@@ -694,9 +695,9 @@ export const SessionRestTimerBar = React.memo(function SessionRestTimerBar({
             minHeight: '40px',
             maxHeight: '40px',
             boxSizing: 'border-box',
-            // Counting down: the time in red text on the tile (the red fill is kept for FINISH)
+            // Counting down: the time in white (the bar's red is FINISH; the NEXT dot marks the waiting set)
             backgroundColor: '#1C1C1C',
-            color: 'var(--cr-red-text)',
+            color: '#FFFFFF',
             borderTop: 'none',
             borderLeft: 'none',
             borderRight: '1px solid var(--dp-color-rule)',
@@ -714,7 +715,7 @@ export const SessionRestTimerBar = React.memo(function SessionRestTimerBar({
             overflow: 'hidden'
           }}
         >
-          <SFSymbol name="clock" size={14} color="var(--cr-red-text)" />
+          <SFSymbol name="clock" size={14} color="#FFFFFF" />
           <span style={{ fontSize: '17px', fontWeight: 400 }}>{formatTimerSeconds(remaining)}</span>
         </button>
       ) : (

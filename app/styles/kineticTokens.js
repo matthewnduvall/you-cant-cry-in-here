@@ -184,15 +184,13 @@ export const KINETIC_CSS = `
     text-overflow: ellipsis;
   }
 
-  /* Configuration: the fields and selections the athlete answers are red fills with white text (each answer is
-     its component's one red; NEXT / DONE is white). Pop-ups opened from there (.cr-config-off) keep the usual look. */
-  .kinetic-app .cr-config :is(input[type="number"], input[type="text"], select.kinetic-filter-select, button[aria-pressed="true"], .cr-answer-on):not(.cr-config-off *) {
-    background-color: var(--cr-red) !important;
-    border-color: var(--cr-red) !important;
-    color: #FFFFFF !important;
-  }
-  .kinetic-app .cr-config select.kinetic-filter-select:not(.cr-config-off *) {
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M0 0h10L5 6z' fill='%23FFFFFF'/%3E%3C/svg%3E");
+  /* Configuration: selections (pressed pills and rows, ON) are a white fill with black text, as everywhere else in
+     the app; number boxes and dropdowns keep their usual graphite look. Pop-ups opened from there (.cr-config-off)
+     are left alone. */
+  .kinetic-app .cr-config :is(button[aria-pressed="true"], .cr-answer-on):not(.cr-config-off *) {
+    background-color: #FFFFFF !important;
+    border-color: #FFFFFF !important;
+    color: #000000 !important;
   }
 
   /* Pressed: lighten one step (no scale or bounce); short ease-out fades only */

@@ -191,7 +191,8 @@ export function RoutinesView({
               style={{
                 fontSize: '13px',
                 ...UI.sessionName,
-                color: 'var(--cr-red-text)',
+                // White: a red name on every row made red mean nothing in the list
+                color: '#FFFFFF',
                 whiteSpace: 'nowrap',
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
@@ -346,7 +347,7 @@ export function RoutinesView({
           <Button
             variant="secondary"
             onClick={() => handleCancelRoutineSelection?.()}
-            style={{ width: '100%', height: '48px', boxSizing: 'border-box', padding: '0 14px', fontSize: '12px', backgroundColor: '#1C1C1C', color: '#FF4A3D', borderTop: 'none', borderLeft: 'none', borderRight: '1px solid var(--dp-color-rule)', borderBottom: '1px solid var(--dp-color-rule)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
+            style={{ width: '100%', height: '48px', boxSizing: 'border-box', padding: '0 14px', fontSize: '12px', backgroundColor: '#1C1C1C', color: '#FFFFFF', borderTop: 'none', borderLeft: 'none', borderRight: '1px solid var(--dp-color-rule)', borderBottom: '1px solid var(--dp-color-rule)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
           >
             <span>CANCEL</span>
           </Button>

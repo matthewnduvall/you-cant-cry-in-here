@@ -691,8 +691,8 @@ export function HistoryView({
                     style={{
                       fontSize: '15px',
                       fontWeight: 500,
-                      // The PR row's one red element: the exercise name, like an exercise card's title
-                      color: 'var(--cr-red-text)',
+                      // White: a red name on every row made red mean nothing in the list
+                      color: '#FFFFFF',
                       lineHeight: 1.2,
                       display: '-webkit-box',
                       WebkitLineClamp: 2,
@@ -732,8 +732,9 @@ export function HistoryView({
                       height: '100%',
                       minHeight: '48px',
                       cursor: 'default',
-                      backgroundColor: isTBD ? '#2A2A2A' : 'var(--dp-color-accent)',
-                      color: isTBD ? '#FFFFFF' : '#000000'
+                      // A value, not a selection: graphite with white text (a white fill reads as "selected")
+                      backgroundColor: '#2A2A2A',
+                      color: isTBD ? '#9A9A9A' : '#FFFFFF'
                     }}
                   >
                     {isTBD ? 'TBD' : `${prLabel}\u00A0LB`}
@@ -767,10 +768,9 @@ export function HistoryView({
                     height: '100%',
                     minHeight: '48px',
                     flexDirection: 'column',
-                    backgroundColor: isTBD
-                      ? '#2A2A2A'
-                      : 'var(--dp-color-accent)',
-                    color: isTBD ? '#FFFFFF' : '#000000'
+                    // A value, not a selection: graphite with white text (a white fill reads as "selected")
+                    backgroundColor: '#2A2A2A',
+                    color: isTBD ? '#9A9A9A' : '#FFFFFF'
                   }}
                 >
                   <span style={{ lineHeight: 1.1 }}>
@@ -1046,8 +1046,8 @@ export function HistoryView({
                             style={{
                               fontSize: '13px',
                               ...UI.sessionName,
-                              // The row's one red element (one red per component); its ✕ is grey
-                              color: 'var(--cr-red-text)',
+                              // White: a red name on every row made red mean nothing in the list
+                              color: '#FFFFFF',
                               whiteSpace: 'nowrap',
                               overflow: 'hidden',
                               textOverflow: 'ellipsis',

@@ -491,7 +491,7 @@ export function SlotEditor({
               overflow: 'hidden'
             }}
           >
-            {tag && <span style={{ color: half === 0 ? 'var(--dp-color-accent)' : '#C0C0C0', flexShrink: 0 }}>{tag}</span>}
+            {tag && <span style={{ color: half === 0 ? 'var(--dp-color-accent)' : '#BDBDBD', flexShrink: 0 }}>{tag}</span>}
             {/* Up to two lines, then … */}
             <span
               style={{
@@ -503,8 +503,9 @@ export function SlotEditor({
                 WebkitBoxOrient: 'vertical',
                 lineHeight: 1.15,
                 wordBreak: 'break-word',
-                // The exercise's title is the card's one red element (red is one per component)
-                color: 'var(--cr-red-text)'
+                // The exercise's title is the card's one red element (red is one per component): in a superset only
+                // A's title is red, B's is white
+                color: half === 1 ? '#FFFFFF' : 'var(--cr-red-text)'
               }}
             >
               {title.toUpperCase()}
@@ -896,7 +897,7 @@ export function SlotEditor({
               style={{
                 fontSize: '11px',
                 fontWeight: 500,
-                color: exIdx === 0 ? 'var(--dp-color-accent)' : '#C0C0C0',
+                color: exIdx === 0 ? 'var(--dp-color-accent)' : '#BDBDBD',
                 backgroundColor: cellBg,
                 ...SHARED_CELL_BORDER,
                 padding: '3px 8px',
@@ -988,15 +989,20 @@ export function SlotEditor({
               }
               style={{ ...setCellStyle(cellBg), cursor: 'pointer', overflow: 'hidden' }}
             >
-              <span style={cellLabelStyle}>{getBandParts(bandColor).length > 1 ? 'BANDS' : 'BAND'}</span>
-              {/* Each band in its own colour; two bands sit side by side ("RED+PURPLE") */}
-              <span style={{ ...cellValueStyle('#FFFFFF', getBandParts(bandColor).length > 1 ? '11px' : '15px'), whiteSpace: 'nowrap' }}>
-                {getBandParts(bandColor).map((part, i) => (
-                  <React.Fragment key={part}>
-                    {i > 0 && <span style={{ color: '#9A9A9A' }}>+</span>}
-                    <span style={{ color: BAND_COLOR_HEX[part] || '#FFFFFF' }}>{part.toUpperCase()}</span>
-                  </React.Fragment>
+              {/* The band's colour is a small swatch beside the label; the name is white text, so red text keeps
+                  meaning "warning / overdue" (two bands: two swatches, "RED+PURPLE") */}
+              <span style={{ ...cellLabelStyle, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                {getBandParts(bandColor).length > 1 ? 'BANDS' : 'BAND'}
+                {getBandParts(bandColor).map(part => (
+                  <span
+                    key={part}
+                    aria-hidden="true"
+                    style={{ width: '7px', height: '7px', borderRadius: '50%', backgroundColor: BAND_COLOR_HEX[part] || '#FFFFFF', flexShrink: 0 }}
+                  />
                 ))}
+              </span>
+              <span style={{ ...cellValueStyle('#FFFFFF', getBandParts(bandColor).length > 1 ? '11px' : '15px'), whiteSpace: 'nowrap' }}>
+                {getBandParts(bandColor).map(part => part.toUpperCase()).join('+')}
               </span>
             </button>
             ) : withSetLock(exIdx, st, 'weight', cellBg,
