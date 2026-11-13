@@ -50,9 +50,8 @@ import {
   normalizeSetType,
   lockAndCompleteSets,
   keepCompletedSets,
-  isClusterScheme,
-  CLUSTER_REST_SECONDS,
-  asHistoricalWorkout
+  asHistoricalWorkout,
+  findIntensityMismatches
 } from '../utils/workoutEngine';
 import { deleteCloudRoutineByKey, deleteCloudWorkoutsByIds, postSyncHistoryUpdate } from '../utils/supabaseAuth';
 import {
@@ -67,7 +66,7 @@ import {
   isBig3Variant
 } from '../data/programs';
 import { applyProgramToSlot, isProgrammedSlot, fitsProgramEquipment } from '../utils/programEngine';
-import { SET_TYPE_RPE, solveSet } from '../utils/intensity';
+import { SET_TYPE_RIR, solveSet } from '../utils/intensity';
 import { getStarting1RM, describe1RM, getLiftFamilyParent } from '../utils/starting1RM';
 import { withTrace, traceLine, traceTitle, isTracing, fmt } from '../utils/calcTrace';
 import { buildHistoryUpdate, findAddedSlots, getWorkoutSyncInfo, withSyncInfo } from '../utils/syncedHistory';
@@ -170,7 +169,7 @@ export function useWorkoutMutations({
   programSchedules = null,
   // For exercises never logged (utils/starting1RM.js): the goal's strength class (one class below is the start)
   // and height
-  targetStandardClass = 'Intermediate',
+  targetStandardClass = 'Novice',
   heightInches = 70
 }) {
   // An exercise's 1RM: its own History, else the starting 1RM (a related logged lift, else the strength standard one
@@ -817,7 +816,9 @@ export function useWorkoutMutations({
       shareWithFriends: Boolean(isCurrentEditorShared || shareRoutinesWithFriends),
       saveAsRoutine: currentView === 'routine_editor',
       gymType: detectedGymType,
-      sourceView: currentView
+      sourceView: currentView,
+      // Sets whose intensity gives a 1RM out of line with the rest of their exercise (checked before it's logged)
+      intensityFlags: currentView === 'routine_editor' ? [] : findIntensityMismatches(currentWorkout)
     });
   };
 
@@ -1724,8 +1725,8 @@ export function useWorkoutMutations({
   const handleUpdateSetType = (slotId, exIndex, setId, newType) => {
     updateCurrentWorkoutState(prev => {
       if (!prev) return prev;
-      // Programs that use intensity: the new type sets the set's intensity (SET_TYPE_RPE), unless it is locked
-      const typeIntensity = getProgram(prev.program || trainingProgram).usesIntensity ? SET_TYPE_RPE[newType] : undefined;
+      // Programs that use intensity: the new type sets the set's intensity (SET_TYPE_RIR), unless it is locked
+      const typeIntensity = getProgram(prev.program || trainingProgram).usesIntensity ? SET_TYPE_RIR[newType] : undefined;
       const nextSlots = prev.slots.map(slot => {
         if (slot.id !== slotId) return slot;
         const isSup = isSupersetCategory(slot.category) && Array.isArray(slot.supersetSetsByExercise);
@@ -1779,7 +1780,7 @@ export function useWorkoutMutations({
             reps,
             increment: Number.isFinite(lastW) && lastW > 0 ? Math.round((Number(weight) - lastW) * 100) / 100 : st.increment,
             lastEditedField: 'type',
-            ...(typeIntensity !== undefined && !st.lockIntensity && !isTimer ? { intensity: { mode: 'rpe', value: typeIntensity } } : {})
+            ...(typeIntensity !== undefined && !st.lockIntensity && !isTimer ? { intensity: { mode: 'rir', value: typeIntensity } } : {})
           };
           return sets.map((o, i) => (i === idx ? next : o));
         };
@@ -2177,14 +2178,9 @@ export function useWorkoutMutations({
   const handleToggleSetDone = (slot, exIndex, setItem) => {
     const markingDone = !setItem.completed;
     if (markingDone && isRoutineEditorView) {
-      // CLUSTER: a short rest between its sets; the usual rest after the last one
-      const clusterSetsLeft =
-        isClusterScheme(slot.scheme) && (slot.sets || []).some(st => st.id !== setItem.id && !st.completed);
       setTimerTrigger({
         isRunning: true,
-        targetSeconds: clusterSetsLeft
-          ? CLUSTER_REST_SECONDS
-          : slot.restSeconds || currentEditorWorkout?.defaultRestSeconds || 90,
+        targetSeconds: slot.restSeconds || currentEditorWorkout?.defaultRestSeconds || 90,
         startedAtMs: Date.now()
       });
     }

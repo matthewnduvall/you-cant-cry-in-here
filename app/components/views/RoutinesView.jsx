@@ -52,7 +52,9 @@ export function RoutinesView({
   // A friend's routines: LOAD only, no delete
   readOnly = false,
   // Configuration → EQUIPMENT (null = not chosen yet): the filter starts on MY EQUIPMENT
-  availableEquipment = null
+  availableEquipment = null,
+  // SEND on your own routines (signed in): onSendRoutine(routine) opens the friend picker
+  onSendRoutine
 }) {
   const [tabChoice, setTabChoice] = useState(null);
   // The History tab's SEARCH / TYPE / MUSCLE / EQUIPMENT / EXERCISE filter, over the exercises in the routines
@@ -148,12 +150,14 @@ export function RoutinesView({
     routines.map((r, i) => {
       const author = list.id === 'friends' ? r.friendName : (r.author || fallbackAuthor).replace(/^@/, '');
       const count = getWorkoutExerciseIds(r).length;
+      // Your own routines (not friends', not read-only) can be sent straight to a friend
+      const canSend = Boolean(onSendRoutine) && !readOnly && list.id !== 'friends' && (r.slots || []).length > 0;
       return (
         <div
           key={`${r.key}_${i}`}
           style={{
             display: 'grid',
-            gridTemplateColumns: !readOnly && list.deleteType ? 'minmax(0, 1fr) 72px 48px' : 'minmax(0, 1fr) 72px',
+            gridTemplateColumns: `minmax(0, 1fr)${canSend ? ' 64px' : ''} 64px${!readOnly && list.deleteType ? ' 48px' : ''}`,
             alignItems: 'stretch',
             backgroundColor: '#1C1C1C',
             opacity: dim ? 0.75 : 1
@@ -203,6 +207,29 @@ export function RoutinesView({
               </div>
             )}
           </div>
+          {canSend && (
+            <button
+              type="button"
+              className="kinetic-btn"
+              aria-label={`Send ${r.label} to a friend`}
+              onClick={() => onSendRoutine(r)}
+              style={{
+                minHeight: '48px',
+                boxSizing: 'border-box',
+                backgroundColor: '#1C1C1C',
+                color: '#BDBDBD',
+                border: 'none',
+                ...SHARED_CELL_BORDER,
+                fontFamily: 'inherit',
+                fontSize: '12px',
+                fontWeight: 500,
+                letterSpacing: '0.08em',
+                cursor: 'pointer'
+              }}
+            >
+              SEND
+            </button>
+          )}
           <button
             type="button"
             className="kinetic-btn"

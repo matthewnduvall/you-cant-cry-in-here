@@ -3,8 +3,9 @@
 import React, { useState } from 'react';
 import { UI } from '../styles/kineticTokens';
 import { formatTodayYMD } from '../data/exerciseLibrary';
-import { SET_TYPES_LIST, best1RMInfoOfSets, oneRepMaxLabel as oneRepMaxText } from '../utils/workoutEngine';
-import { Button, CloseButton } from './Controls';
+import { SET_TYPES_LIST, exercise1RMInfoOfSets, oneRepMaxLabel as oneRepMaxText } from '../utils/workoutEngine';
+import { ApplyToLaterToggle, Button, CloseButton } from './Controls';
+import { useModalScrollLock } from '../hooks/useModalScrollLock';
 
 // ============================================================================
 // MODAL COMPONENTS: DELETE CONFIRMATION, PLATE CALCULATOR, SET VALUES, SAVE, HISTORY EDIT, FEEDBACK
@@ -15,6 +16,8 @@ export function DeleteConfirmModal({
   setDeleteConfirmTarget,
   handleConfirmDeleteAction
 }) {
+  // Page held still while open (no jump after APPLY / SAVE / SEND)
+  useModalScrollLock(Boolean(deleteConfirmTarget));
   if (!deleteConfirmTarget) return null;
 
   return (
@@ -130,6 +133,8 @@ export function PlateCalculatorModal({
   // Opens a logged History workout (the PR's) on the PROGRESS page
   onOpenHistoryWorkout
 }) {
+  // Page held still while open (no jump after APPLY / SAVE / SEND)
+  useModalScrollLock(Boolean(plateCalcTarget));
   if (!plateCalcTarget) return null;
 
   return (
@@ -165,8 +170,10 @@ export function PlateCalculatorModal({
           const currentTotal = Number(computedPlateCalculatorTotal) || 0;
           const sessionSets = Array.isArray(plateCalcTarget.sessionSets) ? plateCalcTarget.sessionSets : [];
           // * = calculated from reps (not lifted for 1 rep)
-          const { value: current1RM, calculated: currentCalculated } = best1RMInfoOfSets([
-            { weight: currentTotal, reps: plateCalcTarget.setReps },
+          // The set being picked keeps its type and intensity (only its weight is the one on the pop-up)
+          const pickedSet = sessionSets.find(st => st && st.id === plateCalcTarget.setId) || {};
+          const { value: current1RM, calculated: currentCalculated } = exercise1RMInfoOfSets([
+            { ...pickedSet, weight: currentTotal, reps: plateCalcTarget.setReps ?? pickedSet.reps },
             ...sessionSets.filter(st => st && st.id !== plateCalcTarget.setId)
           ]);
           const oneRepMaxLabel = color => ({ fontSize: '11px', fontWeight: 500, color, lineHeight: 1, whiteSpace: 'nowrap' });
@@ -404,6 +411,13 @@ export function PlateCalculatorModal({
           </div>
         )}
 
+        {plateCalcTarget.mode === 'set' && !plateCalcTarget.onApplyCustom && (
+          <ApplyToLaterToggle
+            laterSets={plateCalcTarget.laterSets}
+            on={Boolean(plateCalcTarget.applyToLater)}
+            onToggle={() => setPlateCalcTarget(prev => (prev ? { ...prev, applyToLater: !prev.applyToLater } : null))}
+          />
+        )}
         <Button
           variant="primary"
           onClick={handleApplyCalculatedWeight}
@@ -422,9 +436,13 @@ export function SetValueEditorModal({
   handleUpdateSetField,
   handleUpdateSetType
 }) {
+  // Page held still while open (no jump after APPLY / SAVE / SEND)
+  useModalScrollLock(Boolean(setValueTarget));
   if (!setValueTarget) return null;
 
-  const { mode, slotId, exIdx, setId, setNumber, exerciseName, currentValue, isAbs } = setValueTarget;
+  const { mode, slotId, exIdx, setId, setNumber, exerciseName, currentValue, isAbs, laterSets = [], applyToLater = false } = setValueTarget;
+  // ALSO SETS n–m: the value goes to the exercise's later sets too (not done, not locked)
+  const targetSetIds = [setId, ...(applyToLater ? laterSets.map(l => l.id) : [])];
   // Editors outside a workout (e.g. the Stimulus page's day thresholds) can relabel the pop-up and give their own
   // preset numbers: title, subtitle, valueLabel, presets, applyLabel (with onApply)
   const { title, subtitle, valueLabel, presets, applyLabel } = setValueTarget;
@@ -438,9 +456,9 @@ export function SetValueEditorModal({
     } else if (mode === 'increment') {
       handleUpdateSetField(slotId, exIdx, setId, 'increment', nextVal);
     } else if (mode === 'timer') {
-      handleUpdateSetField(slotId, exIdx, setId, 'timer', nextVal);
+      targetSetIds.forEach(id => handleUpdateSetField(slotId, exIdx, id, 'timer', nextVal));
     } else if (mode === 'reps') {
-      handleUpdateSetField(slotId, exIdx, setId, 'reps', nextVal);
+      targetSetIds.forEach(id => handleUpdateSetField(slotId, exIdx, id, 'reps', nextVal));
     }
     setSetValueTarget(null);
   };
@@ -581,6 +599,13 @@ export function SetValueEditorModal({
               </div>
             )}
 
+            {(mode === 'reps' || mode === 'timer') && !setValueTarget.onApply && (
+              <ApplyToLaterToggle
+                laterSets={laterSets}
+                on={applyToLater}
+                onToggle={() => setSetValueTarget(prev => (prev ? { ...prev, applyToLater: !prev.applyToLater } : null))}
+              />
+            )}
             <Button
               variant="primary"
               onClick={() => applyAndClose(currentValue)}
@@ -600,9 +625,11 @@ export function SaveConfirmModal({
   setSaveConfirmTarget,
   handleConfirmSaveWorkout
 }) {
+  // Page held still while open (no jump after APPLY / SAVE / SEND)
+  useModalScrollLock(Boolean(saveConfirmTarget));
   if (!saveConfirmTarget) return null;
 
-  const { name = '', shareWithFriends = true, saveAsRoutine = false, gymType = 'all', sourceView } = saveConfirmTarget;
+  const { name = '', shareWithFriends = true, saveAsRoutine = false, gymType = 'all', sourceView, intensityFlags = [] } = saveConfirmTarget;
   // The routine editor always saves a routine, so the ROUTINE toggle only shows for sessions/History.
   const showRoutineToggle = sourceView !== 'routine_editor';
   const toggleCellStyle = {
@@ -623,6 +650,30 @@ export function SaveConfirmModal({
           <span>CONFIRM SAVE</span>
           <CloseButton onClick={() => setSaveConfirmTarget(null)} />
         </div>
+
+        {/* Sets whose intensity doesn't fit the rest of the exercise: worth a look before they skew the 1RM */}
+        {intensityFlags.length > 0 && (
+          <div style={{ marginBottom: '14px', backgroundColor: '#1C1C1C', borderRadius: '10px', padding: '10px 12px' }}>
+            <div style={{ ...UI.stepLabel, marginBottom: '6px' }}>CHECK {intensityFlags.length === 1 ? 'THIS SET' : `THESE ${intensityFlags.length} SETS`}</div>
+            <div style={{ ...UI.sentence, fontSize: '12px', color: '#BDBDBD', marginBottom: '8px' }}>
+              Their weight, reps and intensity give a 1RM far from the rest of the exercise, which would skew your
+              calculated 1RM. Close this to fix them, or save as they are.
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '180px', overflowY: 'auto' }}>
+              {intensityFlags.map((f, i) => (
+                <div key={`${f.slotId}_${f.setNumber}_${i}`} style={{ ...UI.sentence, fontSize: '12px', color: '#FFFFFF' }}>
+                  <div style={{ fontWeight: 500 }}>
+                    {f.exerciseName} · set {f.setNumber}: {f.weight} lb × {f.reps}, {f.intensityText}
+                  </div>
+                  <div style={{ color: '#9A9A9A' }}>
+                    1RM {f.set1RM} lb vs about {f.others1RM} lb from the other sets
+                    {f.direction === 'low' ? ' (probably more reps were left).' : ' (probably fewer reps were left).'}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         <div style={{ marginBottom: '14px' }}>
           <div style={UI.stepLabel}>NAME TO SAVE UNDER</div>
@@ -722,6 +773,8 @@ export function HistoricalEditConfirmModal({
   setHistoricalEditConfirmTarget,
   handleConfirmHistoricalEdit
 }) {
+  // Page held still while open (no jump after APPLY / SAVE / SEND)
+  useModalScrollLock(Boolean(historicalEditConfirmTarget));
   if (!historicalEditConfirmTarget) return null;
 
   return (
@@ -787,6 +840,8 @@ export function FeedbackModal({
   const [errorText, setErrorText] = useState('');
   const [deliveryNote, setDeliveryNote] = useState('');
 
+  // Page held still while open (no jump after APPLY / SAVE / SEND)
+  useModalScrollLock(Boolean(showFeedbackModal));
   if (!showFeedbackModal) return null;
 
   const buildFeedbackMailtoUrl = rawMessage => {

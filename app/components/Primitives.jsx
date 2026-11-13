@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { useModalScrollLock } from '../hooks/useModalScrollLock';
 import { UI } from '../styles/kineticTokens';
 import { formatTimerSeconds } from '../utils/workoutEngine';
 
@@ -180,6 +181,8 @@ export function SessionTitleBar({
   // PROGRAM / WEEK pop-up: null | 'program' | 'week'; weekDraft = the typed week for programs without a cycle
   const [programPicker, setProgramPicker] = useState(null);
   const [weekDraft, setWeekDraft] = useState('');
+  // The page holds still under the name / program / week pop-ups
+  useModalScrollLock(nameDraft !== null || programPicker !== null);
   const saveName = () => {
     const next = String(nameDraft ?? '').trim();
     if (next && next !== title) onChangeTitle?.(next);

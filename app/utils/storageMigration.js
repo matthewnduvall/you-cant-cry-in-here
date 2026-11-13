@@ -3,7 +3,7 @@
 // ============================================================================
 
 import { normalizeProgramId } from '../data/programs';
-import { EXERCISE_LIBRARY, EXERCISE_MAP, normalizeSlotCategory, isSupersetCategory } from '../data/exerciseLibrary';
+import { EXERCISE_LIBRARY, EXERCISE_MAP, normalizeSlotCategory, isSupersetCategory, canonicalExerciseData } from '../data/exerciseLibrary';
 import { cloneSlots, getInitial1RMs, normalizeSlotLabels } from './workoutEngine';
 import { isLocallyVerifiedUser } from './supabaseAuth';
 
@@ -79,7 +79,7 @@ export const DEFAULT_SETTINGS_V2 = {
   bodyMetrics: { bodyweightLbs: 220, heightFeet: 5, heightInches: 10 },
   goals: {
     goalType: 'Balanced', goalIncrement: 1.25, goalUnit: 'lb',
-    chartMetric: 'weight', targetStandardClass: 'Intermediate', customGoalWeights: {}
+    chartMetric: 'weight', targetStandardClass: 'Novice', customGoalWeights: {}
   },
   stimulus: { greenDays: 2, yellowDays: 4 },
   routinePreferences: ['Compound', 'Compound', 'Superset', 'Superset', 'Accessory'],
@@ -98,7 +98,9 @@ export const DEFAULT_SETTINGS_V2 = {
   availableEquipment: null
 };
 
-export const normalizeSlotFromStorage = slot => {
+export const normalizeSlotFromStorage = rawSlot => {
+  // Merged exercises (e.g. Weighted Pull-up → Pull-Up on Weighted) before anything looks the exercise up
+  const slot = canonicalExerciseData(rawSlot);
   if (!slot || slot.category === 'Warm-Up Routine' || slot.exerciseId === 'warmup_12_step') return null;
   const normCat = normalizeSlotCategory(slot.category);
   const ex1 = EXERCISE_MAP[slot.exerciseId] || EXERCISE_LIBRARY[0];
@@ -169,7 +171,8 @@ export const loadHydratedAppState = () => {
   try {
     const raw = window.localStorage.getItem(PERSISTENCE_KEY);
     if (!raw) return null;
-    const parsed = JSON.parse(raw);
+    // Merged exercises' ids rewritten everywhere (workouts, routines, records, goals, the open session)
+    const parsed = canonicalExerciseData(JSON.parse(raw));
     if (!parsed || typeof parsed !== 'object') return null;
 
     const rawMaxes = parsed.oneRepMaxes && typeof parsed.oneRepMaxes === 'object' ? parsed.oneRepMaxes : {};

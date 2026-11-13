@@ -495,7 +495,7 @@ export function ProfileView({
                 seriesByLift: friendSeriesByLift,
                 // Their strength class goal (distance-to-goal view); falls back to Intermediate
                 goalSettings: {
-                  targetStandardClass: profUser?.goals?.targetStandardClass || 'Intermediate',
+                  targetStandardClass: profUser?.goals?.targetStandardClass || 'Novice',
                   customGoalWeights: profUser?.goals?.customGoalWeights || {},
                   bodyweightLbs: profUser?.bodyweightLbs
                 },

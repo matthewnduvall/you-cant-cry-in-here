@@ -6,7 +6,8 @@
 
 import React, { useState } from 'react';
 import { UI, SHARED_GROUP_OUTER } from '../styles/kineticTokens';
-import { SegmentButton } from './Controls';
+import { useModalScrollLock } from '../hooks/useModalScrollLock';
+import { ApplyToLaterToggle, SegmentButton } from './Controls';
 import {
   INTENSITY_MODES,
   INTENSITY_OPTIONS,
@@ -21,9 +22,12 @@ const MODE_HELP = {
   rpe: 'Rate of perceived exertion: 1 is easiest, 10 is as hard as possible.'
 };
 
-export function IntensityEditorModal({ title = 'INTENSITY', reps = 8, intensity = null, onApply, onClose }) {
+export function IntensityEditorModal({ title = 'INTENSITY', reps = 8, intensity = null, laterSets = [], onApply, onClose }) {
+  // ALSO SETS n–m: write the value to the exercise's later sets too
+  const [alsoLater, setAlsoLater] = useState(false);
+  useModalScrollLock(true);
   const [draft, setDraft] = useState(() =>
-    intensity && intensity.mode ? { mode: intensity.mode, value: intensity.value ?? null } : { mode: 'rpe', value: null }
+    intensity && intensity.mode ? { mode: intensity.mode, value: intensity.value ?? null } : { mode: 'rir', value: null }
   );
   const hasValue = draft.value !== null && draft.value !== undefined && draft.value !== '';
   const switchMode = mode => {
@@ -86,6 +90,7 @@ export function IntensityEditorModal({ title = 'INTENSITY', reps = 8, intensity 
           ))}
         </div>
 
+        <ApplyToLaterToggle laterSets={laterSets} on={alsoLater} onToggle={() => setAlsoLater(v => !v)} style={{ marginTop: '4px' }} />
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px', marginTop: '14px' }}>
           <button type="button" className="kinetic-btn" onClick={onClose} style={UI.secondaryBtnCenter}>
             CANCEL
@@ -93,7 +98,7 @@ export function IntensityEditorModal({ title = 'INTENSITY', reps = 8, intensity 
           <button
             type="button"
             className="kinetic-btn"
-            onClick={() => onApply?.({ mode: draft.mode, value: null })}
+            onClick={() => onApply?.({ mode: draft.mode, value: null }, alsoLater)}
             style={UI.secondaryBtnCenter}
           >
             CLEAR
@@ -101,7 +106,7 @@ export function IntensityEditorModal({ title = 'INTENSITY', reps = 8, intensity 
           <button
             type="button"
             className="kinetic-btn"
-            onClick={() => onApply?.(hasValue ? draft : { mode: draft.mode, value: null })}
+            onClick={() => onApply?.(hasValue ? draft : { mode: draft.mode, value: null }, alsoLater)}
             style={UI.primaryBtnCenter}
           >
             APPLY

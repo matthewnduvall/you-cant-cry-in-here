@@ -6,6 +6,43 @@ import { IOSListSection, IOSListRow } from '../Primitives';
 import { Button } from '../Controls';
 import { DataBackupSection } from './SettingsView';
 
+// The INFO page: how the app works (everything is converted to a 1 rep max), then data & privacy, then DATA & BACKUP.
+// Sentences in sentence case; a short white lead-in names each point. No red on this page.
+
+const paragraph = { margin: '0 0 12px', lineHeight: 1.55, fontSize: '14px', color: '#BDBDBD' };
+const lead = { color: '#FFFFFF', fontWeight: 500 };
+const formula = {
+  display: 'block',
+  margin: '8px 0 12px',
+  padding: '10px 12px',
+  borderRadius: '10px',
+  backgroundColor: '#000000',
+  color: '#FFFFFF',
+  fontFamily: 'var(--cr-face-display)',
+  fontSize: '15px',
+  textAlign: 'center',
+  letterSpacing: 0
+};
+
+function Section({ header, colors, children }) {
+  return (
+    <IOSListSection header={header} colors={colors}>
+      <IOSListRow isLast={true} colors={colors}>
+        <div style={{ width: '100%' }}>{children}</div>
+      </IOSListRow>
+    </IOSListSection>
+  );
+}
+
+function P({ title, children, last = false }) {
+  return (
+    <p style={{ ...paragraph, marginBottom: last ? 0 : '12px' }}>
+      {title && <span style={lead}>{title} </span>}
+      {children}
+    </p>
+  );
+}
+
 export function InfoView({
   colors,
   setCurrentView,
@@ -16,72 +53,93 @@ export function InfoView({
 }) {
   return (
     <div style={UI.pagePad}>
-      <IOSListSection header="01 // APP LOGIC & 1RM APPROACH" colors={colors}>
-        <IOSListRow isLast={true} colors={colors}>
-          <div style={{ width: '100%', lineHeight: 1.55, fontSize: '14px', color: '#BDBDBD' }}>
-            <p style={{ marginBottom: '12px' }}>
-              <strong style={{ color: 'var(--dp-color-accent)' }}>1.1 1-REP MAX (1RM) FOUNDATION:</strong> Everything in{' '}
-              <em>You Can&apos;t Cry in Here</em> is anchored to your <strong>1 Rep Max (1RM)</strong> for each lift. Your Personal Records start as{' '}
-              <strong>TBD</strong> and automatically update whenever you log a set that produces a higher estimated 1RM (via the Epley formula:{' '}
-              <code>Weight × (1 + (Reps + RIR) / 30)</code>, where RIR is the reps you had left, from the set&apos;s
-              intensity), or whenever you manually override a Personal Record.
-            </p>
+      <Section header="THE IDEA: EVERYTHING IS A 1 REP MAX" colors={colors}>
+        <P>
+          A set of 3, a set of 12 and a pyramid can’t be compared as they are. So every set you log is converted to
+          the same unit: an estimated 1 rep max (1RM), the most you could lift once. Progress, records, suggested weights,
+          goals and leaderboards are all measured in it.
+        </P>
+        <P title="The conversion.">Each set’s weight and reps, plus the reps you had left (RIR):</P>
+        <code style={formula}>1RM = weight × (1 + (reps + RIR) ÷ 30)</code>
+        <P>
+          For example, 225 lb × 5 with 2 reps left = 225 × (1 + 7 ÷ 30) ≈ 278 lb. A single with nothing left is just its
+          weight. A 1RM worked out this way shows with an asterisk (278*); one you actually lifted for 1 rep shows plain.
+        </P>
+        <P title="An exercise’s 1RM" last>
+          in a session is the average of its working sets (warm-ups left out), so changing any one set’s weight, reps or
+          intensity moves it. Your personal record is the best single set you have ever logged.
+        </P>
+      </Section>
 
-            <p style={{ marginBottom: '12px' }}>
-              <strong style={{ color: 'var(--dp-color-accent)' }}>1.2 AUTOMATIC SCHEME &amp; SET CONVERSIONS:</strong> Because every lift is normalized to a 1RM, the engine automatically converts your 1RM into accurate working weights across any training scheme (
-              <strong>5×5</strong>, <strong>5×8</strong>, <strong>5×8w</strong>, <strong>Pyramid</strong>,{' '}
-              <strong>Pyramid 1RM</strong>, and <strong>Drop Sets</strong>) and set type (
-              <strong>Warmup</strong>, <strong>Working</strong>, <strong>Top Out</strong>,{' '}
-              <strong>Burn Out</strong>, and <strong>1 Rep Max</strong>). Adding or removing sets and tapping{' '}
-              <strong>RECALCULATE</strong> dynamically scales weights for set-count fatigue and applies your chosen goal progression increment (e.g.,{' '}
-              <code>+1.25 lb</code> to <code>+10 lb</code>).
-            </p>
+      <Section header="WHAT THE 1RM DRIVES" colors={colors}>
+        <P title="Suggested weights.">
+          The app turns your 1RM back into a weight for each set’s reps, set type and number of sets. It takes the lower of
+          last session’s weight + your increment, and your best 1RM + your increment, so the weights climb steadily
+          without jumping ahead of you. RECALCULATE redoes this for an exercise.
+        </P>
+        <P title="Exercises you haven’t logged">
+          start from a related lift you have (an RDL from your deadlift, an incline press from your bench), else from the
+          strength standard one class below your goal for your bodyweight and height.
+        </P>
+        <P title="Performance.">
+          The chart plots each lift’s 1RM over time, the distance left to your strength class goal (Novice unless you
+          choose another in Configuration → Goals) and your records for every exercise.
+        </P>
+        <P title="Leaderboards" last>
+          rank friends by Big 3 total, by Big 3 and overhead press divided by bodyweight, and by most improved. The
+          ratios use each athlete’s bodyweight, but the bodyweight itself is never shown.
+        </P>
+      </Section>
 
-            <p style={{ marginBottom: '12px' }}>
-              <strong style={{ color: 'var(--dp-color-accent)' }}>1.3 EQUIPMENT:</strong> Turn on the equipment you have in{' '}
-              <strong>Configuration → Equipment</strong> (or tap a saved setup to switch to it). Exercises picked for you by{' '}
-              <strong>AUTO SESSION</strong> and <strong>+ ADD EXERCISE</strong> only use equipment that is on (bodyweight exercises always
-              count). Searching and the per-exercise filters still show every exercise.
-            </p>
+      <Section header="INTENSITY" colors={colors}>
+        <P title="Reps in reserve.">
+          Under a program, each set has an intensity: RIR by default (reps you could still do), or RPE (10 − RIR), or
+          percent of your 1RM. They convert into each other through the set’s reps, and a set type sets one for you
+          (warm-up RIR 5, working RIR 2, top out RIR 1, burn out RIR 3, 1 rep max RIR 0).
+        </P>
+        <P title="Locks.">
+          Lock any of a set’s weight, reps or intensity and RECALCULATE works out the rest around them.
+        </P>
+        <P title="Checking before saving." last>
+          When you finish, sets whose 1RM is far from the rest of their exercise are listed, e.g. a light set marked RIR
+          0, so a wrong intensity doesn’t skew your numbers.
+        </P>
+      </Section>
 
-            <p style={{ marginBottom: 0 }}>
-              <strong style={{ color: 'var(--dp-color-accent)' }}>1.4 MUSCLE GROUP FILTERS &amp; STIMULUS:</strong> Every exercise slot can be filtered by target muscle group (
-              <em>Legs</em>, <em>Chest</em>, <em>Back</em>, <em>Shoulders</em>, <em>Thighs</em>, <em>Hips</em>, <em>Calves</em>,{' '}
-              <em>Upper Arms</em>, <em>Forearms</em>, <em>Core</em>, or <em>Neck</em>) to isolate or swap movements on the fly. Completed sessions automatically update your Anterior/Posterior{' '}
-              <strong>Stimulus</strong> view so you can see which muscle groups are recovering (Green), recovered (Yellow), or overdue for training (Red).
-            </p>
-          </div>
-        </IOSListRow>
-      </IOSListSection>
+      <Section header="BUILDING SESSIONS" colors={colors}>
+        <P title="Programs.">
+          Crying, the default, picks exercises by which muscles are most overdue on the Stimulus map. Society and the
+          other programs (Configuration → Program) set the weeks, days, sets, reps and intensities.
+        </P>
+        <P title="Equipment.">
+          Turn on what you have in Configuration → Equipment. Exercises picked for you only use equipment that’s on;
+          search shows everything. One exercise can take several kinds of load, e.g. a pull-up is bodyweight, weighted or
+          band-assisted.
+        </P>
+        <P title="Stimulus." last>
+          Each logged set marks its muscles as trained. The Stimulus page shows each muscle group as recovering,
+          recovered or overdue, from the day thresholds you set.
+        </P>
+      </Section>
 
-      <IOSListSection header="02 // DATA POLICIES" colors={colors}>
-        <IOSListRow isLast={true} colors={colors}>
-          <div style={{ width: '100%', lineHeight: 1.5, fontSize: '14px', color: '#BDBDBD' }}>
-            {/* 2.1 CROSS-DEVICE CLOUD SYNC */}
-            <p style={{ marginBottom: '12px' }}>
-              <strong style={{ color: 'var(--dp-color-accent)' }}>2.1 CROSS-DEVICE CLOUD SYNC:</strong> When signed in to your account, your workout history, personal records (1RMs), custom routines, gym equipment presets, active sessions, and settings automatically synchronize with Supabase Cloud so your training data seamlessly follows you across your phone, tablet, and computer.
-            </p>
+      <Section header="YOUR DATA" colors={colors}>
+        <P title="On this device.">
+          Everything is saved on your device as you go, so the app works offline in the gym.
+        </P>
+        <P title="Signed in.">
+          Your History, routines and settings are also kept in your account and follow you to other devices. Only you can
+          read or change them, unless you share with friends.
+        </P>
+        <P title="Sharing.">
+          Social → Privacy decides what friends see: your stats, your shared routines, your bodyweight and your friends
+          list. Your own profile shows exactly what they see.
+        </P>
+        <P title="Leaving." last>
+          Export a .json backup below at any time. Deleting your account (Profile) removes your workouts, routines,
+          friendships and profile from the server.
+        </P>
+      </Section>
 
-            {/* 2.2 ON-DEVICE RETENTION */}
-            <p style={{ marginBottom: '12px' }}>
-              <strong style={{ color: 'var(--dp-color-accent)' }}>2.2 ON-DEVICE RETENTION:</strong> All training records and preferences are also cached locally on your device in versioned storage (Schema V3) so the app loads instantaneously and retains your progress across app updates even during offline gym sessions.
-            </p>
-
-            {/* 2.3 CLOUD AUTH & PRIVACY */}
-            <p style={{ marginBottom: '12px' }}>
-              <strong style={{ color: 'var(--dp-color-accent)' }}>2.3 CLOUD AUTH &amp; PRIVACY:</strong> Registered accounts are protected by Supabase Cloud authentication and Row-Level Security (RLS) policies ensuring only you can access or modify your private records. Your stats and routines are shared with friends only if you turn that on in{' '}
-              <strong>Social → Privacy &amp; Sharing</strong>.
-            </p>
-
-            {/* 2.4 PORTABLE BACKUPS & DELETION */}
-            <p style={{ marginBottom: 0 }}>
-              <strong style={{ color: 'var(--dp-color-accent)' }}>2.4 PORTABLE BACKUPS &amp; DELETION:</strong> You keep full ownership of your data: use <strong>DATA &amp; BACKUP</strong> below at any time to export a complete <strong>.JSON</strong> backup, restore from a backup, or clear and reset local data.
-            </p>
-          </div>
-        </IOSListRow>
-      </IOSListSection>
-
-      {/* DATA & BACKUP (was the separate Data page) */}
       <DataBackupSection
         colors={colors}
         importBackupInputRef={importBackupInputRef}

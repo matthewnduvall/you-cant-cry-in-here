@@ -7,8 +7,11 @@
 
 import { traceLine, isTracing, fmt } from './calcTrace';
 
-// A set type's intensity (RPE), set when the type is picked: Warm-up 5, Working 8, Top Out 9, Burn Out 7, 1 Rep Max 10
-export const SET_TYPE_RPE = { Warmup: 5, Working: 8, 'Top Out': 9, 'Burn Out': 7, '1 Rep Max': 10 };
+// A set type's intensity in RIR (the default scale), set when the type is picked: Warm-up RIR 5, Working RIR 2,
+// Top Out RIR 1, Burn Out RIR 3, 1 Rep Max RIR 0 (= RPE 5 / 8 / 9 / 7 / 10)
+export const SET_TYPE_RIR = { Warmup: 5, Working: 2, 'Top Out': 1, 'Burn Out': 3, '1 Rep Max': 0 };
+// The scale a set's intensity is shown in when nothing else picked one
+export const DEFAULT_INTENSITY_MODE = 'rir';
 
 export const INTENSITY_MODES = [
   { id: 'pct', label: '%1RM' },
@@ -92,7 +95,7 @@ export const repsToFailure = (oneRM, weight) => {
  * The intensity of a set from its weight and reps (`auto: true` = worked out, not set by hand), in `mode` (the set's
  * own scale if it has one, else RPE); null when the 1RM or weight is unknown.
  */
-export const deriveIntensity = (oneRM, weight, reps, mode = 'rpe') => {
+export const deriveIntensity = (oneRM, weight, reps, mode = DEFAULT_INTENSITY_MODE) => {
   const rtf = repsToFailure(oneRM, weight);
   if (rtf === null) return null;
   const n = Math.max(1, Number(reps) || 1);
@@ -184,7 +187,7 @@ export const solveSet = (st, oneRM, { step = 2.5, keepIntensity = false } = {}) 
   }
   // keepIntensity: a planned intensity (a program's week) that set the weight stays as it is
   if (keepIntensity && hasIntensity) return st;
-  const mode = st.intensity?.mode || 'rpe';
+  const mode = st.intensity?.mode || DEFAULT_INTENSITY_MODE;
   const derived = deriveIntensity(oneRM, st.weight, st.reps, mode);
   if (derived && isTracing()) {
     const rtf = repsToFailure(oneRM, st.weight);

@@ -471,7 +471,7 @@ export function RoutineEditorView({
                           : ex1.name
                       })
                     }
-                    onEditSetValue={({ mode, exIdx, set, exercise, currentValue }) =>
+                    onEditSetValue={({ mode, exIdx, set, exercise, currentValue, laterSets }) =>
                       setSetValueTarget?.({
                         mode,
                         slotId: slot.id,
@@ -480,7 +480,8 @@ export function RoutineEditorView({
                         setNumber: set.setNumber,
                         exerciseName: exercise.name,
                         currentValue,
-                        isAbs: false
+                        isAbs: false,
+                        laterSets: (laterSets || []).map(l => ({ id: l.id, number: l.number }))
                       })
                     }
                     onChangeSetType={({ exIdx, set, type }) => slotHandler('handleUpdateSetType')?.(slot.id, exIdx, set.id, type)}

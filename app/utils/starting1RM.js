@@ -45,7 +45,7 @@ const loggedExerciseIds = history => {
  * { value, source: 'history' | 'related' | 'standard' | 'default', fromId } for an exercise.
  * opts = { history, targetStandardClass, bodyweightLbs, heightInches }
  */
-export const getStarting1RMInfo = (exerciseId, { history = [], targetStandardClass = 'Intermediate', bodyweightLbs = 220, heightInches = 70 } = {}) => {
+export const getStarting1RMInfo = (exerciseId, { history = [], targetStandardClass = 'Novice', bodyweightLbs = 220, heightInches = 70 } = {}) => {
   const own = getBestHistory1RM(exerciseId, history);
   if (own > 0) return { value: own, source: 'history', fromId: exerciseId };
   if (!EXERCISE_MAP[exerciseId] || isBodyweightExercise(exerciseId)) {
@@ -112,14 +112,14 @@ export const describe1RM = (exerciseId, opts = {}) => {
       : `1RM ${name} = ${fmt(best.wt)} × (1 + ${best.reps} ÷ 30) = ${fmt(best.est)} lb${when}`;
   }
   const info = getStarting1RMInfo(exerciseId, opts);
-  const cls = getStartingClass(opts.targetStandardClass || 'Intermediate');
+  const cls = getStartingClass(opts.targetStandardClass || 'Novice');
   if (info.source === 'related') {
     const fromName = EXERCISE_MAP[info.fromId]?.name || info.fromId;
     const std = id => getExRxTargetForLift(id, cls, opts.bodyweightLbs || 220, opts.heightInches || 70, {}, {});
     return `1RM ${name} (never logged) = ${fromName} ${fmt(getBestHistory1RM(info.fromId, history))} × standards ${fmt(std(exerciseId))} ÷ ${fmt(std(info.fromId))} (${cls}) = ${fmt(info.value)} lb`;
   }
   if (info.source === 'standard') {
-    return `1RM ${name} (never logged) = ${cls} standard (one class below your ${opts.targetStandardClass || 'Intermediate'} goal) at ${fmt(opts.bodyweightLbs || 220)} lb bodyweight = ${fmt(info.value)} lb`;
+    return `1RM ${name} (never logged) = ${cls} standard (one class below your ${opts.targetStandardClass || 'Novice'} goal) at ${fmt(opts.bodyweightLbs || 220)} lb bodyweight = ${fmt(info.value)} lb`;
   }
   return `1RM ${name} = library default ${fmt(info.value)} lb`;
 };

@@ -116,6 +116,47 @@ export function NestedTabBar({ style, ...tabBarProps }) {
  * Page tabs: one row of 44 px pills (outlined; selected = white fill, black text). `tabs` is [{ id, label }].
  * Labels may wrap to two lines on narrow screens; every tab keeps a 44 px tap target.
  */
+/**
+ * "Also sets 3–5" in a set's weight / reps / intensity pop-up: when on, APPLY writes the value to the later sets of
+ * the exercise too (not done, not locked). laterSets = [{ id, number }]; nothing to show without any.
+ */
+export function ApplyToLaterToggle({ laterSets = [], on = false, onToggle, style }) {
+  if (!Array.isArray(laterSets) || laterSets.length === 0) return null;
+  const first = laterSets[0].number;
+  const last = laterSets[laterSets.length - 1].number;
+  const label = laterSets.length === 1 ? `ALSO SET ${first}` : `ALSO SETS ${first}–${last}`;
+  return (
+    <button
+      type="button"
+      className="kinetic-btn"
+      aria-pressed={on}
+      onClick={onToggle}
+      style={{
+        width: '100%',
+        minHeight: '44px',
+        borderRadius: '22px',
+        border: on ? 'none' : '1px solid #3A3A3A',
+        backgroundColor: on ? '#FFFFFF' : 'transparent',
+        color: on ? '#000000' : '#BDBDBD',
+        fontFamily: 'inherit',
+        fontSize: '12px',
+        fontWeight: 500,
+        letterSpacing: '0.1em',
+        cursor: 'pointer',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: '8px',
+        marginBottom: '12px',
+        ...style
+      }}
+    >
+      <span aria-hidden="true">{on ? '✓' : '+'}</span>
+      <span>{label}</span>
+    </button>
+  );
+}
+
 export function TabBar({ tabs = [], value, onChange, ariaLabel = 'Tabs', style }) {
   return (
     <div

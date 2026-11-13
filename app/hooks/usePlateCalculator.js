@@ -119,7 +119,10 @@ export function usePlateCalculator({
       setReps: setInfo.setReps,
       sessionSets: setInfo.sessionSets,
       prValue: setInfo.prValue,
-      prWorkoutId: setInfo.prWorkoutId
+      prWorkoutId: setInfo.prWorkoutId,
+      // The exercise's later sets the ALSO SETS toggle may write the weight to
+      laterSets: (setInfo.laterSets || []).map(l => ({ id: l.id, number: l.number })),
+      applyToLater: false
     });
   };
 
@@ -154,13 +157,11 @@ export function usePlateCalculator({
       if (typeof plateCalcTarget.onApplyCustom === 'function') {
         plateCalcTarget.onApplyCustom(finalWeightLbs);
       } else {
-        handleUpdateSetField(
-          plateCalcTarget.slotId,
-          plateCalcTarget.exIndex,
+        const ids = [
           plateCalcTarget.setId,
-          'weight',
-          finalWeightLbs
-        );
+          ...(plateCalcTarget.applyToLater ? (plateCalcTarget.laterSets || []).map(l => l.id) : [])
+        ];
+        ids.forEach(id => handleUpdateSetField(plateCalcTarget.slotId, plateCalcTarget.exIndex, id, 'weight', finalWeightLbs));
       }
     } else if (plateCalcTarget.mode === 'pr') {
       const roundedPR = roundTo5(finalWeightLbs);

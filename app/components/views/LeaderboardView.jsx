@@ -20,6 +20,12 @@ const LEADERBOARD_TABS = [
   { id: 'most_improved', label: 'MOST IMPROVED' }
 ];
 
+// The bodyweight a friend's BW ratios are worked out with (never shown): saved bodyweight, shared or not
+const rankingBwOf = f => {
+  const bw = Number(f?.rankingBodyweightLbs) || Number(f?.bodyweightLbs) || 0;
+  return bw > 0 ? Math.max(50, bw) : 0;
+};
+
 const BIG_THREE_LIFT_IDS = ['barbell_bench_press', 'barbell_back_squat', 'barbell_deadlift'];
 // An athlete's name is a link to their profile (the whole row is tappable)
 const NAME_LINK_STYLE = { textDecoration: 'underline', textDecorationThickness: '2px', textUnderlineOffset: '3px' };
@@ -157,10 +163,10 @@ export function LeaderboardView({
       ohpStanding: selfOhpStanding
     },
     ...distinctFriends.map((f, i) => {
-      // Their bodyweight only when they share it (Social → Privacy); without it they sit out the BW boards and
-      // their standing isn't shown (it would give the number away)
-      const fBwShared = Number(f.bodyweightLbs) > 0;
-      const fBw = fBwShared ? Math.max(50, Number(f.bodyweightLbs)) : 200;
+      // Their bodyweight is used for the ratios whether or not they share it (Social → Privacy), but never shown:
+      // the boards show only the ratio and the standing. Without any bodyweight saved they sit out the BW boards.
+      const fBwKnown = rankingBwOf(f) > 0;
+      const fBw = fBwKnown ? rankingBwOf(f) : 200;
       // Their PRs from their logged History only (no data = 0)
       const fStats = friendStats.get(f);
       const fHistPrs = fStats.prs;
@@ -181,7 +187,7 @@ export function LeaderboardView({
       const fOhpStanding =
         fOhp > 0 ? getExRxCurrentClass('overhead_press', fOhp, fBw, 70) : 'Unlogged';
       return {
-        bwShared: fBwShared,
+        bwShared: fBwKnown,
         id: f.id || `friend_${f.username}_${i}`,
         name: f.username || `athlete_${i + 1}`,
         photo: f.profilePhoto,
@@ -191,11 +197,11 @@ export function LeaderboardView({
         total: fTotal,
         totalCalculated: big3Calculated([fBench, fSquat, fDead], fStats),
         normalized: fTotal / fBw,
-        standing: fBwShared ? fStanding : null,
+        standing: fBwKnown ? fStanding : null,
         ohp: fOhp,
         ohpCalculated: isCalc('overhead_press', fOhp, fStats),
         ohpNormalized: fOhp / fBw,
-        ohpStanding: fBwShared ? fOhpStanding : null
+        ohpStanding: fBwKnown ? fOhpStanding : null
       };
     })
   ];
@@ -240,19 +246,19 @@ export function LeaderboardView({
   };
   pushImprovements(selfStats.ranges, { idPrefix: 'self_imp', name: selfName, photo: profilePhoto, isSelf: true, bw: selfBw });
   distinctFriends.forEach((f, i) => {
-    if (!(Number(f.bodyweightLbs) > 0)) return; // bodyweight not shared: not on this board
+    if (!(rankingBwOf(f) > 0)) return; // no bodyweight saved: not on this board
     pushImprovements(friendStats.get(f).ranges, {
       idPrefix: `friend_${f.username}_${i}`,
       name: f.username || `athlete_${i + 1}`,
       photo: f.profilePhoto,
       isSelf: false,
       friend: f,
-      bw: Math.max(50, Number(f.bodyweightLbs))
+      bw: rankingBwOf(f)
     });
   });
 
-  // Friends who don't share their bodyweight sit out the BW boards (a note says how many)
-  const bwHiddenCount = distinctFriends.filter(f => !(Number(f.bodyweightLbs) > 0)).length;
+  // Friends with no bodyweight saved at all sit out the BW boards (a note says how many)
+  const bwHiddenCount = distinctFriends.filter(f => !(rankingBwOf(f) > 0)).length;
 
   const mostImprovedEntries = buildTop10WithSelfSlot(
     improvementEntries.sort((a, b) => b.normalizedGain - a.normalizedGain || b.deltaLbs - a.deltaLbs)
@@ -269,7 +275,7 @@ export function LeaderboardView({
         )}
         {user && bwHiddenCount > 0 && activeTab !== 'big3_total' && (
           <div style={{ ...UI.sentence, marginTop: '10px' }}>
-            {bwHiddenCount === 1 ? '1 friend doesn’t' : `${bwHiddenCount} friends don’t`} share their bodyweight, so they’re not on this board.
+            {bwHiddenCount === 1 ? '1 friend hasn’t' : `${bwHiddenCount} friends haven’t`} saved a bodyweight, so they’re not on this board.
           </div>
         )}
       </div>
@@ -357,7 +363,7 @@ export function LeaderboardView({
                 <span style={onOpenProfile ? NAME_LINK_STYLE : undefined}>@{entry.name}</span>
               </span>
               <span style={{ fontSize: '11px', fontWeight: 500, color: '#9A9A9A', textTransform: 'uppercase' }}>
-                {oneRepMaxLabel(entry.total, entry.totalCalculated)} LB ÷ {entry.bw} LB BW • STANDING:{' '}
+                {oneRepMaxLabel(entry.total, entry.totalCalculated)} LB TOTAL • STANDING:{' '}
                 <strong style={{ color: 'var(--dp-color-accent)' }}>{entry.standing.toUpperCase()}</strong>
               </span>
             </div>
@@ -394,7 +400,7 @@ export function LeaderboardView({
                 <span style={onOpenProfile ? NAME_LINK_STYLE : undefined}>@{entry.name}</span>
               </span>
               <span style={{ fontSize: '11px', fontWeight: 500, color: '#9A9A9A', textTransform: 'uppercase' }}>
-                {oneRepMaxLabel(entry.ohp, entry.ohpCalculated)} LB <span style={{ color: '#FFFFFF' }}>OHP</span> ÷ {entry.bw} LB BW • STANDING:{' '}
+                {oneRepMaxLabel(entry.ohp, entry.ohpCalculated)} LB <span style={{ color: '#FFFFFF' }}>OHP</span> • STANDING:{' '}
                 <strong style={{ color: 'var(--dp-color-accent)' }}>{entry.ohpStanding.toUpperCase()}</strong>
               </span>
             </div>
