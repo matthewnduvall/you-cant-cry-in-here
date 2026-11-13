@@ -576,6 +576,19 @@ export default function App() {
       targetSeconds: activeSession?.defaultRestSeconds || 90
     }));
   };
+  // RESET asks first: it clears every exercise in one tap (and, while synced, ends the sync)
+  const requestResetSession = () => {
+    const count = (currentEditorWorkout?.slots || []).length;
+    const what = currentView === 'routine_editor' ? 'this routine' : currentView === 'session' ? 'this session' : 'this workout';
+    setDeleteConfirmTarget({
+      type: 'reset_session',
+      title: currentView === 'routine_editor' ? 'RESET ROUTINE?' : 'RESET SESSION?',
+      verb: 'clear',
+      label: `${count === 1 ? 'the 1 exercise' : `all ${count} exercises`} in ${what}${sessionSync.syncId ? ' and end the sync' : ''}`,
+      confirmLabel: 'RESET',
+      onConfirm: handleResetSession
+    });
+  };
   const handleFinishSession = () => {
     setPartnerSlotTabs({});
     handleSaveCurrentEditor();
@@ -1013,7 +1026,7 @@ export default function App() {
           isRoutineEditorView={isRoutineEditorView}
           currentEditorWorkout={currentEditorWorkout}
           onFinishSession={handleFinishSession}
-          onResetSession={handleResetSession}
+          onResetSession={requestResetSession}
           sessionSync={
             sessionSync.canSync
               ? {
