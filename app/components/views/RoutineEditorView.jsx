@@ -63,6 +63,8 @@ const PARTNER_TAB_COLOR = '#BDBDBD';
 
 export function RoutineEditorView({
   colors,
+  // Programs other than Crying: an INTENSITY strip under each set (%1RM / RIR / RPE)
+  showIntensity = false,
   currentView,
   currentEditorWorkout,
   selectedGymId,
@@ -484,6 +486,10 @@ export function RoutineEditorView({
                     onChangeSetType={({ exIdx, set, type }) => slotHandler('handleUpdateSetType')?.(slot.id, exIdx, set.id, type)}
                     onSetBandColor={({ exIdx, set, color }) =>
                       slotHandler('handleUpdateSetField')?.(slot.id, exIdx, set.id, 'bandColor', color)
+                    }
+                    showIntensity={showIntensity}
+                    onChangeSetIntensity={({ exIdx, set, intensity }) =>
+                      slotHandler('handleUpdateSetField')?.(slot.id, exIdx, set.id, 'intensity', intensity)
                     }
                     onEditWeight={({ exIdx, set, exercise, ...setInfo }) =>
                       openPlateCalculatorForSet(slot.id, exIdx, set, exercise.name, null, setInfo)

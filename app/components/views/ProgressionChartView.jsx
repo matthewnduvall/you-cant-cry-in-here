@@ -275,14 +275,15 @@ export function ProgressionChartView({
   };
 
   // One series is always selected (red, with its row): DISTANCE TO GOAL by default (your own chart), or the lift tapped
-  // in the list. Every other series is drawn grey behind it, and the chart is framed on the selected one. A friend's
+  // in the list. Only the selected series is drawn, and the chart is framed on it. A friend's
   // profile shows the distance to THEIR goal (page.js passes their goal settings).
   const hasGoalView = true;
   const defaultSeriesId = hasGoalView ? GOAL_SERIES_ID : legendLiftIds[0];
   const allSeriesIds = hasGoalView ? [GOAL_SERIES_ID, ...legendLiftIds] : [...legendLiftIds];
   const highlightId =
     selectedLifts.length === 1 && allSeriesIds.includes(selectedLifts[0]) && chosenLifts ? selectedLifts[0] : defaultSeriesId;
-  const drawnLifts = allSeriesIds;
+  // Only the selected series is drawn (no other curves)
+  const drawnLifts = [highlightId];
 
   // Tapping a row selects it; tapping the selected row goes back to the default view (null)
   const soloLift = liftId => setSelectedChartLifts?.(() => (highlightId === liftId ? null : [liftId]));

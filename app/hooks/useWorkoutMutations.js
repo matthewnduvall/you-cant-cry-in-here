@@ -3,6 +3,7 @@
 import {
   EXERCISE_LIBRARY,
   EXERCISE_MAP,
+  getExerciseEquipmentOptions,
   normalizeSlotCategory,
   isSupersetCategory,
   isBodyweightExercise,
@@ -25,11 +26,11 @@ import {
 } from '../data/exerciseLibrary';
 import {
   getBestHistory1RM,
-  getHistoricalCalculated1RM,
+  getHistoricalCalculated1RM as getHistoricalCalculated1RMRaw,
   calculateLastEquivalentWeightForSet,
   calculateEquivalentRepsForWeight,
   getEffectiveIncrementForExercise,
-  createWorkoutSlot,
+  createWorkoutSlot as createWorkoutSlotRaw,
   generateSetsForScheme,
   getDefaultSchemeForGoal,
   getDefaultSchemeForExercise,
@@ -54,6 +55,10 @@ import {
   asHistoricalWorkout
 } from '../utils/workoutEngine';
 import { deleteCloudRoutineByKey, deleteCloudWorkoutsByIds, postSyncHistoryUpdate } from '../utils/supabaseAuth';
+import { withProgramInfo, getProgram, getProgramContext, BIG3_IDS, isBig3Variant } from '../data/programs';
+import { applyProgramToSlot, isProgrammedSlot, fitsProgramEquipment } from '../utils/programEngine';
+import { SET_TYPE_RPE, solveSet, deriveIntensity } from '../utils/intensity';
+import { getStarting1RM } from '../utils/starting1RM';
 import { buildHistoryUpdate, findAddedSlots, getWorkoutSyncInfo, withSyncInfo } from '../utils/syncedHistory';
 import { markWorkoutIdDeleted, clearDeletedWorkoutIds } from '../utils/cloudSyncLedger';
 
@@ -145,9 +150,70 @@ export function useWorkoutMutations({
   // Synced session, friend's tab open: the friend's session (your structure + their numbers). The editor shows and
   // edits it; every change goes to onEditPartnerSession(nextSession) instead of your own session.
   partnerSession = null,
-  onEditPartnerSession
+  onEditPartnerSession,
+  // Training program (app/data/programs.js) and when its cycle began: a program with a week plan (Society) sets the
+  // scheme, sets, intensity and weights of the exercises it covers (utils/programEngine.js)
+  trainingProgram = 'crying',
+  programCycleStart = null,
+  // For exercises never logged (utils/starting1RM.js): the goal's strength class (one class below is the start)
+  // and height
+  targetStandardClass = 'Intermediate',
+  heightInches = 70
 }) {
+  // An exercise's 1RM: its own History, else the starting 1RM (a related logged lift, else the strength standard one
+  // class below the goal) — never the bare library default
+  const startOpts = { history, targetStandardClass, bodyweightLbs: userBodyweightLbs, heightInches };
+  const getHistoricalCalculated1RM = (id, hist = history, orms = oneRepMaxes) =>
+    getBestHistory1RM(id, hist) > 0 ? getHistoricalCalculated1RMRaw(id, hist, orms) : getStarting1RM(id, { ...startOpts, history: hist });
+  // New exercises start from the same 1RM (createWorkoutSlot uses base1RMOverrides only when there is no History)
+  const createWorkoutSlot = args => {
+    const ids = (args.supersetExerciseIds || [args.exerciseId, args.secondaryExerciseId]).filter(Boolean);
+    const starts = {};
+    ids.forEach(id => {
+      if (getBestHistory1RM(id, history) <= 0) starts[id] = getStarting1RM(id, startOpts);
+    });
+    return fillIntensities(
+      createWorkoutSlotRaw({ ...args, base1RMOverrides: { ...starts, ...(args.base1RMOverrides || {}) } }),
+      getCurrentEditorWorkout()
+    );
+  };
+
+  // Programs that use intensity: every set shows one. A set without one (or with one worked out before, `auto`) gets
+  // it from its weight and reps and the exercise's calculated 1RM (utils/intensity.js deriveIntensity); intensities
+  // set by hand, by the set type or by the program, and locked ones, stay.
+  const intensityOn = workout => getProgram(workout?.program || trainingProgram).usesIntensity;
+  function fillIntensities(slot, workout) {
+    if (!slot || !intensityOn(workout)) return slot;
+    const ids = slot.supersetExerciseIds || [slot.exerciseId, slot.secondaryExerciseId];
+    const fill = (list, exId) =>
+      (list || []).map(st => {
+        if (!st || st.lockIntensity || (st.intensity && !st.intensity.auto) || st.durationSeconds || isBodyweightExercise(exId)) {
+          return st;
+        }
+        const derived = deriveIntensity(getHistoricalCalculated1RM(exId), st.weight, st.reps, st.intensity?.mode || 'rpe');
+        return derived ? { ...st, intensity: derived } : st;
+      });
+    if (Array.isArray(slot.supersetSetsByExercise) && slot.supersetSetsByExercise.length > 1) {
+      const matrix = slot.supersetSetsByExercise.map((list, i) => fill(list, ids[i] || slot.exerciseId));
+      return { ...slot, supersetSetsByExercise: matrix, sets: matrix[0] || [], secondarySets: matrix[1] || [] };
+    }
+    const sets = fill(slot.sets, slot.exerciseId);
+    return { ...slot, sets, supersetSetsByExercise: [sets] };
+  }
   const defaultScheme = getDefaultSchemeForGoal(goalType);
+  // The program context of a workout (null = no week plan: the app's usual rules)
+  const programContextFor = workout => getProgramContext(trainingProgram, programCycleStart, workout, history);
+  // A slot with the workout's program week applied (unchanged when the program doesn't cover it)
+  const programSlot = (slot, workout) =>
+    applyProgramToSlot(slot, programContextFor(workout), {
+      history,
+      incrementLbs: currentIncrementLbs,
+      userBodyweightLbs,
+      setPreferences,
+      workoutId: workout?.id || null,
+      targetStandardClass,
+      heightInches
+    });
   const isAvailable = ex => isExerciseAvailableWithEquipment(ex, availableEquipment);
   // Default picks prefer exercises the athlete has the equipment for; the full list is the fallback
   const preferAvailable = pool => {
@@ -215,7 +281,7 @@ export function useWorkoutMutations({
   };
 
   // addOne: return the existing slots plus just the next guessed slot (+ ADD EXERCISE)
-  const buildGeneratedAutoSlots = (existingSlots = [], { addOne = false } = {}) => {
+  const buildGeneratedAutoSlots = (existingSlots = [], { addOne = false, programTarget = null } = {}) => {
     const cleanExisting = Array.isArray(existingSlots) ? cloneSlots(existingSlots) : [];
     const usedIds = new Set();
     const remainingCategoryCounts = {
@@ -240,6 +306,10 @@ export function useWorkoutMutations({
     const fallbackPool = preferAvailable(EXERCISE_LIBRARY);
     const isTrainingExercise = ex =>
       !NON_TRAINING_EQUIPMENT.some(word => String(ex.equipment || '').toLowerCase().includes(word));
+
+    // The workout these slots go into (its program week drives the exercises the program covers)
+    const programWorkout = programTarget || getCurrentEditorWorkout() || { startedAt: new Date().toISOString() };
+    const programCtx = programContextFor(programWorkout);
 
     // Big 3 + OHP, or each one's closest equivalent for the athlete's equipment
     const big4Order = CORE_PR_EXERCISE_IDS.map(id => findEquivalentExerciseForEquipment(id, availableEquipment)).filter(
@@ -274,6 +344,21 @@ export function useWorkoutMutations({
     const pickBest = (category, fallbackId) => {
       const preferBig4 = category === 'Compound';
       let pool = fallbackPool.filter(ex => ex.category === category && !usedIds.has(ex.id) && isTrainingExercise(ex));
+      // The program's equipment (e.g. Society: barbells, dumbbells, bands, landmine, EZ bar) for the types it covers
+      if ((programCtx?.program?.appliesTo || []).includes(category)) {
+        const fitting = pool.filter(ex => fitsProgramEquipment(ex, programCtx, getExerciseEquipmentOptions));
+        if (fitting.length > 0) pool = fitting;
+      }
+      // Society: the workout's first compound is one of the Big 3 (or its equivalent for your equipment); every other
+      // compound is a Big 3 variant. The stimulus score below still picks which one.
+      if (category === 'Compound' && programCtx?.program?.compoundPicks === 'big3-then-variants') {
+        const big3 = BIG3_IDS.map(id => findEquivalentExerciseForEquipment(id, availableEquipment) || id);
+        const hasBig3 = [...usedIds].some(id => big3.includes(id) || BIG3_IDS.includes(id));
+        const wanted = hasBig3
+          ? pool.filter(isBig3Variant)
+          : pool.filter(ex => big3.includes(ex.id) || BIG3_IDS.includes(ex.id));
+        if (wanted.length > 0) pool = wanted;
+      }
       if (pool.length === 0) pool = fallbackPool.filter(ex => !usedIds.has(ex.id) && isTrainingExercise(ex));
       if (pool.length === 0) return EXERCISE_MAP[fallbackId] || EXERCISE_LIBRARY[0];
       const best = pool
@@ -293,7 +378,7 @@ export function useWorkoutMutations({
       const pref = normalizeSlotCategory(rawPref);
       if (pref === 'Compound') {
         const pick = pickBest('Compound', 'barbell_bench_press');
-        return createWorkoutSlot({
+        return programSlot(createWorkoutSlot({
           category: 'Compound',
           slotLabel: 'Compound',
           exerciseId: pick.id,
@@ -303,7 +388,7 @@ export function useWorkoutMutations({
           incrementLbs: currentIncrementLbs,
           setPreferences,
           userBodyweightLbs
-        });
+        }), programWorkout);
       }
       if (pref === 'Superset') {
         const a1 = pickBest('Accessory', 'reverse_lunge');
@@ -334,7 +419,8 @@ export function useWorkoutMutations({
       });
     };
 
-    const activePrefs = (routinePreferences || []).filter(pref => pref !== 'Warmup');
+    // A program with its own routine (Society: 2 compounds, 2 supersets, 1 accessory) replaces Routine Preferences
+    const activePrefs = (programCtx?.program?.routine || routinePreferences || []).filter(pref => pref !== 'Warmup');
     const prefsToFill = [];
 
     activePrefs.forEach(rawPref => {
@@ -366,18 +452,28 @@ export function useWorkoutMutations({
     return normalizeSlotLabels([...cleanExisting, ...generatedSlots]);
   };
 
+  // A new session: under a program with a week plan it records the program, its week and the program's rest timer
+  const newSessionBase = () => {
+    const startedAt = new Date().toISOString();
+    const ctx = programContextFor({ startedAt });
+    return {
+      id: `session_${Date.now()}`,
+      startedAt,
+      updatedAt: startedAt,
+      defaultRestSeconds: ctx?.program?.restSeconds || 90,
+      gymId: selectedGymId,
+      slots: [],
+      ...(ctx ? { program: ctx.program.id, programWeek: ctx.program.weekName(ctx.week) } : {})
+    };
+  };
+
   const handleOpenNewSession = () => {
     // An empty leftover session (e.g. from an earlier day) is replaced so the name and start date are today's
     if (!activeSession || !(activeSession.slots || []).length) {
       setActiveSession({
-        id: `session_${Date.now()}`,
+        ...newSessionBase(),
         title: getDefaultSessionName(),
-        loadedRoutineTitle: 'MANUAL',
-        startedAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        defaultRestSeconds: 90,
-        gymId: selectedGymId,
-        slots: []
+        loadedRoutineTitle: 'MANUAL'
       });
     } else {
       setActiveSession(prev => ({
@@ -392,16 +488,13 @@ export function useWorkoutMutations({
   };
 
   const handleOpenNewAutoSession = () => {
-    const autoSlots = buildGeneratedAutoSlots([]);
+    const base = newSessionBase();
+    const autoSlots = buildGeneratedAutoSlots([], { programTarget: base });
     const autoTitle = getDefaultAutoSessionName();
     setActiveSession({
-      id: `session_${Date.now()}`,
+      ...base,
       title: autoTitle,
       loadedRoutineTitle: 'AUTO',
-      startedAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      defaultRestSeconds: 90,
-      gymId: selectedGymId,
       slots: autoSlots
     });
     setOpenedFromRoutines(false);
@@ -716,7 +809,7 @@ export function useWorkoutMutations({
       return;
     }
     // A synced session remembers who it was with (syncedWith on the workout and its exercises)
-    const entry = withSyncInfo({
+    const entry = withProgramInfo(withSyncInfo({
       ...currentWorkout,
       title: finalTitle,
       gymType: inferRoutineGymCategory(doneSlots),
@@ -725,7 +818,7 @@ export function useWorkoutMutations({
       verifiedByUser: true,
       // Entering History: its sets are done; type / weight / reps locked
       slots: lockAndCompleteSets(doneSlots)
-    });
+    }));
     setHistory(prev => {
       const exists = prev.some(w => w.id === entry.id);
       return exists ? prev.map(w => (w.id === entry.id ? entry : w)) : [entry, ...prev];
@@ -745,7 +838,7 @@ export function useWorkoutMutations({
     if (!anyDone) return false;
     // Only the sets marked done are logged
     const normalizedSlots = keepCompletedSets(normalizeSlotLabels(cloneSlots(slots)));
-    const entry = withSyncInfo({
+    const entry = withProgramInfo(withSyncInfo({
       ...session,
       title: (session.title || '').trim() || getDefaultSessionName(),
       gymType: inferRoutineGymCategory(normalizedSlots),
@@ -755,7 +848,7 @@ export function useWorkoutMutations({
       autoFinished: true,
       // Entering History: its sets are done; type / weight / reps locked
       slots: lockAndCompleteSets(normalizedSlots)
-    });
+    }));
     setHistory(prev => {
       const exists = prev.some(w => w.id === entry.id);
       return exists ? prev.map(w => (w.id === entry.id ? entry : w)) : [entry, ...prev];
@@ -1358,8 +1451,12 @@ export function useWorkoutMutations({
           id: slot.id,
           familyMuscleGroup: targetMuscleGroup,
           muscleGroupFilter: nextMuscleFilter,
-          equipmentFilter: changes.equipmentFilter ?? slot.equipmentFilter
+          equipmentFilter: changes.equipmentFilter ?? slot.equipmentFilter,
+          // A scheme picked by hand takes the exercise off the program (it keeps that scheme)
+          programOff: changes.scheme !== undefined && changes.scheme !== slot.scheme ? true : slot.programOff
         };
+        // Covered by the program (Society's compounds): the program week sets the scheme, sets and weights
+        if (isProgrammedSlot(rebuiltResult, programContextFor(prev))) return programSlot(rebuiltResult, prev);
         // Same scheme (a new exercise, type or muscle group): keep the athlete's SETS / REPS choice
         const keepShape =
           slotScheme === slot.scheme && !isSupersetCategory(nextCategory) && !isSupersetCategory(slot.category);
@@ -1389,6 +1486,8 @@ export function useWorkoutMutations({
           if (st.id !== setId) return st;
           // Band exercises: the load is a band colour, not a weight
           if (field === 'bandColor') return { ...st, bandColor: rawVal };
+          // Programs other than Crying: the set's intensity ({ mode: 'pct' | 'rir' | 'rpe', value })
+          if (field === 'intensity') return { ...st, intensity: rawVal };
           const calc1RM = getHistoricalCalculated1RM(exId, history, oneRepMaxes);
           const lastW =
             st.lastWeight !== undefined
@@ -1457,7 +1556,8 @@ export function useWorkoutMutations({
         const nextSets = (slot.sets || []).map((st, sIdx) => applyFieldChange(st, slot.exerciseId, totalLen, sIdx));
         return { ...slot, sets: nextSets };
       });
-      return { ...prev, slots: nextSlots };
+      // A new weight or reps: worked-out intensities follow (hand-set ones wait for RECALCULATE)
+      return { ...prev, slots: nextSlots.map(slot => (slot.id === slotId && field !== 'intensity' ? fillIntensities(slot, prev) : slot)) };
     });
   };
 
@@ -1470,6 +1570,8 @@ export function useWorkoutMutations({
   const handleUpdateSetType = (slotId, exIndex, setId, newType) => {
     updateCurrentWorkoutState(prev => {
       if (!prev) return prev;
+      // Programs that use intensity: the new type sets the set's intensity (SET_TYPE_RPE), unless it is locked
+      const typeIntensity = getProgram(prev.program || trainingProgram).usesIntensity ? SET_TYPE_RPE[newType] : undefined;
       const nextSlots = prev.slots.map(slot => {
         if (slot.id !== slotId) return slot;
         const isSup = isSupersetCategory(slot.category) && Array.isArray(slot.supersetSetsByExercise);
@@ -1522,7 +1624,8 @@ export function useWorkoutMutations({
             weight,
             reps,
             increment: Number.isFinite(lastW) && lastW > 0 ? Math.round((Number(weight) - lastW) * 100) / 100 : st.increment,
-            lastEditedField: 'type'
+            lastEditedField: 'type',
+            ...(typeIntensity !== undefined && !st.lockIntensity && !isTimer ? { intensity: { mode: 'rpe', value: typeIntensity } } : {})
           };
           return sets.map((o, i) => (i === idx ? next : o));
         };
@@ -1730,7 +1833,17 @@ export function useWorkoutMutations({
         const [w, r] = setTypeTarget(type, Number(ref.weight), Math.max(1, Number(ref.reps) || 1));
         return { ...st, weight: Math.max(0, Math.round(w / step) * step), reps: orig.lockReps ? st.reps : r };
       });
-      return withTypes.map((st, idx) => ({ ...st, setNumber: idx + 1 }));
+      // 6. Weight, reps and intensity through the calculated 1RM (utils/intensity.js solveSet): a locked intensity
+      // sets the weight (or, with the weight locked too, the reps); an unlocked intensity is worked out from the
+      // weight and reps (programs that use intensity)
+      const showIntensity = intensityOn(getCurrentEditorWorkout());
+      const withIntensity = withTypes.map((st, idx) => {
+        const orig = original[idx];
+        if (!orig || orig.completed || isBw || isTimer || !(calc1RM > 0)) return st;
+        if (orig.lockIntensity) return solveSet({ ...st, intensity: orig.intensity, lockIntensity: true }, calc1RM, { step });
+        return showIntensity ? solveSet({ ...st, lockIntensity: false }, calc1RM, { step }) : st;
+      });
+      return withIntensity.map((st, idx) => ({ ...st, setNumber: idx + 1 }));
     };
 
     if (isSup) {
@@ -1747,10 +1860,40 @@ export function useWorkoutMutations({
     return { ...slot, sets: nextSets, supersetSetsByExercise: [nextSets] };
   };
 
+  // The session's WEEK box: the week is saved and the exercises the program covers are re-planned for it
+  // (completed sets and locked values stay)
+  const handleChangeProgramWeek = week => {
+    updateCurrentWorkoutState(prev => {
+      if (!prev) return prev;
+      const next = { ...prev, program: prev.program || trainingProgram, programWeek: week };
+      const ctx = programContextFor(next);
+      return { ...next, slots: (next.slots || []).map(slot => (isProgrammedSlot(slot, ctx) ? programSlot(slot, next) : slot)) };
+    });
+  };
+
+  // The session's PROGRAM box: the session runs that program from here, starting at its automatic week (from the
+  // logged sessions); the exercises it covers are re-planned
+  const handleChangeSessionProgram = programId => {
+    updateCurrentWorkoutState(prev => {
+      if (!prev) return prev;
+      const base = { ...prev, program: programId, programWeek: '' };
+      const ctx = programContextFor(base);
+      const next = { ...base, programWeek: ctx ? ctx.program.weekName(ctx.week) : '' };
+      return { ...next, slots: (next.slots || []).map(slot => (isProgrammedSlot(slot, ctx) ? programSlot(slot, next) : slot)) };
+    });
+  };
+
   const handleRecalculateSlotWeights = slotId => {
     updateCurrentWorkoutState(prev => {
       if (!prev) return prev;
-      return { ...prev, slots: prev.slots.map(slot => (slot.id === slotId ? recalculateSlot(slot, prev.id) : slot)) };
+      return {
+        ...prev,
+        slots: prev.slots.map(slot => {
+          if (slot.id !== slotId) return slot;
+          // A programmed exercise is re-worked from its program week; anything else the usual way
+          return isProgrammedSlot(slot, programContextFor(prev)) ? programSlot(slot, prev) : recalculateSlot(slot, prev.id);
+        })
+      };
     });
   };
 
@@ -1811,7 +1954,7 @@ export function useWorkoutMutations({
 
   // Lock beside a set's weight or reps (see recalcList in handleRecalculateSlotWeights). exIdx = superset half.
   const handleToggleSetLock = (slotId, exIdx, setId, field) => {
-    const key = { weight: 'lockWeight', reps: 'lockReps', type: 'lockType' }[field] || null;
+    const key = { weight: 'lockWeight', reps: 'lockReps', type: 'lockType', intensity: 'lockIntensity' }[field] || null;
     if (!key) return;
     const toggle = list => (list || []).map(st => (st.id === setId ? { ...st, [key]: !st[key] } : st));
     updateCurrentWorkoutState(prev => {
@@ -1905,6 +2048,8 @@ export function useWorkoutMutations({
     handleUpdateSetType,
     handleInsertSetAtPosition,
     handleRecalculateSlotWeights,
+    handleChangeProgramWeek,
+    handleChangeSessionProgram,
     handleToggleSetLock,
     handleToggleSetDone,
     handleChangeGymSelection

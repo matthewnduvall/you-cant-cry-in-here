@@ -1,5 +1,6 @@
 'use client';
 
+import { getProgram, getWorkoutProgramInfo } from './data/programs';
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { IOS_DARK, KINETIC_CSS } from './styles/kineticTokens';
 import { getIncrementInLbs, getInitial1RMs, asHistoricalWorkout, withAutoSessionName } from './utils/workoutEngine';
@@ -159,12 +160,25 @@ export default function App() {
   ]);
   // Exercise Set Preferences (Configuration → ROUTINES): set types by position for new exercises
   const [setPreferences, setSetPreferences] = useState(['Warmup', 'Warmup', 'Working', 'Working', 'Working']);
+  // Training program (Configuration → PROGRAM; app/data/programs.js). Programs other than Crying add the session's
+  // PROGRAM / WEEK row and an intensity per set.
+  const [trainingProgram, setTrainingProgram] = useState('crying');
+  // When the program's current cycle began (ISO): the week a session falls in is counted from it
+  const [programCycleStart, setProgramCycleStart] = useState(null);
+  // Picking a different program starts its cycle today (week 1)
+  const selectTrainingProgram = id => {
+    if (id === trainingProgram) return;
+    setTrainingProgram(id);
+    setProgramCycleStart(new Date().toISOString());
+  };
   const [shareStatsWithFriends, setShareStatsWithFriends] = useState(true);
   const [shareRoutinesWithFriends, setShareRoutinesWithFriends] = useState(true);
   // Public profiles let friends-of-friends see you in their friend lists (Profile → FRIENDS)
   const [profileIsPublic, setProfileIsPublic] = useState(true);
   // Friends see your bodyweight (BW leaderboards, their goal maths) only when this is on; off by default
   const [shareBodyweightWithFriends, setShareBodyweightWithFriends] = useState(false);
+  // The Social page's first tab when it next opens ('privacy' from your profile's PRIVACY →)
+  const [socialInitialTab, setSocialInitialTab] = useState('leaderboards');
   // Profile photo: a small JPEG data URL (settings.profilePhoto, local + cloud); see ProfileAvatar.jsx
   const [profilePhoto, setProfilePhoto] = useState(null);
 
@@ -305,6 +319,10 @@ export default function App() {
     setRoutinePreferences,
     setPreferences,
     setSetPreferences,
+    trainingProgram,
+    setTrainingProgram,
+    programCycleStart,
+    setProgramCycleStart,
     shareStatsWithFriends,
     setShareStatsWithFriends,
     shareRoutinesWithFriends,
@@ -466,7 +484,11 @@ export default function App() {
     appendSessionLog,
     muscleStimulusStatus,
     availableEquipment,
-    goalType
+    goalType,
+    trainingProgram,
+    programCycleStart,
+    targetStandardClass,
+    heightInches: totalHeightInches
   };
   const partnerMutations = useWorkoutMutations({
     ...mutationArgs,
@@ -506,6 +528,8 @@ export default function App() {
     handleUpdateSetType,
     handleInsertSetAtPosition,
     handleRecalculateSlotWeights,
+    handleChangeProgramWeek,
+    handleChangeSessionProgram,
     handleToggleSetLock,
     handleToggleSetDone,
     handleChangeGymSelection
@@ -840,6 +864,8 @@ export default function App() {
   };
 
   const buildHistoryWorkoutEditorProps = historyWorkout => ({
+    // Logged under a program other than Crying: its sets keep their INTENSITY strip
+    showIntensity: Boolean(getWorkoutProgramInfo(historyWorkout)),
     colors,
     currentView: 'history',
     // The open workout's unsaved edits, if any
@@ -927,6 +953,8 @@ export default function App() {
         }}
       >
         <AppHeaderAndDrawer
+          trainingProgram={trainingProgram}
+          programCycleStart={programCycleStart}
           currentView={currentView}
           setCurrentView={setCurrentView}
           onBack={handleBack}
@@ -950,6 +978,9 @@ export default function App() {
           timerTrigger={timerTrigger}
           setTimerTrigger={setTimerTrigger}
           updateCurrentWorkoutState={updateCurrentWorkoutState}
+          onChangeProgramWeek={handleChangeProgramWeek}
+          onChangeSessionProgram={handleChangeSessionProgram}
+          history={history}
           user={user}
           profilePhoto={profilePhoto}
           onSignOut={handleSignOut}
@@ -985,6 +1016,7 @@ export default function App() {
           {isRoutineEditorView && currentEditorWorkout && (
             <RoutineEditorView
               colors={colors}
+              showIntensity={getProgram(currentEditorWorkout?.program || trainingProgram).usesIntensity}
               currentView={currentView}
               currentEditorWorkout={currentEditorWorkout}
               routineSelectReturnView={routineSelectReturnView}
@@ -1126,6 +1158,13 @@ export default function App() {
               }}
               routinePreferencesProps={{ routinePreferences, setRoutinePreferences }}
               setPreferencesProps={{ setPreferences, setSetPreferences }}
+              programProps={{
+                trainingProgram,
+                setTrainingProgram: selectTrainingProgram,
+                programCycleStart,
+                history,
+                onRestartCycle: () => setProgramCycleStart(new Date().toISOString())
+              }}
             />
           )}
 
@@ -1144,6 +1183,8 @@ export default function App() {
           {currentView === 'social' && (
             <SocialView
               colors={colors}
+              initialTab={socialInitialTab}
+              onInitialTabUsed={() => setSocialInitialTab('leaderboards')}
               user={user}
               friendSearchQuery={friendSearchQuery}
               setFriendSearchQuery={setFriendSearchQuery}
@@ -1211,6 +1252,13 @@ export default function App() {
               onDeleteAccount={handleDeleteAccount}
               appendSessionLog={appendSessionLog}
               renderProgressPage={renderProgressPage}
+              shareStatsWithFriends={shareStatsWithFriends}
+              shareBodyweightWithFriends={shareBodyweightWithFriends}
+              profileIsPublic={profileIsPublic}
+              onOpenPrivacy={() => {
+                setSocialInitialTab('privacy');
+                setCurrentView('social');
+              }}
               routinesProps={{
                 user,
                 savedRoutines,

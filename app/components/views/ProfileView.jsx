@@ -15,7 +15,7 @@ import { Button, TabBar } from '../Controls';
 import { RoutinesView } from './RoutinesView';
 import { buildProgressionSeriesByLift } from '../../hooks/useTelemetryAndAnalytics';
 import { ProfileAvatar, resizeImageFileToDataUrl } from '../ProfileAvatar';
-import { SHARED_CELL_BORDER, SHARED_GROUP_OUTER } from '../../styles/kineticTokens';
+import { SHARED_CELL_BORDER, SHARED_GROUP_OUTER, UI } from '../../styles/kineticTokens';
 
 // Profile tabs: PERFORMANCE (their Progress page: progress / personal records / history — not called PROGRESS,
 // so it doesn't read PROGRESS > PROGRESS) · ROUTINES · FRIENDS
@@ -24,6 +24,15 @@ const PROFILE_TABS = [
   { id: 'routines', label: 'ROUTINES' },
   { id: 'friends', label: 'FRIENDS' }
 ];
+
+/** A preview line on your own profile where friends see nothing (privacy settings) */
+function PreviewHiddenNote({ text }) {
+  return (
+    <div style={{ padding: '16px var(--dp-spacing-gutter) 0' }}>
+      <div style={{ ...UI.sentence, backgroundColor: '#1C1C1C', borderRadius: '14px', padding: '14px 16px' }}>{text}</div>
+    </div>
+  );
+}
 
 export function ProfileView({
   colors,
@@ -49,7 +58,12 @@ export function ProfileView({
   // (opts) => the Progress page (tabs PROGRESS / PERSONAL RECORDS / HISTORY); opts.readOnly for a friend
   renderProgressPage,
   // Your own routines (same props as Configuration → ROUTINES)
-  routinesProps
+  routinesProps,
+  // Your privacy settings (Social → PRIVACY): your own profile is shown the way friends see it
+  shareStatsWithFriends = true,
+  shareBodyweightWithFriends = false,
+  profileIsPublic = true,
+  onOpenPrivacy
 }) {
   // A boolean: effects depend on it, and the profile object is replaced after every server refresh (using the
   // object here made each refresh re-run both effects, looping between LOADING FRIENDS and the empty state)
@@ -419,11 +433,56 @@ export function ProfileView({
         )}
       </IOSListSection>
 
+      {/* Your own profile is a preview of what friends see (Social → PRIVACY sets it) */}
+      {!isFriend && user && (
+        <div
+          style={{
+            margin: '0 var(--dp-spacing-gutter) 12px',
+            padding: '12px 14px',
+            backgroundColor: '#1C1C1C',
+            borderRadius: '14px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '12px'
+          }}
+        >
+          <div style={{ minWidth: 0 }}>
+            <div style={{ ...UI.capsLabel, marginBottom: '4px' }}>WHAT FRIENDS SEE</div>
+            <div style={{ ...UI.sentence, color: '#BDBDBD' }}>
+              {shareStatsWithFriends ? 'Your stats' : 'Not your stats'} · {(sharedRoutines || []).length} shared routine
+              {(sharedRoutines || []).length === 1 ? '' : 's'} · {shareBodyweightWithFriends ? 'your bodyweight' : 'not your bodyweight'} ·{' '}
+              {profileIsPublic ? 'your friends list' : 'not your friends list'}
+            </div>
+          </div>
+          {onOpenPrivacy && (
+            <button
+              type="button"
+              className="kinetic-btn"
+              onClick={onOpenPrivacy}
+              style={{ ...UI.secondaryBtnCenter, minHeight: '44px', padding: '0 12px', flexShrink: 0, width: 'auto' }}
+            >
+              PRIVACY →
+            </button>
+          )}
+        </div>
+      )}
+
       <div style={{ padding: '0 var(--dp-spacing-gutter)', marginBottom: '4px' }}>
         <TabBar ariaLabel="Profile sections" tabs={PROFILE_TABS} value={profileTab} onChange={setProfileTab} />
       </div>
 
+      {/* Your stats with sharing off: friends see nothing here, so neither does the preview */}
+      {profileTab === 'progress' && !isFriend && user && !shareStatsWithFriends && (
+        <PreviewHiddenNote text="Your stats are hidden from friends (Share stats with friends is off)." />
+      )}
+
+      {profileTab === 'progress' && isFriend && profUser?.statsShared === false && (
+        <PreviewHiddenNote text={`@${profUser.username} doesn’t share their stats.`} />
+      )}
+
       {profileTab === 'progress' &&
+        (isFriend ? profUser?.statsShared !== false : !user || shareStatsWithFriends) &&
         renderProgressPage?.(
           isFriend
             ? {
@@ -461,13 +520,26 @@ export function ProfileView({
             readOnly={true}
           />
         ) : (
-          <RoutinesView colors={colors} showCancel={false} {...routinesProps} />
+          // Yours: the routines friends can see and load (your shared ones), as they see them
+          <RoutinesView
+            colors={colors}
+            showCancel={false}
+            {...routinesProps}
+            savedRoutines={[]}
+            friendsList={[]}
+            sections={['shared']}
+            readOnly={true}
+          />
         ))}
 
       {/* FRIENDS tab: same breathing room under the tabs as PERFORMANCE / ROUTINES */}
       {profileTab === 'friends' && <div style={{ height: '16px' }} />}
 
-      {profileTab === 'friends' && !isFriend && (
+      {profileTab === 'friends' && !isFriend && user && !profileIsPublic && (
+        <PreviewHiddenNote text="Your friends list is hidden from other athletes (your profile is private)." />
+      )}
+
+      {profileTab === 'friends' && !isFriend && (!user || profileIsPublic) && (
         <IOSListSection header={`FRIENDS (${(friendsList || []).length})`} colors={colors}>
           {(friendsList || []).length === 0 ? (
             <IOSListRow isLast={true} colors={colors}>

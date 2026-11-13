@@ -2,6 +2,7 @@
 // UPDATE-RESILIENT PERSISTENCE & SCHEMA MIGRATION ENGINE (V3)
 // ============================================================================
 
+import { normalizeProgramId } from '../data/programs';
 import { EXERCISE_LIBRARY, EXERCISE_MAP, normalizeSlotCategory, isSupersetCategory } from '../data/exerciseLibrary';
 import { cloneSlots, getInitial1RMs, normalizeSlotLabels } from './workoutEngine';
 import { isLocallyVerifiedUser } from './supabaseAuth';
@@ -84,6 +85,10 @@ export const DEFAULT_SETTINGS_V2 = {
   routinePreferences: ['Compound', 'Compound', 'Superset', 'Superset', 'Accessory'],
   // Exercise Set Preferences: the type of each set (by position) for new exercises on the uniform rep schemes
   setPreferences: ['Warmup', 'Warmup', 'Working', 'Working', 'Working'],
+  // Training program (Configuration → PROGRAM; app/data/programs.js)
+  program: 'crying',
+  // When the program's current cycle began (ISO; null = not started)
+  programCycleStart: null,
   // shareBodyweightWithFriends: off unless the athlete turns it on (also for accounts saved before it existed)
   social: { shareStatsWithFriends: true, shareRoutinesWithFriends: true, profileIsPublic: true, shareBodyweightWithFriends: false },
   selectedGymId: '',
@@ -205,7 +210,9 @@ export const loadHydratedAppState = () => {
         parsed.settings.setPreferences.length > 0 &&
         parsed.settings.setPreferences.every(t => ['Warmup', 'Working', 'Top Out', 'Burn Out'].includes(t))
           ? parsed.settings.setPreferences
-          : DEFAULT_SETTINGS_V2.setPreferences
+          : DEFAULT_SETTINGS_V2.setPreferences,
+      program: normalizeProgramId(parsed.settings?.program),
+      programCycleStart: typeof parsed.settings?.programCycleStart === 'string' ? parsed.settings.programCycleStart : null
     };
 
     const hydratedHistory = Array.isArray(parsed.history)
