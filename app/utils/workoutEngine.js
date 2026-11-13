@@ -465,6 +465,7 @@ export const getBestHistory1RMInfo = (exerciseId, history = []) => {
   let bestCalculated = false;
   let bestWorkoutId = null;
   let bestSlotId = null;
+  let bestSetId = null;
   let bestDateLabel = '';
 
   (history || []).forEach(w => {
@@ -483,6 +484,7 @@ export const getBestHistory1RMInfo = (exerciseId, history = []) => {
             bestCalculated = calc;
             bestWorkoutId = w?.id || null;
             bestSlotId = slot?.id || null;
+            bestSetId = st?.id || null;
             bestDateLabel = w?.startedAt ? formatDateYMD(w.startedAt) : '';
           }
         });
@@ -507,6 +509,8 @@ export const getBestHistory1RMInfo = (exerciseId, history = []) => {
     calculated: best > 0 && bestCalculated,
     workoutId: bestWorkoutId,
     slotId: bestSlotId,
+    // The set it came from (History entries tag it PR)
+    setId: bestSetId,
     dateLabel: bestDateLabel
   };
 };

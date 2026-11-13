@@ -402,6 +402,11 @@ export function RoutineEditorView({
                 );
               };
               const prFlags = isSuperset ? [isPrFor(supIds[0]), isPrFor(supIds[1])] : [isPrFor(supIds[0]), false];
+              // The set(s) behind those PRs, tagged PR on their row
+              const prSetIds = supIds
+                .filter((exId, i) => prFlags[i])
+                .map(exId => getBestHistory1RMInfo(exId, shownHistory)?.setId)
+                .filter(Boolean);
 
               return (
                 <div
@@ -467,6 +472,7 @@ export function RoutineEditorView({
                     history={onPartnerTab ? slotTabs.partnerHistory || shownHistory : shownHistory}
                     workoutId={currentEditorWorkout.id}
                     prFlags={prFlags}
+                    prSetIds={prSetIds}
                     onHeaderChange={changes => slotHandler('handleUpdateSlotCategoryOrExercise')(slot.id, changes)}
                     onRemove={() =>
                       setDeleteConfirmTarget({

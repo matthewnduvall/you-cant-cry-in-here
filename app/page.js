@@ -41,7 +41,7 @@ import {
 } from './components/SessionSyncModals';
 import { useSyncedHistoryUpdates } from './hooks/useSyncedHistoryUpdates';
 import { useRoutineShares } from './hooks/useRoutineShares';
-import { SendRoutineModal, IncomingRoutineModal } from './components/RoutineShareModals';
+import { SendRoutineModal } from './components/RoutineShareModals';
 import { EXERCISE_MAP, formatDateYMD, stripDateFromTitle } from './data/exerciseLibrary';
 import { useIdleAutoFinish } from './hooks/useIdleAutoFinish';
 import { collectSetValues, sameSetValues, overlaySetValues } from './utils/sessionSync';
@@ -51,7 +51,6 @@ import { NestedTabBar, TabBar } from './components/Controls';
 
 const PROGRESS_TABS = [
   { id: 'progress', label: 'PROGRESS' },
-  { id: 'records', label: 'PERSONAL RECORDS' },
   { id: 'history', label: 'HISTORY' }
 ];
 
@@ -99,7 +98,7 @@ export default function App() {
   const [routineDraft, setRoutineDraft] = useState(null);
   const [previewRoutineDraft, setPreviewRoutineDraft] = useState(null);
   const [routineSelectReturnView, setRoutineSelectReturnView] = useState(null);
-  // PROGRESS page tab: 'progress' (chart) | 'records' (Personal Records) | 'history'
+  // PROGRESS page tab: 'progress' (chart) | 'history' (the Personal Records tab was removed)
   const [progressTabChoice, setProgressTabChoice] = useState('progress');
   // CONFIGURATION page tab: 'body' | 'goals' | 'equipment' | 'routines'
   const [configurationTab, setConfigurationTab] = useState('body');
@@ -189,12 +188,11 @@ export default function App() {
 
   // --- History & Personal Records Page State ---
   const [historySessionsExpanded, setHistorySessionsExpanded] = useState(true);
-  const [historyPRsExpanded, setHistoryPRsExpanded] = useState(true);
   const [expandedHistoryWorkoutId, setExpandedHistoryWorkoutId] = useState(null);
   // Unsaved edits to the open History workout (saved with SAVE, dropped with DISCARD)
   const [historyEditDraft, setHistoryEditDraft] = useState(null);
   // An open History workout (PR link, History edits) always shows the HISTORY tab
-  const progressTab = expandedHistoryWorkoutId ? 'history' : progressTabChoice;
+  const progressTab = expandedHistoryWorkoutId ? 'history' : progressTabChoice === 'history' ? 'history' : 'progress';
   const [customPrExerciseIds, setCustomPrExerciseIds] = useState([]);
 
   // --- Social & Friends State ---
@@ -607,20 +605,14 @@ export default function App() {
     calcExtraLbs,
     clearCalcExtra,
     setCalcTotalFromInput,
-    prRecordDate,
-    setPrRecordDate,
     openPlateCalculatorForSet,
-    openPlateCalculatorForPR,
     openPlateCalculatorForGoal,
     computedPlateCalculatorTotal,
     handleApplyCalculatedWeight
   } = usePlateCalculator({
     handleUpdateSetField: routedUpdateSetField,
-    setOneRepMaxes,
-    setHistory,
     setCustomGoalWeights,
-    setTargetStandardClass,
-    appendSessionLog
+    setTargetStandardClass
   });
 
   useEffect(() => {
@@ -764,7 +756,7 @@ export default function App() {
     };
   }, []);
 
-  // The PROGRESS page: tabs PROGRESS (chart) / PERSONAL RECORDS / HISTORY. Also each profile's PROGRESS tab;
+  // The PROGRESS page: tabs PROGRESS (chart) / HISTORY. Also each profile's PROGRESS tab;
   // a friend's profile passes their history / PRs / chart series, its own tab state and readOnly.
   // An open History workout (e.g. from the 1RM box's PR link) always shows your HISTORY tab.
   // A friend's logged workout → your session: their exercises and sets (none done), your weights (handleDirectLoadRoutine
@@ -801,6 +793,55 @@ export default function App() {
     onLoadRoutine: routine => handleDirectLoadRoutine(routine, 'session'),
     appendSessionLog
   });
+
+  // The Routines page (Home / menu; not LOAD ROUTINE from a session): loading something replaces your session, so a
+  // session with exercises asks first
+  const confirmReplaceSession = (label, run) => {
+    if ((activeSession?.slots || []).length === 0) {
+      run();
+      return;
+    }
+    setDeleteConfirmTarget({
+      type: 'generic',
+      title: 'REPLACE YOUR SESSION?',
+      verb: 'replace',
+      label: `your current session with ${label}`,
+      confirmLabel: 'LOAD',
+      onConfirm: run
+    });
+  };
+  // + NEW ROUTINE: an empty routine in the session editor (SAVE stores it and comes back here)
+  const handleNewRoutine = () => {
+    setRoutineSelectReturnView(null);
+    setRoutineDraft({
+      id: `routine_${Date.now()}`,
+      key: `routine_${Date.now()}`,
+      title: 'Routine',
+      loadedRoutineTitle: 'MANUAL',
+      isEditingExisting: false,
+      defaultRestSeconds: 90,
+      slots: []
+    });
+    setCurrentView('routine_editor');
+  };
+  // Tapping one of your routines: it opens in the session editor; SAVE updates it (matched by key)
+  const handleEditRoutine = routine => {
+    if (!routine) return;
+    setRoutineSelectReturnView(null);
+    setRoutineDraft({
+      id: routine.key,
+      key: routine.key,
+      title: stripDateFromTitle(routine.label) || 'Routine',
+      loadedRoutineTitle: routine.label,
+      isEditingExisting: true,
+      author: routine.author,
+      defaultRestSeconds: routine.defaultRestSeconds || 90,
+      slots: Array.isArray(routine.slots) ? routine.slots : []
+    });
+    setCurrentView('routine_editor');
+  };
+  // Opened from Home / the menu (no session waiting on a pick): the full Routines page
+  const routinesAsPage = !routineSelectReturnView;
 
   const renderProgressPage = ({
     readOnly = false,
@@ -859,7 +900,7 @@ export default function App() {
           customGoalWeights={goalSettings ? goalSettings.customGoalWeights || {} : customGoalWeights}
         />
       )}
-      {tab !== 'progress' && (
+      {tab === 'history' && (
         <HistoryView
           section={tab}
           readOnly={readOnly}
@@ -875,12 +916,7 @@ export default function App() {
             setConfirmedHistoryEditWorkoutId(null);
             setExpandedHistoryWorkoutId(id);
           }}
-          historyPRsExpanded={historyPRsExpanded}
-          setHistoryPRsExpanded={setHistoryPRsExpanded}
           oneRepMaxes={prs}
-          setOneRepMaxes={setOneRepMaxes}
-          customPrExerciseIds={customPrExerciseIds}
-          setCustomPrExerciseIds={setCustomPrExerciseIds}
           selectedGymId={selectedGymId}
           gyms={gyms}
           targetStandardClass={targetStandardClass}
@@ -889,7 +925,6 @@ export default function App() {
           customGoalWeights={customGoalWeights}
           setHistoricalDraft={setHistoricalDraft}
           setCurrentView={setCurrentView}
-          openPlateCalculatorForPR={openPlateCalculatorForPR}
           openPlateCalculatorForSet={openPlateCalculatorForSet}
           setSetValueTarget={setSetValueTarget}
           setDeleteConfirmTarget={setDeleteConfirmTarget}
@@ -1027,6 +1062,7 @@ export default function App() {
           currentEditorWorkout={currentEditorWorkout}
           onFinishSession={handleFinishSession}
           onResetSession={requestResetSession}
+          receivedRoutineCount={routineShares.incoming.length}
           sessionSync={
             sessionSync.canSync
               ? {
@@ -1072,6 +1108,7 @@ export default function App() {
               friendsList={friendsList}
               pendingIncomingRequests={pendingIncomingRequests}
               muscleStimulusStatus={muscleStimulusStatus}
+              receivedRoutineCount={routineShares.incoming.length}
             />
           )}
 
@@ -1151,8 +1188,25 @@ export default function App() {
               gyms={gyms}
               routineSelectReturnView={routineSelectReturnView}
               handleOpenPreviewRoutine={handleOpenPreviewRoutine}
-              handleDirectLoadRoutine={handleDirectLoadRoutine}
+              handleDirectLoadRoutine={
+                routinesAsPage
+                  ? (routine, view) =>
+                      confirmReplaceSession(stripDateFromTitle(routine?.label) || 'this routine', () =>
+                        handleDirectLoadRoutine(routine, view)
+                      )
+                  : handleDirectLoadRoutine
+              }
               handleCancelRoutineSelection={handleCancelRoutineSelection}
+              showCancel={!routinesAsPage}
+              sections={user ? ['saved', 'shared', 'friends', 'received'] : ['saved', 'shared', 'friends']}
+              onNewRoutine={routinesAsPage ? handleNewRoutine : undefined}
+              onEditRoutine={routinesAsPage ? handleEditRoutine : undefined}
+              received={routineShares.incoming}
+              onSaveReceived={routineShares.saveShare}
+              onLoadReceived={share =>
+                confirmReplaceSession(share?.label || 'this routine', () => routineShares.loadShare(share))
+              }
+              onDismissReceived={routineShares.dismissShare}
               setDeleteConfirmTarget={setDeleteConfirmTarget}
               onAutoRoutine={handleAutoBuildWorkout}
               availableEquipment={availableEquipment}
@@ -1426,8 +1480,6 @@ export default function App() {
           calcExtraLbs={calcExtraLbs}
           clearCalcExtra={clearCalcExtra}
           setCalcTotalFromInput={setCalcTotalFromInput}
-          prRecordDate={prRecordDate}
-          setPrRecordDate={setPrRecordDate}
           handleApplyCalculatedWeight={handleApplyCalculatedWeight}
           onOpenHistoryWorkout={openHistoryWorkout}
           bodyweightLbs={userBodyweightLbs}
@@ -1482,15 +1534,6 @@ export default function App() {
           error={routineShares.sendState.error}
           onSend={routineShares.sendTo}
           onClose={routineShares.closeSend}
-        />
-        <IncomingRoutineModal
-          share={sessionSync.incomingInvite ? null : routineShares.incomingRoutine}
-          exerciseName={id => EXERCISE_MAP[id]?.name || id}
-          willReplaceSession={(activeSession?.slots || []).length > 0}
-          busy={routineShares.incomingBusy}
-          onSave={routineShares.saveIncoming}
-          onLoad={routineShares.loadIncoming}
-          onDismiss={routineShares.dismissIncoming}
         />
 
         <SyncNoticeModal message={sessionSync.syncNotice} onClose={sessionSync.clearSyncNotice} />

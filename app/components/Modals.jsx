@@ -2,7 +2,6 @@
 
 import React, { useState } from 'react';
 import { UI } from '../styles/kineticTokens';
-import { formatTodayYMD } from '../data/exerciseLibrary';
 import { SET_TYPES_LIST, exercise1RMInfoOfSets, oneRepMaxLabel as oneRepMaxText } from '../utils/workoutEngine';
 import { ApplyToLaterToggle, Button, CloseButton } from './Controls';
 import { useModalScrollLock } from '../hooks/useModalScrollLock';
@@ -127,8 +126,6 @@ export function PlateCalculatorModal({
   calcExtraLbs = 0,
   clearCalcExtra,
   setCalcTotalFromInput,
-  prRecordDate,
-  setPrRecordDate,
   handleApplyCalculatedWeight,
   // Opens a logged History workout (the PR's) on the PROGRESS page
   onOpenHistoryWorkout,
@@ -145,9 +142,7 @@ export function PlateCalculatorModal({
         <div style={UI.modalHeader}>
           <div>
             <div style={UI.fieldLabel}>
-              {plateCalcTarget.mode === 'pr'
-                ? 'EDIT PERSONAL RECORD'
-                : plateCalcTarget.mode === 'goal'
+              {plateCalcTarget.mode === 'goal'
                   ? 'EDIT CUSTOM GOAL WEIGHT'
                   : `SET ${plateCalcTarget.setNumber} WEIGHT`}
             </div>
@@ -376,74 +371,6 @@ export function PlateCalculatorModal({
               </button>
             </div>
         </div>
-
-        {plateCalcTarget.mode === 'pr' && (
-          <div
-            style={{
-              marginBottom: '12px',
-              padding: '10px',
-              backgroundColor: '#000000',
-              border: 'none', borderRadius: '10px'
-            }}
-          >
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                gap: '8px',
-                marginBottom: '6px'
-              }}
-            >
-              <span style={{ fontSize: '11px', fontWeight: 500, color: '#9A9A9A', textTransform: 'uppercase' }}>
-                RECORD DATE (LOGS HISTORY ENTRY)
-              </span>
-              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                <button
-                  type="button"
-                  onClick={() => setPrRecordDate?.(formatTodayYMD())}
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    color: 'var(--dp-color-accent)',
-                    fontSize: '11px',
-                    fontWeight: 500,
-                    textTransform: 'uppercase',
-                    cursor: 'pointer',
-                    padding: 0
-                  }}
-                >
-                  TODAY
-                </button>
-                {prRecordDate && (
-                  <button
-                    type="button"
-                    onClick={() => setPrRecordDate?.('')}
-                    style={{
-                      background: 'none',
-                      border: 'none',
-                      color: '#FF4A3D',
-                      fontSize: '11px',
-                      fontWeight: 500,
-                      textTransform: 'uppercase',
-                      cursor: 'pointer',
-                      padding: 0
-                    }}
-                  >
-                    CLEAR
-                  </button>
-                )}
-              </div>
-            </div>
-            <input
-              type="text"
-              placeholder="YYYY/MM/DD"
-              value={(prRecordDate || '').replace(/-/g, '/')}
-              onChange={e => setPrRecordDate?.(e.target.value.replace(/-/g, '/'))}
-              style={UI.field}
-            />
-          </div>
-        )}
 
         {plateCalcTarget.mode === 'set' && !plateCalcTarget.onApplyCustom && (
           <ApplyToLaterToggle

@@ -3,12 +3,9 @@
 import { useState, useMemo } from 'react';
 import {
   EXERCISE_MAP,
-  formatTodayYMD,
-  formatDateYMD,
   roundTo5,
   getExerciseEquipmentOptions
 } from '../data/exerciseLibrary';
-import { buildPersonalRecordHistoryEntry, insertHistoryEntrySorted } from '../utils/workoutEngine';
 
 const BARBELL_WEIGHT_LBS = 45;
 const EZ_BAR_WEIGHT_LBS = 17;
@@ -40,11 +37,8 @@ export const getLoadSetup = (exerciseId, equipment) => {
 
 export function usePlateCalculator({
   handleUpdateSetField,
-  setOneRepMaxes,
-  setHistory,
   setCustomGoalWeights,
-  setTargetStandardClass,
-  appendSessionLog
+  setTargetStandardClass
 }) {
   const [plateCalcTarget, setPlateCalcTarget] = useState(null);
   const [calcUnit, setCalcUnit] = useState('lb');
@@ -55,7 +49,6 @@ export function usePlateCalculator({
   // The part of the weight the plates can't make up exactly (e.g. 152 lb on a barbell = 45 + 2 × 52.5 + 2). It stays
   // when plates are added or removed, so TOTAL WEIGHT always equals bar + plates + this, and shows as its own chip.
   const [calcExtraLbs, setCalcExtraLbs] = useState(0);
-  const [prRecordDate, setPrRecordDate] = useState('');
 
   const calcBarWeight = calcLoad.barWeight;
   const calcBarLabel = calcLoad.barLabel;
@@ -126,16 +119,6 @@ export function usePlateCalculator({
     });
   };
 
-  const openPlateCalculatorForPR = (exerciseId, exerciseName, currentWeight, loggedDate = '') => {
-    const startW =
-      Number(currentWeight) > 0
-        ? Number(currentWeight)
-        : EXERCISE_MAP[exerciseId]?.default1RM || 135;
-    decomposeWeightToPlates(startW, exerciseId);
-    setPrRecordDate(loggedDate && String(loggedDate).trim() ? formatDateYMD(loggedDate) : formatTodayYMD());
-    setPlateCalcTarget({ mode: 'pr', exerciseId, exerciseName });
-  };
-
   const openPlateCalculatorForGoal = (exerciseId, exerciseName, currentGoalWeight) => {
     decomposeWeightToPlates(Number(currentGoalWeight) || 225, exerciseId);
     setPlateCalcTarget({ mode: 'goal', exerciseId, exerciseName });
@@ -163,21 +146,6 @@ export function usePlateCalculator({
         ];
         ids.forEach(id => handleUpdateSetField(plateCalcTarget.slotId, plateCalcTarget.exIndex, id, 'weight', finalWeightLbs));
       }
-    } else if (plateCalcTarget.mode === 'pr') {
-      const roundedPR = roundTo5(finalWeightLbs);
-      const exId = plateCalcTarget.exerciseId;
-      // The PR is its History entry (PRs come only from logged History); no separate saved 1RM number
-
-      // Always log an individual History entry when a Personal Record is entered (chosen date or today)
-      const cleanDate =
-        prRecordDate && String(prRecordDate).trim() ? formatDateYMD(prRecordDate) : formatTodayYMD();
-      const entry = buildPersonalRecordHistoryEntry({ exerciseId: exId, oneRepMax: roundedPR, dateYMD: cleanDate });
-      setHistory(prev => insertHistoryEntrySorted(prev, entry));
-      appendSessionLog?.(
-        'PR_HISTORY_CREATE',
-        `Created PR History entry for ${EXERCISE_MAP[exId]?.name || plateCalcTarget.exerciseName || exId} (${roundedPR} LB on ${cleanDate})`
-      );
-      setPrRecordDate('');
     } else if (plateCalcTarget.mode === 'goal') {
       setCustomGoalWeights(prev => ({
         ...prev,
@@ -200,10 +168,7 @@ export function usePlateCalculator({
     calcExtraLbs,
     clearCalcExtra,
     setCalcTotalFromInput,
-    prRecordDate,
-    setPrRecordDate,
     openPlateCalculatorForSet,
-    openPlateCalculatorForPR,
     openPlateCalculatorForGoal,
     computedPlateCalculatorTotal,
     handleApplyCalculatedWeight

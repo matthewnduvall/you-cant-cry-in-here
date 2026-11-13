@@ -208,6 +208,33 @@ function getAthleteScrollerEntries(friend, randomSeed = 1, todayFallbackStr = ''
   return entries.slice(0, 4);
 }
 
+// The count of routines friends sent you that are still waiting (Routines row)
+function CountBadge({ count }) {
+  if (!(count > 0)) return null;
+  return (
+    <span
+      aria-label={`${count} new`}
+      style={{
+        minWidth: '22px',
+        height: '22px',
+        padding: '0 7px',
+        boxSizing: 'border-box',
+        borderRadius: '11px',
+        backgroundColor: 'var(--cr-red)',
+        color: '#FFFFFF',
+        fontSize: '12px',
+        fontWeight: 600,
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        flexShrink: 0
+      }}
+    >
+      {count > 99 ? '99+' : count}
+    </span>
+  );
+}
+
 export function HomeView({
   colors,
   user,
@@ -223,7 +250,9 @@ export function HomeView({
   friendsList,
   pendingIncomingRequests,
   // Your muscle groups' stimulus status (READY / OVERDUE entries in the ticker)
-  muscleStimulusStatus = {}
+  muscleStimulusStatus = {},
+  // Routines friends sent you, still waiting (the Routines row's count)
+  receivedRoutineCount = 0
 }) {
   const [scrollerSeed, setScrollerSeed] = useState(1);
   const [todayFallbackStr, setTodayFallbackStr] = useState('');
@@ -449,8 +478,17 @@ export function HomeView({
       {/* YOUR TRAINING: the main pages (no numbers, like the menu) */}
       <IOSListSection header="YOUR TRAINING" colors={colors}>
         {[
-          // PROGRESS is one page with the chart, Personal Records and logged History (view id 'history')
-          { id: 'history', title: 'Performance', sub: 'Trends, personal records and workout history' },
+          // PROGRESS is one page with the chart and logged History (view id 'history')
+          { id: 'history', title: 'Performance', sub: 'Trends, goals and workout history' },
+          // The Routines page: saved, shared, friends' and received routines, + NEW ROUTINE
+          {
+            id: 'routines',
+            title: 'Routines',
+            sub: receivedRoutineCount > 0
+              ? `${receivedRoutineCount} received · saved, shared and friends' routines`
+              : "Saved, shared and friends' routines",
+            badge: receivedRoutineCount
+          },
           { id: 'stimulus_map', title: 'Stimulus', sub: 'Recovery windows and muscle readiness' },
           { id: 'social', title: 'Social', sub: `${friendsList.length} ${friendsList.length === 1 ? 'friend' : 'friends'} · ${pendingIncomingRequests.length} pending ${pendingIncomingRequests.length === 1 ? 'request' : 'requests'} · leaderboards` }
         ].map((item, i, arr) => (
@@ -469,7 +507,10 @@ export function HomeView({
                 {item.sub}
               </div>
             </div>
-            <span aria-hidden="true" style={{ fontSize: '20px', fontWeight: 300, color: '#8A8A8A' }}>›</span>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
+              <CountBadge count={item.badge} />
+              <span aria-hidden="true" style={{ fontSize: '20px', fontWeight: 300, color: '#8A8A8A' }}>›</span>
+            </span>
           </IOSListRow>
         ))}
       </IOSListSection>

@@ -3,10 +3,11 @@
 // ============================================================================
 // Routines sent straight to a friend (public.routine_shares).
 // Sending: SEND on a routine (routine browser) → SendRoutineModal → sendRoutineToFriend.
+// Sending: @friends (a copy to every friend) or @user (one friend).
 // Receiving: while signed in, checks for routines friends sent (4 s after sign-in, every 2 minutes, and when the app
-// comes back to the foreground) and shows them one at a time (IncomingRoutineModal): SAVE adds it to your saved
-// routines (BY @sender), LOAD NOW loads it into your session (re-worked to your weights, as a friend's routine),
-// DISMISS drops it. Each answer is written back (status), so it never shows again on any device.
+// comes back to the foreground). They wait in the Routines page's INBOX tab (the count shows on Home and in the
+// menu): SAVE adds one to your saved routines (BY @sender), LOAD loads it into your session (re-worked to your
+// weights, as a friend's routine), ✕ dismisses it. Each answer is written back (status), so it never shows again.
 // ============================================================================
 
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -45,8 +46,6 @@ export function useRoutineShares({ user, setSavedRoutines, onLoadRoutine, append
     };
   }, [user, check]);
 
-  const current = incoming[0] || null;
-
   const answer = async (share, status) => {
     answeredRef.current.add(share.id);
     setIncoming(list => list.filter(row => row.id !== share.id));
@@ -63,30 +62,30 @@ export function useRoutineShares({ user, setSavedRoutines, onLoadRoutine, append
     slots: Array.isArray(share.routine?.slots) ? share.routine.slots : []
   });
 
-  const saveIncoming = async () => {
-    if (!current || busy) return;
+  const saveShare = async share => {
+    if (!share || busy) return;
     setBusy(true);
-    const routine = routineOf(current);
+    const routine = routineOf(share);
     setSavedRoutines(prev => [routine, ...(prev || []).filter(r => r.key !== routine.key)]);
     appendSessionLog?.('ROUTINE_SHARE_SAVED', `Saved "${routine.label}" from @${routine.author}`);
-    await answer(current, 'saved');
+    await answer(share, 'saved');
     setBusy(false);
   };
 
-  const loadIncoming = async () => {
-    if (!current || busy) return;
+  const loadShare = async share => {
+    if (!share || busy) return;
     setBusy(true);
-    const routine = routineOf(current);
+    const routine = routineOf(share);
     onLoadRoutine?.({ key: routine.key, label: routine.label, slots: routine.slots, friendName: routine.author });
     appendSessionLog?.('ROUTINE_SHARE_LOADED', `Loaded "${routine.label}" from @${routine.author}`);
-    await answer(current, 'loaded');
+    await answer(share, 'loaded');
     setBusy(false);
   };
 
-  const dismissIncoming = async () => {
-    if (!current || busy) return;
+  const dismissShare = async share => {
+    if (!share || busy) return;
     setBusy(true);
-    await answer(current, 'dismissed');
+    await answer(share, 'dismissed');
     setBusy(false);
   };
 
@@ -95,24 +94,31 @@ export function useRoutineShares({ user, setSavedRoutines, onLoadRoutine, append
     setSendTarget(routine || null);
   };
   const closeSend = () => setSendTarget(null);
-  const sendTo = async friend => {
-    if (!sendTarget || !friend) return;
+  // friends: one friend, or several (@friends = every friend); each gets their own copy
+  const sendTo = async friends => {
+    const list = (Array.isArray(friends) ? friends : [friends]).filter(Boolean);
+    if (!sendTarget || list.length === 0) return;
     setSendState({ busy: true, sentTo: null, error: '' });
-    const res = await sendRoutineToFriend(user, friend.id, sendTarget);
-    if (res.ok) {
-      appendSessionLog?.('ROUTINE_SHARE_SENT', `Sent "${sendTarget.label}" to @${friend.username}`);
-      setSendState({ busy: false, sentTo: friend.username, error: '' });
+    const results = await Promise.all(list.map(f => sendRoutineToFriend(user, f.id, sendTarget)));
+    const sent = list.filter((f, i) => results[i]?.ok);
+    const failed = results.find(r => !r?.ok);
+    if (sent.length > 0) {
+      appendSessionLog?.('ROUTINE_SHARE_SENT', `Sent "${sendTarget.label}" to ${sent.map(f => `@${f.username}`).join(', ')}`);
+    }
+    if (failed && sent.length === 0) {
+      setSendState({ busy: false, sentTo: null, error: failed.error || 'SERVER ERROR' });
     } else {
-      setSendState({ busy: false, sentTo: null, error: res.error || 'SERVER ERROR' });
+      const label = list.length > 1 ? `@friends (${sent.length} of ${list.length})` : `@${sent[0].username}`;
+      setSendState({ busy: false, sentTo: label, error: failed ? `not every friend got it (${failed.error || 'server error'})` : '' });
     }
   };
 
   return {
-    incomingRoutine: current,
+    incoming,
     incomingBusy: busy,
-    saveIncoming,
-    loadIncoming,
-    dismissIncoming,
+    saveShare,
+    loadShare,
+    dismissShare,
     sendTarget,
     sendState,
     openSend,

@@ -164,6 +164,10 @@ export const KINETIC_CSS = `
   }
 
   /* Beside its padlock the type cell has no room for the caret: full width for the label */
+  .kinetic-app select.kinetic-filter-select.no-caret {
+    background-image: none;
+    padding: 0 2px !important;
+  }
   .kinetic-app select.kinetic-set-type-select.no-caret {
     background-image: none;
     padding: 0 1px !important;

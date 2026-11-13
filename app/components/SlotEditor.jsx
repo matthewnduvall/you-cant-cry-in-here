@@ -35,6 +35,7 @@ import {
   findClosestExerciseInPool,
   normalizeMuscleGroupName
 } from '../data/exerciseLibrary';
+import { getVariationFamily } from '../data/exerciseVariations';
 import {
   normalizeSetType,
   getBestHistory1RMInfo,
@@ -50,6 +51,10 @@ import {
 import { DeleteButton, DragNumberBadge } from './Controls';
 import { usePointerReorder } from '../hooks/usePointerReorder';
 
+
+// Per-exercise rest choices (seconds) for the REST box in the filter row
+const EXERCISE_REST_OPTIONS = [30, 45, 60, 75, 90, 120, 150, 180, 240, 300];
+const formatRest = sec => `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`;
 
 export const headerSelectStyle = {
   width: '100%',
@@ -260,6 +265,8 @@ export function SlotEditor({
   history = [],
   workoutId = null,
   prFlags = [false, false],
+  // Set ids that made a PR (History editor): their weight cell is tagged PR
+  prSetIds = [],
   onHeaderChange,
   onRemove,
   removeLabel = 'Remove exercise',
@@ -408,11 +415,49 @@ export function SlotEditor({
   const searchResults = search?.query ? searchExercises(search.query) : [];
 
   // The exercises the filters (type, muscle group, equipment) allow for one half, with their short names
+  // The exercises the filters allow, one entry per variation family (ex.variationOf): the current exercise, else
+  // the family's Standard, else its best-known member stands for the family; the rest are in its VARIATIONS list
   const filteredExercises = half => {
-    const { pool, equipment } = pickerState(half);
-    const list = pool.filter(ex => equipmentOptionsOf(ex).includes(equipment));
-    const shortNames = getUniqueShortExerciseNames(list, equipment);
-    return { list, nameOf: ex => shortNames[ex.id] || stripEquipmentFromExerciseName(ex.name) };
+    const { pool, equipment, exId } = pickerState(half);
+    const all = pool.filter(ex => equipmentOptionsOf(ex).includes(equipment));
+    const shortNames = getUniqueShortExerciseNames(all, equipment);
+    const rank = ex =>
+      (ex.id === exId ? 0 : 10) + (ex.variation === 'Standard' ? 0 : 4) + (ex.isPriority ? 0 : 2) + (String(ex.id).startsWith('exrx_') ? 1 : 0);
+    const best = new Map();
+    const familySize = new Map();
+    all.forEach(ex => {
+      if (!ex.variationOf) return;
+      familySize.set(ex.variationOf, (familySize.get(ex.variationOf) || 0) + 1);
+      const cur = best.get(ex.variationOf);
+      if (!cur || rank(ex) < rank(cur)) best.set(ex.variationOf, ex);
+    });
+    const list = all.filter(ex => !ex.variationOf || best.get(ex.variationOf)?.id === ex.id);
+    return {
+      list,
+      // How many of the family the filters allow (shown beside its entry)
+      familyCountOf: ex => (ex.variationOf ? familySize.get(ex.variationOf) || 1 : 1),
+      nameOf: ex => shortNames[ex.id] || stripEquipmentFromExerciseName(ex.name)
+    };
+  };
+
+  // VARIATIONS of the exercise in one half: one entry per variation name across the whole library, each standing
+  // for the member with this half's equipment if there is one (else the first), so picking one keeps the equipment
+  // whenever it can
+  const variationsOf = half => {
+    const { exObj, equipment } = pickerState(half);
+    if (!exObj?.variationOf) return [];
+    const byName = new Map();
+    EXERCISE_LIBRARY.forEach(ex => {
+      if (ex.variationOf !== exObj.variationOf || !ex.variation) return;
+      const fits = equipmentOptionsOf(ex).includes(equipment);
+      const cur = byName.get(ex.variation);
+      if (!cur || (fits && !cur.fits) || ex.id === exObj.id) byName.set(ex.variation, { ex, fits: fits || ex.id === exObj.id });
+    });
+    return [...byName.entries()]
+      .map(([variation, { ex, fits }]) => ({ variation, ex, fits }))
+      .sort((a, b) =>
+        a.variation === 'Standard' ? -1 : b.variation === 'Standard' ? 1 : Number(b.fits) - Number(a.fits) || a.variation.localeCompare(b.variation)
+      );
   };
 
   // Row 1: the exercise's name, which is also the search box. Tapping it lists the exercises the filters allow;
@@ -426,7 +471,7 @@ export function SlotEditor({
     const showEquipment = equipment && equipment !== 'Bodyweight' && !isBandEquipment(equipment);
     const cellBase = {
       ...headerSelectStyle,
-      gridColumn: '1 / 7',
+      gridColumn: '1 / 13',
       gridRow: 1,
       height: '44px',
       padding: '0 10px',
@@ -481,7 +526,7 @@ export function SlotEditor({
             onClick={() => setSearch({ half, query: '' })}
             style={{
               ...cellBase,
-              gridColumn: '1 / 5',
+              gridColumn: '1 / 9',
               display: 'flex',
               alignItems: 'center',
               gap: '6px',
@@ -520,7 +565,7 @@ export function SlotEditor({
             role="group"
             aria-label={`1 rep max (an asterisk means calculated from reps): last session ${last1RM ? oneRepMaxLabel(last1RM, lastInfo.calculated) : 'none'}, now ${now1RM ? oneRepMaxLabel(now1RM, nowInfo.calculated) : 'none'}, record ${pr1RM ? oneRepMaxLabel(pr1RM, prInfoHeader.calculated) : 'none'}`}
             style={{
-              gridColumn: '5 / 7',
+              gridColumn: '9 / 13',
               gridRow: 1,
               height: '44px',
               boxSizing: 'border-box',
@@ -574,6 +619,10 @@ export function SlotEditor({
     const typed = search.query.trim() !== '';
     const { list, nameOf } = filteredExercises(half);
     const results = typed ? searchResults : list;
+    const { familyCountOf } = filteredExercises(half);
+    // Untyped: the current exercise's VARIATIONS come first (tap one to switch), then the filters' list
+    const variations = typed ? [] : variationsOf(half);
+    const familyName = variations.length > 1 ? getVariationFamily(EXERCISE_MAP[currentId]?.variationOf)?.name : null;
     return (
       <div
         role="listbox"
@@ -593,6 +642,44 @@ export function SlotEditor({
           boxShadow: '0 12px 24px rgba(0, 0, 0, 0.6)'
         }}
       >
+        {familyName && (
+          <>
+            <div style={{ ...hintStyle, padding: '8px 12px' }}>VARIATIONS · {familyName.toUpperCase()}</div>
+            {variations.map(({ variation, ex, fits }) => (
+              <button
+                key={`var_${ex.id}`}
+                type="button"
+                role="option"
+                aria-selected={ex.id === currentId}
+                onClick={() => handleSearchPick(half, ex)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: '8px',
+                  width: '100%',
+                  minHeight: '40px',
+                  textAlign: 'left',
+                  padding: '8px 12px',
+                  backgroundColor: ex.id === currentId ? '#2A2A2A' : 'transparent',
+                  border: 'none',
+                  borderBottom: '1px solid var(--dp-color-rule)',
+                  cursor: 'pointer'
+                }}
+              >
+                <span style={{ fontSize: '13px', fontWeight: 500, color: '#FFFFFF', textTransform: 'uppercase' }}>
+                  {variation}
+                </span>
+                {/* Only exists with other equipment: picking it switches the equipment too */}
+                {!fits && (
+                  <span style={{ fontSize: '11px', fontWeight: 500, color: '#9A9A9A', textTransform: 'uppercase', flexShrink: 0 }}>
+                    {equipmentOf(ex)}
+                  </span>
+                )}
+              </button>
+            ))}
+          </>
+        )}
         {!typed && <div style={{ ...hintStyle, padding: '8px 12px' }}>MATCHING YOUR FILTERS · TYPE TO SEARCH ALL</div>}
         {results.length === 0 ? (
           <div style={hintStyle}>NO MATCHING EXERCISES</div>
@@ -628,7 +715,14 @@ export function SlotEditor({
                   marginTop: '2px'
                 }}
               >
-                {[equipmentOf(ex), ex.muscleGroup, ex.category].filter(Boolean).join(' · ')}
+                {[
+                  equipmentOf(ex),
+                  ex.muscleGroup,
+                  ex.category,
+                  !typed && familyCountOf(ex) > 1 ? `${familyCountOf(ex)} VARIATIONS` : null
+                ]
+                  .filter(Boolean)
+                  .join(' · ')}
               </span>
             </button>
           ))
@@ -695,7 +789,8 @@ export function SlotEditor({
         style={{
           position: 'relative',
           display: 'grid',
-          gridTemplateColumns: 'repeat(6, minmax(0, 1fr))',
+          // 12 columns: row 1 = title (8) + 1RM box (4); row 2 = TYPE (4) | MUSCLE (3) | EQUIPMENT (3) | REST (2)
+          gridTemplateColumns: 'repeat(12, minmax(0, 1fr))',
           gridTemplateRows: '44px 40px',
           gap: 0,
           minWidth: 0,
@@ -716,7 +811,7 @@ export function SlotEditor({
             sendHeaderChange(half, { category: e.target.value });
           }}
           className="kinetic-filter-select"
-          style={{ ...headerSelectStyle, gridColumn: '1 / 3', gridRow: 2 }}
+          style={{ ...headerSelectStyle, gridColumn: '1 / 5', gridRow: 2 }}
         >
           {typeOptions.map(cat => (
             <option key={cat} value={cat}>
@@ -730,7 +825,7 @@ export function SlotEditor({
           value={muscle}
           onChange={e => sendHeaderChange(half, { muscleGroupFilter: e.target.value })}
           className="kinetic-filter-select"
-          style={{ ...headerSelectStyle, gridColumn: '3 / 5', gridRow: 2 }}
+          style={{ ...headerSelectStyle, gridColumn: '5 / 8', gridRow: 2 }}
         >
           {availMuscles.map(mg => (
             <option key={mg} value={mg}>
@@ -744,11 +839,28 @@ export function SlotEditor({
           value={equipment}
           onChange={e => handleEquipmentChange(e.target.value)}
           className="kinetic-filter-select"
-          style={{ ...headerSelectStyle, gridColumn: '5 / 7', gridRow: 2 }}
+          style={{ ...headerSelectStyle, gridColumn: '8 / 11', gridRow: 2 }}
         >
           {equipmentOptions.map(eq => (
             <option key={eq} value={eq}>
               {eq.toUpperCase()}
+            </option>
+          ))}
+        </select>
+
+        {/* REST: this exercise's rest after a set (slot.customRestSeconds); REST = the session's rest bar setting */}
+        <select
+          aria-label={`Rest after each set of this exercise: ${slot.customRestSeconds ? formatRest(slot.customRestSeconds) : 'the session rest'}`}
+          value={slot.customRestSeconds || ''}
+          onChange={e => onHeaderChange?.({ customRestSeconds: Number(e.target.value) || null })}
+          // No caret: the narrow box needs its width for REST / 2:30
+          className="kinetic-filter-select no-caret"
+          style={{ ...headerSelectStyle, gridColumn: '11 / 13', gridRow: 2 }}
+        >
+          <option value="">REST</option>
+          {EXERCISE_REST_OPTIONS.map(sec => (
+            <option key={sec} value={sec}>
+              {formatRest(sec)}
             </option>
           ))}
         </select>
@@ -840,7 +952,9 @@ export function SlotEditor({
     const lastTimerDisplay = isTimerScheme ? getLastLoggedTimerDisplay(exId, st, setIdx, lastW, history) : '';
     // Logged PR for the weight pop-up's 1RM box (and the History workout it came from)
     const prInfo = getBestHistory1RMInfo(exId, history);
-    const setNumText = isSuperset ? `${exIdx === 0 ? 'A' : 'B'}${st.setNumber}` : `${st.setNumber}`;
+    // A set without a stored number (older saves) shows its position
+    const setNo = Number(st.setNumber) > 0 ? st.setNumber : setIdx + 1;
+    const setNumText = isSuperset ? `${exIdx === 0 ? 'A' : 'B'}${setNo}` : `${setNo}`;
     // Done sets recede (a step darker than the tile); the ✓ circle fills white
     // Sets still to do sit darker; a done set lights up a step (the whole card mutes once every set is done)
     const cellBg = st.completed ? '#262626' : '#121212';
@@ -1008,7 +1122,7 @@ export function SlotEditor({
             ) : withSetLock(exIdx, st, 'weight', cellBg,
             <button
               type="button"
-              aria-label={`Weight ${st.weight} lb. Tap to change`}
+              aria-label={`Weight ${st.weight} lb${prSetIds.includes(st.id) ? ', the set that made the personal record' : ''}. Tap to change`}
               onClick={() =>
                 onEditWeight?.({
                   exIdx,
@@ -1029,8 +1143,14 @@ export function SlotEditor({
               }
               style={{ ...setCellStyle(cellBg), cursor: 'pointer', overflow: 'hidden' }}
             >
-              {/* The weight under its unit */}
-              <span style={cellLabelStyle}>LB</span>
+              {/* The weight under its unit; the set that made a PR (History editor) carries a PR tag */}
+              {prSetIds.includes(st.id) ? (
+                <span style={{ ...cellLabelStyle, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                  LB <PrBadge marginRight="0" />
+                </span>
+              ) : (
+                <span style={cellLabelStyle}>LB</span>
+              )}
               <span style={cellValueStyle('var(--dp-color-accent)', onToggleSetLock ? '13px' : '15px')}>{st.weight}</span>
             </button>
             )}
