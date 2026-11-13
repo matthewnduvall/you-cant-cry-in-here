@@ -10,7 +10,7 @@ import {
   formatDateYMD,
   parseYMDToISO
 } from '../data/exerciseLibrary';
-import { getPersonalRecord1RM, isCalculated1RMSet } from '../utils/workoutEngine';
+import { getPersonalRecord1RM, isCalculated1RMSet, estimateSet1RM } from '../utils/workoutEngine';
 
 // Muscle groups with no logged training: neutral grey, so a new account isn't shown as all "overdue"
 export const UNLOGGED_STIMULUS_COLOR = '#3A3A3A';
@@ -72,7 +72,8 @@ export function buildProgressionSeriesByLift(history) {
           if (hasCompleted && !s.completed) return;
           const wVal = Number(s.weight) || 0;
           const rVal = Math.max(1, Number(s.reps) || 1);
-          const est1RM = rVal === 1 ? wVal : Math.round(wVal * (1 + rVal / 30));
+          // Reps in reserve count as reps the set could have done (estimateSet1RM)
+          const est1RM = Math.round(estimateSet1RM(s));
           const calc = isCalculated1RMSet(s);
           if (est1RM > top1RM || (est1RM === top1RM && topCalculated && !calc)) {
             top1RM = est1RM;

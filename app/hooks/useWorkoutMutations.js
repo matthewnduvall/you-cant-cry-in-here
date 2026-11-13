@@ -65,8 +65,9 @@ import {
   isBig3Variant
 } from '../data/programs';
 import { applyProgramToSlot, isProgrammedSlot, fitsProgramEquipment } from '../utils/programEngine';
-import { SET_TYPE_RPE, solveSet, deriveIntensity } from '../utils/intensity';
-import { getStarting1RM } from '../utils/starting1RM';
+import { SET_TYPE_RPE, solveSet } from '../utils/intensity';
+import { getStarting1RM, describe1RM } from '../utils/starting1RM';
+import { withTrace, traceLine, traceTitle, isTracing, fmt } from '../utils/calcTrace';
 import { buildHistoryUpdate, findAddedSlots, getWorkoutSyncInfo, withSyncInfo } from '../utils/syncedHistory';
 import { markWorkoutIdDeleted, clearDeletedWorkoutIds } from '../utils/cloudSyncLedger';
 
@@ -179,6 +180,10 @@ export function useWorkoutMutations({
     const starts = {};
     ids.forEach(id => {
       if (getBestHistory1RM(id, history) <= 0) starts[id] = getStarting1RM(id, startOpts);
+      if (isTracing()) {
+        traceLine(`Exercise: ${EXERCISE_MAP[id]?.name || id} · ${args.category} · scheme ${args.scheme}`);
+        traceLine(describe1RM(id, startOpts));
+      }
     });
     return fillIntensities(
       createWorkoutSlotRaw({ ...args, base1RMOverrides: { ...starts, ...(args.base1RMOverrides || {}) } }),
@@ -198,8 +203,8 @@ export function useWorkoutMutations({
         if (!st || st.lockIntensity || (st.intensity && !st.intensity.auto) || st.durationSeconds || isBodyweightExercise(exId)) {
           return st;
         }
-        const derived = deriveIntensity(getHistoricalCalculated1RM(exId), st.weight, st.reps, st.intensity?.mode || 'rpe');
-        return derived ? { ...st, intensity: derived } : st;
+        // solveSet works out the intensity from the weight and reps (and writes its formula line while tracing)
+        return solveSet({ ...st, lockIntensity: false }, getHistoricalCalculated1RM(exId));
       });
     if (Array.isArray(slot.supersetSetsByExercise) && slot.supersetSetsByExercise.length > 1) {
       const matrix = slot.supersetSetsByExercise.map((list, i) => fill(list, ids[i] || slot.exerciseId));
@@ -440,7 +445,13 @@ export function useWorkoutMutations({
           .filter(slot => slot.programRef?.program === program.id && slot.programRef?.day === day.id)
           .map(slot => slot.programRef.key)
       );
-      const missing = day.slots.filter(spec => !present.has(spec.key));
+      // A lift already in the session (e.g. kept because it has done sets) isn't added twice
+      const inSession = new Set(cleanExisting.map(slot => slot.exerciseId));
+      const missing = day.slots.filter(spec => {
+        if (present.has(spec.key)) return false;
+        const id = getSlotSpecExercise(spec, week);
+        return !id || !(inSession.has(id) || inSession.has(findEquivalentExerciseForEquipment(id, availableEquipment)));
+      });
       const buildDaySlot = spec => {
         let exId = getSlotSpecExercise(spec, week);
         if (exId) {
@@ -543,7 +554,7 @@ export function useWorkoutMutations({
 
   const handleOpenNewAutoSession = () => {
     const base = newSessionBase();
-    const autoSlots = buildGeneratedAutoSlots([], { programTarget: base });
+    const autoSlots = withTrace('AUTO SESSION', () => buildGeneratedAutoSlots([], { programTarget: base }));
     const autoTitle = getDefaultAutoSessionName();
     setActiveSession({
       ...base,
@@ -702,7 +713,16 @@ export function useWorkoutMutations({
   // workout, fits the gym selection) that the athlete can then change in the slot editor.
   const handleAddAutoSlot = () => {
     const existingSlots = getCurrentEditorWorkout()?.slots || [];
-    const withNext = buildGeneratedAutoSlots(existingSlots, { addOne: true });
+    const withNext = withTrace('ADD EXERCISE', () => {
+      const built = buildGeneratedAutoSlots(existingSlots, { addOne: true });
+      const added = built[built.length - 1];
+      if (added) {
+        traceTitle(
+          `ADD EXERCISE · ${(added.supersetExerciseIds || [added.exerciseId]).map(id => EXERCISE_MAP[id]?.name || id).join(' + ')}`
+        );
+      }
+      return built;
+    });
     const newSlot = withNext[withNext.length - 1];
     if (!newSlot) return;
     appendSessionLog?.(
@@ -1313,6 +1333,11 @@ export function useWorkoutMutations({
   const handleUpdateSlotCategoryOrExercise = (slotId, changes) => {
     updateCurrentWorkoutState(prev => {
       if (!prev) return prev;
+      return withTrace(`CHANGE · ${Object.keys(changes || {}).join(', ')}`, () => applySlotHeaderChange(prev, slotId, changes), `change:${slotId}`);
+    });
+  };
+
+  const applySlotHeaderChange = (prev, slotId, changes) => {
       const nextSlots = prev.slots.map(slot => {
         if (slot.id !== slotId) return slot;
         // SETS / REPS boxes of the scheme row
@@ -1529,7 +1554,6 @@ export function useWorkoutMutations({
         return rebuiltResult;
       });
       return { ...prev, slots: nextSlots };
-    });
   };
 
   const handleUpdateSetField = (slotId, exIndex, setId, field, rawVal) => {
@@ -1804,6 +1828,10 @@ export function useWorkoutMutations({
       const targetReps = isSup ? slot.supersetTargetReps?.[half] : slot.targetReps;
       const isBw = isBodyweightExercise(exId);
       const isTimer = scheme === 'Timer';
+      if (isTracing()) {
+        traceLine(describe1RM(exId, startOpts));
+        traceLine(`Scheme ${scheme} · ${total} sets${targetReps ? ` · REPS ${targetReps}` : ''} · locks: ${original.map((st, i) => `${i + 1}:${[st.lockType && 'T', st.lockWeight && 'W', st.lockReps && 'R', st.lockIntensity && 'I'].filter(Boolean).join('') || '–'}`).join(' ')}`);
+      }
       const calc1RM = getHistoricalCalculated1RM(exId, history, oneRepMaxes);
       const effInc = isBw ? 0 : getEffectiveIncrementForExercise(exId, currentIncrementLbs);
       const weightFor = (st, idx) => {
@@ -1854,6 +1882,9 @@ export function useWorkoutMutations({
               : calc1RM > 0 && weight > 0
                 ? calculateEquivalentRepsForWeight(calc1RM, weight, next, total, category, effInc)
                 : next.reps;
+          if (isTracing() && !orig.lockIntensity) {
+            traceLine(`set ${idx + 1}: weight ${fmt(weight)} lb locked → reps it allows at this set's effort from 1RM ${fmt(calc1RM)} = ${next.reps}`);
+          }
         } else if (!orig.lockWeight && (orig.lockReps || (orig.lockType && orig.type !== f.type))) {
           if (normalizeSetType(next.type) === '1 Rep Max' && !orig.lockReps) next.reps = 1;
           next.weight = weightFor(next, idx);
@@ -1887,6 +1918,7 @@ export function useWorkoutMutations({
         );
         if (!ref) return st;
         const [w, r] = setTypeTarget(type, Number(ref.weight), Math.max(1, Number(ref.reps) || 1));
+        if (isTracing()) traceLine(`set ${idx + 1}: ${type} locked → from the working set ${fmt(ref.weight)} × ${ref.reps}: ${fmt(w)} lb × ${orig.lockReps ? st.reps : r}`);
         return { ...st, weight: Math.max(0, Math.round(w / step) * step), reps: orig.lockReps ? st.reps : r };
       });
       // 6. Weight, reps and intensity through the calculated 1RM (utils/intensity.js solveSet): a locked intensity
@@ -1916,52 +1948,70 @@ export function useWorkoutMutations({
     return { ...slot, sets: nextSets, supersetSetsByExercise: [nextSets] };
   };
 
-  // The session's WEEK box: the week is saved and the exercises the program covers are re-planned for it
-  // (completed sets and locked values stay)
-  const handleChangeProgramWeek = week => {
-    updateCurrentWorkoutState(prev => {
-      if (!prev) return prev;
-      const next = { ...prev, program: prev.program || trainingProgram, programWeek: week };
-      const ctx = programContextFor(next);
-      return { ...next, slots: (next.slots || []).map(slot => (isProgrammedSlot(slot, ctx) ? programSlot(slot, next) : slot)) };
-    });
+  // Program, week or day changed for the session: the session is rebuilt for it — the program's day (or its routine)
+  // with that week's plan. Only exercises with a set marked done stay; everything else is replaced.
+  const replanForProgram = next => {
+    const started = slot =>
+      [slot.sets, slot.secondarySets, ...(slot.supersetSetsByExercise || [])].some(list => (list || []).some(st => st?.completed));
+    const kept = (next.slots || []).filter(started);
+    if (isTracing()) {
+      const dropped = (next.slots || []).length - kept.length;
+      traceLine(`Session rebuilt for the program: ${kept.length} exercise${kept.length === 1 ? '' : 's'} with done sets kept, ${dropped} replaced`);
+    }
+    return { ...next, slots: buildGeneratedAutoSlots(kept, { programTarget: next }) };
   };
 
-  // The session's PROGRAM box: the session runs that program from here, starting at its automatic week (from the
-  // logged sessions); the exercises it covers are re-planned
+  // The session's WEEK box: the week is saved and the session follows it
+  const handleChangeProgramWeek = week => {
+    updateCurrentWorkoutState(prev =>
+      prev
+        ? withTrace(`WEEK · ${week}`, () => replanForProgram({ ...prev, program: prev.program || trainingProgram, programWeek: week }))
+        : prev
+    );
+  };
+
+  // The session's PROGRAM box: the session runs that program from here, at its automatic week and day (from the
+  // logged sessions)
   const handleChangeSessionProgram = programId => {
     updateCurrentWorkoutState(prev => {
       if (!prev) return prev;
       const base = { ...prev, program: programId, programWeek: '', programDay: null };
       const ctx = programContextFor(base);
-      const next = { ...base, programWeek: ctx ? ctx.program.weekName(ctx.week) : '', programDay: ctx?.day?.id || null };
-      return { ...next, slots: (next.slots || []).map(slot => (isProgrammedSlot(slot, ctx) ? programSlot(slot, next) : slot)) };
+      return withTrace(`PROGRAM · ${getProgram(programId).label}`, () => replanForProgram({
+        ...base,
+        programWeek: ctx ? ctx.program.weekName(ctx.week) : '',
+        programDay: ctx?.day?.id || null,
+        defaultRestSeconds: ctx?.program?.restSeconds || prev.defaultRestSeconds || 90
+      }));
     });
   };
 
-  // The session's DAY box (programs with set days): the day's exercises replace the program exercises not started
-  // yet; exercises you added yourself and any with a set done stay
+  // The session's DAY box (programs with set days)
   const handleChangeProgramDay = dayId => {
-    updateCurrentWorkoutState(prev => {
-      if (!prev) return prev;
-      const next = { ...prev, program: prev.program || trainingProgram, programDay: dayId };
-      const started = slot => [slot.sets, ...(slot.supersetSetsByExercise || [])].some(list => (list || []).some(st => st?.completed));
-      const kept = (next.slots || []).filter(slot => !slot.programRef || started(slot));
-      return { ...next, slots: buildGeneratedAutoSlots(kept, { programTarget: next }) };
-    });
+    updateCurrentWorkoutState(prev =>
+      prev
+        ? withTrace(`DAY · ${dayId}`, () => replanForProgram({ ...prev, program: prev.program || trainingProgram, programDay: dayId }))
+        : prev
+    );
   };
 
   const handleRecalculateSlotWeights = slotId => {
     updateCurrentWorkoutState(prev => {
       if (!prev) return prev;
-      return {
-        ...prev,
-        slots: prev.slots.map(slot => {
-          if (slot.id !== slotId) return slot;
-          // A programmed exercise is re-worked from its program week; anything else the usual way
-          return isProgrammedSlot(slot, programContextFor(prev)) ? programSlot(slot, prev) : recalculateSlot(slot, prev.id);
-        })
-      };
+      const target = (prev.slots || []).find(slot => slot.id === slotId);
+      const names = (target?.supersetExerciseIds || [target?.exerciseId]).filter(Boolean).map(id => EXERCISE_MAP[id]?.name || id);
+      return withTrace(
+        `RECALCULATE · ${names.join(' + ')}`,
+        () => ({
+          ...prev,
+          slots: prev.slots.map(slot => {
+            if (slot.id !== slotId) return slot;
+            // A programmed exercise is re-worked from its program week; anything else the usual way
+            return isProgrammedSlot(slot, programContextFor(prev)) ? programSlot(slot, prev) : recalculateSlot(slot, prev.id);
+          })
+        }),
+        `recalc:${slotId}`
+      );
     });
   };
 

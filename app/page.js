@@ -1,5 +1,6 @@
 'use client';
 
+import { FormulaConsole } from './components/FormulaConsole';
 import { getProgram, getWorkoutProgramInfo } from './data/programs';
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { IOS_DARK, KINETIC_CSS } from './styles/kineticTokens';
@@ -1333,6 +1334,10 @@ export default function App() {
         >
           Copyright © 2026 MaNoDuV LLC
         </footer>
+
+        {/* FORMULAS console (workout editors): the formulas behind RECALCULATE and new exercises, for checking */}
+        {(['session', 'routine_editor', 'historical_entry', 'routine_preview'].includes(currentView) ||
+          (currentView === 'history' && expandedHistoryWorkoutId)) && <FormulaConsole />}
 
         {/* MODALS */}
         <DeleteConfirmModal

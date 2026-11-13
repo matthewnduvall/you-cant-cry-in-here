@@ -23,7 +23,8 @@ export function InfoView({
               <strong style={{ color: 'var(--dp-color-accent)' }}>1.1 1-REP MAX (1RM) FOUNDATION:</strong> Everything in{' '}
               <em>You Can&apos;t Cry in Here</em> is anchored to your <strong>1 Rep Max (1RM)</strong> for each lift. Your Personal Records start as{' '}
               <strong>TBD</strong> and automatically update whenever you log a set that produces a higher estimated 1RM (via the Epley formula:{' '}
-              <code>Weight × (1 + Reps / 30)</code>), or whenever you manually override a Personal Record.
+              <code>Weight × (1 + (Reps + RIR) / 30)</code>, where RIR is the reps you had left, from the set&apos;s
+              intensity), or whenever you manually override a Personal Record.
             </p>
 
             <p style={{ marginBottom: '12px' }}>
