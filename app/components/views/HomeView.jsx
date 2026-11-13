@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { IOSListSection, IOSListRow } from '../Primitives';
+import { UI } from '../../styles/kineticTokens';
 import {
   formatDateYMD,
   EXERCISE_MAP,
@@ -251,14 +251,23 @@ export function HomeView({
   pendingIncomingRequests,
   // Your muscle groups' stimulus status (READY / OVERDUE entries in the ticker)
   muscleStimulusStatus = {},
-  // Routines friends sent you, still waiting (the Routines row's count)
-  receivedRoutineCount = 0
+  // Routines friends sent you, still waiting (the INBOX tile)
+  receivedRoutineCount = 0,
+  // The TO GOAL tile: lb still to go to the strength class goal over the Big 3 + OHP you have logged (null = none
+  // logged) and the class's name
+  goalToGoLbs = null,
+  goalClassName = '',
+  // The TODAY panel while a session is open: { title, done, total } (sets)
+  activeSessionSummary = null
 }) {
   const [scrollerSeed, setScrollerSeed] = useState(1);
   const [todayFallbackStr, setTodayFallbackStr] = useState('');
+  // "Now" for LAST SESSION / THIS WEEK (read after mount: never Date.now() in render)
+  const [nowMs, setNowMs] = useState(null);
   useEffect(() => {
     setScrollerSeed(Math.floor(Math.random() * 1000000) + 2);
     setTodayFallbackStr(formatDateYMD(new Date()));
+    setNowMs(Date.now());
   }, []);
 
 
@@ -332,7 +341,7 @@ export function HomeView({
     ...muscleEntries,
     ...(sortedTickerEntries.length > 0
       ? sortedTickerEntries
-      : [uniqueAthletes.length === 0 ? 'INVITE FRIENDS TO KEEP TRACK OF PROGRESS!' : 'NO RECENT LIFTS FROM YOUR FRIENDS YET'])
+      : [uniqueAthletes.length === 0 ? 'INVITE FRIENDS TO KEEP TRACK OF PROGRESS' : 'NO RECENT LIFTS FROM YOUR FRIENDS YET'])
   ];
   const baseTickerText = tickerItems.join('   ·   ') + '   ·   ';
 
@@ -342,6 +351,88 @@ export function HomeView({
   // Constant linear character/pixel speed (~11.5 chars/sec, 1/4 of the previous 7s fixed-duration speed)
   // Scales duration proportionally to total character length so speed never changes with entry count.
   const marqueeDurationSec = Math.max(8, Math.round(friendsTickerText.length * 0.087 * 10) / 10);
+
+  // ---- Home's readouts (each tile opens its page) ----
+  const workoutMs = w => (typeof w?.startedAt === 'number' ? w.startedAt : Date.parse(w?.startedAt || '')) || 0;
+  const loggedTimes = (history || [])
+    .filter(w => w && w.loadedRoutineTitle !== 'PERSONAL RECORD')
+    .map(workoutMs)
+    .filter(t => t > 0);
+  const lastMs = loggedTimes.length > 0 ? Math.max(...loggedTimes) : 0;
+  const DAY = 24 * 60 * 60 * 1000;
+  const lastAgoDays = nowMs && lastMs ? Math.max(0, Math.floor((nowMs - lastMs) / DAY)) : null;
+  const thisWeek = nowMs ? loggedTimes.filter(t => nowMs - t < 7 * DAY).length : null;
+  // Muscle groups: overdue first, then the longest since trained (never-trained last)
+  const statusEntries = Object.entries(muscleStimulusStatus || {});
+  const overdue = statusEntries
+    .filter(([, st]) => /OVERDUE/.test(st?.label || ''))
+    .sort(([, a], [, b]) => (b?.daysAgo || 0) - (a?.daysAgo || 0))
+    .map(([g]) => g);
+  const behind = statusEntries
+    .filter(([, st]) => (st?.daysAgo ?? 99) < 99)
+    .sort(([, a], [, b]) => (b?.daysAgo || 0) - (a?.daysAgo || 0))
+    .map(([g]) => g);
+  const nextUp = (overdue.length > 0 ? overdue : behind).slice(0, 2);
+  const friendCount = (friendsList || []).length;
+  const requestCount = (pendingIncomingRequests || []).length;
+  const open = view => {
+    setRoutineSelectReturnView(null);
+    setCurrentView(view);
+  };
+  const tiles = [
+    {
+      id: 'goal',
+      label: 'TO GOAL',
+      value: goalToGoLbs === null ? '—' : goalToGoLbs === 0 ? 'DONE' : String(goalToGoLbs),
+      unit: goalToGoLbs > 0 ? 'LB' : '',
+      sub: goalToGoLbs === null ? 'LOG A BIG 3 LIFT' : (goalClassName || 'GOAL').toUpperCase(),
+      view: 'history'
+    },
+    {
+      id: 'overdue',
+      label: 'OVERDUE',
+      value: String(overdue.length),
+      unit: overdue.length === 1 ? 'GROUP' : 'GROUPS',
+      sub: overdue.length > 0 ? overdue.slice(0, 2).join(' · ').toUpperCase() : 'ALL ON SCHEDULE',
+      // the screen's red: something needs training
+      alert: overdue.length > 0,
+      view: 'stimulus_map'
+    },
+    {
+      id: 'last',
+      label: 'LAST SESSION',
+      value: lastAgoDays === null ? '—' : lastAgoDays === 0 ? 'TODAY' : String(lastAgoDays),
+      unit: lastAgoDays > 0 ? 'D AGO' : '',
+      sub: lastMs ? formatDateYMD(new Date(lastMs)) : 'NOTHING LOGGED YET',
+      view: 'history'
+    },
+    {
+      id: 'week',
+      label: 'THIS WEEK',
+      value: thisWeek === null ? '—' : String(thisWeek),
+      unit: thisWeek === 1 ? 'SESSION' : 'SESSIONS',
+      sub: 'LAST 7 DAYS',
+      view: 'history'
+    },
+    {
+      id: 'inbox',
+      label: 'INBOX',
+      value: String(receivedRoutineCount || 0),
+      unit: receivedRoutineCount === 1 ? 'ROUTINE' : 'ROUTINES',
+      sub: receivedRoutineCount > 0 ? 'FROM FRIENDS' : 'NOTHING NEW',
+      badge: receivedRoutineCount,
+      view: 'routines'
+    },
+    {
+      id: 'friends',
+      label: 'FRIENDS',
+      value: String(friendCount),
+      unit: '',
+      sub: requestCount > 0 ? `${requestCount} ${requestCount === 1 ? 'REQUEST' : 'REQUESTS'}` : 'LEADERBOARDS',
+      badge: requestCount,
+      view: 'social'
+    }
+  ];
 
   return (
     <div>
@@ -356,8 +447,95 @@ export function HomeView({
         You can&apos;t cry in here
       </h1>
 
-      {/* NEWS TICKER (top of Home, above the primary actions) — tap anywhere on it to pause / play */}
-      <button
+      {/* TODAY: what to do now. NEW / CURRENT SESSION is Home's one red action; AUTO SESSION is graphite */}
+      <section style={{ padding: '12px var(--dp-spacing-gutter) 0' }}>
+        <div style={{ backgroundColor: '#1C1C1C', borderRadius: '14px', padding: '14px' }}>
+          <div style={{ ...UI.capsLabel, display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
+            {activeSessionSummary && (
+              <span aria-hidden="true" style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: 'var(--cr-red)', flexShrink: 0 }} />
+            )}
+            {activeSessionSummary ? 'IN PROGRESS' : 'TODAY'}
+          </div>
+          <div style={{ fontSize: '22px', fontWeight: 300, lineHeight: 1.2, marginBottom: '12px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {activeSessionSummary
+              ? activeSessionSummary.title || 'Session'
+              : nextUp.length > 0
+                ? nextUp.join(' & ')
+                : 'Start your first session'}
+          </div>
+          <div style={{ ...UI.sentence, marginTop: '-8px', marginBottom: '12px' }}>
+            {activeSessionSummary
+              ? `${activeSessionSummary.done} of ${activeSessionSummary.total} sets done`
+              : nextUp.length > 0
+                ? `${overdue.length > 0 ? 'Overdue' : 'Longest since trained'}: AUTO SESSION builds around ${nextUp.length > 1 ? 'them' : 'it'}.`
+                : 'Log a session and Home keeps track of what to train next.'}
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: activeSessionSummary ? '1fr' : '1fr 1fr', gap: '8px' }}>
+            <button
+              type="button"
+              onClick={handleOpenNewSession}
+              className="kinetic-btn"
+              style={{ ...UI.primaryBtnCenter, minHeight: '52px' }}
+            >
+              {hasActiveSession ? 'CURRENT SESSION' : 'NEW SESSION'}
+            </button>
+            {!activeSessionSummary && (
+              <button type="button" onClick={handleOpenNewAutoSession} className="kinetic-btn" style={{ ...UI.secondaryBtnCenter, minHeight: '52px' }}>
+                AUTO SESSION
+              </button>
+            )}
+          </div>
+        </div>
+      </section>
+
+      {/* READOUTS: each tile is a number worth tapping (it opens its page); no list of pages here (the menu has those) */}
+      <section
+        aria-label="Your training at a glance"
+        style={{ padding: '8px var(--dp-spacing-gutter) 12px', display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '8px' }}
+      >
+        {tiles.map(t => (
+          <button
+            key={t.id}
+            type="button"
+            className="kinetic-btn"
+            onClick={() => open(t.view)}
+            aria-label={`${t.label}: ${t.value} ${t.unit}. ${t.sub}`.replace(/\s+/g, ' ')}
+            style={{
+              position: 'relative',
+              minHeight: '92px',
+              padding: '12px',
+              boxSizing: 'border-box',
+              backgroundColor: '#1C1C1C',
+              border: 'none',
+              borderRadius: '12px',
+              color: '#FFFFFF',
+              fontFamily: 'inherit',
+              textAlign: 'left',
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'space-between',
+              cursor: 'pointer'
+            }}
+          >
+            <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px', width: '100%' }}>
+              <span style={UI.capsLabel}>{t.label}</span>
+              <CountBadge count={t.badge} />
+            </span>
+            <span>
+              <span style={{ display: 'flex', alignItems: 'baseline', gap: '4px' }}>
+                <span style={{ fontSize: '26px', fontWeight: 300, lineHeight: 1.1, color: t.alert ? 'var(--cr-red-text)' : '#FFFFFF' }}>{t.value}</span>
+                {t.unit && <span style={{ ...UI.capsLabel, fontSize: '10px' }}>{t.unit}</span>}
+              </span>
+              <span style={{ display: 'block', marginTop: '2px', fontSize: '10px', fontWeight: 500, letterSpacing: '0.08em', color: '#8A8A8A', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {t.sub}
+              </span>
+            </span>
+          </button>
+        ))}
+      </section>
+
+      {/* NEWS TICKER: friends' lifts and your muscles, under the readouts; tap anywhere on it to pause / play */}
+            <button
         type="button"
         aria-pressed={marqueePaused}
         aria-label={marqueePaused ? 'News ticker paused. Tap to play' : 'News ticker. Tap to pause'}
@@ -396,124 +574,6 @@ export function HomeView({
         </span>
       </button>
 
-      {/* PRIMARY ACTIONS: NEW SESSION, AUTO SESSION (History lives on the PROGRESS page) */}
-      <section
-        style={{
-          padding: '16px var(--dp-spacing-gutter)',
-          borderBottom: '1px solid var(--dp-color-rule)',
-          marginBottom: '22px'
-        }}
-      >
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
-            gap: '8px'
-          }}
-        >
-          {/* NEW / CURRENT SESSION: Home's one red action */}
-          <button
-            type="button"
-            onClick={handleOpenNewSession}
-            className="kinetic-btn"
-            style={{
-              height: '52px',
-              boxSizing: 'border-box',
-              padding: '0 6px',
-              backgroundColor: 'var(--cr-red)',
-              color: '#FFFFFF',
-              border: 'none',
-              borderRadius: '12px',
-              fontWeight: 600,
-              fontSize: '12px',
-              letterSpacing: '0.08em',
-              lineHeight: 1,
-              whiteSpace: 'nowrap',
-              overflow: 'hidden',
-              textTransform: 'uppercase',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              textAlign: 'center',
-              cursor: 'pointer'
-            }}
-          >
-            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
-              {hasActiveSession ? 'CURRENT SESSION' : 'NEW SESSION'}
-            </span>
-          </button>
-
-          <button
-            type="button"
-            onClick={handleOpenNewAutoSession}
-            className="kinetic-btn"
-            style={{
-              height: '52px',
-              boxSizing: 'border-box',
-              padding: '0 6px',
-              // Secondary to NEW / CURRENT SESSION: a graphite button
-              backgroundColor: '#1C1C1C',
-              color: '#FFFFFF',
-              border: 'none',
-              borderRadius: '12px',
-              fontWeight: 500,
-              fontSize: '12px',
-              letterSpacing: '0.08em',
-              lineHeight: 1,
-              whiteSpace: 'nowrap',
-              textTransform: 'uppercase',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              textAlign: 'center',
-              cursor: 'pointer'
-            }}
-          >
-            <span>AUTO SESSION</span>
-          </button>
-
-        </div>
-      </section>
-
-      {/* YOUR TRAINING: the main pages (no numbers, like the menu) */}
-      <IOSListSection header="YOUR TRAINING" colors={colors}>
-        {[
-          // PROGRESS is one page with the chart and logged History (view id 'history')
-          { id: 'history', title: 'Performance', sub: 'Trends, goals and workout history' },
-          // The Routines page: saved, shared, friends' and received routines, + NEW ROUTINE
-          {
-            id: 'routines',
-            title: 'Routines',
-            sub: receivedRoutineCount > 0
-              ? `${receivedRoutineCount} received · saved, shared and friends' routines`
-              : "Saved, shared and friends' routines",
-            badge: receivedRoutineCount
-          },
-          { id: 'stimulus_map', title: 'Stimulus', sub: 'Recovery windows and muscle readiness' },
-          { id: 'social', title: 'Social', sub: `${friendsList.length} ${friendsList.length === 1 ? 'friend' : 'friends'} · ${pendingIncomingRequests.length} pending ${pendingIncomingRequests.length === 1 ? 'request' : 'requests'} · leaderboards` }
-        ].map((item, i, arr) => (
-          <IOSListRow
-            key={item.id}
-            isLast={i === arr.length - 1}
-            colors={colors}
-            onClick={() => {
-              setRoutineSelectReturnView(null);
-              setCurrentView(item.id);
-            }}
-          >
-            <div>
-              <div style={{ fontSize: '17px', fontWeight: 500 }}>{item.title}</div>
-              <div className="kinetic-sub" style={{ fontSize: '13px', color: '#9A9A9A', fontWeight: 400, marginTop: '2px' }}>
-                {item.sub}
-              </div>
-            </div>
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
-              <CountBadge count={item.badge} />
-              <span aria-hidden="true" style={{ fontSize: '20px', fontWeight: 300, color: '#8A8A8A' }}>›</span>
-            </span>
-          </IOSListRow>
-        ))}
-      </IOSListSection>
     </div>
   );
 }

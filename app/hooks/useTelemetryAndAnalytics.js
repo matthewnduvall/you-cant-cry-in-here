@@ -18,10 +18,11 @@ import { getSlotEquipmentChoice } from '../data/exerciseLibrary';
 // Muscle groups with no logged training: neutral grey, so a new account isn't shown as all "overdue"
 export const UNLOGGED_STIMULUS_COLOR = '#3A3A3A';
 
-// Stimulus colour is a smooth blend by time since a muscle was trained: white just after training, yellow when it
-// has recovered (the end of RECOVERING), red once it is overdue (the end of RECOVERED). Yellow appears only here.
+// Stimulus colour is a smooth blend by time since a muscle was trained: white just after training, pink when it
+// has recovered (the end of RECOVERING), red once it is overdue (the end of RECOVERED).
 export const STIMULUS_WHITE = '#FFFFFF';
-export const STIMULUS_YELLOW = '#FFD23F';
+// Recovered: pink, halfway between white and red
+export const STIMULUS_PINK = '#FFA59E';
 export const STIMULUS_RED = '#FF4A3D';
 const hexToRgb = hex => [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16));
 const mix = (a, b, t) => {
@@ -31,12 +32,12 @@ const mix = (a, b, t) => {
   return `#${ch(ra, rb)}${ch(ga, gb)}${ch(ba, bb)}`;
 };
 /** The colour for `days` (may be fractional) since training, with RECOVERING up to greenMax and RECOVERED up to
- * yellowMax: white at 0 → yellow at greenMax + 1 → red at yellowMax + 1. */
+ * yellowMax: white at 0 → pink at greenMax + 1 → red at yellowMax + 1. */
 export const stimulusColorForDays = (days, greenMax = 2, yellowMax = 4) => {
   const d = Math.max(0, Number(days) || 0);
   const g = Math.max(0.5, Number(greenMax) + 1);
   const y = Math.max(g + 0.5, Number(yellowMax) + 1);
-  return d <= g ? mix(STIMULUS_WHITE, STIMULUS_YELLOW, d / g) : mix(STIMULUS_YELLOW, STIMULUS_RED, (d - g) / (y - g));
+  return d <= g ? mix(STIMULUS_WHITE, STIMULUS_PINK, d / g) : mix(STIMULUS_PINK, STIMULUS_RED, (d - g) / (y - g));
 };
 
 /**
@@ -231,7 +232,7 @@ export function useTelemetryAndAnalytics({
 
       const greenMax = Number.isFinite(Number(stimulusGreenDays)) && Number(stimulusGreenDays) >= 0 ? Number(stimulusGreenDays) : 2;
       const yellowMax = Math.max(greenMax + 1, Number(stimulusYellowDays) || 4);
-      // Colour: a blend along white → yellow → red by fractional days (labels and patterns still step by whole days)
+      // Colour: a blend along white → pink → red by fractional days (labels and patterns still step by whole days)
       const fracDays = lastMs > 0 && stimulusNowMs !== null ? Math.max(0, (stimulusNowMs - lastMs) / 86400000) : minDays;
       let statusColor = stimulusColorForDays(Math.max(fracDays, minDays), greenMax, yellowMax);
       let statusLabel = `${yellowMax + 1}+ DAYS`;

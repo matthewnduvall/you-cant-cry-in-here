@@ -41,6 +41,7 @@ import {
 } from './components/SessionSyncModals';
 import { useSyncedHistoryUpdates } from './hooks/useSyncedHistoryUpdates';
 import { useRoutineShares } from './hooks/useRoutineShares';
+import { CORE_LIFT_IDS, getLiftGoalStats } from './components/LiftGoals';
 import { SendRoutineModal } from './components/RoutineShareModals';
 import { EXERCISE_MAP, formatDateYMD, stripDateFromTitle } from './data/exerciseLibrary';
 import { useIdleAutoFinish } from './hooks/useIdleAutoFinish';
@@ -798,6 +799,22 @@ export default function App() {
     load();
   };
 
+  // Home's TO GOAL tile: lb still to go to the strength class goal over the Big 3 + OHP you have logged (null = none)
+  const homeGoalToGo = (() => {
+    const stats = CORE_LIFT_IDS.map(liftId =>
+      getLiftGoalStats({
+        liftId,
+        series: progressionSeriesByLift?.[liftId] || [],
+        oneRepMaxes: effectiveOneRepMaxes,
+        targetStandardClass,
+        userBodyweightLbs,
+        totalHeightInches,
+        customGoalWeights
+      })
+    ).filter(st => st.logged && st.goal > 0);
+    return stats.length > 0 ? Math.round(stats.reduce((sum, st) => sum + st.toGo, 0)) : null;
+  })();
+
   // Routines sent straight to a friend: SEND in the routine browser, and the ones friends sent you (SAVE / LOAD NOW)
   const routineShares = useRoutineShares({
     user,
@@ -1076,6 +1093,9 @@ export default function App() {
           onResetSession={requestResetSession}
           receivedRoutineCount={routineShares.incoming.length}
           sessionMode={sessionMode}
+          onOpenSession={handleOpenNewSession}
+          hasActiveSession={Boolean(activeSession?.slots?.length > 0)}
+          pendingRequestCount={(pendingIncomingRequests || []).length}
           sessionSync={
             sessionSync.canSync
               ? {
@@ -1122,6 +1142,16 @@ export default function App() {
               pendingIncomingRequests={pendingIncomingRequests}
               muscleStimulusStatus={muscleStimulusStatus}
               receivedRoutineCount={routineShares.incoming.length}
+              goalToGoLbs={homeGoalToGo}
+              goalClassName={targetStandardClass}
+              activeSessionSummary={
+                activeSession?.slots?.length > 0
+                  ? (() => {
+                      const sets = activeSession.slots.flatMap(sl => (sl.supersetSetsByExercise || [sl.sets || []]).flat());
+                      return { title: stripDateFromTitle(activeSession.title) || 'Session', done: sets.filter(st => st?.completed).length, total: sets.length };
+                    })()
+                  : null
+              }
             />
           )}
 

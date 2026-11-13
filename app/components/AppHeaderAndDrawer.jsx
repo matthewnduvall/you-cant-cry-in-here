@@ -6,7 +6,7 @@ import { SFSymbol, SessionRestTimerBar, SessionTitleBar } from './Primitives';
 import { ProfileAvatar } from './ProfileAvatar';
 import { getNextIncompleteSetInfo } from '../utils/workoutEngine';
 import { formatDateYMD, parseYMDToISO } from '../data/exerciseLibrary';
-import { Button } from './Controls';
+import { UI } from '../styles/kineticTokens';
 
 // Page name per view, shown at the top of the page itself (PageTitle, under the locked header); the header's
 // centre is the app title, a link to Home from every page
@@ -117,7 +117,11 @@ export function AppHeaderAndDrawer({
   // Routines friends sent you, still waiting (ROUTINES row's count)
   receivedRoutineCount = 0,
   // The session page's EASY / ADVANCED mode (EASY hides the PROGRAM / WEEK / DAY row)
-  sessionMode = 'advanced'
+  sessionMode = 'advanced',
+  // The menu's TRAIN → New / Current session row, and the Social row's request count
+  onOpenSession,
+  hasActiveSession = false,
+  pendingRequestCount = 0
 }) {
   return (
     <>
@@ -345,7 +349,10 @@ export function AppHeaderAndDrawer({
               padding: `calc(20px + env(safe-area-inset-top, 0px)) 16px calc(20px + env(safe-area-inset-bottom, 0px))`,
               display: 'flex',
               flexDirection: 'column',
-              justifyContent: 'space-between'
+              justifyContent: 'space-between',
+              gap: '16px',
+              // Short phones: the index scrolls instead of running under the footer
+              overflowY: 'auto'
             }}
           >
             <div>
@@ -384,52 +391,110 @@ export function AppHeaderAndDrawer({
                 </button>
               </div>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                {/* The page you're on is the white row (aria-current); SIGN OUT at the bottom is the menu's one red */}
-                <Button
-                  variant="drawer"
-                  active={currentView === (user ? 'profile' : 'auth')}
-                  aria-current={currentView === (user ? 'profile' : 'auth') ? 'page' : undefined}
-                  onClick={() => {
-                    setShowHamburgerDrawer(false);
-                    setCurrentView(user ? 'profile' : 'auth');
-                  }}
-                >
-                  <span style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
-                    {user && <ProfileAvatar photo={profilePhoto} username={user.username} size={28} />}
-                    <span>{user ? `PROFILE (@${user.username})` : 'SIGN IN'}</span>
-                  </span>
-                  <span>→</span>
-                </Button>
-
-                {[
-                  { id: 'home', label: 'HOME', clearReturn: true },
-                  { id: 'history', label: 'PERFORMANCE', clearReturn: true },
-                  { id: 'routines', label: 'ROUTINES', clearReturn: true, badge: receivedRoutineCount },
-                  { id: 'stimulus_map', label: 'STIMULUS', clearReturn: true },
-                  { id: 'social', label: 'SOCIAL', clearReturn: true },
-                  { id: 'configuration', label: 'CONFIGURATION', clearReturn: true },
-                  { id: 'info', label: 'INFO' }
-                ].map(nav => (
-                  <Button
-                    variant="drawer"
-                    key={nav.id}
-                    active={currentView === nav.id}
-                    aria-current={currentView === nav.id ? 'page' : undefined}
-                    onClick={() => {
-                      setShowHamburgerDrawer(false);
-                      if (nav.clearReturn) setRoutineSelectReturnView(null);
-                      setCurrentView(nav.id);
+              {/* The menu is a quiet index of every place (Home is the title in the header): who you are, then the
+                  pages grouped by what they're for. The page you're on is a white row (aria-current); counts are pills;
+                  SIGN OUT at the bottom is the menu's one red. */}
+              {(() => {
+                const go = (view, clearReturn = true) => {
+                  setShowHamburgerDrawer(false);
+                  if (clearReturn) setRoutineSelectReturnView(null);
+                  setCurrentView(view);
+                };
+                const row = ({ id, label, badge, onClick, active, lead, asTyped = false }) => (
+                  <button
+                    key={id}
+                    type="button"
+                    className="kinetic-btn"
+                    aria-current={active ? 'page' : undefined}
+                    onClick={onClick}
+                    style={{
+                      width: '100%',
+                      minHeight: '44px',
+                      padding: '0 12px',
+                      boxSizing: 'border-box',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: '10px',
+                      border: 'none',
+                      borderRadius: '10px',
+                      backgroundColor: active ? '#FFFFFF' : 'transparent',
+                      color: active ? '#000000' : '#FFFFFF',
+                      fontFamily: 'inherit',
+                      fontSize: '13px',
+                      fontWeight: 500,
+                      letterSpacing: '0.08em',
+                      // Usernames are shown as typed (no capitals, no tracking)
+                      textTransform: asTyped ? 'none' : 'uppercase',
+                      ...(asTyped ? { letterSpacing: 0, fontSize: '15px' } : {}),
+                      textAlign: 'left',
+                      cursor: 'pointer'
                     }}
                   >
-                    <span>{nav.label}</span>
-                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '10px' }}>
-                      <CountBadge count={nav.badge} />
-                      <span>→</span>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
+                      {lead}
+                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</span>
                     </span>
-                  </Button>
-                ))}
-              </div>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+                      <CountBadge count={badge} />
+                      <span aria-hidden="true" style={{ color: active ? '#3A3A3A' : '#8A8A8A', fontWeight: 300, fontSize: '16px' }}>›</span>
+                    </span>
+                  </button>
+                );
+                const groups = [
+                  {
+                    title: 'TRAIN',
+                    rows: [
+                      {
+                        id: 'session',
+                        label: hasActiveSession ? 'Current session' : 'New session',
+                        active: currentView === 'session',
+                        onClick: () => {
+                          setShowHamburgerDrawer(false);
+                          onOpenSession?.();
+                        }
+                      },
+                      { id: 'routines', label: 'Routines', badge: receivedRoutineCount }
+                    ]
+                  },
+                  { title: 'TRACK', rows: [{ id: 'history', label: 'Performance' }, { id: 'stimulus_map', label: 'Stimulus' }] },
+                  { title: 'PEOPLE', rows: [{ id: 'social', label: 'Social', badge: pendingRequestCount }] },
+                  {
+                    title: 'SETUP',
+                    rows: [
+                      { id: 'configuration', label: 'Configuration' },
+                      { id: 'info', label: 'Info', keepReturn: true }
+                    ]
+                  }
+                ];
+                return (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                    {/* Who you are: the profile (or SIGN IN) */}
+                    {row({
+                      id: 'profile',
+                      label: user ? `@${user.username}` : 'Sign in',
+                      active: currentView === (user ? 'profile' : 'auth'),
+                      onClick: () => go(user ? 'profile' : 'auth', false),
+                      lead: user ? <ProfileAvatar photo={profilePhoto} username={user.username} size={28} /> : null,
+                      asTyped: Boolean(user)
+                    })}
+                    {groups.map(g => (
+                      <nav key={g.title} aria-label={g.title.toLowerCase()}>
+                        <div style={{ ...UI.capsLabel, padding: '0 12px', marginBottom: '2px' }}>{g.title}</div>
+                        {g.rows.map(r =>
+                          row({
+                            id: r.id,
+                            label: r.label,
+                            badge: r.badge,
+                            active: r.active ?? currentView === r.id,
+                            onClick: r.onClick || (() => go(r.id, !r.keepReturn))
+                          })
+                        )}
+                      </nav>
+                    ))}
+                  </div>
+                );
+              })()}
             </div>
 
             <div

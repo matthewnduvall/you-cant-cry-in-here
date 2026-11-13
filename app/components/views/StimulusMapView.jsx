@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { IOSListSection, IOSListRow } from '../Primitives';
 import { StimulusSettingsSection } from './SettingsView';
-import { STIMULUS_WHITE, STIMULUS_YELLOW, STIMULUS_RED } from '../../hooks/useTelemetryAndAnalytics';
+import { STIMULUS_WHITE, STIMULUS_PINK } from '../../hooks/useTelemetryAndAnalytics';
 
 // Status is shown by pattern as well as colour (red / green alone is hard to tell apart with colour blindness):
 // OVERDUE = diagonal stripes, RECOVERED = dots, RECOVERING = solid, never logged = solid grey.
@@ -85,31 +85,18 @@ export function StimulusMapView({
       <StimulusPatternDefs />
       <IOSListSection
         footer={
-          // The colour blends smoothly from white (just trained) through yellow (recovered) to red (overdue): a
-          // gradient bar, then the vertical legend: swatch (colour + pattern) | status | days since last trained
-          <>
-          <span
-            aria-hidden="true"
-            style={{
-              display: 'block',
-              height: '8px',
-              borderRadius: '4px',
-              margin: '2px 0 10px',
-              background: `linear-gradient(90deg, ${STIMULUS_WHITE} 0%, ${STIMULUS_YELLOW} ${Math.round(
-                ((Number(stimulusGreenDays) + 1) / (Number(stimulusYellowDays) + 1)) * 100
-              )}%, ${STIMULUS_RED} 100%)`
-            }}
-          />
+          // Vertical legend: swatch (colour + pattern) | status | days since last trained (the map's colours blend
+          // smoothly between these: white → pink → red)
           <span
             style={{ display: 'grid', gridTemplateColumns: 'auto auto 1fr', columnGap: '6px', rowGap: '4px', alignItems: 'center', lineHeight: 1.4 }}
           >
             {[
               { color: STIMULUS_WHITE, label: 'RECOVERING', text: '#FFFFFF', range: `0–${stimulusGreenDays} DAYS` },
               {
-                color: STIMULUS_YELLOW,
+                color: STIMULUS_PINK,
                 pattern: 'url(#stim-dots)',
                 label: 'RECOVERED',
-                text: STIMULUS_YELLOW,
+                text: STIMULUS_PINK,
                 range: `${Number(stimulusGreenDays) + 1}–${stimulusYellowDays} DAYS`
               },
               {
@@ -130,7 +117,6 @@ export function StimulusMapView({
               </React.Fragment>
             ))}
           </span>
-          </>
         }
         colors={colors}
       >
