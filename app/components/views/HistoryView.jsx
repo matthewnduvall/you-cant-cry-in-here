@@ -4,29 +4,21 @@ import React, { useState, useEffect } from 'react';
 import { SHARED_CELL_BORDER, SHARED_GROUP_OUTER, SHARED_PICKER_GROUP, UI } from '../../styles/kineticTokens';
 import { RoutineEditorView } from './RoutineEditorView';
 import {
-  BIG_FOUR_IDS,
-  CORE_PR_EXERCISE_IDS,
   EXERCISE_LIBRARY,
   EXERCISE_MAP,
   normalizeSlotCategory,
   getDefaultSessionName,
   stripDateFromTitle,
-  getExRxTargetForLift,
   formatDateYMD,
   parseYMDToISO,
   stripEquipmentFromExerciseName
 } from '../../data/exerciseLibrary';
 import {
   getBestHistory1RMInfo,
-  oneRepMaxLabel,
-  normalizeSlotLabels,
-  buildPersonalRecordHistoryEntry,
-  insertHistoryEntrySorted
+  normalizeSlotLabels
 } from '../../utils/workoutEngine';
 import { CloseButton, DeleteButton } from '../Controls';
-import { CalculatedOneRepMaxKey } from '../LiftGoals';
 import { getWorkoutSyncInfo } from '../../utils/syncedHistory';
-import { ExercisePicker, resolvePickerExerciseId } from '../ExercisePicker';
 import {
   HistoryExerciseFilter,
   EMPTY_HISTORY_FILTER,
@@ -35,11 +27,10 @@ import {
   getWorkoutSetsForExercise,
   getWorkoutExerciseIds
 } from '../HistoryExerciseFilter';
-import { OneRepMaxCalculatorModal } from '../OneRepMaxCalculatorModal';
 
 
 export function HistoryView({
-  // PROGRESS page tab this renders: 'records' (Personal Records) or 'history' (logged sessions)
+  // PROGRESS page tab this renders: 'history' (logged sessions; the Personal Records tab was removed)
   section = 'history',
   // A friend's profile: their records and sessions, view only (no adding, editing, importing or deleting)
   readOnly = false,
@@ -50,18 +41,11 @@ export function HistoryView({
   expandedHistoryWorkoutId,
   setExpandedHistoryWorkoutId,
   oneRepMaxes,
-  setOneRepMaxes,
-  customPrExerciseIds: externalCustomPrIds,
-  setCustomPrExerciseIds: setExternalCustomPrIds,
   selectedGymId = '',
   gyms = [],
-  targetStandardClass,
   userBodyweightLbs,
-  totalHeightInches,
-  customGoalWeights,
   setHistoricalDraft,
   setCurrentView,
-  openPlateCalculatorForPR,
   openPlateCalculatorForSet,
   setSetValueTarget,
   setDeleteConfirmTarget,
@@ -73,20 +57,6 @@ export function HistoryView({
   // HISTORY tab search & filters (type / muscle / equipment / exercise)
   const [historyFilter, setHistoryFilter] = useState(EMPTY_HISTORY_FILTER);
   const [historyPage, setHistoryPage] = useState(0);
-
-  // --- Shared / Local Custom PR Exercise List & Add Exercise Filter State ---
-  const [localCustomPrIds, setLocalCustomPrIds] = useState([]);
-  const customPrExerciseIds = externalCustomPrIds || localCustomPrIds;
-  const setCustomPrExerciseIds = setExternalCustomPrIds || setLocalCustomPrIds;
-  const [showAddPrExercisePanel, setShowAddPrExercisePanel] = useState(false);
-  const [addPrSelectedExId, setAddPrSelectedExId] = useState('barbell_row');
-
-  // --- 1RM Converter Popup Slot State (Matches New/Current Session Exercise Editor) ---
-  // Exercise the 1RM calculator pop-up is open for (null = closed)
-  const [calcExerciseId, setCalcExerciseId] = useState(null);
-
-  // A friend's profile: Personal Records show only the core lifts until SHOW ALL
-  const [showAllPrs, setShowAllPrs] = useState(false);
 
   // --- CSV Import Modal State ---
   const [showImportCsvModal, setShowImportCsvModal] = useState(false);
@@ -455,45 +425,6 @@ export function HistoryView({
     ? filteredHistory.slice(historyPage * PAGE_SIZE, (historyPage + 1) * PAGE_SIZE)
     : filteredHistory.slice(0, INITIAL_LIMIT);
 
-  // The core lifts (the same list as the PROGRESS chart) + your added exercises. A friend's profile shows the
-  // core lifts first and SHOW ALL adds every other exercise they have logged.
-  const otherLoggedPrIds = readOnly
-    ? Object.keys(oneRepMaxes || {}).filter(id => Number(oneRepMaxes[id]) > 0 && !CORE_PR_EXERCISE_IDS.includes(id))
-    : [];
-  const displayedPrExerciseIds = Array.from(
-    new Set([
-      ...CORE_PR_EXERCISE_IDS,
-      ...(readOnly
-        ? showAllPrs
-          ? otherLoggedPrIds
-          : []
-        : Array.isArray(customPrExerciseIds)
-          ? customPrExerciseIds
-          : [])
-    ])
-  );
-  // + ADD panel: always a real exercise that isn't already listed
-  const addPrExerciseId = resolvePickerExerciseId(addPrSelectedExId, displayedPrExerciseIds);
-  const displayedPrExercises = displayedPrExerciseIds
-    .map(id => EXERCISE_MAP[id])
-    .filter(Boolean);
-
-
-  const open1RMConverterModal = exerciseId => {
-    setCalcExerciseId(exerciseId || BIG_FOUR_IDS[0] || 'barbell_bench_press');
-  };
-
-  const handleSaveCalculatedPR = ({ exerciseId, oneRepMax, dateYMD, scheme, estimated = true }) => {
-    if (!exerciseId || oneRepMax <= 0) return;
-    if (setCustomPrExerciseIds && !displayedPrExerciseIds.includes(exerciseId)) {
-      setCustomPrExerciseIds(prev => (prev.includes(exerciseId) ? prev : [...prev, exerciseId]));
-    }
-    // Log a PERSONAL RECORD entry so Personal Records reflect logged history
-    setHistory?.(prev =>
-      insertHistoryEntrySorted(prev, buildPersonalRecordHistoryEntry({ exerciseId, oneRepMax, dateYMD, scheme, estimated }))
-    );
-  };
-
   // Track which History workout IDs store the all-time highest 1RM / calculated 1RM for any exercise
   const prWorkoutIds = (() => {
     const ids = new Set();
@@ -537,296 +468,6 @@ export function HistoryView({
 
   return (
     <div style={{ paddingTop: '16px', paddingBottom: '36px' }}>
-      {/* =================================================================== */}
-      {/* PERSONAL RECORDS TAB */}
-      {/* =================================================================== */}
-      {section === 'records' && (
-      <section style={{ marginBottom: '20px', padding: '0 var(--dp-spacing-gutter)' }}>
-
-        <div
-          style={{
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 0,
-            // The add panel holds an exercise picker: don't clip while it's open (its search list can spill out)
-            ...(showAddPrExercisePanel ? SHARED_PICKER_GROUP : SHARED_GROUP_OUTER)
-          }}
-        >
-          {/* + ADD WORKOUT / EXERCISE TO PERSONAL RECORDS (TOP OF STACK, MATCHING + LOG PAST WORKOUT) */}
-          {readOnly ? null : !showAddPrExercisePanel ? (
-            <button
-              type="button"
-              onClick={() => setShowAddPrExercisePanel(true)}
-              className="kinetic-btn"
-              style={{
-                width: '100%',
-                height: '52px',
-                padding: '0 16px',
-                // An "add" row: graphite with a grey caps label (not a fill)
-                backgroundColor: '#1C1C1C',
-                color: '#9A9A9A',
-                ...SHARED_CELL_BORDER,
-                fontSize: '12px',
-                fontWeight: 500,
-                letterSpacing: '0.08em',
-                textTransform: 'uppercase',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                cursor: 'pointer',
-                boxSizing: 'border-box'
-              }}
-            >
-              <span>+ ADD EXERCISE</span>
-              <span>→</span>
-            </button>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
-              {/* Header row of Add Exercise Panel */}
-              <div
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'minmax(0, 1fr) 40px',
-                  gap: 0,
-                  height: '40px'
-                }}
-              >
-                <div
-                  style={{
-                    backgroundColor: '#1C1C1C',
-                    padding: '0 12px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    fontSize: '11px',
-                    fontWeight: 500,
-                    color: 'var(--dp-color-accent)',
-                    textTransform: 'uppercase',
-                    ...SHARED_CELL_BORDER
-                  }}
-                >
-                  ADD EXERCISE TO PERSONAL RECORDS
-                </div>
-                <DeleteButton
-                  label="Close panel"
-                  fill
-                  minHeight="0"
-                  style={{ width: '100%', color: '#9A9A9A' }}
-                  onClick={() => setShowAddPrExercisePanel(false)}
-                />
-              </div>
-
-              {/* The standard exercise picker (same as the session editor header) */}
-              <ExercisePicker
-                exerciseId={addPrExerciseId}
-                onChange={setAddPrSelectedExId}
-                excludeIds={displayedPrExerciseIds}
-              />
-
-              <button
-                type="button"
-                onClick={() => {
-                  if (addPrExerciseId && !displayedPrExerciseIds.includes(addPrExerciseId)) {
-                    setCustomPrExerciseIds(prev => (prev.includes(addPrExerciseId) ? prev : [...prev, addPrExerciseId]));
-                  }
-                  setShowAddPrExercisePanel(false);
-                }}
-                className="kinetic-btn"
-                style={{
-                  height: '44px',
-                  padding: '0 12px',
-                  backgroundColor: 'var(--dp-color-accent)',
-                  color: '#000000',
-                  ...SHARED_CELL_BORDER,
-                  fontSize: '12px',
-                  fontWeight: 500,
-                  textTransform: 'uppercase',
-                  cursor: 'pointer'
-                }}
-              >
-                + ADD TO PERSONAL RECORDS
-              </button>
-            </div>
-          )}
-
-          {displayedPrExercises.map(ex => {
-            const prInfo = getBestHistory1RMInfo(ex.id, history);
-            const rawVal = Number(oneRepMaxes?.[ex.id]) || prInfo.best || 0;
-            const isTBD = rawVal <= 0;
-            const current1RM = isTBD ? 0 : rawVal;
-            // * = calculated from reps or the 1RM calculator (a PR typed in through the weight pop-up counts as lifted)
-            const prLabel = oneRepMaxLabel(current1RM, rawVal === prInfo.best && prInfo.calculated);
-            const loggedDateLabel = prInfo.dateLabel || '';
-            const goal1RM = getExRxTargetForLift(
-              ex.id,
-              targetStandardClass,
-              userBodyweightLbs,
-              totalHeightInches,
-              customGoalWeights,
-              oneRepMaxes
-            );
-            const diffFromGoal = !isTBD && goal1RM ? goal1RM - current1RM : null;
-
-            return (
-              <div
-                key={ex.id}
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: readOnly ? 'minmax(0, 1fr) 110px' : 'minmax(0, 1fr) 96px 96px',
-                  gap: 0,
-                  alignItems: 'stretch',
-                  backgroundColor: '#1C1C1C'
-                }}
-              >
-                <div
-                  style={{
-                    padding: '8px 12px',
-                    minWidth: 0,
-                    display: 'flex',
-                    flexDirection: 'column',
-                    justifyContent: 'center',
-                    ...SHARED_CELL_BORDER
-                  }}
-                >
-                  <div
-                    style={{
-                      fontSize: '15px',
-                      fontWeight: 500,
-                      // White: a red name on every row made red mean nothing in the list
-                      color: '#FFFFFF',
-                      lineHeight: 1.2,
-                      display: '-webkit-box',
-                      WebkitLineClamp: 2,
-                      WebkitBoxOrient: 'vertical',
-                      overflow: 'hidden'
-                    }}
-                  >
-                    {ex.name}
-                  </div>
-                  <div
-                    style={{
-                      fontSize: '13px',
-                      fontWeight: 400,
-                      color: colors?.secondaryLabel || '#9A9A9A',
-                      marginTop: '2px'
-                    }}
-                  >
-                    {readOnly
-                      ? isTBD
-                        ? 'Not logged yet'
-                        : loggedDateLabel
-                          ? `Logged ${loggedDateLabel}`
-                          : 'Logged'
-                      : isTBD
-                      ? `${targetStandardClass} goal: ${goal1RM}\u00A0lb`
-                      : diffFromGoal > 0
-                        ? `${targetStandardClass} goal: ${goal1RM}\u00A0lb (${diffFromGoal}\u00A0lb to go)`
-                        : `${targetStandardClass} goal: ${goal1RM}\u00A0lb ${diffFromGoal === 0 ? '(reached)' : `(beaten by ${Math.abs(diffFromGoal)}\u00A0lb)`}`}
-                  </div>
-                </div>
-
-                {readOnly ? (
-                  <div
-                    style={{
-                      ...stdActionBtnStyle,
-                      width: 'auto',
-                      height: '100%',
-                      minHeight: '48px',
-                      cursor: 'default',
-                      // A value, not a selection: graphite with white text (a white fill reads as "selected")
-                      backgroundColor: '#2A2A2A',
-                      color: isTBD ? '#9A9A9A' : '#FFFFFF'
-                    }}
-                  >
-                    {isTBD ? 'TBD' : `${prLabel}\u00A0LB`}
-                  </div>
-                ) : (
-                <>
-                <button
-                  type="button"
-                  onClick={() => open1RMConverterModal(ex.id)}
-                  style={{
-                    ...stdActionBtnStyle,
-                    height: '100%',
-                    minHeight: '48px',
-                    backgroundColor: '#1C1C1C',
-                    color: '#FFFFFF',
-                    // Two lines in the 96 px column
-                    whiteSpace: 'normal',
-                    lineHeight: 1.15,
-                    fontSize: '11px',
-                    padding: '0 6px'
-                  }}
-                >
-                  CALCULATE FROM REPS
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => openPlateCalculatorForPR(ex.id, ex.name, current1RM, loggedDateLabel)}
-                  style={{
-                    ...stdActionBtnStyle,
-                    height: '100%',
-                    minHeight: '48px',
-                    flexDirection: 'column',
-                    // A value, not a selection: graphite with white text (a white fill reads as "selected")
-                    backgroundColor: '#2A2A2A',
-                    color: isTBD ? '#9A9A9A' : '#FFFFFF'
-                  }}
-                >
-                  <span style={{ lineHeight: 1.1 }}>
-                    {isTBD ? 'TBD ✎' : `${prLabel} LB ✎`}
-                  </span>
-                  {!isTBD && loggedDateLabel && (
-                    <span
-                      style={{
-                        fontSize: '11px',
-                        fontWeight: 500,
-                        lineHeight: 1.1,
-                        marginTop: '2px',
-                        opacity: 0.85
-                      }}
-                    >
-                      {loggedDateLabel}
-                    </span>
-                  )}
-                </button>
-                </>
-                )}
-              </div>
-            );
-          })}
-        </div>
-        {/* A friend's profile: the core lifts first, SHOW ALL for everything else they have logged */}
-        {readOnly && otherLoggedPrIds.length > 0 && (
-          <button
-            type="button"
-            className="kinetic-btn"
-            aria-expanded={showAllPrs}
-            onClick={() => setShowAllPrs(v => !v)}
-            style={{
-              width: '100%',
-              minHeight: '44px',
-              marginTop: '8px',
-              backgroundColor: '#1C1C1C',
-              color: '#FFFFFF',
-              border: 'none', borderRadius: '10px',
-              fontSize: '12px',
-              fontWeight: 500,
-              textTransform: 'uppercase',
-              cursor: 'pointer'
-            }}
-          >
-            {showAllPrs ? 'SHOW FEWER ▴' : `SHOW ALL (${CORE_PR_EXERCISE_IDS.length + otherLoggedPrIds.length}) ▾`}
-          </button>
-        )}
-        {displayedPrExercises.some(ex => {
-          const info = getBestHistory1RMInfo(ex.id, history);
-          const val = Number(oneRepMaxes?.[ex.id]) || info.best || 0;
-          return val > 0 && val === info.best && info.calculated;
-        }) && <CalculatedOneRepMaxKey style={{ marginTop: '8px' }} />}
-      </section>
-      )}
-
       {/* =================================================================== */}
       {/* HISTORY TAB: SEARCH & FILTERS, THEN LOGGED SESSIONS */}
       {/* =================================================================== */}
@@ -1285,26 +926,6 @@ export function HistoryView({
           )}
         </div>
       </section>
-      )}
-
-      {/* =================================================================== */}
-      {/* 1RM CONVERTER POPUP MODAL (NEW/CURRENT SESSION EXERCISE INTERFACE) */}
-      {/* =================================================================== */}
-      {calcExerciseId && (
-        <OneRepMaxCalculatorModal
-          key={calcExerciseId}
-          exerciseId={calcExerciseId}
-          onClose={() => setCalcExerciseId(null)}
-          onSave={handleSaveCalculatedPR}
-          oneRepMaxes={oneRepMaxes}
-          history={history}
-          currentIncrementLbs={currentIncrementLbs}
-          userBodyweightLbs={userBodyweightLbs}
-          selectedGymId={selectedGymId}
-          gyms={gyms}
-          setSetValueTarget={setSetValueTarget}
-          openPlateCalculatorForSet={openPlateCalculatorForSet}
-        />
       )}
 
       {/* =================================================================== */}

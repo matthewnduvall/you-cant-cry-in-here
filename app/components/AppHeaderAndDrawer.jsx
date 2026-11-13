@@ -48,6 +48,33 @@ export function PageTitle({ view }) {
   );
 }
 
+// The count of routines friends sent you that are still waiting (menu's ROUTINES row)
+function CountBadge({ count }) {
+  if (!(count > 0)) return null;
+  return (
+    <span
+      aria-label={`${count} new`}
+      style={{
+        minWidth: '22px',
+        height: '22px',
+        padding: '0 7px',
+        boxSizing: 'border-box',
+        borderRadius: '11px',
+        backgroundColor: 'var(--cr-red)',
+        color: '#FFFFFF',
+        fontSize: '12px',
+        fontWeight: 600,
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        flexShrink: 0
+      }}
+    >
+      {count > 99 ? '99+' : count}
+    </span>
+  );
+}
+
 export function AppHeaderAndDrawer({
   currentView,
   setCurrentView,
@@ -86,7 +113,9 @@ export function AppHeaderAndDrawer({
   isStorageHydrated,
   setAuthMode,
   // ← next to the page title: back to the previous page (page.js keeps the history)
-  onBack
+  onBack,
+  // Routines friends sent you, still waiting (ROUTINES row's count)
+  receivedRoutineCount = 0
 }) {
   return (
     <>
@@ -372,6 +401,7 @@ export function AppHeaderAndDrawer({
                 {[
                   { id: 'home', label: 'HOME', clearReturn: true },
                   { id: 'history', label: 'PERFORMANCE', clearReturn: true },
+                  { id: 'routines', label: 'ROUTINES', clearReturn: true, badge: receivedRoutineCount },
                   { id: 'stimulus_map', label: 'STIMULUS', clearReturn: true },
                   { id: 'social', label: 'SOCIAL', clearReturn: true },
                   { id: 'configuration', label: 'CONFIGURATION', clearReturn: true },
@@ -389,7 +419,10 @@ export function AppHeaderAndDrawer({
                     }}
                   >
                     <span>{nav.label}</span>
-                    <span>→</span>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '10px' }}>
+                      <CountBadge count={nav.badge} />
+                      <span>→</span>
+                    </span>
                   </Button>
                 ))}
               </div>

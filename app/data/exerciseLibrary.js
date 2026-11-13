@@ -5,6 +5,7 @@
 // ============================================================================
 
 import exercisesCsvText from './exercises.csv';
+import { getExerciseVariation } from './exerciseVariations';
 
 export const GYM_EQUIPMENT_OPTIONS = [
   'Barbell',
@@ -338,6 +339,11 @@ export const parseExercisesCsv = rawCsv => {
       alternatives
     };
     entry.isBodyweight = computeIsBodyweight(entry);
+    // Variation family (behind the scenes): the exercise lists show one entry per family and the title offers its
+    // variations (app/data/exerciseVariations.js)
+    const variation = getExerciseVariation(entry);
+    entry.variationOf = variation?.family || null;
+    entry.variation = variation?.variation || null;
     result.push(entry);
   }
 

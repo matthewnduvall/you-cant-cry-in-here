@@ -1408,13 +1408,22 @@ export function useWorkoutMutations({
   const handleUpdateSlotCategoryOrExercise = (slotId, changes) => {
     updateCurrentWorkoutState(prev => {
       if (!prev) return prev;
-      return withTrace(`CHANGE · ${Object.keys(changes || {}).join(', ')}`, () => applySlotHeaderChange(prev, slotId, changes), `change:${slotId}`);
+      const next = withTrace(`CHANGE · ${Object.keys(changes || {}).join(', ')}`, () => applySlotHeaderChange(prev, slotId, changes), `change:${slotId}`);
+      // The exercise's own REST stays through exercise / type / muscle / equipment / variation changes
+      const before = (prev.slots || []).find(sl => sl.id === slotId);
+      if (!before?.customRestSeconds || changes?.customRestSeconds !== undefined || !Array.isArray(next?.slots)) return next;
+      return {
+        ...next,
+        slots: next.slots.map(sl => (sl.id === slotId && !sl.customRestSeconds ? { ...sl, customRestSeconds: before.customRestSeconds } : sl))
+      };
     });
   };
 
   const applySlotHeaderChange = (prev, slotId, changes) => {
       const nextSlots = prev.slots.map(slot => {
         if (slot.id !== slotId) return slot;
+        // REST box in the filter row: this exercise's own rest (null = the session's rest bar setting)
+        if (changes.customRestSeconds !== undefined) return { ...slot, customRestSeconds: changes.customRestSeconds || null };
         // SETS / REPS boxes of the scheme row
         if (changes.setCount !== undefined || changes.targetReps !== undefined) return reshapeSlot(slot, changes);
         if (isSupersetCategory(slot.category) && changes.endSuperset !== undefined) {
@@ -2180,7 +2189,8 @@ export function useWorkoutMutations({
     if (markingDone && isRoutineEditorView) {
       setTimerTrigger({
         isRunning: true,
-        targetSeconds: slot.restSeconds || currentEditorWorkout?.defaultRestSeconds || 90,
+        // The exercise's own REST if set, else the session's rest bar setting
+        targetSeconds: slot.customRestSeconds || currentEditorWorkout?.defaultRestSeconds || slot.restSeconds || 90,
         startedAtMs: Date.now()
       });
     }
