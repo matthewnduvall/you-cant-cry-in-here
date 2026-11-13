@@ -259,7 +259,7 @@ export function ConfigurationView({
         <TabBar ariaLabel="Configuration" tabs={CONFIGURATION_TABS} value={activeTab} onChange={setTab} />
       </div>
 
-      {/* The answers on each tab (number boxes, dropdowns, selected pills, ON) are red: .cr-config in KINETIC_CSS */}
+      {/* Selections on each tab (pressed pills and rows, ON) are white: .cr-config in KINETIC_CSS */}
       <div className="cr-config">
       {activeTab === 'body' && (
         <div style={{ paddingTop: '16px' }}>
