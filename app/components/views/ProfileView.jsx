@@ -238,30 +238,7 @@ export function ProfileView({
 
   return (
     <div style={{ paddingTop: '14px' }}>
-      {isFriend && (
-        <div style={{ padding: '0 var(--dp-spacing-gutter)', marginBottom: '12px' }}>
-          <button
-            type="button"
-            onClick={() => setCurrentView('social')}
-            className="kinetic-btn"
-            style={{
-              padding: '8px 14px',
-              backgroundColor: '#1C1C1C',
-              color: '#FFFFFF',
-              border: 'none', borderRadius: '10px',
-              fontSize: '12px',
-              fontWeight: 500,
-              textTransform: 'uppercase',
-              cursor: 'pointer',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '6px'
-            }}
-          >
-            ← BACK TO SOCIAL
-          </button>
-        </div>
-      )}
+      {/* No BACK TO SOCIAL button: the header's ← (and the phone's back gesture) already go back */}
       {isFriend && friendUnavailable && (
         <IOSListSection header="PROFILE UNAVAILABLE" colors={colors}>
           <IOSListRow isLast={true} colors={colors}>
@@ -274,7 +251,7 @@ export function ProfileView({
 
       {!(isFriend && friendUnavailable) && (
       <>
-      <IOSListSection header="ATHLETE IDENTITY" colors={colors}>
+      <IOSListSection colors={colors}>
         <IOSListRow isLast={true} colors={colors}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0 }}>
             <div style={{ position: 'relative', flexShrink: 0 }}>
@@ -332,7 +309,7 @@ export function ProfileView({
               )}
             </div>
             <div style={{ minWidth: 0 }}>
-              <div style={{ fontSize: '22px', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '-0.01em', overflowWrap: 'anywhere' }}>
+              <div style={{ fontSize: '22px', fontWeight: 500, overflowWrap: 'anywhere' }}>
                 @{profUser.username}
               </div>
               {!isFriend && (
@@ -562,7 +539,7 @@ export function ProfileView({
               >
                 <span style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
                   <ProfileAvatar photo={friend.profilePhoto} username={friend.username} size={32} />
-                  <span style={{ fontSize: '15px', fontWeight: 500, textTransform: 'uppercase' }}>@{friend.username}</span>
+                  <span style={{ fontSize: '15px', fontWeight: 500 }}>@{friend.username}</span>
                 </span>
                 <span style={{ fontSize: '13px', fontWeight: 500, color: 'var(--dp-color-accent)', flexShrink: 0 }}>VIEW PROFILE →</span>
               </IOSListRow>
@@ -600,7 +577,7 @@ export function ProfileView({
                       username={athlete.username}
                       size={32}
                     />
-                    <span style={{ fontSize: '15px', fontWeight: 500, textTransform: 'uppercase', minWidth: 0, overflowWrap: 'anywhere' }}>
+                    <span style={{ fontSize: '15px', fontWeight: 500, minWidth: 0, overflowWrap: 'anywhere' }}>
                       @{athlete.username}
                     </span>
                   </span>

@@ -79,13 +79,15 @@ export function GymsView({
                     }}
                     className="kinetic-btn"
                     style={{
-                      height: '30px',
-                      padding: '0 10px',
+                      // 44 px tap target, raised graphite so it reads as a button inside the row
+                      minWidth: '56px',
+                      height: '44px',
+                      padding: '0 12px',
                       boxSizing: 'border-box',
                       display: 'inline-flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      backgroundColor: '#1C1C1E',
+                      backgroundColor: '#2A2A2A',
                       color: '#FFFFFF',
                       border: 'none', borderRadius: '10px',
                       fontSize: '11px',
