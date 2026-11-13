@@ -42,6 +42,7 @@ import {
 import { useSyncedHistoryUpdates } from './hooks/useSyncedHistoryUpdates';
 import { useRoutineShares } from './hooks/useRoutineShares';
 import { CORE_LIFT_IDS, getLiftGoalStats } from './components/LiftGoals';
+import { historyDateRangeFor } from './components/views/HistoryView';
 import { LeaderboardView } from './components/views/LeaderboardView';
 import { SendRoutineModal } from './components/RoutineShareModals';
 import { EXERCISE_MAP, formatDateYMD, stripDateFromTitle } from './data/exerciseLibrary';
@@ -102,6 +103,8 @@ export default function App() {
   const [routineSelectReturnView, setRoutineSelectReturnView] = useState(null);
   // PROGRESS page tab: 'progress' (chart) | 'history' (the Personal Records tab was removed)
   const [progressTabChoice, setProgressTabChoice] = useState('progress');
+  // History tab's date range filter ({ from, to, preset } | null): Home's THIS WEEK opens History with the last 7 days
+  const [historyDateRange, setHistoryDateRange] = useState(null);
   // CONFIGURATION page tab: 'body' | 'goals' | 'equipment' | 'routines'
   const [configurationTab, setConfigurationTab] = useState('body');
   const [isCurrentEditorShared, setIsCurrentEditorShared] = useState(false);
@@ -959,6 +962,9 @@ export default function App() {
         <HistoryView
           section={tab}
           readOnly={readOnly}
+          // Your own History's date filter lives here (Home's THIS WEEK sets it); a friend's keeps its own
+          dateRange={readOnly ? undefined : historyDateRange}
+          setDateRange={readOnly ? undefined : setHistoryDateRange}
           onLoadWorkout={onLoadHistoryWorkout}
           colors={colors}
           history={profileHistory}
@@ -996,6 +1002,8 @@ export default function App() {
     if (currentView === 'history' && expandedHistoryWorkoutId !== workoutId) pushPlace(placeRef.current);
     setRoutineSelectReturnView(null);
     setConfirmedHistoryEditWorkoutId(null);
+    // A date filter could hide the workout being opened
+    setHistoryDateRange(null);
     setExpandedHistoryWorkoutId(workoutId);
     setProgressTabChoice('history');
     setCurrentView('history');
@@ -1169,6 +1177,15 @@ export default function App() {
               muscleStimulusStatus={muscleStimulusStatus}
               receivedRoutineCount={routineShares.incoming.length}
               bodyMetricsSet={bodyMetricsSet}
+              onOpenWorkout={openHistoryWorkout}
+              onOpenThisWeek={() => {
+                setRoutineSelectReturnView(null);
+                setConfirmedHistoryEditWorkoutId(null);
+                setExpandedHistoryWorkoutId(null);
+                setHistoryDateRange(historyDateRangeFor('week'));
+                setProgressTabChoice('history');
+                setCurrentView('history');
+              }}
               goalToGoLbs={homeGoalToGo}
               goalClassName={targetStandardClass}
               activeSessionSummary={

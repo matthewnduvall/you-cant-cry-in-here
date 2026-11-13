@@ -359,6 +359,9 @@ export const UI = {
   sectionTitle: { ...CAPS_LABEL, fontSize: '11px', paddingLeft: '4px', lineHeight: 1.3 },
   rowTitle: { fontSize: '17px', fontWeight: 500 },
   rowSub: { fontSize: '13px', color: CRY.textLabel, fontWeight: 400 },
+  // A list row's contents line (History / routine rows: the exercises in it): sentence-case text, quieter than the
+  // caps meta line above it, so the row's title is what the eye lands on
+  rowContents: { fontSize: '12px', fontWeight: 400, color: CRY.textDim, lineHeight: 1.35, textTransform: 'none', letterSpacing: 0 },
   deleteXBtn: {
     width: '44px', height: '44px', border: 'none', borderRadius: CRY.radiusSm,
     display: 'flex', alignItems: 'center', justifyContent: 'center',
