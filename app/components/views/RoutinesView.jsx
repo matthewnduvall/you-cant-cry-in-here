@@ -51,23 +51,33 @@ export function RoutinesView({
   // The equipment filter: your own equipment by default, else the last preset / setup picked
   const [filterId, setFilterId] = useState(() => (hasMyEquipment ? MY_EQUIPMENT : selectedGymId));
   const fallbackAuthor = (user?.username || 'athlete').replace(/^@/, '');
+  // The exercises a routine does now: a superset's two, else the slot's own exercise (never stale ids an earlier pick
+  // left in supersetExerciseIds)
   const routineExerciseIds = r =>
-    (r.slots || []).flatMap(slot => (slot?.supersetExerciseIds || [slot?.exerciseId, slot?.secondaryExerciseId]).filter(Boolean));
+    (r.slots || []).flatMap(slot =>
+      (String(slot?.category || '').toLowerCase().startsWith('superset')
+        ? [slot?.supersetExerciseIds?.[0] || slot?.exerciseId, slot?.supersetExerciseIds?.[1] || slot?.secondaryExerciseId]
+        : [slot?.exerciseId]
+      ).filter(Boolean)
+    );
   // Every filter option stands for a list of equipment (MY EQUIPMENT = Configuration → EQUIPMENT; a preset or saved
   // setup = its list; All Equipment = everything). A routine fits when every exercise in it has all the equipment it
   // needs (`requiredEquipment`, e.g. a barbell squat needs a barbell, a squat rack and weight plates) on that list.
   // Exercises the library doesn't know don't count against it; the built-in routines adapt to any equipment.
   const filterEquipment = filterId === MY_EQUIPMENT ? availableEquipment || [] : getEquipmentListForGymSelection(filterId, gyms);
   const have = new Set(filterEquipment);
+  // [{ item, exercises }]: each missing piece of equipment and the exercises that need it
   const missingFor = r => {
     if (!Array.isArray(r.slots)) return [];
-    const missing = new Set();
+    const missing = new Map();
     routineExerciseIds(r).forEach(id => {
       (EXERCISE_MAP[id]?.requiredEquipment || []).forEach(req => {
-        if (req && req !== 'Bodyweight' && !have.has(req)) missing.add(req);
+        if (!req || req === 'Bodyweight' || have.has(req)) return;
+        if (!missing.has(req)) missing.set(req, new Set());
+        missing.get(req).add(EXERCISE_MAP[id].name);
       });
     });
-    return [...missing];
+    return [...missing.entries()].map(([item, names]) => ({ item, exercises: [...names] }));
   };
   const split = routines => {
     const fits = [];
@@ -113,7 +123,10 @@ export function RoutinesView({
                   {subtitleFor(list.id, r)}
                 </div>
                 {r.missingEquipment && (
-                  <div style={{ ...UI.rowSub, color: '#BDBDBD' }}>Needs: {r.missingEquipment.join(', ').toLowerCase()}</div>
+                  <div style={{ ...UI.rowSub, color: '#BDBDBD', textTransform: 'none' }}>
+                    Needs:{' '}
+                    {r.missingEquipment.map(m => `${m.item.toLowerCase()} (${m.exercises.join(', ')})`).join('; ')}
+                  </div>
                 )}
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>

@@ -1114,6 +1114,10 @@ export const createWorkoutSlot = ({
   };
 };
 
+// A single exercise is only its own exercise: an earlier pick (or a superset it used to be) can leave stale ids in
+// supersetExerciseIds / secondaryExerciseId, which equipment checks would otherwise count
+const singleExerciseIds = slot => ({ secondaryExerciseId: null, supersetExerciseIds: slot.exerciseId ? [slot.exerciseId] : [] });
+
 export const normalizeSlotLabels = slots => {
   let compoundCount = 0;
   let supersetCount = 0;
@@ -1124,7 +1128,7 @@ export const normalizeSlotLabels = slots => {
       const normCat = normalizeSlotCategory(slot.category);
       if (normCat === 'Compound') {
         compoundCount += 1;
-        return { ...slot, category: 'Compound', slotLabel: `Compound ${compoundCount}` };
+        return { ...slot, ...singleExerciseIds(slot), category: 'Compound', slotLabel: `Compound ${compoundCount}` };
       }
       if (normCat === 'Superset') {
         supersetCount += 1;
@@ -1145,7 +1149,7 @@ export const normalizeSlotLabels = slots => {
       }
       if (normCat === 'Accessory') {
         accessoryCount += 1;
-        return { ...slot, category: 'Accessory', slotLabel: `Accessory ${accessoryCount}` };
+        return { ...slot, ...singleExerciseIds(slot), category: 'Accessory', slotLabel: `Accessory ${accessoryCount}` };
       }
       return { ...slot, category: normCat };
     });
