@@ -5,9 +5,14 @@ import { UI } from '../../styles/kineticTokens';
 import { IOSListSection, IOSListRow } from '../Primitives';
 import {
   DEFAULT_ROUTINES,
+  EXERCISE_MAP,
   getRoutineGymCategory,
-  doesRoutineMatchGymFilter
+  doesRoutineMatchGymFilter,
+  isExerciseAvailableWithEquipment
 } from '../../data/exerciseLibrary';
+
+// The filter option for Configuration → EQUIPMENT (the athlete's own ON list): the default when it is set
+const MY_EQUIPMENT = 'my_equipment';
 import { Button, DeleteButton, GymSelect, TabBar } from '../Controls';
 
 // The routine lists, one per tab (in this order)
@@ -38,11 +43,23 @@ export function RoutinesView({
   // Which lists to show (a friend's profile shows only the routines they share); 2+ lists = tabs
   sections = ['default', 'saved', 'shared', 'friends'],
   // A friend's routines: LOAD only, no delete
-  readOnly = false
+  readOnly = false,
+  // Configuration → EQUIPMENT (null = not chosen yet): the filter starts on MY EQUIPMENT
+  availableEquipment = null
 }) {
   const [tabChoice, setTabChoice] = useState(null);
+  const hasMyEquipment = Array.isArray(availableEquipment);
+  // The equipment filter: your own equipment by default, else the last preset / setup picked
+  const [filterId, setFilterId] = useState(() => (hasMyEquipment ? MY_EQUIPMENT : selectedGymId));
   const fallbackAuthor = (user?.username || 'athlete').replace(/^@/, '');
-  const matches = r => doesRoutineMatchGymFilter(r, selectedGymId, gyms);
+  const routineExerciseIds = r =>
+    (r.slots || []).flatMap(slot => (slot?.supersetExerciseIds || [slot?.exerciseId, slot?.secondaryExerciseId]).filter(Boolean));
+  const matches = r => {
+    if (filterId !== MY_EQUIPMENT) return doesRoutineMatchGymFilter(r, filterId, gyms);
+    // Every exercise in it fits your equipment (the built-in routines adapt to any equipment)
+    if (!Array.isArray(r.slots)) return true;
+    return routineExerciseIds(r).every(id => isExerciseAvailableWithEquipment(EXERCISE_MAP[id], availableEquipment));
+  };
 
   const routinesByList = {
     default: DEFAULT_ROUTINES.filter(matches),
@@ -135,9 +152,13 @@ export function RoutinesView({
           variant="tile"
           tileLabel="FILTER BY EQUIPMENT"
           ariaLabel="Filter routines by equipment"
-          value={selectedGymId}
-          onChange={id => setSelectedGymId?.(id)}
+          value={filterId}
+          onChange={id => {
+            setFilterId(id);
+            if (id !== MY_EQUIPMENT) setSelectedGymId?.(id);
+          }}
           gyms={gyms}
+          extraOptions={hasMyEquipment ? [{ id: MY_EQUIPMENT, label: 'My equipment' }] : []}
         />
 
         {showCancel && (

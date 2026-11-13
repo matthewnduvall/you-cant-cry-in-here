@@ -66,7 +66,7 @@ import {
 } from '../data/programs';
 import { applyProgramToSlot, isProgrammedSlot, fitsProgramEquipment } from '../utils/programEngine';
 import { SET_TYPE_RPE, solveSet } from '../utils/intensity';
-import { getStarting1RM, describe1RM } from '../utils/starting1RM';
+import { getStarting1RM, describe1RM, getLiftFamilyParent } from '../utils/starting1RM';
 import { withTrace, traceLine, traceTitle, isTracing, fmt } from '../utils/calcTrace';
 import { buildHistoryUpdate, findAddedSlots, getWorkoutSyncInfo, withSyncInfo } from '../utils/syncedHistory';
 import { markWorkoutIdDeleted, clearDeletedWorkoutIds } from '../utils/cloudSyncLedger';
@@ -371,8 +371,15 @@ export function useWorkoutMutations({
       if (category === 'Compound' && programCtx?.program?.compoundPicks === 'big3-then-variants') {
         const big3 = BIG3_IDS.map(id => findEquivalentExerciseForEquipment(id, availableEquipment) || id);
         const hasBig3 = [...usedIds].some(id => big3.includes(id) || BIG3_IDS.includes(id));
+        // Variants come from a Big 3 lift (bench / squat / deadlift family) the session doesn't have yet, so a deadlift
+        // isn't followed by a sumo deadlift; once all three are in, any variant
+        const familiesInSession = new Set([...usedIds].map(getLiftFamilyParent).filter(Boolean));
+        const variants = pool.filter(isBig3Variant);
+        const freshFamily = variants.filter(ex => !familiesInSession.has(getLiftFamilyParent(ex.id)));
         const wanted = hasBig3
-          ? pool.filter(isBig3Variant)
+          ? freshFamily.length > 0
+            ? freshFamily
+            : variants
           : pool.filter(ex => big3.includes(ex.id) || BIG3_IDS.includes(ex.id));
         if (wanted.length > 0) pool = wanted;
       }
@@ -567,14 +574,36 @@ export function useWorkoutMutations({
     setCurrentView('session');
   };
 
+  // A loaded routine starts fresh: no set done, History's locks (a routine saved from a logged workout carries them)
+  // and History-only tags removed
+  const freshRoutineSlot = slot => {
+    if (!slot) return slot;
+    const unlock = Boolean(slot.historyLocked);
+    const reset = list =>
+      Array.isArray(list)
+        ? list.map(st =>
+            st ? { ...st, completed: false, ...(unlock ? { lockType: false, lockWeight: false, lockReps: false } : {}) } : st
+          )
+        : list;
+    const { historyLocked: _locked, syncedWith: _synced, programInfo: _program, ...rest } = slot;
+    return {
+      ...rest,
+      sets: reset(slot.sets),
+      ...(Array.isArray(slot.secondarySets) ? { secondarySets: reset(slot.secondarySets) } : {}),
+      ...(Array.isArray(slot.supersetSetsByExercise) ? { supersetSetsByExercise: slot.supersetSetsByExercise.map(reset) } : {})
+    };
+  };
+
   const handleDirectLoadRoutine = (routineObj, returnToView = 'session') => {
     const wasOnRoutinesPage = currentView === 'routines';
-    const builtSlots = normalizeSlotLabels(
-      cloneSlots(
-        routineObj.slots ||
-          buildPresetSlots(routineObj.key, oneRepMaxes, history, currentIncrementLbs, userBodyweightLbs)
-      )
-    );
+    // A friend's routine: its structure, your weights (re-worked from your own History, as RECALCULATE would)
+    const myName = String(user?.username || '').replace(/^@/, '').toLowerCase();
+    const author = String(routineObj.friendName || routineObj.author || '').replace(/^@/, '').toLowerCase();
+    const fromFriend = Boolean(routineObj.friendName) || Boolean(author && myName && author !== myName);
+    const freshSlots = cloneSlots(
+      routineObj.slots || buildPresetSlots(routineObj.key, oneRepMaxes, history, currentIncrementLbs, userBodyweightLbs)
+    ).map(freshRoutineSlot);
+    const builtSlots = normalizeSlotLabels(fromFriend ? freshSlots.map(slot => recalculateSlot(slot, null)) : freshSlots);
     const datedTitle = formatTitleWithDate(routineObj.label);
     const routineLabel = routineObj.label || datedTitle;
 

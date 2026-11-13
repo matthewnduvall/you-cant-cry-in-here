@@ -1096,6 +1096,7 @@ export default function App() {
               handleCancelRoutineSelection={handleCancelRoutineSelection}
               setDeleteConfirmTarget={setDeleteConfirmTarget}
               onAutoRoutine={handleAutoBuildWorkout}
+              availableEquipment={availableEquipment}
             />
           )}
 
