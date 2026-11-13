@@ -123,7 +123,7 @@ exrx_shoulders_suspended_y_raise,Suspended Y Raise,Shoulders,Accessory,Suspended
 exrx_shoulders_stretch_wall_anterior_deltoid_stretch,Wall Anterior Deltoid Stretch,Shoulders,Accessory,Stretch,,Deltoid - Anterior,false,25,
 exrx_upper_arms_assisted_machine_kneeling_triceps_dip,Assisted Machine Kneeling Triceps Dip,Upper Arms,Compound,Assisted Machine,Lever / Machine,Triceps Brachii|Pectoralis Major - Sternal,false,135,
 exrx_upper_arms_assisted_machine_triceps_dip,Assisted Machine Triceps Dip,Upper Arms,Compound,Assisted Machine,Lever / Machine,Triceps Brachii|Pectoralis Major - Sternal,false,135,
-exrx_upper_arms_band_assisted_triceps_dip,Band-Assisted Triceps Dip,Upper Arms,Compound,Band-Assisted,Lever / Machine|Resistance Bands,Triceps Brachii,false,145,
+exrx_upper_arms_band_assisted_triceps_dip,Band-Assisted Triceps Dip,Upper Arms,Compound,Band-Assisted,Resistance Bands,Triceps Brachii,false,145,
 tricep_skullcrusher,Barbell / EZ-Bar Lying Triceps Extension (Skullcrusher),Upper Arms,Accessory,Barbell / EZ Bar,Barbell|EZ Bar,Triceps Brachii,false,95,dumbbell_overhead_extension|cable_tricep_pushdown
 barbell_preacher_curl,Barbell / EZ-Bar Preacher Curl,Upper Arms,Accessory,Barbell / EZ Bar,Barbell|EZ Bar,Brachialis|Biceps Brachii,false,80,barbell_bicep_curl
 close_grip_bench_press,Barbell Close-Grip Bench Press,Upper Arms,Compound,Barbell,Barbell|Flat / Incline Bench|Weight Plates,Triceps Brachii|Pectoralis Major - Sternal|Deltoid - Anterior,false,195,tricep_dip|barbell_bench_press
@@ -258,10 +258,10 @@ exrx_back_assisted_machine_parallel_close_grip_pull_up,Assisted Machine Parallel
 exrx_back_assisted_machine_pull_up_open_centered_bar,Assisted Machine Pull-up (open-centered bar),Back,Compound,Assisted Machine,Lever / Machine,Latissimus Dorsi|Biceps Brachii,false,150,
 exrx_back_assisted_machine_standing_pull_up,Assisted Machine Standing Pull-up,Back,Compound,Assisted Machine,Lever / Machine,Latissimus Dorsi|Biceps Brachii,false,150,
 band_pulldown,Band Lat Pulldown,Back,Accessory,Band,Resistance Bands,Latissimus Dorsi|Rhomboids|Triceps Brachii,false,90,chin_ups|cable_pulldown
-exrx_back_band_assisted_archer_pull_up,Band-Assisted Archer Pull-up,Back,Compound,Band-Assisted,Lever / Machine|Resistance Bands,Latissimus Dorsi|Biceps Brachii,false,165,
-exrx_back_band_assisted_chin_up,Band-Assisted Chin-up,Back,Compound,Band-Assisted,Lever / Machine|Resistance Bands,Latissimus Dorsi|Biceps Brachii,false,165,
-exrx_back_band_assisted_parallel_grip_pull_up,Band-Assisted Parallel Grip Pull-up,Back,Compound,Band-Assisted,Lever / Machine|Resistance Bands,Latissimus Dorsi|Biceps Brachii,false,165,
-exrx_back_band_assisted_pull_up,Band-Assisted Pull-up,Back,Compound,Band-Assisted,Lever / Machine|Resistance Bands,Latissimus Dorsi|Biceps Brachii,false,165,
+exrx_back_band_assisted_archer_pull_up,Band-Assisted Archer Pull-up,Back,Compound,Band-Assisted,Pull-Up Bar|Resistance Bands,Latissimus Dorsi|Biceps Brachii,false,165,
+exrx_back_band_assisted_chin_up,Band-Assisted Chin-up,Back,Compound,Band-Assisted,Pull-Up Bar|Resistance Bands,Latissimus Dorsi|Biceps Brachii,false,165,
+exrx_back_band_assisted_parallel_grip_pull_up,Band-Assisted Parallel Grip Pull-up,Back,Compound,Band-Assisted,Pull-Up Bar|Resistance Bands,Latissimus Dorsi|Biceps Brachii,false,165,
+exrx_back_band_assisted_pull_up,Band-Assisted Pull-up,Back,Compound,Band-Assisted,Pull-Up Bar|Resistance Bands,Latissimus Dorsi|Biceps Brachii,false,165,
 exrx_back_stretch_bar_lat_stretch,Bar Lat Stretch,Back,Accessory,Stretch,,Latissimus Dorsi,false,25,
 barbell_behind_back_shrug,Barbell Behind-the-Back Shrug,Back,Accessory,Barbell,Barbell|Weight Plates,Trapezius - Upper|Trapezius - Middle|Rhomboids,false,225,barbell_shrug
 barbell_row,Barbell Bent-Over Row,Back,Compound,Barbell,Barbell|Weight Plates,General Back|Latissimus Dorsi|Rhomboids|Trapezius - Middle|Deltoid - Posterior|Biceps Brachii,false,195,meadows_row|dumbbell_row|chin_ups
@@ -389,7 +389,7 @@ barbell_bench_press,Barbell Bench Press,Chest,Compound,Barbell,Barbell|Flat / In
 incline_bench_press,Barbell Incline Bench Press,Chest,Compound,Barbell,Barbell|Flat / Incline Bench|Weight Plates,Pectoralis Major - Clavicular|Deltoid - Anterior|Triceps Brachii,true,195,dumbbell_incline_press|dumbbell_press|barbell_bench_press
 exrx_chest_assisted_machine_chest_dip,Assisted Machine Chest Dip,Chest,Compound,Assisted Machine,Lever / Machine,Pectoralis Major - Sternal|Triceps Brachii|Deltoid - Anterior,false,150,
 exrx_chest_assisted_machine_kneeling_chest_dip,Assisted Machine Kneeling Chest Dip,Chest,Compound,Assisted Machine,Lever / Machine,Pectoralis Major - Sternal|Triceps Brachii|Deltoid - Anterior,false,150,
-exrx_chest_band_assisted_chest_dip,Band-Assisted Chest Dip,Chest,Compound,Band-Assisted,Lever / Machine|Resistance Bands,Pectoralis Major - Sternal|Triceps Brachii,false,155,
+exrx_chest_band_assisted_chest_dip,Band-Assisted Chest Dip,Chest,Compound,Band-Assisted,Resistance Bands,Pectoralis Major - Sternal|Triceps Brachii,false,155,
 decline_bench_press,Barbell Decline Bench Press,Chest,Compound,Barbell,Barbell|Flat / Incline Bench|Weight Plates,Pectoralis Major - Sternal|Triceps Brachii|Deltoid - Anterior,false,235,barbell_bench_press|chest_dip
 barbell_floor_press,Barbell Floor Press,Chest,Accessory,Barbell,Barbell|Weight Plates,Pectoralis Major - Sternal|Triceps Brachii,false,205,barbell_bench_press
 exrx_chest_barbell_incline_shoulder_raise,Barbell Incline Shoulder Raise,Chest,Accessory,Barbell,Barbell,Serratus Anterior,false,95,
@@ -784,8 +784,8 @@ exrx_hips_weighted_vertical_straight_leg_raise,Weighted Vertical Straight Leg Ra
 barbell_back_squat,Barbell Back Squat,Thighs,Compound,Barbell,Barbell|Squat Rack|Weight Plates,Quadriceps|Gluteus Maximus|Hip Adductors|Hamstrings|Erector Spinae,true,300,front_squat|split_squat|goblet_squat
 exrx_thighs_assisted_machine_inverse_leg_curl,Assisted Machine Inverse Leg Curl,Thighs,Accessory,Assisted Machine,Lever / Machine,Hamstrings,false,115,
 exrx_thighs_assisted_machine_reverse_nordic,Assisted Machine Reverse Nordic,Thighs,Accessory,Assisted Machine,Lever / Machine,Quadriceps|Gluteus Maximus,false,115,
-exrx_thighs_band_assisted_inverse_leg_curl,Band-Assisted Inverse Leg Curl,Thighs,Accessory,Band-Assisted,Lever / Machine|Resistance Bands,Hamstrings,false,95,
-exrx_thighs_band_assisted_reverse_nordic,Band-Assisted Reverse Nordic,Thighs,Accessory,Band-Assisted,Lever / Machine|Resistance Bands,Quadriceps,false,95,
+exrx_thighs_band_assisted_inverse_leg_curl,Band-Assisted Inverse Leg Curl,Thighs,Accessory,Band-Assisted,Resistance Bands,Hamstrings,false,95,
+exrx_thighs_band_assisted_reverse_nordic,Band-Assisted Reverse Nordic,Thighs,Accessory,Band-Assisted,Resistance Bands,Quadriceps,false,95,
 front_squat,Barbell Front Squat,Thighs,Compound,Barbell,Barbell|Squat Rack|Weight Plates,Quadriceps|Gluteus Maximus|Rectus Abdominis|Erector Spinae,false,225,barbell_back_squat|goblet_squat
 exrx_thighs_barbell_glute_ham_raise,Barbell Glute-Ham Raise,Thighs,Compound,Barbell,Barbell,Hamstrings|Gluteus Maximus|Erector Spinae,false,195,
 barbell_good_morning,Barbell Good Morning,Thighs,Compound,Barbell,Barbell|Weight Plates,Hamstrings|Gluteus Maximus|Erector Spinae,false,155,barbell_rdl
