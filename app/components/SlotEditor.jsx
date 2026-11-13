@@ -1010,7 +1010,7 @@ export function SlotEditor({
                   exercise: exObj,
                   exerciseId: exObj.id,
                   equipment: pickerState(exIdx).equipment,
-                  lastDisplay: isTimerScheme ? lastTimerDisplay : lastW,
+                  lastDisplay: isTimerScheme ? lastTimerDisplay : lastSet ? lastW : '—', // never logged: a dash, like PR
                   showOneRepMax: !isTimerScheme,
                   setReps: st.reps,
                   // This exercise's sets in the session, for the pop-up's CURRENT (session) 1RM

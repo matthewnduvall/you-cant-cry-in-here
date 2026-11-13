@@ -352,9 +352,11 @@ export function AppHeaderAndDrawer({
               </div>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                {/* The page you're on is the white row (aria-current); SIGN OUT at the bottom is the menu's one red */}
                 <Button
                   variant="drawer"
-                  active
+                  active={currentView === (user ? 'profile' : 'auth')}
+                  aria-current={currentView === (user ? 'profile' : 'auth') ? 'page' : undefined}
                   onClick={() => {
                     setShowHamburgerDrawer(false);
                     setCurrentView(user ? 'profile' : 'auth');
@@ -378,6 +380,8 @@ export function AppHeaderAndDrawer({
                   <Button
                     variant="drawer"
                     key={nav.id}
+                    active={currentView === nav.id}
+                    aria-current={currentView === nav.id ? 'page' : undefined}
                     onClick={() => {
                       setShowHamburgerDrawer(false);
                       if (nav.clearReturn) setRoutineSelectReturnView(null);

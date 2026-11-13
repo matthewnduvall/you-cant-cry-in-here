@@ -293,9 +293,11 @@ export const UI = {
     border: `1px dashed ${CRY.outline}`, borderRadius: '12px', fontSize: '13px', fontWeight: 500,
     letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer'
   },
+  // Menu row; active = the page you're on: white fill, black text (selection is white, never red)
   drawerBtn: (active = false) => ({
-    width: '100%', minHeight: '56px', padding: '14px 16px', backgroundColor: active ? 'var(--cr-red)' : 'transparent',
-    color: '#FFFFFF', border: 'none', borderBottom: `1px solid ${CRY.hairline}`,
+    width: '100%', minHeight: '56px', padding: '14px 16px', backgroundColor: active ? '#FFFFFF' : 'transparent',
+    color: active ? '#000000' : '#FFFFFF', border: 'none', borderBottom: `1px solid ${active ? 'transparent' : CRY.hairline}`,
+    borderRadius: active ? CRY.radiusSm : 0,
     display: 'flex', alignItems: 'center', justifyContent: 'space-between',
     fontWeight: 500, fontSize: '17px', cursor: 'pointer'
   }),
