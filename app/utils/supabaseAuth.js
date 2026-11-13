@@ -1081,12 +1081,17 @@ export async function pushCloudStateForUser(user, payload, { historyToUpload } =
         }),
         body: JSON.stringify(body)
       });
-      if (!res.ok) return { ok: false, error: await describeFailedResponse(res) };
-      return { ok: true, error: null };
+      if (!res.ok) return { ok: false, error: await describeFailedResponse(res), status: res.status };
+      return { ok: true, error: null, status: res.status };
     } catch {
-      return { ok: false, error: 'NETWORK ERROR' };
+      return { ok: false, error: 'NETWORK ERROR', status: 0 };
     }
   };
+  // Refused by row-level security: the row's id / key already exists under another account (the data on this device
+  // came from that account, e.g. after switching accounts). Such rows aren't this athlete's to upload.
+  const isForeignRow = result => !result.ok && (result.status === 403 || /row-level security/i.test(String(result.error || '')));
+  const foreignWorkoutIds = [];
+  const foreignRoutineKeys = [];
 
   // 1. Profile row: PRs + settings (and a short recent-History copy that friend profiles read)
   const profileUpdateBody = {
@@ -1147,6 +1152,8 @@ export async function pushCloudStateForUser(user, payload, { historyToUpload } =
         const single = await send('/rest/v1/workout_history?on_conflict=id', 'POST', [row], 'resolution=merge-duplicates');
         if (single.ok) {
           syncedWorkoutIds.push(row.id);
+        } else if (isForeignRow(single)) {
+          foreignWorkoutIds.push(row.id);
         } else {
           failedWorkoutCount += 1;
           if (!errors.includes(single.error)) errors.push(single.error);
@@ -1181,12 +1188,24 @@ export async function pushCloudStateForUser(user, payload, { historyToUpload } =
     const groups = [rows.filter(row => 'updated_at' in row), rows.filter(row => !('updated_at' in row))].filter(g => g.length > 0);
     for (const group of groups) {
       const result = await send('/rest/v1/routines?on_conflict=key', 'POST', group, 'resolution=merge-duplicates');
-      if (!result.ok) errors.push(result.error);
+      if (result.ok) continue;
+      if (result.error === 'NETWORK ERROR') {
+        errors.push(result.error);
+        return;
+      }
+      // Find the routine(s) the server rejects and upload the rest
+      for (const row of group) {
+        const single = await send('/rest/v1/routines?on_conflict=key', 'POST', [row], 'resolution=merge-duplicates');
+        if (single.ok) continue;
+        if (isForeignRow(single)) foreignRoutineKeys.push(row.key);
+        else if (!errors.includes(single.error)) errors.push(single.error);
+      }
     }
   })();
 
   await Promise.allSettled([profileTask, historyTask, routinesTask]);
-  return { ok: errors.length === 0, error: errors[0] || null, syncedWorkoutIds, failedWorkoutCount };
+  // Rows that belong to another account aren't failures: the caller removes them from this device
+  return { ok: errors.length === 0, error: errors[0] || null, syncedWorkoutIds, failedWorkoutCount, foreignWorkoutIds, foreignRoutineKeys };
 }
 
 /**
