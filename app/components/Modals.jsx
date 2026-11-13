@@ -147,7 +147,7 @@ export function PlateCalculatorModal({
                 ? 'EDIT PERSONAL RECORD'
                 : plateCalcTarget.mode === 'goal'
                   ? 'EDIT CUSTOM GOAL WEIGHT'
-                  : `SET #${plateCalcTarget.setNumber} WEIGHT`}
+                  : `SET ${plateCalcTarget.setNumber} WEIGHT`}
             </div>
             <div style={{ fontSize: '16px', fontWeight: 500, textTransform: 'uppercase' }}>
               {plateCalcTarget.exerciseName}
@@ -242,7 +242,7 @@ export function PlateCalculatorModal({
                   }}
                 >
                   <span style={oneRepMaxLabel('var(--dp-color-accent)')}>{prWorkoutId ? 'PR ↗' : 'PR'}</span>
-                  <span style={oneRepMaxValue}>{prValue > 0 ? oneRepMaxText(prValue, prCalculated) : 'TBD'}</span>
+                  <span style={oneRepMaxValue}>{prValue > 0 ? oneRepMaxText(prValue, prCalculated) : '—'}</span>
                   <span style={{ ...oneRepMaxLabel('#9A9A9A'), marginTop: '6px' }}>CURRENT</span>
                   <span style={oneRepMaxValue}>{current1RM > 0 ? oneRepMaxText(current1RM, currentCalculated) : '—'}</span>
                 </button>
@@ -418,13 +418,15 @@ export function PlateCalculatorModal({
             onToggle={() => setPlateCalcTarget(prev => (prev ? { ...prev, applyToLater: !prev.applyToLater } : null))}
           />
         )}
-        <Button
-          variant="primary"
-          onClick={handleApplyCalculatedWeight}
-          style={{ padding: '12px', fontSize: '13px' }}
-        >
-          APPLY WEIGHT →
-        </Button>
+        {/* Same footer as every set pop-up: CANCEL | red APPLY … */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+          <button type="button" className="kinetic-btn" onClick={() => setPlateCalcTarget(null)} style={UI.secondaryBtnCenter}>
+            CANCEL
+          </button>
+          <button type="button" className="kinetic-btn" onClick={handleApplyCalculatedWeight} style={UI.primaryBtnCenter}>
+            APPLY WEIGHT
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -606,13 +608,14 @@ export function SetValueEditorModal({
                 onToggle={() => setSetValueTarget(prev => (prev ? { ...prev, applyToLater: !prev.applyToLater } : null))}
               />
             )}
-            <Button
-              variant="primary"
-              onClick={() => applyAndClose(currentValue)}
-              style={{ padding: '12px', fontSize: '13px' }}
-            >
-              {applyLabel || `APPLY ${mode === 'increment' ? 'INCREMENT' : mode === 'timer' ? 'TIME' : isAbs ? 'SECONDS' : 'REPS'}`} →
-            </Button>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+              <button type="button" className="kinetic-btn" onClick={() => setSetValueTarget(null)} style={UI.secondaryBtnCenter}>
+                CANCEL
+              </button>
+              <button type="button" className="kinetic-btn" onClick={() => applyAndClose(currentValue)} style={UI.primaryBtnCenter}>
+                {applyLabel || `APPLY ${mode === 'increment' ? 'INCREMENT' : mode === 'timer' ? 'TIME' : isAbs ? 'SECONDS' : 'REPS'}`}
+              </button>
+            </div>
           </div>
         )}
       </div>

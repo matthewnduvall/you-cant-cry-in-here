@@ -31,9 +31,12 @@ const BIG_THREE_LIFT_IDS = ['barbell_bench_press', 'barbell_back_squat', 'barbel
 const NAME_LINK_STYLE = { textDecoration: 'underline', textDecorationThickness: '2px', textUnderlineOffset: '3px' };
 const STANDING_SCALE = ['Below Untrained', ...EXRX_CLASSES]; // ['Below Untrained', 'Untrained', 'Novice', 'Intermediate', 'Advanced', 'Elite']
 
+// Unranked (nothing logged for this board): a dash instead of a number
 function formatRankLabel(rank) {
+  if (!rank) return '—';
   return `#${rank < 10 ? `0${rank}` : rank}`;
 }
+const NOT_LOGGED_STYLE = { fontSize: '11px', fontWeight: 500, color: '#9A9A9A', textTransform: 'uppercase' };
 
 function getAverageBig3Standing(prs = {}, bw = 220, heightInches = 70) {
   const loggedVals = BIG_THREE_LIFT_IDS.map(liftId => Number(prs?.[liftId]) || 0);
@@ -51,7 +54,14 @@ function getAverageBig3Standing(prs = {}, bw = 220, heightInches = 70) {
   return STANDING_SCALE[Math.max(0, Math.min(STANDING_SCALE.length - 1, avgIdx))] || 'Untrained';
 }
 
-function buildTop10WithSelfSlot(sortedEntries) {
+// Only athletes with something logged for the board are ranked (top 10, plus you if you're further down). Those
+// with nothing logged follow, unranked, reading NOT LOGGED YET instead of a zero.
+function buildTop10WithSelfSlot(sortedEntries, valueOf = null) {
+  if (valueOf) {
+    const logged = sortedEntries.filter(e => valueOf(e) > 0);
+    const unlogged = sortedEntries.filter(e => !(valueOf(e) > 0)).map(e => ({ ...e, rank: null, unlogged: true }));
+    return [...buildTop10WithSelfSlot(logged), ...unlogged];
+  }
   const ranked = sortedEntries.map((item, idx) => ({
     ...item,
     rank: idx + 1
@@ -207,17 +217,20 @@ export function LeaderboardView({
   ];
 
   const big3TotalEntries = buildTop10WithSelfSlot(
-    [...rawAthletes].sort((a, b) => b.total - a.total)
+    [...rawAthletes].sort((a, b) => b.total - a.total),
+    a => a.total
   );
 
   // 2. BIG 3 NORMALIZED (Literal sum of Big 3 divided by user's bodyweight)
   const big3NormalizedEntries = buildTop10WithSelfSlot(
-    rawAthletes.filter(a => a.bwShared).sort((a, b) => b.normalized - a.normalized)
+    rawAthletes.filter(a => a.bwShared).sort((a, b) => b.normalized - a.normalized),
+    a => a.normalized
   );
 
   // 3. OVERHEAD PRESS NORMALIZED (OHP 1RM divided by user's bodyweight)
   const ohpNormalizedEntries = buildTop10WithSelfSlot(
-    rawAthletes.filter(a => a.bwShared).sort((a, b) => b.ohpNormalized - a.ohpNormalized)
+    rawAthletes.filter(a => a.bwShared).sort((a, b) => b.ohpNormalized - a.ohpNormalized),
+    a => a.ohpNormalized
   );
 
   // 4. MOST IMPROVED (Delta between lowest logged value and highest logged value, divided by user's bodyweight)
@@ -321,6 +334,9 @@ export function LeaderboardView({
               >
                 <span style={onOpenProfile ? NAME_LINK_STYLE : undefined}>@{entry.name}</span>
               </span>
+              {entry.unlogged ? (
+                <span style={NOT_LOGGED_STYLE}>BIG 3 NOT LOGGED YET</span>
+              ) : (
               <span style={{ fontSize: '11px', fontWeight: 500, color: '#9A9A9A', textTransform: 'uppercase' }}>
                 <span style={{ color: '#FFFFFF' }}>BENCH + SQUAT + DEADLIFT</span>
                 {entry.standing && (
@@ -329,10 +345,11 @@ export function LeaderboardView({
                   </>
                 )}
               </span>
+              )}
             </div>
             </div>
-            <span style={{ fontSize: '16px', fontWeight: 500, color: 'var(--dp-color-accent)' }}>
-              {oneRepMaxLabel(entry.total, entry.totalCalculated)} LB
+            <span style={{ fontSize: '16px', fontWeight: 500, color: entry.unlogged ? '#8A8A8A' : 'var(--dp-color-accent)' }}>
+              {entry.unlogged ? '—' : `${oneRepMaxLabel(entry.total, entry.totalCalculated)} LB`}
             </span>
           </IOSListRow>
         ))}
@@ -362,14 +379,18 @@ export function LeaderboardView({
               >
                 <span style={onOpenProfile ? NAME_LINK_STYLE : undefined}>@{entry.name}</span>
               </span>
-              <span style={{ fontSize: '11px', fontWeight: 500, color: '#9A9A9A', textTransform: 'uppercase' }}>
-                {oneRepMaxLabel(entry.total, entry.totalCalculated)} LB TOTAL • STANDING:{' '}
-                <strong style={{ color: 'var(--dp-color-accent)' }}>{entry.standing.toUpperCase()}</strong>
-              </span>
+              {entry.unlogged ? (
+                <span style={NOT_LOGGED_STYLE}>BIG 3 NOT LOGGED YET</span>
+              ) : (
+                <span style={{ fontSize: '11px', fontWeight: 500, color: '#9A9A9A', textTransform: 'uppercase' }}>
+                  {oneRepMaxLabel(entry.total, entry.totalCalculated)} LB TOTAL • STANDING:{' '}
+                  <strong style={{ color: 'var(--dp-color-accent)' }}>{entry.standing.toUpperCase()}</strong>
+                </span>
+              )}
             </div>
             </div>
-            <span style={{ fontSize: '16px', fontWeight: 500, color: 'var(--dp-color-accent)' }}>
-              {entry.normalized.toFixed(2)}x BW
+            <span style={{ fontSize: '16px', fontWeight: 500, color: entry.unlogged ? '#8A8A8A' : 'var(--dp-color-accent)' }}>
+              {entry.unlogged ? '—' : `${entry.normalized.toFixed(2)}x BW`}
             </span>
           </IOSListRow>
         ))}
@@ -399,14 +420,18 @@ export function LeaderboardView({
               >
                 <span style={onOpenProfile ? NAME_LINK_STYLE : undefined}>@{entry.name}</span>
               </span>
-              <span style={{ fontSize: '11px', fontWeight: 500, color: '#9A9A9A', textTransform: 'uppercase' }}>
-                {oneRepMaxLabel(entry.ohp, entry.ohpCalculated)} LB <span style={{ color: '#FFFFFF' }}>OHP</span> • STANDING:{' '}
-                <strong style={{ color: 'var(--dp-color-accent)' }}>{entry.ohpStanding.toUpperCase()}</strong>
-              </span>
+              {entry.unlogged ? (
+                <span style={NOT_LOGGED_STYLE}>OVERHEAD PRESS NOT LOGGED YET</span>
+              ) : (
+                <span style={{ fontSize: '11px', fontWeight: 500, color: '#9A9A9A', textTransform: 'uppercase' }}>
+                  {oneRepMaxLabel(entry.ohp, entry.ohpCalculated)} LB <span style={{ color: '#FFFFFF' }}>OHP</span> • STANDING:{' '}
+                  <strong style={{ color: 'var(--dp-color-accent)' }}>{entry.ohpStanding.toUpperCase()}</strong>
+                </span>
+              )}
             </div>
             </div>
-            <span style={{ fontSize: '16px', fontWeight: 500, color: 'var(--dp-color-accent)' }}>
-              {entry.ohpNormalized.toFixed(2)}x BW
+            <span style={{ fontSize: '16px', fontWeight: 500, color: entry.unlogged ? '#8A8A8A' : 'var(--dp-color-accent)' }}>
+              {entry.unlogged ? '—' : `${entry.ohpNormalized.toFixed(2)}x BW`}
             </span>
           </IOSListRow>
         ))}

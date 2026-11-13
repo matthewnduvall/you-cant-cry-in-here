@@ -1284,6 +1284,8 @@ export default function App() {
 
           {(currentView === 'profile' || currentView === 'friend_profile') && (
             <ProfileView
+              // One instance per athlete: opening another profile (yours after a friend's) starts on its first tab
+              key={currentView === 'friend_profile' ? `friend_${viewingFriendProfile?.id || viewingFriendProfile?.username || ''}` : 'own'}
               colors={colors}
               currentView={currentView}
               viewingFriendProfile={viewingFriendProfile}

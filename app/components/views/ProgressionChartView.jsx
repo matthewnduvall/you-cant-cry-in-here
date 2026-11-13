@@ -2,7 +2,7 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import { EXERCISE_LIBRARY, EXERCISE_MAP, parseYMDToISO } from '../../data/exerciseLibrary';
-import { SHARED_CELL_BORDER, SHARED_GROUP_OUTER, SHARED_PICKER_GROUP } from '../../styles/kineticTokens';
+import { SHARED_CELL_BORDER, SHARED_GROUP_OUTER, SHARED_PICKER_GROUP, UI } from '../../styles/kineticTokens';
 import { Button, SegmentButton } from '../Controls';
 import { oneRepMaxLabel } from '../../utils/workoutEngine';
 import { ExercisePicker } from '../ExercisePicker';
@@ -339,6 +339,8 @@ export function ProgressionChartView({
 
   // Each series' points; `inWindow` = the points inside the visible window
   const seriesByLift = fullSeriesById;
+  // Nothing logged at all for the selected series: the chart block shows a message instead of empty axes
+  const selectedSeriesEmpty = (seriesByLift[highlightId] || []).length === 0;
   const inWindowByLift = {};
   allSeriesIds.forEach(id => {
     inWindowByLift[id] = (seriesByLift[id] || []).filter(pt => pt.timestampMs >= domainMinMs && pt.timestampMs <= domainMaxMs);
@@ -526,7 +528,8 @@ export function ProgressionChartView({
               backgroundColor: '#000000'
             }}
           >
-          {/* TIME FRAME: 30 DAYS | 90 DAYS | 1 YEAR | ALL — the chart's zoom */}
+          {/* TIME FRAME: 30 DAYS | 90 DAYS | 1 YEAR | ALL — the chart's zoom (not while there is nothing to draw) */}
+          {!selectedSeriesEmpty && (
           <div
             style={{
               display: 'grid',
@@ -551,15 +554,41 @@ export function ProgressionChartView({
               </SegmentButton>
             ))}
           </div>
+          )}
 
           {/* SVG CHART CELL */}
           <div
             style={{
               padding: '12px',
               backgroundColor: '#1C1C1C',
-              ...SHARED_CELL_BORDER
+              ...SHARED_CELL_BORDER,
+              ...(selectedSeriesEmpty ? { borderRadius: '14px 14px 0 0' } : {})
             }}
           >
+            {/* Nothing logged for the selected series: say so in words instead of drawing empty axes */}
+            {selectedSeriesEmpty ? (
+              <div
+                style={{
+                  minHeight: '120px',
+                  borderRadius: '10px',
+                  backgroundColor: '#000000',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px',
+                  padding: '16px',
+                  textAlign: 'center'
+                }}
+              >
+                <span style={{ ...UI.capsLabel }}>NOT LOGGED YET</span>
+                <span style={{ ...UI.sentence, color: '#BDBDBD' }}>
+                  {highlightId === GOAL_SERIES_ID
+                    ? 'Log a session with the Big 3 or overhead press to see how far you are from your goals.'
+                    : 'Log a session with this lift to see its 1 rep max over time.'}
+                </span>
+              </div>
+            ) : (
             <svg
               ref={svgRef}
               viewBox={`0 0 ${svgW} ${svgH}`}
@@ -725,9 +754,10 @@ export function ProgressionChartView({
                 </text>
               )}
             </svg>
+            )}
 
             {/* Scroll through time: drag the chart, or step half a window with the arrows */}
-            {canScroll && (
+            {canScroll && !selectedSeriesEmpty && (
               <div
                 style={{
                   display: 'grid',
