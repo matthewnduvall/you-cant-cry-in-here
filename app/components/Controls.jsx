@@ -313,9 +313,14 @@ export function DragNumberBadge({
   );
 }
 
-function GymOptions({ gyms = [] }) {
+function GymOptions({ gyms = [], extraOptions = [] }) {
   return (
     <>
+      {(extraOptions || []).map(opt => (
+        <option key={opt.id} value={opt.id}>
+          {String(opt.label || '').toUpperCase()}
+        </option>
+      ))}
       {DEFAULT_GYM_EQUIPMENT_PRESETS.map(preset => (
         <option key={preset.id || 'full_gym'} value={preset.id}>
           {preset.name.toUpperCase()}
@@ -344,7 +349,9 @@ export function GymSelect({
   variant = 'field',
   tileLabel = 'EQUIPMENT',
   ariaLabel = 'Select equipment',
-  style
+  style,
+  // Options listed before the presets, e.g. { id: 'my_equipment', label: 'My equipment' }
+  extraOptions = []
 }) {
   const select = (extraStyle = {}) => (
     <select
@@ -354,7 +361,7 @@ export function GymSelect({
       onChange={e => onChange?.(e.target.value)}
       style={extraStyle}
     >
-      <GymOptions gyms={gyms} />
+      <GymOptions gyms={gyms} extraOptions={extraOptions} />
     </select>
   );
 
@@ -413,7 +420,7 @@ export function GymSelect({
           textAlign: 'center'
         }}
       >
-        {getGymSelectionLabel(value, gyms)}
+        {(extraOptions || []).find(opt => opt.id === value)?.label?.toUpperCase() || getGymSelectionLabel(value, gyms)}
       </div>
       {select({
         position: 'absolute',

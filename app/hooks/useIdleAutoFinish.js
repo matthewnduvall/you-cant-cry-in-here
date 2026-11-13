@@ -23,35 +23,45 @@ const storeActivity = ms => {
 };
 
 /**
- * Idle auto-finish: touches, clicks and key presses count as activity (kept in localStorage, so a closed or
- * suspended app is checked when it comes back). Every 30 s, and when the app returns to the foreground, a live
+ * Idle auto-finish: touches, clicks and key presses count as activity at all times (kept in localStorage, so a closed
+ * or suspended app is checked when it comes back). Every 30 s, and when the app returns to the foreground, a live
  * session idle for 15 minutes is handed to onAutoFinish (which saves it if it has completed sets).
+ * Activity is recorded even with no session open, so starting one (NEW SESSION, LOAD ROUTINE…) never inherits the
+ * idle time from before it: the tap that started it counts.
  */
 export function useIdleAutoFinish({ hasLiveSession, onAutoFinish }) {
   const lastActivityRef = useRef(0);
+  const lastWriteRef = useRef(0);
   const onAutoFinishRef = useRef(onAutoFinish);
   useEffect(() => {
     onAutoFinishRef.current = onAutoFinish;
   });
 
+  const markActive = () => {
+    const t = Date.now();
+    lastActivityRef.current = t;
+    if (t - lastWriteRef.current > 10 * 1000) {
+      lastWriteRef.current = t;
+      storeActivity(t);
+    }
+  };
+
+  // Activity, always
+  useEffect(() => {
+    const stored = readStoredActivity();
+    lastActivityRef.current = stored > 0 ? stored : Date.now();
+    if (!stored) storeActivity(lastActivityRef.current);
+    const events = ['pointerdown', 'keydown', 'touchstart'];
+    events.forEach(evt => window.addEventListener(evt, markActive, { passive: true, capture: true }));
+    return () => events.forEach(evt => window.removeEventListener(evt, markActive, { capture: true }));
+  }, []);
+
+  // The idle check, while a session is live
   useEffect(() => {
     if (!hasLiveSession) return undefined;
-    const now = Date.now();
-    const stored = readStoredActivity();
-    lastActivityRef.current = stored > 0 ? stored : now;
-    if (!stored) storeActivity(now);
-
-    let lastWrite = 0;
-    const markActive = () => {
-      const t = Date.now();
-      lastActivityRef.current = t;
-      if (t - lastWrite > 10 * 1000) {
-        lastWrite = t;
-        storeActivity(t);
-      }
-    };
     const check = () => {
-      if (Date.now() - lastActivityRef.current < IDLE_AUTO_FINISH_MS) return;
+      const last = Math.max(lastActivityRef.current, readStoredActivity());
+      if (Date.now() - last < IDLE_AUTO_FINISH_MS) return;
       const saved = onAutoFinishRef.current?.();
       // Nothing to save (no completed sets): start the idle clock again
       if (!saved) markActive();
@@ -59,15 +69,11 @@ export function useIdleAutoFinish({ hasLiveSession, onAutoFinish }) {
     const onVisible = () => {
       if (document.visibilityState === 'visible') check();
     };
-
     check();
     const timer = setInterval(check, CHECK_EVERY_MS);
-    const events = ['pointerdown', 'keydown', 'touchstart'];
-    events.forEach(evt => window.addEventListener(evt, markActive, { passive: true, capture: true }));
     document.addEventListener('visibilitychange', onVisible);
     return () => {
       clearInterval(timer);
-      events.forEach(evt => window.removeEventListener(evt, markActive, { capture: true }));
       document.removeEventListener('visibilitychange', onVisible);
     };
   }, [hasLiveSession]);
