@@ -29,6 +29,100 @@ import {
 } from '../HistoryExerciseFilter';
 
 
+// DATE filter row under the exercise filters: a preset (ANY TIME / LAST 7 DAYS / LAST 30 DAYS / LAST 90 DAYS /
+// THIS YEAR / CUSTOM) and FROM | TO boxes (YYYY/MM/DD, applied when the box loses focus or on Enter; a box left empty
+// is open-ended). "Today" is read when a preset is picked, never during render.
+const DATE_PRESETS = [
+  { id: 'any', label: 'ANY TIME' },
+  { id: 'week', label: 'LAST 7 DAYS', days: 7 },
+  { id: 'month', label: 'LAST 30 DAYS', days: 30 },
+  { id: 'quarter', label: 'LAST 90 DAYS', days: 90 },
+  { id: 'year', label: 'THIS YEAR' },
+  { id: 'custom', label: 'CUSTOM' }
+];
+const ymdOf = d => formatDateYMD(d);
+/** { from, to, preset } for a preset id, counted back from today (local). */
+export const historyDateRangeFor = presetId => {
+  const preset = DATE_PRESETS.find(p => p.id === presetId);
+  if (!preset || preset.id === 'any') return null;
+  const today = new Date();
+  if (preset.id === 'year') return { from: `${today.getFullYear()}/01/01`, to: ymdOf(today), preset: 'year' };
+  if (preset.days) {
+    const from = new Date(today.getFullYear(), today.getMonth(), today.getDate() - (preset.days - 1));
+    return { from: ymdOf(from), to: ymdOf(today), preset: preset.id };
+  }
+  return { from: '', to: '', preset: 'custom' };
+};
+const validYMD = text => {
+  const m = /^(\d{4})[/-](\d{1,2})[/-](\d{1,2})$/.exec(String(text || '').trim());
+  if (!m) return null;
+  const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  return d.getMonth() === Number(m[2]) - 1 ? ymdOf(d) : null;
+};
+function HistoryDateFilter({ range, onChange }) {
+  const presetId = range ? range.preset || 'custom' : 'any';
+  const box = (key, label) => (
+    <input
+      key={`${key}_${range?.[key] || ''}`}
+      type="text"
+      inputMode="numeric"
+      aria-label={`${label} date (YYYY/MM/DD)`}
+      placeholder={label}
+      defaultValue={range?.[key] || ''}
+      onKeyDown={e => {
+        if (e.key === 'Enter') e.currentTarget.blur();
+      }}
+      onBlur={e => {
+        const text = e.target.value.trim();
+        if (!text) {
+          const next = { from: range?.from || '', to: range?.to || '', preset: 'custom', [key]: '' };
+          onChange(next.from || next.to ? next : null);
+          return;
+        }
+        const ymd = validYMD(text);
+        if (!ymd) {
+          e.target.value = range?.[key] || '';
+          return;
+        }
+        onChange({ from: range?.from || '', to: range?.to || '', preset: 'custom', [key]: ymd });
+      }}
+      style={{
+        ...SHARED_CELL_BORDER,
+        minWidth: 0,
+        height: '44px',
+        boxSizing: 'border-box',
+        padding: '0 8px',
+        backgroundColor: '#2A2A2A',
+        color: '#FFFFFF',
+        border: 'none',
+        fontFamily: 'inherit',
+        fontSize: '13px',
+        textAlign: 'center',
+        outline: 'none'
+      }}
+    />
+  );
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.2fr) minmax(0, 1fr) minmax(0, 1fr)', gap: 0 }}>
+      <select
+        className="kinetic-filter-select"
+        aria-label="Filter by date"
+        value={presetId}
+        onChange={e => onChange(historyDateRangeFor(e.target.value))}
+        style={{ ...SHARED_CELL_BORDER, height: '44px', minWidth: 0, fontSize: '12px', fontWeight: 500 }}
+      >
+        {DATE_PRESETS.map(p => (
+          <option key={p.id} value={p.id}>
+            {p.label}
+          </option>
+        ))}
+      </select>
+      {box('from', 'FROM')}
+      {box('to', 'TO')}
+    </div>
+  );
+}
+
 export function HistoryView({
   // PROGRESS page tab this renders: 'history' (logged sessions; the Personal Records tab was removed)
   section = 'history',
@@ -51,8 +145,15 @@ export function HistoryView({
   setDeleteConfirmTarget,
   buildHistoryWorkoutEditorProps,
   // A friend's profile: LOAD on each row starts a session from that workout (onLoadWorkout(workout))
-  onLoadWorkout = null
+  onLoadWorkout = null,
+  // Date range filter ({ from, to, preset } with YYYY/MM/DD, or null). Your own History passes it from page.js (so
+  // Home's THIS WEEK can open it filtered); a friend's keeps its own
+  dateRange: dateRangeProp,
+  setDateRange: setDateRangeProp
 }) {
+  const [localDateRange, setLocalDateRange] = useState(null);
+  const dateRange = setDateRangeProp ? dateRangeProp || null : localDateRange;
+  const setDateRange = setDateRangeProp || setLocalDateRange;
   const [showAllHistory, setShowAllHistory] = useState(false);
   // HISTORY tab search & filters (type / muscle / equipment / exercise)
   const [historyFilter, setHistoryFilter] = useState(EMPTY_HISTORY_FILTER);
@@ -426,9 +527,19 @@ export function HistoryView({
 
   const PAGE_SIZE = 100;
   const INITIAL_LIMIT = 10;
-  const filterActive = isHistoryFilterActive(historyFilter);
+  // A workout's local date as YYYY/MM/DD (startedAt, else its typed date), for the date range
+  const workoutYMD = w => {
+    const t = typeof w?.startedAt === 'number' ? w.startedAt : Date.parse(w?.startedAt || '');
+    return Number.isFinite(t) && t > 0 ? formatDateYMD(new Date(t)) : formatDateYMD(w?.workoutDate || '');
+  };
+  const inDateRange = w => {
+    if (!dateRange) return true;
+    const ymd = workoutYMD(w);
+    return (!dateRange.from || ymd >= dateRange.from) && (!dateRange.to || ymd <= dateRange.to);
+  };
+  const filterActive = isHistoryFilterActive(historyFilter) || Boolean(dateRange);
   const filteredHistory = filterActive
-    ? (history || []).filter(w => workoutMatchesHistoryFilter(w, historyFilter))
+    ? (history || []).filter(w => workoutMatchesHistoryFilter(w, historyFilter) && inDateRange(w))
     : history || [];
   const allSessionsCount = (history || []).length;
   // Most recent matching session (History is newest first, but don't rely on it)
@@ -535,6 +646,14 @@ export function HistoryView({
                   setHistoryPage(0);
                 }}
               />
+              <HistoryDateFilter
+                range={dateRange}
+                onChange={next => {
+                  setDateRange(next);
+                  setShowAllHistory(false);
+                  setHistoryPage(0);
+                }}
+              />
             </div>
             {filterActive && (
               <div
@@ -557,6 +676,7 @@ export function HistoryView({
                   type="button"
                   onClick={() => {
                     setHistoryFilter(EMPTY_HISTORY_FILTER);
+                    setDateRange(null);
                     setShowAllHistory(false);
                     setHistoryPage(0);
                   }}
@@ -735,7 +855,7 @@ export function HistoryView({
                         >
                           <div
                             style={{
-                              fontSize: '13px',
+                              fontSize: '15px',
                               ...UI.sessionName,
                               // White: a red name on every row made red mean nothing in the list
                               color: '#FFFFFF',
@@ -786,11 +906,8 @@ export function HistoryView({
                         {!historyFilter.exerciseId && getWorkoutExerciseNames(w) && (
                           <div
                             style={{
-                              fontSize: '11px',
-                              fontWeight: 500,
-                              color: '#FFFFFF',
-                              marginTop: '1px',
-                              textTransform: 'uppercase',
+                              ...UI.rowContents,
+                              marginTop: '2px',
                               display: '-webkit-box',
                               WebkitLineClamp: 2,
                               WebkitBoxOrient: 'vertical',

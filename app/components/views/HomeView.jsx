@@ -260,7 +260,11 @@ export function HomeView({
   // The TODAY panel while a session is open: { title, done, total } (sets)
   activeSessionSummary = null,
   // Bodyweight / height not entered yet: the ticker starts with a reminder
-  bodyMetricsSet = true
+  bodyMetricsSet = true,
+  // LAST SESSION opens that workout in History (onOpenWorkout(id)); THIS WEEK opens History filtered to the last
+  // 7 days (onOpenThisWeek)
+  onOpenWorkout,
+  onOpenThisWeek
 }) {
   const [scrollerSeed, setScrollerSeed] = useState(1);
   const [todayFallbackStr, setTodayFallbackStr] = useState('');
@@ -372,6 +376,10 @@ export function HomeView({
   const todayStart = nowMs ? dayStart(nowMs) : null;
   const pastTimes = todayStart === null ? [] : loggedTimes.filter(t => dayStart(t) <= todayStart);
   const lastMs = pastTimes.length > 0 ? Math.max(...pastTimes) : 0;
+  // The workout LAST SESSION opens
+  const lastWorkoutId = lastMs
+    ? (history || []).find(w => w && w.loadedRoutineTitle !== 'PERSONAL RECORD' && workoutMs(w) === lastMs)?.id || null
+    : null;
   const lastAgoDays = todayStart !== null && lastMs ? Math.max(0, Math.round((todayStart - dayStart(lastMs)) / DAY)) : null;
   // Today and the 6 days before it
   const thisWeek = todayStart === null ? null : pastTimes.filter(t => dayStart(t) >= todayStart - 6 * DAY).length;
@@ -418,7 +426,8 @@ export function HomeView({
       value: lastAgoDays === null ? '—' : lastAgoDays === 0 ? 'TODAY' : String(lastAgoDays),
       unit: lastAgoDays > 0 ? 'D AGO' : '',
       sub: lastMs ? formatDateYMD(new Date(lastMs)) : 'NOTHING LOGGED YET',
-      view: 'history'
+      view: 'history',
+      onClick: lastWorkoutId && onOpenWorkout ? () => onOpenWorkout(lastWorkoutId) : null
     },
     {
       id: 'week',
@@ -426,7 +435,8 @@ export function HomeView({
       value: thisWeek === null ? '—' : String(thisWeek),
       unit: thisWeek === 1 ? 'SESSION' : 'SESSIONS',
       sub: 'LAST 7 DAYS',
-      view: 'history'
+      view: 'history',
+      onClick: onOpenThisWeek || null
     },
     {
       id: 'inbox',
@@ -512,7 +522,7 @@ export function HomeView({
             key={t.id}
             type="button"
             className="kinetic-btn"
-            onClick={() => open(t.view)}
+            onClick={() => (t.onClick ? t.onClick() : open(t.view))}
             aria-label={`${t.label}: ${t.value} ${t.unit}. ${t.sub}`.replace(/\s+/g, ' ')}
             style={{
               position: 'relative',

@@ -249,7 +249,7 @@ export function RoutinesView({
           >
             <div
               style={{
-                fontSize: '13px',
+                fontSize: '15px',
                 ...UI.sessionName,
                 // White: a red name on every row made red mean nothing in the list
                 color: '#FFFFFF',
@@ -272,7 +272,7 @@ export function RoutinesView({
                 .join(' • ')}
             </div>
             {!exerciseFilter.exerciseId && exerciseNamesOf(r) && (
-              <div style={{ ...subLine, color: '#FFFFFF', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+              <div style={{ ...UI.rowContents, marginTop: '2px', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
                 {exerciseNamesOf(r)}
               </div>
             )}
