@@ -7,12 +7,13 @@ import {
   EXERCISE_MAP,
   formatDateYMD,
   stripEquipmentFromExerciseName,
+  stripDateFromTitle,
   getEquipmentListForGymSelection
 } from '../../data/exerciseLibrary';
 
 // The filter option for Configuration → EQUIPMENT (the athlete's own ON list): the default when it is set
 const MY_EQUIPMENT = 'my_equipment';
-import { Button, DeleteButton, GymSelect, TabBar } from '../Controls';
+import { Button, CollapseToggle, DeleteButton, GymSelect, TabBar } from '../Controls';
 import { SHARED_PICKER_GROUP, SHARED_CELL_BORDER } from '../../styles/kineticTokens';
 import {
   HistoryExerciseFilter,
@@ -25,9 +26,9 @@ import {
 
 // The routine lists, one per tab (in this order)
 const ROUTINE_LISTS = [
-  { id: 'saved', tab: 'SAVED', title: 'SAVED ROUTINES', empty: 'No saved routines match this equipment filter.', deleteType: 'saved_routine' },
-  { id: 'shared', tab: 'SHARED', title: 'SHARED ROUTINES', empty: 'No shared routines match this equipment filter.', deleteType: 'shared_routine' },
-  { id: 'friends', tab: 'FRIENDS', title: "FRIENDS' ROUTINES", empty: 'No friend routines match this equipment filter.' }
+  { id: 'saved', tab: 'SAVED', title: 'SAVED ROUTINES', none: 'No saved routines yet. Turn on ROUTINE when you finish a session to save one.', deleteType: 'saved_routine' },
+  { id: 'shared', tab: 'SHARED', title: 'SHARED ROUTINES', none: 'No shared routines yet. Save a session as PUBLIC to share it with friends.', deleteType: 'shared_routine' },
+  { id: 'friends', tab: 'FRIENDS', title: "FRIENDS' ROUTINES", none: 'Your friends haven’t shared any routines yet.' }
 ];
 
 export function RoutinesView({
@@ -60,6 +61,8 @@ export function RoutinesView({
   // The History tab's SEARCH / TYPE / MUSCLE / EQUIPMENT / EXERCISE filter, over the exercises in the routines
   const [exerciseFilter, setExerciseFilter] = useState(EMPTY_HISTORY_FILTER);
   const exerciseFilterActive = isHistoryFilterActive(exerciseFilter);
+  // The exercise filter is tucked away until asked for (SHOW), so the routines come first
+  const [exerciseFilterOpen, setExerciseFilterOpen] = useState(false);
   const hasMyEquipment = Array.isArray(availableEquipment);
   // The equipment filter: your own equipment by default, else the last preset / setup picked
   const [filterId, setFilterId] = useState(() => (hasMyEquipment ? MY_EQUIPMENT : selectedGymId));
@@ -118,7 +121,16 @@ export function RoutinesView({
   const matchingCount = Object.values(byList).reduce((n, v) => n + v.fits.length + v.needsMore.length, 0);
   const lists = ROUTINE_LISTS.filter(l => sections.includes(l.id));
   const useTabs = lists.length > 1;
-  const activeList = lists.find(l => l.id === tabChoice) || lists[0];
+  // How many routines each list holds before any filter (to tell "none yet" from "none match")
+  const rawCount = {
+    saved: (savedRoutines || []).length,
+    shared: (sharedRoutines || []).length,
+    friends: (friendsList || []).reduce((n, f) => n + (f.sharedRoutines || []).length, 0)
+  };
+  // Until a tab is picked: the first list that has routines (fitting first, then any), else the first list
+  const defaultList =
+    lists.find(l => byList[l.id].fits.length > 0) || lists.find(l => byList[l.id].needsMore.length > 0) || lists[0];
+  const activeList = lists.find(l => l.id === tabChoice) || defaultList;
 
   const load = r => handleDirectLoadRoutine(r, routineSelectReturnView || 'session');
 
@@ -186,7 +198,7 @@ export function RoutinesView({
                 minWidth: 0
               }}
             >
-              {r.label}
+              {stripDateFromTitle(r.label) || r.label}
             </div>
             <div style={subLine}>
               {[r.savedAt ? formatDateYMD(r.savedAt) : null, `${count} ${count === 1 ? 'EXERCISE' : 'EXERCISES'}`, `BY @${author}`]
@@ -281,11 +293,13 @@ export function RoutinesView({
           {routines.length === 0 ? (
             <IOSListRow isLast={true} colors={colors}>
               <span style={UI.rowSub}>
-                {needsMore.length > 0
-                  ? 'None fit this equipment; see below for what they need.'
-                  : exerciseFilterActive
-                    ? 'No routines match these filters.'
-                    : list.empty}
+                {rawCount[list.id] === 0
+                  ? list.none
+                  : needsMore.length > 0
+                    ? 'None fit this equipment; see below for what they need.'
+                    : exerciseFilterActive
+                      ? 'No routines match these filters.'
+                      : 'None fit this equipment filter.'}
               </span>
             </IOSListRow>
           ) : (
@@ -352,9 +366,34 @@ export function RoutinesView({
       {/* SEARCH / TYPE / MUSCLE / EQUIPMENT / EXERCISE: the History tab's filter, over the routines' exercises */}
       {allRoutines.length > 0 && (
         <div style={{ padding: '0 var(--dp-spacing-gutter)', marginBottom: '12px' }}>
-          <div style={SHARED_PICKER_GROUP}>
-            <HistoryExerciseFilter history={allRoutines} filter={exerciseFilter} onChange={setExerciseFilter} />
+          {/* Collapsed: one row (FILTER BY EXERCISE + SHOW). Open (or a filter set): the filter, without its own
+              EQUIPMENT dropdown, since FILTER BY EQUIPMENT above already decides what fits */}
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'minmax(0, 1fr) auto',
+              alignItems: 'center',
+              gap: '8px',
+              marginBottom: exerciseFilterOpen || exerciseFilterActive ? '8px' : 0
+            }}
+          >
+            <div style={{ ...UI.capsLabel, paddingLeft: '4px' }}>FILTER BY EXERCISE</div>
+            <CollapseToggle
+              collapsed={!(exerciseFilterOpen || exerciseFilterActive)}
+              label="exercise filter"
+              onClick={() => {
+                if (exerciseFilterOpen || exerciseFilterActive) {
+                  setExerciseFilter(EMPTY_HISTORY_FILTER);
+                  setExerciseFilterOpen(false);
+                } else setExerciseFilterOpen(true);
+              }}
+            />
           </div>
+          {(exerciseFilterOpen || exerciseFilterActive) && (
+            <div style={SHARED_PICKER_GROUP}>
+              <HistoryExerciseFilter history={allRoutines} filter={exerciseFilter} onChange={setExerciseFilter} showEquipment={false} />
+            </div>
+          )}
           {exerciseFilterActive && (
             <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', alignItems: 'center', gap: '8px', marginTop: '8px' }}>
               <div style={{ fontSize: '12px', fontWeight: 500, color: '#9A9A9A', textTransform: 'uppercase', minWidth: 0 }}>

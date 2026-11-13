@@ -156,9 +156,13 @@ export function IOSListRow({ children, onClick, isLast = false, indexLabel, bgNu
 // Width of the header's SYNC / SAVE / RESET cells and the rest-timer bar's ✓ cell. They share it so the orange
 // NEXT bar ends exactly under the SAVE | RESET divider.
 const SESSION_ACTION_COL = '58px';
-// DATE box beside the session name: fits YYYY/MM/DD at 12 px (59 px of text), so the SESSION NAME label keeps one line
-// even with SYNC showing (name box ≈ 95 px at phone width; the label needs ≈ 93 px with its padding)
-const SESSION_DATE_COL = '74px';
+// A typed date is kept only when it is a complete, real YYYY/MM/DD
+const validSessionDate = text => {
+  const next = String(text || '').trim().replace(/-/g, '/');
+  const match = /^(\d{4})\/(\d{1,2})\/(\d{1,2})$/.exec(next);
+  const ok = match && !Number.isNaN(new Date(`${match[1]}-${match[2].padStart(2, '0')}-${match[3].padStart(2, '0')}T12:00:00`).getTime());
+  return ok ? next : null;
+};
 
 export function SessionTitleBar({
   title = '',
@@ -168,7 +172,8 @@ export function SessionTitleBar({
   showActions = false,
   sync = null,
   saveLabel = 'SAVE',
-  // Live session: the session's date (YYYY/MM/DD, from startedAt) in its own box; typing a date moves the session
+  // Live session: the session's date (YYYY/MM/DD, from startedAt), shown on the name cell's label line and edited in
+  // the name pop-up (it no longer has a box of its own, so the name gets the room); a new date moves the session
   dateValue = null,
   onChangeDate,
   // Programs other than Crying: a second row with PROGRAM and WEEK, each opening a picker:
@@ -178,12 +183,27 @@ export function SessionTitleBar({
 }) {
   // The name pop-up: null = closed; otherwise the name being edited (the header box is too narrow for long names)
   const [nameDraft, setNameDraft] = useState(null);
+  const [dateDraft, setDateDraft] = useState('');
+  const [dateError, setDateError] = useState(false);
   // PROGRAM / WEEK pop-up: null | 'program' | 'week'; weekDraft = the typed week for programs without a cycle
   const [programPicker, setProgramPicker] = useState(null);
   const [weekDraft, setWeekDraft] = useState('');
   // The page holds still under the name / program / week pop-ups
   useModalScrollLock(nameDraft !== null || programPicker !== null);
+  const openNamePopup = () => {
+    setNameDraft(title || '');
+    setDateDraft(dateValue || '');
+    setDateError(false);
+  };
   const saveName = () => {
+    if (dateValue) {
+      const nextDate = validSessionDate(dateDraft);
+      if (!nextDate) {
+        setDateError(true);
+        return;
+      }
+      if (nextDate !== dateValue) onChangeDate?.(nextDate);
+    }
     const next = String(nameDraft ?? '').trim();
     if (next && next !== title) onChangeTitle?.(next);
     setNameDraft(null);
@@ -216,7 +236,6 @@ export function SessionTitleBar({
         display: 'grid',
         gridTemplateColumns: [
           'minmax(0, 1fr)',
-          dateValue ? SESSION_DATE_COL : null,
           sync ? SESSION_ACTION_COL : null,
           showActions ? `${SESSION_ACTION_COL} ${SESSION_ACTION_COL}` : null
         ]
@@ -232,8 +251,8 @@ export function SessionTitleBar({
     >
       <button
         type="button"
-        aria-label={`Session name: ${title || 'none'}. Tap to see or edit the full name`}
-        onClick={() => setNameDraft(title || '')}
+        aria-label={`Session name: ${title || 'none'}${dateValue ? `, ${dateValue}` : ''}. Tap to see or edit the full name${dateValue ? ' and date' : ''}`}
+        onClick={openNamePopup}
         style={{
           minWidth: 0,
           height: '40px',
@@ -252,7 +271,7 @@ export function SessionTitleBar({
         }}
       >
         <span style={{ fontSize: '10px', fontWeight: 500, letterSpacing: '0.06em', color: '#9A9A9A', lineHeight: 1.1, whiteSpace: 'nowrap' }}>
-          SESSION NAME
+          {dateValue ? `SESSION · ${dateValue}` : 'SESSION NAME'}
         </span>
         <span
           style={{
@@ -269,58 +288,6 @@ export function SessionTitleBar({
           {title}
         </span>
       </button>
-      {dateValue && (
-        <label
-          style={{
-            minWidth: 0,
-            height: '40px',
-            boxSizing: 'border-box',
-            backgroundColor: '#1C1C1C',
-            ...cellBorder,
-            padding: '0 6px',
-            display: 'flex',
-            flexDirection: 'column',
-            justifyContent: 'center'
-          }}
-        >
-          <span style={{ fontSize: '10px', fontWeight: 500, letterSpacing: '0.1em', color: '#9A9A9A', lineHeight: 1.1 }}>DATE</span>
-          <input
-            key={dateValue}
-            type="text"
-            inputMode="numeric"
-            aria-label="Session date (YYYY/MM/DD)"
-            placeholder="YYYY/MM/DD"
-            defaultValue={dateValue}
-            onKeyDown={e => {
-              if (e.key === 'Enter') e.currentTarget.blur();
-            }}
-            onBlur={e => {
-              const next = e.target.value.trim().replace(/-/g, '/');
-              const match = /^(\d{4})\/(\d{1,2})\/(\d{1,2})$/.exec(next);
-              const valid = match && !Number.isNaN(new Date(`${match[1]}-${match[2].padStart(2, '0')}-${match[3].padStart(2, '0')}T12:00:00`).getTime());
-              if (!valid) {
-                e.target.value = dateValue;
-                return;
-              }
-              if (next !== dateValue) onChangeDate?.(next);
-            }}
-            style={{
-              width: '100%',
-              minWidth: 0,
-              backgroundColor: 'transparent',
-              border: 'none',
-              color: '#FFFFFF',
-              fontSize: '12px',
-              fontWeight: 500,
-              outline: 'none',
-              padding: 0,
-              marginTop: '2px',
-              lineHeight: 1.2,
-              fontFamily: 'inherit'
-            }}
-          />
-        </label>
-      )}
       {sync && (
         <button
           type="button"
@@ -606,7 +573,7 @@ export function SessionTitleBar({
           style={UI.modalCard('380px')}
         >
           <div style={UI.modalHeader}>
-            <span>SESSION NAME</span>
+            <span>{dateValue ? 'SESSION NAME & DATE' : 'SESSION NAME'}</span>
             <button type="button" aria-label="Close" onClick={() => setNameDraft(null)} style={UI.closeXBtn}>
               ✕
             </button>
@@ -626,12 +593,41 @@ export function SessionTitleBar({
             }}
             style={{ ...UI.field, ...UI.sessionName, resize: 'none', lineHeight: 1.3, fontFamily: 'inherit' }}
           />
+          {dateValue && (
+            <label style={{ display: 'block', marginTop: '12px' }}>
+              <span style={{ ...UI.fieldLabel, display: 'block', marginBottom: '6px' }}>DATE</span>
+              <input
+                type="text"
+                inputMode="numeric"
+                aria-label="Session date (YYYY/MM/DD)"
+                aria-invalid={dateError}
+                placeholder="YYYY/MM/DD"
+                value={dateDraft}
+                onChange={e => {
+                  setDateDraft(e.target.value);
+                  setDateError(false);
+                }}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    saveName();
+                  }
+                }}
+                style={UI.field}
+              />
+              {dateError && (
+                <span style={{ ...UI.sentence, display: 'block', marginTop: '6px', color: 'var(--cr-red-text)' }}>
+                  Type a real date as YYYY/MM/DD.
+                </span>
+              )}
+            </label>
+          )}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginTop: '12px' }}>
             <button type="button" className="kinetic-btn" onClick={() => setNameDraft(null)} style={UI.secondaryBtnCenter}>
               CANCEL
             </button>
             <button type="button" className="kinetic-btn" onClick={saveName} style={UI.primaryBtnCenter}>
-              SAVE NAME
+              {dateValue ? 'SAVE' : 'SAVE NAME'}
             </button>
           </div>
         </div>
