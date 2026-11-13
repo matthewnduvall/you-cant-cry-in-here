@@ -74,7 +74,7 @@ export const applyProgramToSlot = (slot, ctx, opts = {}) => {
     userBodyweightLbs = 220,
     setPreferences = DEFAULT_SET_PREFERENCES,
     workoutId = null,
-    targetStandardClass = 'Intermediate',
+    targetStandardClass = 'Novice',
     heightInches = 70
   } = opts;
   const weekPlan = program.weekPlan(week);
@@ -423,7 +423,7 @@ export const applyDayProgramToSlot = (slot, ctx, opts = {}) => {
   const spec = day?.slots?.find(s => s.key === ref.key);
   if (!spec) return slot;
   const exId = slot.exerciseId;
-  const { history = [], userBodyweightLbs = 220, workoutId = null, targetStandardClass = 'Intermediate', heightInches = 70 } = opts;
+  const { history = [], userBodyweightLbs = 220, workoutId = null, targetStandardClass = 'Novice', heightInches = 70 } = opts;
   if (isTracing()) {
     traceLine(describe1RM(exId, { history: opts.history || [], targetStandardClass: opts.targetStandardClass, bodyweightLbs: opts.userBodyweightLbs, heightInches: opts.heightInches }));
     traceLine(`${program.label} · ${day?.name || ''} · week ${ctx.week}: ${spec.key} (${spec.rule}${spec.role ? `, ${spec.role}` : ''})`);
@@ -445,8 +445,8 @@ export const applyDayProgramToSlot = (slot, ctx, opts = {}) => {
     const type = prev?.lockType ? prev.type : p.type;
     const reps = prev?.lockReps ? prev.reps : p.reps;
     const weight = prev?.lockWeight ? prev.weight : p.weight;
-    // Percentage programs (5/3/1, Boring But Big) show %1RM; the rest RPE
-    const mode = spec.rule === '531' || spec.rule === 'bbb' ? 'pct' : 'rpe';
+    // Percentage programs (5/3/1, Boring But Big) show %1RM; the rest RIR
+    const mode = spec.rule === '531' || spec.rule === 'bbb' ? 'pct' : 'rir';
     const intensity =
       p.intensity || (isBodyweightExercise(exId) ? null : deriveIntensity(planned.est1RM, weight, reps, mode)) || null;
     let out = {
@@ -465,7 +465,7 @@ export const applyDayProgramToSlot = (slot, ctx, opts = {}) => {
     if (isBodyweightExercise(exId)) return out;
     if (prev?.lockIntensity && prev.intensity) out = solveSet({ ...out, intensity: prev.intensity }, planned.est1RM);
     else if (prev?.lockWeight) {
-      const derived = deriveIntensity(planned.est1RM, out.weight, out.reps, out.intensity?.mode || 'rpe');
+      const derived = deriveIntensity(planned.est1RM, out.weight, out.reps, out.intensity?.mode || 'rir');
       if (derived) out = { ...out, intensity: derived };
     }
     return out;

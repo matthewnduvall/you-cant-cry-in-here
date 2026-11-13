@@ -774,7 +774,7 @@ export function ProgressionChartView({
             const startWorkoutId = dist[0]?.workoutId || null;
             const latestWorkoutId = dist[dist.length - 1]?.workoutId || null;
             const isHighlighted = highlightId === GOAL_SERIES_ID;
-            const classLabel = String(targetStandardClass || 'Intermediate').toUpperCase();
+            const classLabel = String(targetStandardClass || 'Novice').toUpperCase();
             return (
               <GoalDistanceRow
                 className={classLabel}

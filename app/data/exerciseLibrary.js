@@ -218,7 +218,17 @@ export const EXERCISE_NAME_ALIASES = {
   // Its name until 2026/11 (older CSVs and exports use it)
   overhead_press: ['Barbell Military Overhead Press', 'Military Overhead Press'],
   front_squat: ['Front Squat', 'Front Squats'],
-  chin_ups: ['Pull-Up', 'Pull-Ups', 'Pullup', 'Pullups'],
+  // Pull-ups and chin-ups are one exercise whatever the load: bodyweight (weight 0), weighted (the added weight) or
+  // band-assisted (the band) are its equipment options
+  chin_ups: [
+    'Pull-Up', 'Pull-Ups', 'Pullup', 'Pullups', 'Chin-Up', 'Chin-Ups', 'Chinup', 'Chinups',
+    'Bodyweight Pull-up', 'Weighted Pull-up', 'Band-Assisted Pull-up', 'Bodyweight Chin-up', 'Weighted Chin-up',
+    'Band-Assisted Chin-up', 'Assisted Pull-Up', 'Banded Pull-Up'
+  ],
+  exrx_back_bodyweight_parallel_close_grip_pull_up: [
+    'Bodyweight Parallel Close Grip Pull-up', 'Weighted Parallel Close Grip Pull-up', 'Band-Assisted Parallel Grip Pull-up'
+  ],
+  exrx_back_bodyweight_archer_pull_up: ['Bodyweight Archer Pull-up', 'Band-Assisted Archer Pull-up'],
   dumbbell_single_leg_rdl: ['One Legged RDL', 'One Legged RDLs', 'One-Leg RDL', 'Single Leg RDL', 'Single-Leg RDLs', 'SL RDL', 'Single Leg Deadlift', 'Kettlebell Single-Leg RDL'],
   barbell_single_leg_rdl: ['Barbell Single Leg RDL', 'Barbell One Legged RDL', 'Barbell SL RDL', 'BB Single Leg RDL'],
   dumbbell_lu_raise: ['Lu Raise', 'Lu Raises', 'Overhead Lateral Raise', 'Plate Lu Raise'],
@@ -324,7 +334,71 @@ export const parseExercisesCsv = rawCsv => {
 // Comprehensive Exercise Library parsed directly from app/data/exercises.csv
 export const EXERCISE_LIBRARY = parseExercisesCsv(exercisesCsvText);
 
+// Exercises merged into another (the old one is now an equipment option of it): old id → the exercise it is now and
+// the equipment option it stands for. Saved workouts, routines and records are rewritten (canonicalExerciseData);
+// EXERCISE_MAP still answers the old ids so nothing unmigrated (a friend's old data) breaks.
+export const MERGED_EXERCISE_IDS = {
+  exrx_back_bodyweight_pull_up: { id: 'chin_ups', equipment: 'Bodyweight' },
+  exrx_back_weighted_pull_up: { id: 'chin_ups', equipment: 'Weighted' },
+  exrx_back_band_assisted_pull_up: { id: 'chin_ups', equipment: 'Band-Assisted' },
+  exrx_back_bodyweight_chin_up: { id: 'chin_ups', equipment: 'Bodyweight' },
+  exrx_back_weighted_chin_up: { id: 'chin_ups', equipment: 'Weighted' },
+  exrx_back_band_assisted_chin_up: { id: 'chin_ups', equipment: 'Band-Assisted' },
+  exrx_back_weighted_parallel_close_grip_pull_up: { id: 'exrx_back_bodyweight_parallel_close_grip_pull_up', equipment: 'Weighted' },
+  exrx_back_band_assisted_parallel_grip_pull_up: { id: 'exrx_back_bodyweight_parallel_close_grip_pull_up', equipment: 'Band-Assisted' },
+  exrx_back_band_assisted_archer_pull_up: { id: 'exrx_back_bodyweight_archer_pull_up', equipment: 'Band-Assisted' }
+};
+
 export const EXERCISE_MAP = Object.fromEntries(EXERCISE_LIBRARY.map(ex => [ex.id, ex]));
+Object.entries(MERGED_EXERCISE_IDS).forEach(([oldId, { id }]) => {
+  if (!EXERCISE_MAP[oldId] && EXERCISE_MAP[id]) EXERCISE_MAP[oldId] = EXERCISE_MAP[id];
+});
+
+/** The exercise id an id stands for now (a merged exercise's id → the one it was merged into). */
+export const canonicalExerciseId = id => MERGED_EXERCISE_IDS[id]?.id || id;
+
+const hasMergedId = value => {
+  if (typeof value === 'string') return Boolean(MERGED_EXERCISE_IDS[value]);
+  if (Array.isArray(value)) return value.some(hasMergedId);
+  if (value && typeof value === 'object') return Object.entries(value).some(([k, v]) => Boolean(MERGED_EXERCISE_IDS[k]) || hasMergedId(v));
+  return false;
+};
+
+/**
+ * Saved data (a slot, workout, routine, records map…) with merged exercise ids rewritten to the exercise they are
+ * now — values and object keys. A slot whose exercise was merged keeps what it was through its equipment option
+ * (equipmentFilter / supersetEquipmentFilters), e.g. a Weighted Pull-up is the Pull-Up on Weighted. Data without
+ * merged ids comes back as the same object.
+ */
+export const canonicalExerciseData = value => {
+  if (!hasMergedId(value)) return value;
+  const walk = v => {
+    if (typeof v === 'string') return canonicalExerciseId(v);
+    if (Array.isArray(v)) return v.map(walk);
+    if (!v || typeof v !== 'object') return v;
+    const out = {};
+    Object.entries(v).forEach(([k, val]) => {
+      out[canonicalExerciseId(k)] = walk(val);
+    });
+    // A slot: remember the merged exercise's equipment option
+    const equipOf = id => MERGED_EXERCISE_IDS[id]?.equipment;
+    if (typeof v.exerciseId === 'string' && equipOf(v.exerciseId) && !v.equipmentFilter && !Array.isArray(v.supersetExerciseIds)) {
+      out.equipmentFilter = equipOf(v.exerciseId);
+    }
+    if (Array.isArray(v.supersetExerciseIds) && v.supersetExerciseIds.some(equipOf)) {
+      const filters = Array.isArray(v.supersetEquipmentFilters) ? [...v.supersetEquipmentFilters] : [];
+      v.supersetExerciseIds.forEach((id, i) => {
+        if (equipOf(id) && !filters[i]) filters[i] = equipOf(id);
+      });
+      out.supersetEquipmentFilters = filters;
+      if (v.supersetExerciseIds.length === 1 && equipOf(v.supersetExerciseIds[0]) && !v.equipmentFilter) {
+        out.equipmentFilter = equipOf(v.supersetExerciseIds[0]);
+      }
+    }
+    return out;
+  };
+  return walk(value);
+};
 
 export const sortExercisesAlphabetically = list =>
   [...(list || [])].sort((a, b) => (a?.name || '').localeCompare(b?.name || ''));

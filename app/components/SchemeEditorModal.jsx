@@ -8,6 +8,7 @@
 
 import React, { useState } from 'react';
 import { UI, SHARED_GROUP_OUTER } from '../styles/kineticTokens';
+import { useModalScrollLock } from '../hooks/useModalScrollLock';
 import { SegmentButton } from './Controls';
 import { SCHEME_OPTIONS, isClusterScheme, getSchemeUniformReps, PYRAMID_SCHEMES } from '../utils/workoutEngine';
 
@@ -41,6 +42,7 @@ const showsReps = scheme => !PYRAMID_SCHEMES.includes(scheme) && scheme !== 'Tim
  */
 export function SchemeEditorModal({ halves = [], isSuperset = false, programNote = null, onApply, onClose }) {
   const [half, setHalf] = useState(0);
+  useModalScrollLock(true);
   const [drafts, setDrafts] = useState(() => halves.map(h => ({ scheme: h.scheme, sets: h.sets, reps: h.reps })));
   const draft = drafts[half] || drafts[0];
   const update = patch => setDrafts(prev => prev.map((d, i) => (i === half ? { ...d, ...patch } : d)));

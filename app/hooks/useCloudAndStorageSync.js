@@ -162,7 +162,7 @@ export function useCloudAndStorageSync({
           setGoalIncrement(hydrated.settings.goals.goalIncrement ?? 1.25);
           setGoalUnit(hydrated.settings.goals.goalUnit || 'lb');
           setChartMetric(hydrated.settings.goals.chartMetric || 'weight');
-          setTargetStandardClass(hydrated.settings.goals.targetStandardClass || 'Intermediate');
+          setTargetStandardClass(hydrated.settings.goals.targetStandardClass || 'Novice');
           setCustomGoalWeights(hydrated.settings.goals.customGoalWeights || {});
         }
         if (hydrated.settings.bodyMetrics) {
@@ -786,7 +786,7 @@ export function useCloudAndStorageSync({
     setGoalType('Balanced');
     setGoalIncrement(1.25);
     setGoalUnit('lb');
-    setTargetStandardClass('Intermediate');
+    setTargetStandardClass('Novice');
     setCustomGoalWeights({});
     setStimulusGreenDays(2);
     setStimulusYellowDays(4);

@@ -40,6 +40,8 @@ import {
   SyncedHistoryUpdateModal
 } from './components/SessionSyncModals';
 import { useSyncedHistoryUpdates } from './hooks/useSyncedHistoryUpdates';
+import { useRoutineShares } from './hooks/useRoutineShares';
+import { SendRoutineModal, IncomingRoutineModal } from './components/RoutineShareModals';
 import { EXERCISE_MAP, formatDateYMD, stripDateFromTitle } from './data/exerciseLibrary';
 import { useIdleAutoFinish } from './hooks/useIdleAutoFinish';
 import { collectSetValues, sameSetValues, overlaySetValues } from './utils/sessionSync';
@@ -145,7 +147,7 @@ export default function App() {
   // Progress chart lift toggles (Big 3 + OHP by default)
   // Lifts shown on the PROGRESS chart: null = every lift (the Big 3, OHP and the CUSTOM exercise)
   const [selectedChartLifts, setSelectedChartLifts] = useState(null);
-  const [targetStandardClass, setTargetStandardClass] = useState('Intermediate');
+  const [targetStandardClass, setTargetStandardClass] = useState('Novice');
   const [customGoalWeights, setCustomGoalWeights] = useState({});
   const [userBodyweightLbs, setUserBodyweightLbs] = useState(220);
   const [userHeightFeet, setUserHeightFeet] = useState(5);
@@ -779,6 +781,14 @@ export default function App() {
     load();
   };
 
+  // Routines sent straight to a friend: SEND in the routine browser, and the ones friends sent you (SAVE / LOAD NOW)
+  const routineShares = useRoutineShares({
+    user,
+    setSavedRoutines,
+    onLoadRoutine: routine => handleDirectLoadRoutine(routine, 'session'),
+    appendSessionLog
+  });
+
   const renderProgressPage = ({
     readOnly = false,
     history: profileHistory = history,
@@ -1133,6 +1143,7 @@ export default function App() {
               setDeleteConfirmTarget={setDeleteConfirmTarget}
               onAutoRoutine={handleAutoBuildWorkout}
               availableEquipment={availableEquipment}
+              onSendRoutine={user ? routineShares.openSend : undefined}
             />
           )}
 
@@ -1444,6 +1455,26 @@ export default function App() {
           busy={sessionSync.isSyncBusy}
           onAccept={() => sessionSync.acceptIncomingInvite()}
           onDecline={() => sessionSync.declineIncomingInvite()}
+        />
+
+        <SendRoutineModal
+          key={routineShares.sendTarget?.key || 'none'}
+          routine={routineShares.sendTarget}
+          friends={friendsList}
+          busy={routineShares.sendState.busy}
+          sentTo={routineShares.sendState.sentTo}
+          error={routineShares.sendState.error}
+          onSend={routineShares.sendTo}
+          onClose={routineShares.closeSend}
+        />
+        <IncomingRoutineModal
+          share={sessionSync.incomingInvite ? null : routineShares.incomingRoutine}
+          exerciseName={id => EXERCISE_MAP[id]?.name || id}
+          willReplaceSession={(activeSession?.slots || []).length > 0}
+          busy={routineShares.incomingBusy}
+          onSave={routineShares.saveIncoming}
+          onLoad={routineShares.loadIncoming}
+          onDismiss={routineShares.dismissIncoming}
         />
 
         <SyncNoticeModal message={sessionSync.syncNotice} onClose={sessionSync.clearSyncNotice} />

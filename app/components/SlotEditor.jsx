@@ -38,7 +38,7 @@ import {
 import {
   normalizeSetType,
   getBestHistory1RMInfo,
-  best1RMInfoOfSets,
+  exercise1RMInfoOfSets,
   oneRepMaxLabel,
   getLastLoggedSetsForExercise,
   getSchemeUniformReps,
@@ -114,7 +114,8 @@ const equipmentOf = ex => ex?.equipment || 'Bodyweight';
 // Calculated 1RM of a list of sets: the best weight × (1 + reps / 30) (1 rep = the weight), the estimate History
 // uses for Personal Records and the weight pop-up uses for its 1RM box; 0 = no weights
 // ({ value, calculated }: calculated = from a multi-rep set, shown with *)
-const best1RM = sets => best1RMInfoOfSets(Array.isArray(sets) ? sets : []);
+// The exercise's calculated 1RM: the average over its working sets (each with its own reps and intensity)
+const best1RM = sets => exercise1RMInfoOfSets(Array.isArray(sets) ? sets : []);
 
 // Set type dropdown labels (short enough for the set row's type column)
 const SET_TYPE_LABELS = { Warmup: 'WARMUP', Working: 'WORKING', 'Top Out': 'TOP OUT', 'Burn Out': 'BURN OUT', '1 Rep Max': '1RM' };
@@ -840,8 +841,29 @@ export function SlotEditor({
     const prInfo = getBestHistory1RMInfo(exId, history);
     const setNumText = isSuperset ? `${exIdx === 0 ? 'A' : 'B'}${st.setNumber}` : `${st.setNumber}`;
     // Done sets recede (a step darker than the tile); the ✓ circle fills white
-    const cellBg = st.completed ? '#121212' : '#1C1C1C';
-    const editValue = (mode, currentValue) => onEditSetValue?.({ mode, exIdx, set: st, exercise: exObj, currentValue });
+    // Sets still to do sit darker; a done set lights up a step (the whole card mutes once every set is done)
+    const cellBg = st.completed ? '#262626' : '#121212';
+    // The sets after this one in the exercise that a pop-up's "ALSO SETS" may write to: not done, not locked
+    const laterSetsFor = field => {
+      const list = (isSuperset ? slot.supersetSetsByExercise?.[exIdx] : slot.sets) || [];
+      const idx = list.findIndex(x => x?.id === st.id);
+      if (idx < 0) return [];
+      const lockKey = { weight: 'lockWeight', reps: 'lockReps', intensity: 'lockIntensity' }[field];
+      return list
+        .map((x, i) => ({ x, number: i + 1 }))
+        .slice(idx + 1)
+        .filter(({ x }) => x && !x.completed && !(lockKey && x[lockKey]))
+        .map(({ x, number }) => ({ id: x.id, number, set: x }));
+    };
+    const editValue = (mode, currentValue) =>
+      onEditSetValue?.({
+        mode,
+        exIdx,
+        set: st,
+        exercise: exObj,
+        currentValue,
+        laterSets: mode === 'reps' || mode === 'timer' ? laterSetsFor('reps') : []
+      });
 
     return (
       <div
@@ -995,7 +1017,8 @@ export function SlotEditor({
                   sessionSets: (isSuperset ? slot.supersetSetsByExercise?.[exIdx] : slot.sets) || [],
                   prValue: prInfo.best,
                   prCalculated: prInfo.calculated,
-                  prWorkoutId: prInfo.workoutId
+                  prWorkoutId: prInfo.workoutId,
+                  laterSets: laterSetsFor('weight')
                 })
               }
               style={{ ...setCellStyle(cellBg), cursor: 'pointer', overflow: 'hidden' }}
@@ -1032,7 +1055,7 @@ export function SlotEditor({
                 <button
                   type="button"
                   aria-label={`Intensity: ${hasValue ? formatIntensity(intensity.mode, intensity.value) : 'not set'}. Tap to change`}
-                  onClick={() => setIntensityTarget({ exIdx, set: st, label: setNumText })}
+                  onClick={() => setIntensityTarget({ exIdx, set: st, label: setNumText, laterSets: laterSetsFor('intensity') })}
                   style={{ ...setCellStyle(cellBg), color: '#FFFFFF', cursor: 'pointer', overflow: 'hidden' }}
                 >
                   <span style={{ ...cellLabelStyle, whiteSpace: 'nowrap' }}>{hasValue ? modeLabel : 'INT.'}</span>
@@ -1098,10 +1121,27 @@ export function SlotEditor({
     );
   };
 
+  // Every set of the exercise done: the card mutes (grey, faded) so the session's remaining work stands out.
+  // Not while a pop-up inside it is open (a filter would also catch the fixed-position pop-up).
+  const allSetsDone = (() => {
+    const lists = isSuperset ? slot.supersetSetsByExercise || [] : [slot.sets || []];
+    const sets = lists.flat().filter(Boolean);
+    return sets.length > 0 && sets.every(st => st.completed);
+  })();
+  const muted = allSetsDone && !search && !schemeOpen;
+
   return (
     // The exercise card: one graphite tile (14 px corners, no outer border); its cells are divided by hairlines
     // While the exercise search is open the card doesn't clip, so the results list can spill past its bottom edge
-    <div style={{ backgroundColor: '#1C1C1C', borderRadius: '14px', overflow: search ? 'visible' : 'hidden' }}>
+    <div
+      style={{
+        backgroundColor: '#1C1C1C',
+        borderRadius: '14px',
+        overflow: search ? 'visible' : 'hidden',
+        ...(muted ? { filter: 'grayscale(1)', opacity: 0.5 } : {}),
+        transition: 'opacity 160ms ease-out'
+      }}
+    >
       {schemeOpen && (
         <SchemeEditorModal
           isSuperset={isSuperset}
@@ -1129,8 +1169,14 @@ export function SlotEditor({
           reps={intensityTarget.set.reps}
           intensity={intensityTarget.set.intensity}
           onClose={() => setIntensityTarget(null)}
-          onApply={next => {
+          laterSets={intensityTarget.laterSets}
+          onApply={(next, alsoLater) => {
             onChangeSetIntensity?.({ exIdx: intensityTarget.exIdx, set: intensityTarget.set, intensity: next });
+            if (alsoLater) {
+              (intensityTarget.laterSets || []).forEach(later =>
+                onChangeSetIntensity?.({ exIdx: intensityTarget.exIdx, set: later.set, intensity: next })
+              );
+            }
             setIntensityTarget(null);
           }}
         />

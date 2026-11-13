@@ -252,16 +252,12 @@ exrx_forearms_stretch_standing_brachioradialis_stretch,Standing Brachioradialis 
 wrist_roller,Suspended Wrist Roller,Forearms,Accessory,Barbell / Bodyweight,,Wrist Extensors|Wrist Flexors,false,35,barbell_wrist_curl
 barbell_deadlift,Barbell Deadlift,Back,Compound,Barbell,Barbell|Weight Plates,Erector Spinae|Gluteus Maximus|Hamstrings|General Back|Trapezius - Upper|Forearms,true,350,landmine_rdl|dumbbell_rdl|barbell_row
 barbell_power_clean,Barbell Power Clean,Hips,Compound,Barbell,Barbell|Weight Plates,Gluteus Maximus|Quadriceps|Hamstrings|Erector Spinae|Trapezius - Upper|Deltoid - Anterior|Gastrocnemius,false,185,barbell_deadlift|barbell_shrug|barbell_upright_row
-chin_ups,Chin-Up / Pull-Up,Back,Compound,Bodyweight / Weighted,,Latissimus Dorsi|Biceps Brachii|Brachialis|Rhomboids|Trapezius - Lower,true,220,cable_pulldown|barbell_row|dumbbell_row
+chin_ups,Chin-Up / Pull-Up,Back,Compound,Bodyweight / Weighted / Band-Assisted,,Latissimus Dorsi|Biceps Brachii|Brachialis|Rhomboids|Trapezius - Lower,true,220,cable_pulldown|barbell_row|dumbbell_row
 exrx_back_assisted_machine_chin_up,Assisted Machine Chin-up,Back,Compound,Assisted Machine,Lever / Machine,Latissimus Dorsi|Biceps Brachii,false,150,
 exrx_back_assisted_machine_parallel_close_grip_pull_up,Assisted Machine Parallel Close Grip Pull-up,Back,Compound,Assisted Machine,Lever / Machine,Latissimus Dorsi|Biceps Brachii,false,150,
 exrx_back_assisted_machine_pull_up_open_centered_bar,Assisted Machine Pull-up (open-centered bar),Back,Compound,Assisted Machine,Lever / Machine,Latissimus Dorsi|Biceps Brachii,false,150,
 exrx_back_assisted_machine_standing_pull_up,Assisted Machine Standing Pull-up,Back,Compound,Assisted Machine,Lever / Machine,Latissimus Dorsi|Biceps Brachii,false,150,
 band_pulldown,Band Lat Pulldown,Back,Accessory,Band,Resistance Bands,Latissimus Dorsi|Rhomboids|Triceps Brachii,false,90,chin_ups|cable_pulldown
-exrx_back_band_assisted_archer_pull_up,Band-Assisted Archer Pull-up,Back,Compound,Band-Assisted,Pull-Up Bar|Resistance Bands,Latissimus Dorsi|Biceps Brachii,false,165,
-exrx_back_band_assisted_chin_up,Band-Assisted Chin-up,Back,Compound,Band-Assisted,Pull-Up Bar|Resistance Bands,Latissimus Dorsi|Biceps Brachii,false,165,
-exrx_back_band_assisted_parallel_grip_pull_up,Band-Assisted Parallel Grip Pull-up,Back,Compound,Band-Assisted,Pull-Up Bar|Resistance Bands,Latissimus Dorsi|Biceps Brachii,false,165,
-exrx_back_band_assisted_pull_up,Band-Assisted Pull-up,Back,Compound,Band-Assisted,Pull-Up Bar|Resistance Bands,Latissimus Dorsi|Biceps Brachii,false,165,
 exrx_back_stretch_bar_lat_stretch,Bar Lat Stretch,Back,Accessory,Stretch,,Latissimus Dorsi,false,25,
 barbell_behind_back_shrug,Barbell Behind-the-Back Shrug,Back,Accessory,Barbell,Barbell|Weight Plates,Trapezius - Upper|Trapezius - Middle|Rhomboids,false,225,barbell_shrug
 barbell_row,Barbell Bent-Over Row,Back,Compound,Barbell,Barbell|Weight Plates,General Back|Latissimus Dorsi|Rhomboids|Trapezius - Middle|Deltoid - Posterior|Biceps Brachii,false,195,meadows_row|dumbbell_row|chin_ups
@@ -272,8 +268,7 @@ barbell_shrug,Barbell Shrug,Back,Accessory,Barbell,Barbell|Weight Plates,Trapezi
 exrx_back_barbell_trap_bar_shrug,Barbell Trap Bar Shrug,Back,Accessory,Barbell,Barbell,Trapezius - Upper|Rhomboids,false,245,
 exrx_back_barbell_underhand_bent_over_row,Barbell Underhand Bent-over Row,Back,Compound,Barbell,Barbell,General Back|Latissimus Dorsi|Rhomboids|Trapezius - Middle,false,195,
 barbell_underhand_row,Barbell Underhand Bent-Over Row (Yates Row),Back,Compound,Barbell,Barbell|Weight Plates,Latissimus Dorsi|General Back|Biceps Brachii|Rhomboids,false,205,barbell_row
-exrx_back_bodyweight_archer_pull_up,Bodyweight Archer Pull-up,Back,Compound,Bodyweight,,Latissimus Dorsi|Biceps Brachii,false,210,
-exrx_back_bodyweight_chin_up,Bodyweight Chin-up,Back,Compound,Bodyweight,,Latissimus Dorsi|Biceps Brachii,false,210,
+exrx_back_bodyweight_archer_pull_up,Archer Pull-up,Back,Compound,Bodyweight / Band-Assisted,,Latissimus Dorsi|Biceps Brachii,false,210,
 close_neutral_grip_pull_up,Bodyweight Close Neutral-Grip Pull-Up,Back,Compound,Bodyweight,,Latissimus Dorsi|Brachialis|Biceps Brachii,false,215,chin_ups
 exrx_back_bodyweight_feet_elevated_inverted_row,Bodyweight Feet Elevated Inverted Row,Back,Compound,Bodyweight,,General Back|Latissimus Dorsi|Rhomboids,false,150,
 exrx_back_bodyweight_high_bar_inverted_row,Bodyweight High Bar Inverted Row,Back,Compound,Bodyweight,,General Back|Latissimus Dorsi|Rhomboids,false,150,
@@ -281,8 +276,7 @@ exrx_back_bodyweight_high_bar_underhand_inverted_row,Bodyweight High Bar Underha
 inverted_row,Bodyweight Inverted Row,Back,Compound,Bodyweight,,General Back|Rhomboids|Trapezius - Middle|Latissimus Dorsi|Biceps Brachii,false,150,chin_ups|dumbbell_row
 exrx_back_bodyweight_inverted_shrug,Bodyweight Inverted Shrug,Back,Accessory,Bodyweight,,Trapezius - Upper|Trapezius - Lower,false,145,
 exrx_back_bodyweight_one_arm_pull_up,Bodyweight One Arm Pull-up,Back,Compound,Bodyweight,,Latissimus Dorsi|Biceps Brachii,false,210,
-exrx_back_bodyweight_parallel_close_grip_pull_up,Bodyweight Parallel Close Grip Pull-up,Back,Compound,Bodyweight,,Latissimus Dorsi|Biceps Brachii,false,210,
-exrx_back_bodyweight_pull_up,Bodyweight Pull-up,Back,Compound,Bodyweight,,Latissimus Dorsi|Biceps Brachii,false,210,
+exrx_back_bodyweight_parallel_close_grip_pull_up,Parallel Close Grip Pull-up,Back,Compound,Bodyweight / Weighted / Band-Assisted,,Latissimus Dorsi|Biceps Brachii,false,210,
 scapular_pull_up,Bodyweight Scapular Pull-Up,Back,Accessory,Bodyweight,,Latissimus Dorsi|Trapezius - Lower|Rhomboids,false,135,chin_ups
 superman_hold,Bodyweight Superman Back Raise,Back,Accessory,Bodyweight,,Erector Spinae|General Back|Gluteus Maximus,false,95,inverted_row
 exrx_back_bodyweight_underhand_inverted_row,Bodyweight Underhand Inverted Row,Back,Compound,Bodyweight,,General Back|Latissimus Dorsi|Rhomboids,false,150,
@@ -381,10 +375,7 @@ exrx_back_suspended_row,Suspended Row,Back,Compound,Suspended,Pull-Up Bar,Genera
 exrx_back_suspended_self_assisted_pull_up,Suspended Self-Assisted Pull-up,Back,Compound,Suspended,Pull-Up Bar,Latissimus Dorsi|Biceps Brachii,false,175,
 exrx_back_suspended_shoulder_external_rotation,Suspended Shoulder External Rotation,Back,Accessory,Suspended,Pull-Up Bar,Infraspinatus & Teres Minor,false,45,
 exrx_back_stretch_upper_trapezius_stretch,Upper Trapezius Stretch,Back,Accessory,Stretch,,Trapezius - Upper,false,25,
-exrx_back_weighted_chin_up,Weighted Chin-up,Back,Compound,Weighted,Weight Plates,Latissimus Dorsi|Biceps Brachii,false,235,
 exrx_back_weighted_inverted_row,Weighted Inverted Row,Back,Compound,Weighted,Weight Plates,General Back|Latissimus Dorsi|Rhomboids,false,175,
-exrx_back_weighted_parallel_close_grip_pull_up,Weighted Parallel Close Grip Pull-up,Back,Compound,Weighted,Weight Plates,Latissimus Dorsi|Biceps Brachii,false,235,
-exrx_back_weighted_pull_up,Weighted Pull-up,Back,Compound,Weighted,Weight Plates,Latissimus Dorsi|Biceps Brachii,false,235,
 barbell_bench_press,Barbell Bench Press,Chest,Compound,Barbell,Barbell|Flat / Incline Bench|Weight Plates,Pectoralis Major - Sternal|Deltoid - Anterior|Triceps Brachii,true,225,dumbbell_press|incline_bench_press|dumbbell_incline_press
 incline_bench_press,Barbell Incline Bench Press,Chest,Compound,Barbell,Barbell|Flat / Incline Bench|Weight Plates,Pectoralis Major - Clavicular|Deltoid - Anterior|Triceps Brachii,true,195,dumbbell_incline_press|dumbbell_press|barbell_bench_press
 exrx_chest_assisted_machine_chest_dip,Assisted Machine Chest Dip,Chest,Compound,Assisted Machine,Lever / Machine,Pectoralis Major - Sternal|Triceps Brachii|Deltoid - Anterior,false,150,

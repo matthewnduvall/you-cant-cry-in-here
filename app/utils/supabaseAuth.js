@@ -3,6 +3,7 @@
 // ============================================================================
 
 import { buildHistoryPRs } from './workoutEngine';
+import { canonicalExerciseData } from '../data/exerciseLibrary';
 
 const LOCAL_ACCOUNTS_KEY = 'yccih_registered_accounts_v1';
 const SUPABASE_TOKENS_KEY = 'yccih_supabase_tokens_v1';
@@ -893,7 +894,7 @@ export async function fetchCloudStateForUser(user) {
         defaultRestSeconds: row.default_rest_seconds || 90,
         isComplete: row.is_complete !== undefined ? Boolean(row.is_complete) : true,
         verifiedByUser: row.verified_by_user !== undefined ? Boolean(row.verified_by_user) : true,
-        slots: Array.isArray(row.slots) ? row.slots : []
+        slots: canonicalExerciseData(Array.isArray(row.slots) ? row.slots : [])
       }))
     : [];
 
@@ -905,7 +906,7 @@ export async function fetchCloudStateForUser(user) {
           label: r.label,
           author: r.author_username || user.username,
           savedAt: r.updated_at || r.created_at || null,
-          slots: Array.isArray(r.slots) ? r.slots : []
+          slots: canonicalExerciseData(Array.isArray(r.slots) ? r.slots : [])
         }))
     : [];
 
@@ -917,7 +918,7 @@ export async function fetchCloudStateForUser(user) {
           label: r.label,
           author: r.author_username || user.username,
           savedAt: r.updated_at || r.created_at || null,
-          slots: Array.isArray(r.slots) ? r.slots : []
+          slots: canonicalExerciseData(Array.isArray(r.slots) ? r.slots : [])
         }))
     : [];
 
@@ -1170,7 +1171,7 @@ export async function pushCloudStateForUser(user, payload, { historyToUpload } =
       author_username: r.author || user.username || 'athlete',
       label: r.label || 'Custom Routine',
       is_shared: Boolean(r.isShared),
-      slots: Array.isArray(r.slots) ? r.slots : [],
+      slots: canonicalExerciseData(Array.isArray(r.slots) ? r.slots : []),
       // The saved date (routines saved before dates were kept keep the server's own)
       ...(r.savedAt ? { updated_at: r.savedAt } : {})
     });
@@ -1217,7 +1218,7 @@ const mapHistoryTableRow = h => ({
   title: h.title,
   loadedRoutineTitle: h.preset_used || 'MANUAL',
   startedAt: h.started_at,
-  slots: Array.isArray(h.slots) ? h.slots : []
+  slots: canonicalExerciseData(Array.isArray(h.slots) ? h.slots : [])
 });
 
 const mapRoutineTableRow = r => ({
@@ -1226,7 +1227,7 @@ const mapRoutineTableRow = r => ({
   author: r.author_username,
   isShared: Boolean(r.is_shared),
   savedAt: r.updated_at || r.created_at || null,
-  slots: Array.isArray(r.slots) ? r.slots : []
+  slots: canonicalExerciseData(Array.isArray(r.slots) ? r.slots : [])
 });
 
 /**
@@ -1277,6 +1278,9 @@ function buildAthleteFromProfileRow(
       row?.settings?.social?.shareBodyweightWithFriends === true
         ? Number(row?.settings?.bodyMetrics?.bodyweightLbs) || null
         : null,
+    // For the BW leaderboards' ratios only (BIG 3 / BW, OHP / BW, MOST IMPROVED), whether or not they share it:
+    // the boards show the ratio, never the bodyweight itself
+    rankingBodyweightLbs: Number(row?.settings?.bodyMetrics?.bodyweightLbs) || null,
     // Their training goal (type, increment) and set preferences: the friend's session tab works out
     // suggested weights from these, their history and their PRs
     goals: row?.settings?.goals && typeof row.settings.goals === 'object' ? row.settings.goals : null,
@@ -1775,4 +1779,76 @@ export async function deleteMyAccount(user) {
     }
   }
   return { ok: true };
+}
+
+// ============================================================================
+// Routines sent straight to a friend (public.routine_shares; migration 2026-11-12_routine_shares.sql)
+// ============================================================================
+
+const ROUTINE_SHARE_COLUMNS = 'id,sender_id,recipient_id,sender_username,label,routine,status,created_at,answered_at';
+
+/** What a sent routine carries: its name and exercises (never the sender's done marks or locks). */
+const routinePayloadForShare = routine => ({
+  label: routine?.label || 'Routine',
+  slots: (Array.isArray(routine?.slots) ? routine.slots : []).map(slot => {
+    const clean = sets => (Array.isArray(sets) ? sets.map(st => ({ ...st, completed: false })) : sets);
+    return {
+      ...slot,
+      sets: clean(slot.sets),
+      ...(Array.isArray(slot.supersetSetsByExercise) ? { supersetSetsByExercise: slot.supersetSetsByExercise.map(clean) } : {})
+    };
+  })
+});
+
+/** Sends a copy of a routine to an accepted friend. Returns { ok, row, error }. */
+export async function sendRoutineToFriend(user, friendId, routine) {
+  if (!user || !isUuid(user.id) || !isUuid(friendId) || friendId === user.id) return { ok: false, row: null, error: 'NOT SIGNED IN' };
+  const payload = routinePayloadForShare(routine);
+  if (payload.slots.length === 0) return { ok: false, row: null, error: 'EMPTY ROUTINE' };
+  const res = await authedRequest(user, `/rest/v1/routine_shares?select=${ROUTINE_SHARE_COLUMNS}`, {
+    method: 'POST',
+    prefer: 'return=representation',
+    body: {
+      sender_id: user.id,
+      recipient_id: friendId,
+      sender_username: user.username || null,
+      label: payload.label,
+      routine: payload,
+      status: 'pending'
+    }
+  });
+  const row = Array.isArray(res.data) ? res.data[0] : null;
+  const error = res.ok ? null : res.status === 404 ? 'NOT SET UP ON THE SERVER YET' : res.data?.message || `SERVER ${res.status}`;
+  return { ok: res.ok && Boolean(row), row, error, status: res.status };
+}
+
+/** Routines friends sent this athlete that are still waiting for an answer, oldest first. Returns { ok, rows }. */
+export async function fetchIncomingRoutineShares(user) {
+  if (!user || !isUuid(user.id)) return { ok: false, rows: [] };
+  const me = encodeURIComponent(user.id);
+  const res = await authedRequest(
+    user,
+    `/rest/v1/routine_shares?select=${ROUTINE_SHARE_COLUMNS}&recipient_id=eq.${me}&status=eq.pending&order=created_at.asc&limit=20`
+  );
+  const rows = Array.isArray(res.data)
+    ? res.data.map(row => ({
+        ...row,
+        routine: {
+          ...(row.routine || {}),
+          slots: canonicalExerciseData(Array.isArray(row.routine?.slots) ? row.routine.slots : [])
+        }
+      }))
+    : [];
+  return { ok: res.ok && Array.isArray(res.data), rows, status: res.status };
+}
+
+/** The recipient's answer to a sent routine: 'saved' | 'loaded' | 'dismissed'. Returns { ok }. */
+export async function answerRoutineShare(user, shareId, status) {
+  if (!user || !isUuid(user.id) || !isUuid(shareId) || !['saved', 'loaded', 'dismissed'].includes(status)) return { ok: false };
+  const res = await authedRequest(user, `/rest/v1/routine_shares?id=eq.${encodeURIComponent(shareId)}`, {
+    method: 'PATCH',
+    prefer: 'return=minimal',
+    body: { status }
+  });
+  return { ok: res.ok, status: res.status };
 }

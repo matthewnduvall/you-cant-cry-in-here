@@ -213,11 +213,11 @@ export const isTimedHoldExercise = exerciseId => {
 export const getDefaultSchemeForExercise = (exerciseId, goalType) =>
   isTimedHoldExercise(exerciseId) ? 'Timer' : getDefaultSchemeForGoal(goalType);
 
-// CLUSTER scheme: 3 working sets of one exercise, 6 reps each, with only
-// CLUSTER_REST_SECONDS of rest between sets (the rest timer uses it after each set)
+// CLUSTER scheme: 3 working sets of one exercise, 18 reps each (each set done as mini-sets with a few seconds'
+// rest inside it); the usual rest between sets
 export const CLUSTER_SCHEME = 'Cluster';
 export const CLUSTER_SET_COUNT = 3;
-export const CLUSTER_REPS = 6;
+export const CLUSTER_REPS = 18;
 export const CLUSTER_REST_SECONDS = 6;
 export const isClusterScheme = scheme => scheme === CLUSTER_SCHEME;
 
@@ -342,9 +342,15 @@ export const normalizeSetType = rawType => {
  */
 export const setReportedRir = st => {
   const i = st?.intensity;
-  if (!i || i.auto || i.mode === 'pct') return 0;
+  if (!i || i.auto) return 0;
   const v = Number(i.value);
   if (!Number.isFinite(v)) return 0;
+  // %1RM: the RIR that share of the 1RM leaves for these reps (%1RM = 100 / (1 + (reps + RIR - 1) / 30))
+  if (i.mode === 'pct') {
+    if (v <= 0 || v >= 100) return 0;
+    const reps = Math.max(1, Number(st?.reps) || 1);
+    return Math.max(0, Math.round((30 * (100 / v - 1) + 1 - reps) * 10) / 10);
+  }
   return i.mode === 'rir' ? Math.max(0, v) : Math.max(0, 10 - v);
 };
 
@@ -381,6 +387,77 @@ export const best1RMInfoOfSets = (sets = []) => {
     }
   });
   return { value, calculated };
+};
+
+/**
+ * The whole exercise's calculated 1RM from its sets (the 1RM box's LAST / NOW, the weight pop-up's CURRENT): the
+ * average of its working sets' estimates (every set but warm-ups, with a weight), each counting its own reps and
+ * intensity, so changing any one set's weight, reps or intensity moves it. Only warm-ups → their average.
+ * { value, calculated }. History's PRs stay the best single set (best1RMInfoOfSets).
+ */
+export const exercise1RMInfoOfSets = (sets = []) => {
+  const weighted = (sets || []).filter(st => (Number(st?.weight) || 0) > 0);
+  const working = weighted.filter(st => normalizeSetType(st?.type) !== 'Warmup');
+  const pool = working.length > 0 ? working : weighted;
+  if (pool.length === 0) return { value: 0, calculated: false };
+  const value = Math.round(pool.reduce((sum, st) => sum + estimateSet1RM(st), 0) / pool.length);
+  return { value, calculated: pool.length > 1 || pool.some(isCalculated1RMSet) };
+};
+
+// How far (share) a set's calculated 1RM may sit from the rest of its exercise before saving asks to check it
+export const INTENSITY_MISMATCH_TOLERANCE = 0.12;
+
+/**
+ * Sets whose calculated 1RM (weight × (1 + (reps + RIR) ÷ 30)) disagrees with the rest of their exercise by more
+ * than INTENSITY_MISMATCH_TOLERANCE, e.g. a light set of few reps marked RIR 0 says the athlete is much weaker than
+ * their other sets do. Checked when a session is saved (completed sets if any are done, else every set; working
+ * weighted sets only, 2+ per exercise). [{ slotId, exerciseName, setNumber, weight, reps, intensityText, set1RM,
+ * others1RM, direction: 'low' | 'high' }]
+ */
+export const findIntensityMismatches = workout => {
+  const flags = [];
+  (workout?.slots || []).forEach(slot => {
+    const isSup = isSupersetCategory(slot?.category) && Array.isArray(slot?.supersetSetsByExercise);
+    const halves = isSup
+      ? slot.supersetSetsByExercise.map((sets, i) => ({ sets, exId: slot.supersetExerciseIds?.[i] }))
+      : [{ sets: slot?.sets, exId: slot?.exerciseId }];
+    halves.forEach(({ sets, exId }) => {
+      const all = Array.isArray(sets) ? sets : [];
+      const done = all.filter(st => st?.completed);
+      const pool = (done.length > 0 ? done : all).filter(
+        st => (Number(st?.weight) || 0) > 0 && normalizeSetType(st?.type) !== 'Warmup' && !st?.timerStr && !st?.durationSeconds
+      );
+      if (pool.length < 2) return;
+      const ests = pool.map(st => estimateSet1RM(st));
+      pool.forEach((st, i) => {
+        const others = ests.filter((_, j) => j !== i).sort((a, b) => a - b);
+        const mid = Math.floor(others.length / 2);
+        const median = others.length % 2 ? others[mid] : (others[mid - 1] + others[mid]) / 2;
+        if (!(median > 0)) return;
+        const off = (ests[i] - median) / median;
+        if (Math.abs(off) <= INTENSITY_MISMATCH_TOLERANCE) return;
+        const it = st.intensity;
+        const intensityText =
+          it && it.value !== null && it.value !== undefined && it.value !== ''
+            ? it.mode === 'pct'
+              ? `${it.value}% 1RM`
+              : `${String(it.mode).toUpperCase()} ${it.value}`
+            : 'no intensity';
+        flags.push({
+          slotId: slot.id,
+          exerciseName: EXERCISE_MAP[exId]?.name || 'Exercise',
+          setNumber: all.indexOf(st) + 1,
+          weight: Number(st.weight) || 0,
+          reps: Number(st.reps) || 0,
+          intensityText,
+          set1RM: Math.round(ests[i]),
+          others1RM: Math.round(median),
+          direction: off < 0 ? 'low' : 'high'
+        });
+      });
+    });
+  });
+  return flags;
 };
 
 export const getBestHistory1RMInfo = (exerciseId, history = []) => {
