@@ -206,7 +206,7 @@ export const getDefaultSchemeForGoal = goalType =>
 /** Planks are held for time, so they start on the Timer scheme (Bear Plank Shoulder Tap counts taps, so it doesn't). */
 export const isTimedHoldExercise = exerciseId => {
   const name = EXERCISE_MAP[exerciseId]?.name || '';
-  return /\bplank\b/i.test(name) && !/shoulder tap/i.test(name);
+  return /\bplank\b/i.test(name) && !/shoulder tap|pull.?through/i.test(name); // taps and pull-throughs count reps
 };
 
 /** Default scheme for an exercise picked for the athlete or swapped into a slot: Timer for planks, else the goal's. */

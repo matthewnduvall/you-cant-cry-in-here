@@ -1000,3 +1000,9 @@ bodyweight_standing_hip_abduction,Bodyweight Standing Hip Abduction,Hips,Accesso
 bear_plank_shoulder_tap,Bodyweight Bear Plank Shoulder Tap,Core,Accessory,Bodyweight,,Transverse Abdominis|Obliques|Rectus Abdominis|Serratus Anterior|Deltoid - Anterior|Triceps Brachii,false,50,plank|weighted_plank
 barbell_single_leg_rdl,Barbell Single-Leg Romanian Deadlift,Thighs,Compound,Barbell,Barbell|Weight Plates,Hamstrings|Gluteus Maximus|Hip Abductors|Erector Spinae|Obliques,false,115,dumbbell_single_leg_rdl|barbell_rdl
 dumbbell_standing_hip_abduction,Dumbbell Standing Hip Abduction,Hips,Accessory,Dumbbell,Dumbbell,Hip Abductors|Gluteus Maximus,false,30,bodyweight_standing_hip_abduction|cable_standing_hip_abduction|exrx_hips_dumbbell_lying_hip_abduction
+dumbbell_floor_press,Dumbbell Floor Press,Chest,Accessory,Dumbbell,Dumbbell,Pectoralis Major - Sternal|Triceps Brachii|Deltoid - Anterior,false,165,dumbbell_press|barbell_floor_press
+plank_shoulder_tap,Bodyweight Plank Shoulder Tap,Core,Accessory,Bodyweight,,Transverse Abdominis|Obliques|Rectus Abdominis|Deltoid - Anterior|Serratus Anterior,false,50,bear_plank_shoulder_tap|plank
+dumbbell_rdl_high_pull,Dumbbell High Pull,Thighs,Compound,Dumbbell,Dumbbell,Hamstrings|Gluteus Maximus|Deltoid - Lateral|Trapezius - Upper|Erector Spinae,false,95,dumbbell_rdl|dumbbell_upright_row
+dumbbell_snatch,Dumbbell Snatch,Hips,Compound,Dumbbell,Dumbbell,Gluteus Maximus|Quadriceps|Hamstrings|Deltoid - Anterior|Deltoid - Lateral|Trapezius - Upper|Erector Spinae,false,85,barbell_power_clean|kettlebell_swing
+dumbbell_plank_pull_through,Dumbbell Plank Pull Through,Core,Accessory,Dumbbell,Dumbbell,Transverse Abdominis|Obliques|Rectus Abdominis|Deltoid - Anterior|Serratus Anterior,false,40,plank_shoulder_tap|plank
+triceps_push_up,Bodyweight Triceps Push-up,Upper Arms,Accessory,Bodyweight,,Triceps Brachii|Pectoralis Major - Sternal|Deltoid - Anterior,false,150,exrx_upper_arms_bodyweight_close_grip_push_up|diamond_push_up

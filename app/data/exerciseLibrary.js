@@ -234,13 +234,26 @@ export const EXERCISE_NAME_ALIASES = {
   dumbbell_lu_raise: ['Lu Raise', 'Lu Raises', 'Overhead Lateral Raise', 'Plate Lu Raise'],
   bodyweight_standing_hip_abduction: ['Hip Abductions Standing', 'Standing Hip Abduction', 'Standing Hip Abductions'],
   dumbbell_standing_hip_abduction: ['Dumbbell Hip Abduction', 'Dumbbell Hip Abductions Standing', 'DB Standing Hip Abduction', 'DB Hip Abduction'],
-  bear_plank_shoulder_tap: ['Bear Plank Shoulder Taps', 'Bear Shoulder Tap', 'Bear Plank Shoulder Tap']
+  bear_plank_shoulder_tap: ['Bear Plank Shoulder Taps', 'Bear Shoulder Tap', 'Bear Plank Shoulder Tap'],
+  dumbbell_floor_press: ['DB Floor Press', 'Dumbbell Floor Presses'],
+  plank_shoulder_tap: ['Plank Shoulder Tap', 'Plank Shoulder Taps', 'Shoulder Taps', 'High Plank Shoulder Tap'],
+  // A dumbbell RDL that finishes with an upright pull to the chest
+  dumbbell_rdl_high_pull: ['Dumbbell RDL High Pull', 'DB RDL High Pull', 'RDL High Pull', 'RDL to High Pull', 'Dumbbell RDL to High Pull', 'DB High Pull', 'High Pull'],
+  dumbbell_snatch: ['DB Snatch', 'Single Arm Dumbbell Snatch', 'One Arm Dumbbell Snatch', 'Dumbbell Power Snatch'],
+  dumbbell_plank_pull_through: ['Plank Pull Through', 'Plank Pull-Through', 'Plank Pass Through', 'Dumbbell Plank Drag', 'DB Plank Pull Through'],
+  triceps_push_up: ['Tricep Push-up', 'Tricep Push Up', 'Tricep Pushups', 'Triceps Push Up', 'Military Push-up'],
+  // Russian Twist takes a dumbbell as an equipment option (Bodyweight / Dumbbell)
+  russian_twist: ['Russian Twist', 'Dumbbell Russian Twist', 'DB Russian Twist', 'Weighted Russian Twist']
 };
 
 const SECONDARY_MUSCLE_GROUPS = {
   // A power clean drives through the hips and legs and finishes with the traps (upper back)
   barbell_power_clean: ['Thighs', 'Back'],
   barbell_thruster: ['Shoulders'],
+  // A dumbbell RDL into an upright pull: hinge (thighs) and shoulders / traps
+  dumbbell_rdl_high_pull: ['Shoulders', 'Back'],
+  // Floor to overhead in one pull: hips, legs and shoulders
+  dumbbell_snatch: ['Thighs', 'Shoulders'],
   dumbbell_thruster: ['Shoulders']
 };
 
