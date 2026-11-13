@@ -6,7 +6,10 @@
 // Exercises that have been logged use their own History. Bodyweight exercises keep the library default.
 
 import { EXERCISE_MAP, EXRX_CLASSES, getExRxTargetForLift, isBodyweightExercise } from '../data/exerciseLibrary';
-import { getBestHistory1RM, estimateSet1RM, setReportedRir } from './workoutEngine';
+import { getBestHistory1RM, estimateSet1RM, setReportedRir,
+  withEffectiveLoad
+} from './workoutEngine';
+import { getSlotEquipmentChoice } from '../data/exerciseLibrary';
 import { fmt } from './calcTrace';
 
 // Families by name: the first pattern an exercise's name matches
@@ -91,8 +94,10 @@ export const describe1RM = (exerciseId, opts = {}) => {
         list: list || [],
         id: (slot?.supersetExerciseIds || [slot?.exerciseId])[i] || slot?.exerciseId
       }));
-      lists.forEach(({ list, id }) => {
+      lists.forEach(({ list: rawList, id }) => {
         if (id !== exerciseId) return;
+        // Bodyweight-type exercises: weight = bodyweight + what was added / taken off
+        const list = withEffectiveLoad(id, rawList, getSlotEquipmentChoice(slot, lists.findIndex(l => l.list === rawList)));
         const done = list.some(s => s?.completed && Number(s.weight) > 0);
         list.forEach(st => {
           const wt = Number(st?.weight) || 0;

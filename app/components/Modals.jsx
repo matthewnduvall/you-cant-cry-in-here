@@ -2,9 +2,12 @@
 
 import React, { useState } from 'react';
 import { UI } from '../styles/kineticTokens';
-import { SET_TYPES_LIST, exercise1RMInfoOfSets, oneRepMaxLabel as oneRepMaxText } from '../utils/workoutEngine';
+import { SET_TYPES_LIST, exercise1RMInfoOfSets, oneRepMaxLabel as oneRepMaxText,
+  withEffectiveLoad
+} from '../utils/workoutEngine';
 import { ApplyToLaterToggle, Button, CloseButton } from './Controls';
 import { useModalScrollLock } from '../hooks/useModalScrollLock';
+import { ProfileAvatar } from './ProfileAvatar';
 
 // ============================================================================
 // MODAL COMPONENTS: DELETE CONFIRMATION, PLATE CALCULATOR, SET VALUES, SAVE, HISTORY EDIT, FEEDBACK
@@ -169,10 +172,13 @@ export function PlateCalculatorModal({
           // * = calculated from reps (not lifted for 1 rep)
           // The set being picked keeps its type and intensity (only its weight is the one on the pop-up)
           const pickedSet = sessionSets.find(st => st && st.id === plateCalcTarget.setId) || {};
-          const { value: current1RM, calculated: currentCalculated } = exercise1RMInfoOfSets([
-            { ...pickedSet, weight: currentTotal, reps: plateCalcTarget.setReps ?? pickedSet.reps },
-            ...sessionSets.filter(st => st && st.id !== plateCalcTarget.setId)
-          ]);
+          const { value: current1RM, calculated: currentCalculated } = exercise1RMInfoOfSets(
+            // Bodyweight-type exercises count bodyweight (the picked weight is what's added)
+            withEffectiveLoad(plateCalcTarget.exerciseId, [
+              { ...pickedSet, weight: currentTotal, reps: plateCalcTarget.setReps ?? pickedSet.reps },
+              ...sessionSets.filter(st => st && st.id !== plateCalcTarget.setId)
+            ], plateCalcTarget.equipment)
+          );
           const oneRepMaxLabel = color => ({ fontSize: '11px', fontWeight: 500, color, lineHeight: 1, whiteSpace: 'nowrap' });
           const oneRepMaxValue = {
             fontSize: '14px',
@@ -587,31 +593,100 @@ export function SetValueEditorModal({
 export function SaveConfirmModal({
   saveConfirmTarget,
   setSaveConfirmTarget,
-  handleConfirmSaveWorkout
+  handleConfirmSaveWorkout,
+  // Your friends (SHARE's list); empty when signed out
+  friends = []
 }) {
+  // SHARE's list of @all + friends (closed by default)
+  const [shareOpen, setShareOpen] = useState(false);
   // Page held still while open (no jump after APPLY / SAVE / SEND)
   useModalScrollLock(Boolean(saveConfirmTarget));
   if (!saveConfirmTarget) return null;
 
-  const { name = '', shareWithFriends = true, saveAsRoutine = false, gymType = 'all', sourceView, intensityFlags = [] } = saveConfirmTarget;
-  // The routine editor always saves a routine, so the ROUTINE toggle only shows for sessions/History.
-  const showRoutineToggle = sourceView !== 'routine_editor';
-  const toggleCellStyle = {
-    padding: '10px 8px',
-    minHeight: '44px',
-    fontSize: '12px',
-    textAlign: 'center',
-    borderTop: 'none',
-    borderLeft: 'none',
-    borderRight: '1px solid var(--dp-color-rule)',
-    borderBottom: '1px solid var(--dp-color-rule)'
-  };
+  const {
+    name = '',
+    log = true,
+    shareWithFriends = false,
+    shareFriendIds = [],
+    saveAsRoutine = false,
+    sourceView,
+    intensityFlags = []
+  } = saveConfirmTarget;
+  // LOG: a live session or a past workout being logged (a History edit is already logged; the routine editor never
+  // logs). SAVE: not in the routine editor (it always saves a routine).
+  const showLog = sourceView === 'session';
+  const showSave = sourceView !== 'routine_editor';
+  const set = changes => setSaveConfirmTarget(prev => (prev ? { ...prev, ...changes } : null));
+  const sendable = (friends || []).filter(f => f?.id);
+  const shareCount = (shareWithFriends ? 1 : 0) + shareFriendIds.length;
+  const shareSummary =
+    shareCount === 0
+      ? 'OFF'
+      : [shareWithFriends ? '@ALL' : null, ...shareFriendIds.map(id => `@${sendable.find(f => f.id === id)?.username || 'friend'}`.toUpperCase())]
+          .filter(Boolean)
+          .join(', ');
+  const nothingChosen = showLog && !log && !(showSave && saveAsRoutine) && shareCount === 0;
+  const toggleStyle = on => ({
+    minHeight: '52px',
+    padding: '6px 4px',
+    borderRadius: '10px',
+    border: 'none',
+    backgroundColor: on ? '#FFFFFF' : '#2A2A2A',
+    color: on ? '#000000' : '#FFFFFF',
+    fontFamily: 'inherit',
+    cursor: 'pointer',
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '2px'
+  });
+  const toggleLabel = { fontSize: '12px', fontWeight: 500, letterSpacing: '0.08em', textTransform: 'uppercase' };
+  const toggleSub = on => ({ fontSize: '10px', fontWeight: 500, letterSpacing: '0.06em', color: on ? '#3A3A3A' : '#9A9A9A', textTransform: 'uppercase' });
+  const toggles = [
+    showLog && { id: 'log', label: 'LOG', on: log, sub: log ? 'TO HISTORY' : 'NOT LOGGED', onClick: () => set({ log: !log }) },
+    showSave && { id: 'save', label: 'SAVE', on: saveAsRoutine, sub: saveAsRoutine ? 'AS ROUTINE' : 'NOT SAVED', onClick: () => set({ saveAsRoutine: !saveAsRoutine }) },
+    { id: 'share', label: shareCount > 0 ? `SHARE · ${shareCount}` : 'SHARE', on: shareCount > 0, sub: shareOpen ? 'CHOOSE ▴' : 'CHOOSE ▾', onClick: () => setShareOpen(v => !v) }
+  ].filter(Boolean);
+  const pickRow = (key, label, sub, on, onClick, avatar) => (
+    <button
+      key={key}
+      type="button"
+      role="option"
+      aria-selected={on}
+      className="kinetic-btn"
+      onClick={onClick}
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: '10px',
+        minHeight: '48px',
+        padding: '6px 12px',
+        borderRadius: '10px',
+        border: 'none',
+        backgroundColor: on ? '#FFFFFF' : '#2A2A2A',
+        color: on ? '#000000' : '#FFFFFF',
+        fontFamily: 'inherit',
+        fontSize: '14px',
+        fontWeight: 500,
+        textAlign: 'left',
+        cursor: 'pointer'
+      }}
+    >
+      {avatar}
+      <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        {label}
+        {sub && <span style={{ color: on ? '#3A3A3A' : '#9A9A9A', fontSize: '12px', marginLeft: '6px' }}>{sub}</span>}
+      </span>
+      <span aria-hidden="true" style={{ fontSize: '15px', width: '18px', textAlign: 'center' }}>{on ? '✓' : ''}</span>
+    </button>
+  );
 
   return (
     <div style={{ ...UI.modalBackdrop, zIndex: 92 }} onClick={() => setSaveConfirmTarget(null)}>
       <div onClick={e => e.stopPropagation()} style={UI.modalCard('390px')}>
         <div style={UI.modalHeader}>
-          <span>CONFIRM SAVE</span>
+          <span>{sourceView === 'routine_editor' ? 'SAVE ROUTINE' : sourceView === 'session' ? 'FINISH SESSION' : 'SAVE WORKOUT'}</span>
           <CloseButton onClick={() => setSaveConfirmTarget(null)} />
         </div>
 
@@ -640,92 +715,74 @@ export function SaveConfirmModal({
         )}
 
         <div style={{ marginBottom: '14px' }}>
-          <div style={UI.stepLabel}>NAME TO SAVE UNDER</div>
+          <div style={UI.stepLabel}>NAME</div>
           <input
             type="text"
             value={name}
-            onChange={e =>
-              setSaveConfirmTarget(prev => (prev ? { ...prev, name: e.target.value } : null))
-            }
+            onChange={e => set({ name: e.target.value })}
             placeholder="Session or routine name"
             style={{ ...UI.field, ...UI.sessionName }}
           />
-          <div
-            style={{
-              marginTop: '6px',
-              fontSize: '11px',
-              fontWeight: 500,
-              color: '#9A9A9A',
-              textTransform: 'uppercase',
-              letterSpacing: '0.03em'
-            }}
-          >
-            EQUIPMENT DETECTED:{' '}
-            <span style={{ color: 'var(--dp-color-accent)' }}>{String(gymType || 'all').toUpperCase()}</span>
-          </div>
         </div>
 
-        <div style={{ marginBottom: '18px' }}>
-          <div style={UI.stepLabel}>SHARING</div>
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: showRoutineToggle ? '1fr 1fr' : '1fr',
-              gap: 0,
-              borderTop: '1px solid var(--dp-color-rule)',
-              borderLeft: '1px solid var(--dp-color-rule)'
-            }}
-          >
-            <Button
-              variant="toggle"
-              active={Boolean(shareWithFriends)}
-              aria-pressed={Boolean(shareWithFriends)}
-              onClick={() =>
-                setSaveConfirmTarget(prev => (prev ? { ...prev, shareWithFriends: !prev.shareWithFriends } : null))
-              }
-              style={toggleCellStyle}
+        {/* LOG (add to History) · SAVE (as a routine) · SHARE (@all = public to friends, or send to chosen friends) */}
+        <div style={{ display: 'grid', gridTemplateColumns: `repeat(${toggles.length}, minmax(0, 1fr))`, gap: '6px', marginBottom: shareOpen ? '8px' : '14px' }}>
+          {toggles.map(t => (
+            <button
+              key={t.id}
+              type="button"
+              className="kinetic-btn"
+              aria-pressed={t.id === 'share' ? undefined : t.on}
+              aria-expanded={t.id === 'share' ? shareOpen : undefined}
+              onClick={t.onClick}
+              style={toggleStyle(t.on)}
             >
-              {shareWithFriends ? 'PUBLIC' : 'PRIVATE'}
-            </Button>
-            {showRoutineToggle && (
-              <Button
-                variant="toggle"
-                active={Boolean(saveAsRoutine)}
-                aria-pressed={Boolean(saveAsRoutine)}
-                onClick={() =>
-                  setSaveConfirmTarget(prev => (prev ? { ...prev, saveAsRoutine: !prev.saveAsRoutine } : null))
-                }
-                style={toggleCellStyle}
-              >
-                {saveAsRoutine ? 'ROUTINE ✓' : 'ROUTINE'}
-              </Button>
+              <span style={toggleLabel}>{t.label}</span>
+              <span style={toggleSub(t.on)}>{t.sub}</span>
+            </button>
+          ))}
+        </div>
+        {shareOpen && (
+          <div role="listbox" aria-multiselectable="true" aria-label="Share with" style={{ display: 'flex', flexDirection: 'column', gap: '4px', maxHeight: '220px', overflowY: 'auto', marginBottom: '14px' }}>
+            {pickRow(
+              'all',
+              '@all',
+              'public to your friends',
+              shareWithFriends,
+              () => set({ shareWithFriends: !shareWithFriends }),
+              <span aria-hidden="true" style={{ width: '28px', height: '28px', borderRadius: '8px', backgroundColor: shareWithFriends ? '#000000' : '#1C1C1C', color: '#FFFFFF', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>@</span>
+            )}
+            {sendable.map(f =>
+              pickRow(
+                f.id,
+                `@${f.username}`,
+                'send a copy',
+                shareFriendIds.includes(f.id),
+                () => set({ shareFriendIds: shareFriendIds.includes(f.id) ? shareFriendIds.filter(id => id !== f.id) : [...shareFriendIds, f.id] }),
+                <ProfileAvatar photo={f.profilePhoto} username={f.username} size={28} />
+              )
+            )}
+            {sendable.length === 0 && (
+              <div style={{ ...UI.sentence, fontSize: '12px', padding: '4px 2px' }}>Add friends on the Social page to send them routines.</div>
             )}
           </div>
-        </div>
+        )}
+        {!shareOpen && shareCount > 0 && (
+          <div style={{ ...UI.sentence, fontSize: '12px', marginTop: '-6px', marginBottom: '14px' }}>Sharing with {shareSummary.toLowerCase()}.</div>
+        )}
+        {nothingChosen && (
+          <div style={{ ...UI.sentence, fontSize: '12px', marginTop: '-6px', marginBottom: '14px' }}>
+            Nothing is kept: the session just closes.
+          </div>
+        )}
 
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: '1fr 1fr',
-            gap: 0,
-            borderTop: '1px solid var(--dp-color-rule)',
-            borderLeft: '1px solid var(--dp-color-rule)'
-          }}
-        >
-          <Button
-            variant="secondary"
-            onClick={() => setSaveConfirmTarget(null)}
-            style={{ padding: '12px', fontSize: '12px', borderTop: 'none', borderLeft: 'none', borderRight: '1px solid var(--dp-color-rule)', borderBottom: '1px solid var(--dp-color-rule)' }}
-          >
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+          <button type="button" className="kinetic-btn" onClick={() => setSaveConfirmTarget(null)} style={UI.secondaryBtnCenter}>
             CANCEL
-          </Button>
-          <Button
-            variant="primary"
-            onClick={() => handleConfirmSaveWorkout(saveConfirmTarget)}
-            style={{ padding: '12px', fontSize: '12px', borderTop: 'none', borderLeft: 'none', borderRight: '1px solid var(--dp-color-rule)', borderBottom: '1px solid var(--dp-color-rule)' }}
-          >
-            SAVE WORKOUT →
-          </Button>
+          </button>
+          <button type="button" className="kinetic-btn" onClick={() => handleConfirmSaveWorkout(saveConfirmTarget)} style={UI.primaryBtnCenter}>
+            {sourceView === 'session' ? 'FINISH' : 'SAVE'}
+          </button>
         </div>
       </div>
     </div>

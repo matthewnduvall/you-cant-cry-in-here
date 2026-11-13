@@ -911,10 +911,15 @@ const EQUIPMENT_OPTION_ALIASES = { 'weight plates': 'Plate' };
 // Tapping the band cell cycles Red → Purple → Red + Purple. The hexes are the physical bands' colours.
 export const BAND_COLORS = ['Red', 'Purple', 'Red + Purple'];
 export const BAND_COLOR_HEX = { Red: '#FF3B30', Purple: '#BF5AF2' };
+// What each band is worth (lb): its load on band exercises (a pushdown), its help on band-assisted ones (a pull-up
+// = bodyweight − band). Red + Purple = 45.
+export const BAND_WEIGHT_LBS = { Red: 10, Purple: 35 };
 export const isBandEquipment = equipment => /band/i.test(String(equipment || ''));
 export const getSetBandColor = set => (BAND_COLORS.includes(set?.bandColor) ? set.bandColor : BAND_COLORS[0]);
 /** The single bands in a band choice: 'Red + Purple' → ['Red', 'Purple']. */
 export const getBandParts = color => String(color || '').split('+').map(p => p.trim()).filter(Boolean);
+/** A band choice's weight in lb: 'Red' = 10, 'Purple' = 35, 'Red + Purple' = 45. */
+export const getBandWeightLbs = color => getBandParts(color).reduce((sum, part) => sum + (BAND_WEIGHT_LBS[part] || 0), 0);
 /** The load line for a band set: "RED BAND", "RED + PURPLE BANDS". */
 export const getBandLoadLabel = color =>
   `${String(color || BAND_COLORS[0]).toUpperCase()} ${getBandParts(color).length > 1 ? 'BANDS' : 'BAND'}`;

@@ -1852,3 +1852,34 @@ export async function answerRoutineShare(user, shareId, status) {
   });
   return { ok: res.ok, status: res.status };
 }
+
+/** Routines this athlete sent to friends (any answer), newest first: the Routines page's SHARED tab. Returns { ok, rows }. */
+export async function fetchSentRoutineShares(user) {
+  if (!user || !isUuid(user.id)) return { ok: false, rows: [] };
+  const me = encodeURIComponent(user.id);
+  const res = await authedRequest(
+    user,
+    `/rest/v1/routine_shares?select=${ROUTINE_SHARE_COLUMNS}&sender_id=eq.${me}&order=created_at.desc&limit=60`
+  );
+  const rows = Array.isArray(res.data)
+    ? res.data.map(row => ({
+        ...row,
+        routine: {
+          ...(row.routine || {}),
+          slots: canonicalExerciseData(Array.isArray(row.routine?.slots) ? row.routine.slots : [])
+        }
+      }))
+    : [];
+  return { ok: res.ok && Array.isArray(res.data), rows, status: res.status };
+}
+
+/** Withdraws routines this athlete sent (deletes the rows; RLS lets either athlete delete). Returns { ok }. */
+export async function deleteSentRoutineShares(user, shareIds = []) {
+  const ids = (shareIds || []).filter(isUuid);
+  if (!user || !isUuid(user.id) || ids.length === 0) return { ok: false };
+  const res = await authedRequest(user, `/rest/v1/routine_shares?id=in.(${ids.map(encodeURIComponent).join(',')})&sender_id=eq.${encodeURIComponent(user.id)}`, {
+    method: 'DELETE',
+    prefer: 'return=minimal'
+  });
+  return { ok: res.ok, status: res.status };
+}

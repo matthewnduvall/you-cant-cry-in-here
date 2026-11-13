@@ -259,23 +259,71 @@ export function HistoryView({
     const bestImported1RMs = {};
     let importedSetsCount = 0;
 
-    lines.forEach((line, idx) => {
-      const cols = line.split(',').map(c => c.trim().replace(/^"|"$/g, ''));
-      if (cols.length < 4) return;
-      // Skip header row
-      if (
-        idx === 0 &&
-        (cols[0].toLowerCase() === 'date' || cols[1]?.toLowerCase() === 'exercise')
-      ) {
-        return;
+    // One CSV line → its fields (quoted fields may hold commas, "" is a quote)
+    const splitCsvLine = line => {
+      const out = [];
+      let cur = '';
+      let quoted = false;
+      for (let i = 0; i < line.length; i++) {
+        const ch = line[i];
+        if (quoted) {
+          if (ch === '"' && line[i + 1] === '"') {
+            cur += '"';
+            i++;
+          } else if (ch === '"') quoted = false;
+          else cur += ch;
+        } else if (ch === '"') quoted = true;
+        else if (ch === ',') {
+          out.push(cur.trim());
+          cur = '';
+        } else cur += ch;
       }
+      out.push(cur.trim());
+      return out;
+    };
 
-      const rawDate = cols[0];
-      const rawExName = cols[1];
-      // Support both 5-column (Date,Exercise,Set,Weight,Reps) and 4-column (Date,Exercise,Weight,Reps)
-      const hasSetCol = cols.length >= 5;
-      const weightVal = Number(hasSetCol ? cols[3] : cols[2]);
-      const repsVal = Number(hasSetCol ? cols[4] : cols[3]);
+    // Fitbod's export (Date, Exercise, Reps, Weight(kg), Duration(s), Distance(m), Incline, Resistance, isWarmup,
+    // Note, multiplier): read by its header; kg become lb, isWarmup sets are warm-ups, timed sets keep their time
+    const header = splitCsvLine(lines[0]).map(h => h.toLowerCase());
+    const isFitbod = header.some(h => h.startsWith('weight(kg)') || h === 'iswarmup');
+    const col = name => header.findIndex(h => h === name || h.startsWith(`${name}(`));
+    const fitbod = isFitbod
+      ? { date: col('date'), exercise: col('exercise'), reps: col('reps'), weight: col('weight'), duration: col('duration'), warmup: col('iswarmup') }
+      : null;
+    const KG_TO_LB = 2.20462;
+
+    lines.forEach((line, idx) => {
+      const cols = splitCsvLine(line);
+      let rawDate;
+      let rawExName;
+      let weightVal;
+      let repsVal;
+      let isWarmup = false;
+      let durationSec = 0;
+      if (fitbod) {
+        if (idx === 0) return;
+        // "2023-01-15 08:30:00 +0000" → its date
+        rawDate = String(cols[fitbod.date] || '').slice(0, 10);
+        rawExName = cols[fitbod.exercise];
+        const kg = Number(cols[fitbod.weight]) || 0;
+        // Nearest quarter pound (Fitbod stores lb workouts converted to kg)
+        weightVal = Math.round(kg * KG_TO_LB * 4) / 4;
+        repsVal = Number(cols[fitbod.reps]) || 0;
+        durationSec = fitbod.duration >= 0 ? Number(cols[fitbod.duration]) || 0 : 0;
+        isWarmup = fitbod.warmup >= 0 && /^true$/i.test(String(cols[fitbod.warmup] || ''));
+        // A timed set (plank): one "rep" of its duration
+        if (repsVal <= 0 && durationSec > 0) repsVal = 1;
+      } else {
+        if (cols.length < 4) return;
+        // Skip header row
+        if (idx === 0 && (cols[0].toLowerCase() === 'date' || cols[1]?.toLowerCase() === 'exercise')) return;
+        rawDate = cols[0];
+        rawExName = cols[1];
+        // Support both 5-column (Date,Exercise,Set,Weight,Reps) and 4-column (Date,Exercise,Weight,Reps)
+        const hasSetCol = cols.length >= 5;
+        weightVal = Number(hasSetCol ? cols[3] : cols[2]);
+        repsVal = Number(hasSetCol ? cols[4] : cols[3]);
+      }
 
       if (!rawDate || !rawExName || !Number.isFinite(weightVal) || !Number.isFinite(repsVal) || repsVal <= 0) {
         return;
@@ -301,15 +349,17 @@ export function HistoryView({
       group.sets.push({
         id: `csv_set_${ymd.replace(/\//g, '')}_${exObj.id}_${setNumber}_${Math.random().toString(36).slice(2, 6)}`,
         setNumber,
-        setType: 'Working',
+        setType: isWarmup ? 'Warmup' : 'Working',
+        type: isWarmup ? 'Warmup' : 'Working',
         reps: Math.max(1, Math.round(repsVal)),
         weight: Math.max(0, weightVal),
+        ...(durationSec > 0 ? { durationSeconds: Math.round(durationSec) } : {}),
         completed: true,
         rpe: 8
       });
 
       const est1RM =
-        repsVal === 1 ? Math.round(weightVal) : Math.round(weightVal * (1 + repsVal / 30));
+        durationSec > 0 ? 0 : repsVal === 1 ? Math.round(weightVal) : Math.round(weightVal * (1 + repsVal / 30));
       if (est1RM > (bestImported1RMs[exObj.id] || 0)) {
         bestImported1RMs[exObj.id] = est1RM;
       }
@@ -1001,7 +1051,8 @@ export function HistoryView({
             >
               FORMAT: <span style={{ color: '#FFFFFF' }}>Date,Exercise,Set,Weight,Reps</span> (E.G.{' '}
               <span style={{ color: '#FFFFFF' }}>9/23/2026,Barbell Squats,1,185,8</span>). DOWNLOAD THE
-              TEMPLATE OR UPLOAD YOUR .CSV FILE BELOW.
+              TEMPLATE OR UPLOAD YOUR .CSV FILE BELOW. A <span style={{ color: '#FFFFFF' }}>FITBOD</span> EXPORT
+              (SETTINGS → EXPORT WORKOUT DATA) IMPORTS AS IT IS: KG BECOME LB, WARM-UPS STAY WARM-UPS.
             </div>
 
             {/* Download Template & Upload File Buttons */}

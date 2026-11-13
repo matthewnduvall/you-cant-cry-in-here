@@ -48,7 +48,10 @@ function ProgramSection({
   history = [],
   programSchedules = {},
   setProgramSchedule,
-  onRestartCycle
+  onRestartCycle,
+  // Crying's Variety (0–10): the slider on its row while it is chosen
+  cryingVariety = 5,
+  setCryingVariety
 }) {
   const chosen = getProgram(trainingProgram);
   const nowIso = useSyncExternalStore(subscribeMinute, minuteNowIso, noNowOnServer);
@@ -80,7 +83,10 @@ function ProgramSection({
       <div role="group" aria-label="Training program" style={{ display: 'flex', flexDirection: 'column' }}>
         {PROGRAMS.map(p => {
           const on = p.id === chosen.id;
-          return (
+          // Crying, chosen: a VARIETY slider on the same row (0 = the fewest different exercises that still train
+          // every muscle evenly, 10 = no exercise repeats within 20 sessions, 5 = the default)
+          const showVariety = on && p.id === 'crying';
+          const button = (
             <button
               key={p.id}
               type="button"
@@ -88,6 +94,7 @@ function ProgramSection({
               className="kinetic-btn"
               onClick={() => setTrainingProgram?.(p.id)}
               style={{
+                ...(showVariety ? { flex: '1 1 auto', minWidth: 0, borderBottom: 'none' } : {}),
                 minHeight: '52px',
                 padding: '0 16px',
                 display: 'flex',
@@ -116,9 +123,52 @@ function ProgramSection({
               )}
             </button>
           );
+          if (!showVariety) return button;
+          return (
+            <div
+              key={p.id}
+              style={{ display: 'flex', alignItems: 'center', backgroundColor: '#FFFFFF', ...SHARED_CELL_BORDER, borderLeft: 'none', borderRight: 'none', borderTop: 'none' }}
+            >
+              {button}
+              <label
+                className="cr-config-off"
+                style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '0 14px 0 4px', flexShrink: 0, color: '#000000' }}
+              >
+                <span style={{ fontSize: '10px', fontWeight: 500, letterSpacing: '0.1em' }}>VARIETY</span>
+                <input
+                  type="range"
+                  min={0}
+                  max={10}
+                  step={1}
+                  value={cryingVariety}
+                  aria-label="Variety: 0 = the fewest different exercises, 10 = no exercise repeats within 20 sessions"
+                  aria-valuetext={`${cryingVariety} of 10`}
+                  onChange={e => setCryingVariety?.(Number(e.target.value))}
+                  style={{ width: '104px', height: '44px', accentColor: '#000000', margin: 0, cursor: 'pointer' }}
+                />
+                <span style={{ fontSize: '15px', fontWeight: 500, width: '18px', textAlign: 'right' }}>{cryingVariety}</span>
+              </label>
+            </div>
+          );
         })}
       </div>
-      <div style={{ ...UI.sentence, color: '#BDBDBD', padding: '14px 16px 16px' }}>{chosen.description}</div>
+      <div style={{ ...UI.sentence, color: '#BDBDBD', padding: '14px 16px 16px' }}>
+        {chosen.description}
+        {chosen.id === 'crying' && (
+          <span style={{ display: 'block', marginTop: '8px', color: '#FFFFFF' }}>
+            Variety {cryingVariety}:{' '}
+            {cryingVariety === 0
+              ? 'the fewest different exercises that still train every muscle evenly: the ones you already do keep coming back.'
+              : cryingVariety < 5
+                ? 'leans towards exercises you already do.'
+                : cryingVariety === 5
+                  ? 'the default mix.'
+                  : cryingVariety < 10
+                    ? 'leans away from exercises you did in your last sessions.'
+                    : 'no exercise repeats within 20 sessions while there is another that fits.'}
+          </span>
+        )}
+      </div>
       {/* The program's variables (sets, reps, intensity, increment, trigger, cycle, rest, equipment) */}
       {Array.isArray(chosen.variables) && chosen.variables.length > 0 && (
         <dl style={{ margin: 0, padding: '0 16px 12px', display: 'grid', gridTemplateColumns: '96px minmax(0, 1fr)', columnGap: '12px', rowGap: '8px' }}>

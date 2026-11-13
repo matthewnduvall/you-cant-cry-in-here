@@ -51,7 +51,9 @@ import {
   lockAndCompleteSets,
   keepCompletedSets,
   asHistoricalWorkout,
-  findIntensityMismatches
+  findIntensityMismatches,
+  toAddedWeights,
+  workoutTimeMs
 } from '../utils/workoutEngine';
 import { deleteCloudRoutineByKey, deleteCloudWorkoutsByIds, postSyncHistoryUpdate } from '../utils/supabaseAuth';
 import {
@@ -167,6 +169,8 @@ export function useWorkoutMutations({
   programCycleStart = null,
   // The athlete's training weekdays per program (a 'weekday' program's days follow them)
   programSchedules = null,
+  // Crying's Variety 0–10 (5 = default): how much the exercise picks change from session to session
+  cryingVariety = 5,
   // For exercises never logged (utils/starting1RM.js): the goal's strength class (one class below is the start)
   // and height
   targetStandardClass = 'Novice',
@@ -189,7 +193,8 @@ export function useWorkoutMutations({
       }
     });
     return fillIntensities(
-      createWorkoutSlotRaw({ ...args, base1RMOverrides: { ...starts, ...(args.base1RMOverrides || {}) } }),
+      // Bodyweight-type exercises store what is added (0 / the plate), not the total load
+      toAddedWeights(createWorkoutSlotRaw({ ...args, base1RMOverrides: { ...starts, ...(args.base1RMOverrides || {}) } })),
       getCurrentEditorWorkout()
     );
   };
@@ -220,7 +225,9 @@ export function useWorkoutMutations({
   // The program context of a workout (null = no week plan: the app's usual rules)
   const programContextFor = workout => getProgramContext(trainingProgram, programCycleStart, workout, history, programSchedules);
   // A slot with the workout's program week applied (unchanged when the program doesn't cover it)
-  const programSlot = (slot, workout) =>
+  // Bodyweight-type exercises store what is added (0 / the plate), not the total load
+  const programSlot = (slot, workout) => toAddedWeights(programSlotLoads(slot, workout));
+  const programSlotLoads = (slot, workout) =>
     applyProgramToSlot(slot, programContextFor(workout), {
       history,
       incrementLbs: currentIncrementLbs,
@@ -347,8 +354,44 @@ export function useWorkoutMutations({
       return Math.min(STIMULUS_DAYS_CAP, Number.isFinite(days) ? days : STIMULUS_DAYS_CAP);
     };
 
+    // Crying's Variety (programs with their own plan ignore it): how recently and how often each exercise was done
+    // in the last VARIETY_WINDOW logged sessions (0 = the latest session)
+    const usesVariety = !programCtx?.program || programCtx.program.id === 'crying';
+    const variety = usesVariety ? Math.min(10, Math.max(0, Number(cryingVariety) || 0)) : 5;
+    const VARIETY_WINDOW = 20;
+    const recent = (() => {
+      const lastAgo = new Map();
+      const uses = new Map();
+      [...(history || [])]
+        .filter(w => w && w.loadedRoutineTitle !== 'PERSONAL RECORD')
+        .sort((a, b) => workoutTimeMs(b) - workoutTimeMs(a))
+        .slice(0, VARIETY_WINDOW)
+        .forEach((w, ago) => {
+          (w.slots || []).forEach(slot => {
+            (slot.supersetExerciseIds || [slot.exerciseId]).filter(Boolean).forEach(id => {
+              if (!lastAgo.has(id)) lastAgo.set(id, ago);
+              uses.set(id, (uses.get(id) || 0) + 1);
+            });
+          });
+        });
+      return { lastAgo, uses };
+    })();
+    // Variety above 5: exercises done recently score lower (the more recent, the lower; 10 = left out entirely while
+    // anything else fits, see pickBest). Below 5: exercises you already do score higher, so the same ones come back.
+    const varietyAdjust = ex => {
+      if (variety === 5) return 0;
+      const ago = recent.lastAgo.get(ex.id);
+      if (variety > 5) {
+        if (ago === undefined) return 0;
+        const window = Math.max(1, Math.round((VARIETY_WINDOW * (variety - 5)) / 5));
+        return ago < window ? -((variety - 5) * 1.6) * (1 - ago / window) : 0;
+      }
+      const used = recent.uses.get(ex.id) || 0;
+      return used > 0 ? (5 - variety) * 0.9 * Math.min(1, 0.4 + used / 6) : 0;
+    };
+
     const scoreExercise = (ex, preferBig4) => {
-      let score = daysBehind(ex.muscleGroup) * (MUSCLE_GROUP_WEIGHT[ex.muscleGroup] ?? 0.7);
+      let score = daysBehind(ex.muscleGroup) * (MUSCLE_GROUP_WEIGHT[ex.muscleGroup] ?? 0.7) + varietyAdjust(ex);
       if (preferBig4 && big4Order.includes(ex.id)) score += BIG4_BONUS_DAYS;
       if (usedGroups.has(ex.muscleGroup)) score -= SAME_WORKOUT_PENALTY_DAYS;
       if (ex.isPriority) score += 1;
@@ -387,6 +430,16 @@ export function useWorkoutMutations({
         if (wanted.length > 0) pool = wanted;
       }
       if (pool.length === 0) pool = fallbackPool.filter(ex => !usedIds.has(ex.id) && isTrainingExercise(ex));
+      // Variety 10: nothing done in the last 20 sessions, while anything else fits
+      if (variety >= 10) {
+        const fresh = pool.filter(ex => !recent.lastAgo.has(ex.id));
+        if (fresh.length > 0) pool = fresh;
+      }
+      // Variety 0–2: the curated library (well-known exercises) only, while anything there fits
+      if (variety <= 2) {
+        const curated = pool.filter(ex => !String(ex.id).startsWith('exrx_'));
+        if (curated.length > 0) pool = curated;
+      }
       if (pool.length === 0) return EXERCISE_MAP[fallbackId] || EXERCISE_LIBRARY[0];
       const best = pool
         .map(ex => ({ ex, score: scoreExercise(ex, preferBig4) }))
@@ -813,7 +866,10 @@ export function useWorkoutMutations({
     const detectedGymType = inferRoutineGymCategory(currentWorkout.slots);
     setSaveConfirmTarget({
       name: stripDateFromTitle(currentWorkout.title) || getDefaultSessionName(),
-      shareWithFriends: Boolean(isCurrentEditorShared || shareRoutinesWithFriends),
+      // LOG on for a session; SAVE (as a routine) and SHARE (@all = public, or chosen friends) off unless picked
+      log: true,
+      shareWithFriends: Boolean(isCurrentEditorShared),
+      shareFriendIds: [],
       saveAsRoutine: currentView === 'routine_editor',
       gymType: detectedGymType,
       sourceView: currentView,
@@ -950,8 +1006,9 @@ export function useWorkoutMutations({
       return;
     }
 
-    // FINISH logs only the sets marked done (exercises with none are left out); nothing done = nothing logged
-    const doneSlots = keepCompletedSets(normalizedSlots);
+    // FINISH logs only the sets marked done (exercises with none are left out); nothing done = nothing logged.
+    // LOG off: nothing goes to History (SAVE / SHARE above still happened); the session closes.
+    const doneSlots = confirmed?.log === false ? [] : keepCompletedSets(normalizedSlots);
     if (doneSlots.length === 0) {
       setActiveSession(null);
       setCurrentView('home');
@@ -1118,10 +1175,15 @@ export function useWorkoutMutations({
       return;
     }
     if (deleteConfirmTarget.type === 'slot') {
+      const deletedSlotId = deleteConfirmTarget.slotId;
       updateCurrentWorkoutState(prev => ({
         ...prev,
-        slots: (prev?.slots || []).filter(s => s.id !== deleteConfirmTarget.slotId)
+        slots: (prev?.slots || []).filter(s => s.id !== deletedSlotId)
       }));
+      // A rest timer started by a set of the deleted exercise stops (and goes back to its full time)
+      setTimerTrigger?.(prev =>
+        prev?.isRunning && prev.slotId === deletedSlotId ? { ...prev, isRunning: false, startedAtMs: null, slotId: null } : prev
+      );
     } else if (deleteConfirmTarget.type === 'set') {
       const { slotId, exIdx, setId } = deleteConfirmTarget;
       updateCurrentWorkoutState(prev => {
@@ -1899,7 +1961,9 @@ export function useWorkoutMutations({
   // reps or type → the weight for them. Completed sets are never changed. Nothing else (e.g. which field was edited
   // last) is kept. Type-locked sets then follow their type's rule (setTypeTarget). Timer sets keep their times; band
   // sets keep their colour.
-  const recalculateSlot = (slot, workoutId) => {
+  // Bodyweight-type exercises store what is added (0 / the plate), not the total load
+  const recalculateSlot = (slot, workoutId) => toAddedWeights(recalculateSlotLoads(slot, workoutId));
+  const recalculateSlotLoads = (slot, workoutId) => {
     const isSup = isSupersetCategory(slot.category) && Array.isArray(slot.supersetSetsByExercise);
     const schemes = isSup ? getSupersetSchemes(slot) : [slot.scheme || defaultScheme];
 
@@ -2189,6 +2253,8 @@ export function useWorkoutMutations({
     if (markingDone && isRoutineEditorView) {
       setTimerTrigger({
         isRunning: true,
+        // The exercise that started it (deleting that exercise stops the timer)
+        slotId: slot.id,
         // The exercise's own REST if set, else the session's rest bar setting
         targetSeconds: slot.customRestSeconds || currentEditorWorkout?.defaultRestSeconds || slot.restSeconds || 90,
         startedAtMs: Date.now()

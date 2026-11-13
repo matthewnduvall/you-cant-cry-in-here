@@ -37,6 +37,9 @@ import { getEquipmentListForGymSelection, normalizeSlotCategory } from '../data/
 // How often an on-screen app checks whether a friend has logged a new workout (one tiny request)
 const FRIEND_ACTIVITY_POLL_MS = 30000;
 
+// Crying's Variety: a whole number 0–10 (5 = the default)
+const normalizeVariety = v => (Number.isFinite(Number(v)) && v !== null && v !== '' ? Math.min(10, Math.max(0, Math.round(Number(v)))) : 5);
+
 export function useCloudAndStorageSync({
   isStorageHydrated,
   setIsStorageHydrated,
@@ -105,6 +108,11 @@ export function useCloudAndStorageSync({
   setProgramCycleStart,
   programSchedules = {},
   setProgramSchedules,
+  // Crying's Variety (0–10, default 5) and the session page's EASY / ADVANCED mode
+  cryingVariety = 5,
+  setCryingVariety,
+  sessionMode = 'advanced',
+  setSessionMode,
   shareStatsWithFriends,
   setShareStatsWithFriends,
   shareRoutinesWithFriends,
@@ -183,6 +191,8 @@ export function useCloudAndStorageSync({
         setTrainingProgram?.(normalizeProgramId(hydrated.settings.program));
         setProgramCycleStart?.(hydrated.settings.programCycleStart || null);
         setProgramSchedules?.(hydrated.settings.programSchedules || {});
+        setCryingVariety?.(normalizeVariety(hydrated.settings.cryingVariety));
+        setSessionMode?.(hydrated.settings.sessionMode === 'easy' ? 'easy' : 'advanced');
         if (typeof hydrated.settings.profilePhoto === 'string') setProfilePhoto?.(hydrated.settings.profilePhoto);
         if (hydrated.settings.social) {
           setShareStatsWithFriends(hydrated.settings.social.shareStatsWithFriends ?? true);
@@ -471,6 +481,8 @@ export function useCloudAndStorageSync({
             if (cloud.settings.programSchedules && typeof cloud.settings.programSchedules === 'object') {
               setProgramSchedules?.(cloud.settings.programSchedules);
             }
+            if (cloud.settings.cryingVariety !== undefined) setCryingVariety?.(normalizeVariety(cloud.settings.cryingVariety));
+            if (cloud.settings.sessionMode === 'easy' || cloud.settings.sessionMode === 'advanced') setSessionMode?.(cloud.settings.sessionMode);
             if (cloud.settings.social) {
               if (cloud.settings.social.shareStatsWithFriends !== undefined) {
                 setShareStatsWithFriends(cloud.settings.social.shareStatsWithFriends);
@@ -614,6 +626,8 @@ export function useCloudAndStorageSync({
             program: trainingProgram || 'crying',
             programCycleStart: programCycleStart || null,
             programSchedules: programSchedules || {},
+            cryingVariety: normalizeVariety(cryingVariety),
+            sessionMode: sessionMode === 'easy' ? 'easy' : 'advanced',
             social: { shareStatsWithFriends, shareRoutinesWithFriends, profileIsPublic, shareBodyweightWithFriends },
             selectedGymId,
             availableEquipment,
@@ -686,6 +700,8 @@ export function useCloudAndStorageSync({
     trainingProgram,
     programCycleStart,
     programSchedules,
+    cryingVariety,
+    sessionMode,
     shareStatsWithFriends,
     shareRoutinesWithFriends,
     profileIsPublic,
@@ -748,6 +764,8 @@ export function useCloudAndStorageSync({
           setTrainingProgram?.(normalizeProgramId(rehydrated.settings.program));
           setProgramCycleStart?.(rehydrated.settings.programCycleStart || null);
           setProgramSchedules?.(rehydrated.settings.programSchedules || {});
+          setCryingVariety?.(normalizeVariety(rehydrated.settings.cryingVariety));
+          setSessionMode?.(rehydrated.settings.sessionMode === 'easy' ? 'easy' : 'advanced');
           setShareStatsWithFriends(rehydrated.settings.social.shareStatsWithFriends);
           setShareRoutinesWithFriends(rehydrated.settings.social.shareRoutinesWithFriends);
           setProfileIsPublic(rehydrated.settings.social.profileIsPublic ?? true);

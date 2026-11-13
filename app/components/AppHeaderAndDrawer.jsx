@@ -115,7 +115,9 @@ export function AppHeaderAndDrawer({
   // ← next to the page title: back to the previous page (page.js keeps the history)
   onBack,
   // Routines friends sent you, still waiting (ROUTINES row's count)
-  receivedRoutineCount = 0
+  receivedRoutineCount = 0,
+  // The session page's EASY / ADVANCED mode (EASY hides the PROGRAM / WEEK / DAY row)
+  sessionMode = 'advanced'
 }) {
   return (
     <>
@@ -265,6 +267,8 @@ export function AppHeaderAndDrawer({
             }
             onChangeDate={ymd => updateCurrentWorkoutState(prev => ({ ...prev, startedAt: parseYMDToISO(ymd) }))}
             programRow={(() => {
+              // EASY mode (live session): no PROGRAM / WEEK / DAY row
+              if (currentView === 'session' && sessionMode === 'easy') return null;
               // Shown while a program other than Crying is chosen, or this session has one
               const sessionProgramId = currentEditorWorkout.program || trainingProgram;
               const program = getProgram(sessionProgramId);
