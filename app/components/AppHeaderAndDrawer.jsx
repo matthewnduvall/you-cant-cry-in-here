@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { PROGRAMS, getProgram, getProgramContext } from '../data/programs';
 import { SFSymbol, SessionRestTimerBar, SessionTitleBar } from './Primitives';
 import { ProfileAvatar } from './ProfileAvatar';
 import { getNextIncompleteSetInfo } from '../utils/workoutEngine';
@@ -56,6 +57,15 @@ export function AppHeaderAndDrawer({
   setShowFeedbackModal,
   isRoutineEditorView,
   currentEditorWorkout,
+  // Training program id (Configuration → PROGRAM): programs other than Crying add a PROGRAM / WEEK row
+  trainingProgram = 'crying',
+  programCycleStart = null,
+  // The WEEK box: saves the week and re-plans the program's exercises (useWorkoutMutations.handleChangeProgramWeek)
+  onChangeProgramWeek,
+  // The PROGRAM box: this session's program (useWorkoutMutations.handleChangeSessionProgram)
+  onChangeSessionProgram,
+  // Logged workouts: the program's week keeps track of itself from them (getAutoProgramWeek)
+  history = [],
   onFinishSession,
   // RESET in the locked session header
   onResetSession,
@@ -222,6 +232,33 @@ export function AppHeaderAndDrawer({
                 : null
             }
             onChangeDate={ymd => updateCurrentWorkoutState(prev => ({ ...prev, startedAt: parseYMDToISO(ymd) }))}
+            programRow={(() => {
+              // Shown while a program other than Crying is chosen, or this session has one
+              const sessionProgramId = currentEditorWorkout.program || trainingProgram;
+              const program = getProgram(sessionProgramId);
+              if (!getProgram(trainingProgram).usesWeeks && !program.usesWeeks) return null;
+              // The session's week, else the automatic one from the logged sessions
+              const ctx = getProgramContext(trainingProgram, programCycleStart, currentEditorWorkout, history);
+              return {
+                label: program.label,
+                programId: program.id,
+                programOptions: PROGRAMS.map(p => ({ id: p.id, label: p.label, note: p.comingSoon ? 'COMING SOON' : '' })),
+                onChangeProgram: id =>
+                  onChangeSessionProgram
+                    ? onChangeSessionProgram(id)
+                    : updateCurrentWorkoutState(prev => ({ ...prev, program: id, programWeek: '' })),
+                week: currentEditorWorkout.programWeek || (ctx ? ctx.program.weekName(ctx.week) : ''),
+                autoWeek: ctx ? ctx.program.weekName(ctx.week) : '',
+                // A program with a cycle offers its weeks; others take a typed week
+                weekOptions: program.cycleWeeks
+                  ? Array.from({ length: program.cycleWeeks }, (_, i) => program.weekName(i + 1))
+                  : null,
+                onChangeWeek: week =>
+                  onChangeProgramWeek
+                    ? onChangeProgramWeek(week)
+                    : updateCurrentWorkoutState(prev => ({ ...prev, program: prev.program || trainingProgram, programWeek: week }))
+              };
+            })()}
           />
         )}
         {isRoutineEditorView && currentEditorWorkout && (

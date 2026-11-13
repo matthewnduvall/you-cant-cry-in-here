@@ -1,5 +1,6 @@
 'use client';
 
+import { normalizeProgramId } from '../data/programs';
 import { useState, useEffect, useRef } from 'react';
 import {
   PERSISTENCE_KEY,
@@ -97,6 +98,11 @@ export function useCloudAndStorageSync({
   setRoutinePreferences,
   setPreferences,
   setSetPreferences,
+  // Training program id (settings.program; Configuration → PROGRAM)
+  trainingProgram,
+  setTrainingProgram,
+  programCycleStart = null,
+  setProgramCycleStart,
   shareStatsWithFriends,
   setShareStatsWithFriends,
   shareRoutinesWithFriends,
@@ -172,6 +178,8 @@ export function useCloudAndStorageSync({
         if (Array.isArray(hydrated.settings.setPreferences) && hydrated.settings.setPreferences.length > 0) {
           setSetPreferences?.(hydrated.settings.setPreferences);
         }
+        setTrainingProgram?.(normalizeProgramId(hydrated.settings.program));
+        setProgramCycleStart?.(hydrated.settings.programCycleStart || null);
         if (typeof hydrated.settings.profilePhoto === 'string') setProfilePhoto?.(hydrated.settings.profilePhoto);
         if (hydrated.settings.social) {
           setShareStatsWithFriends(hydrated.settings.social.shareStatsWithFriends ?? true);
@@ -455,6 +463,8 @@ export function useCloudAndStorageSync({
             ) {
               setSetPreferences?.(cloud.settings.setPreferences);
             }
+            if (typeof cloud.settings.program === 'string') setTrainingProgram?.(normalizeProgramId(cloud.settings.program));
+            if (typeof cloud.settings.programCycleStart === 'string') setProgramCycleStart?.(cloud.settings.programCycleStart);
             if (cloud.settings.social) {
               if (cloud.settings.social.shareStatsWithFriends !== undefined) {
                 setShareStatsWithFriends(cloud.settings.social.shareStatsWithFriends);
@@ -595,6 +605,8 @@ export function useCloudAndStorageSync({
             stimulus: { greenDays: stimulusGreenDays, yellowDays: stimulusYellowDays },
             routinePreferences,
             setPreferences,
+            program: trainingProgram || 'crying',
+            programCycleStart: programCycleStart || null,
             social: { shareStatsWithFriends, shareRoutinesWithFriends, profileIsPublic, shareBodyweightWithFriends },
             selectedGymId,
             availableEquipment,
@@ -664,6 +676,8 @@ export function useCloudAndStorageSync({
     stimulusYellowDays,
     routinePreferences,
     setPreferences,
+    trainingProgram,
+    programCycleStart,
     shareStatsWithFriends,
     shareRoutinesWithFriends,
     profileIsPublic,
@@ -723,6 +737,8 @@ export function useCloudAndStorageSync({
           setStimulusYellowDays(rehydrated.settings.stimulus.yellowDays);
           setRoutinePreferences(rehydrated.settings.routinePreferences);
           if (Array.isArray(rehydrated.settings.setPreferences)) setSetPreferences?.(rehydrated.settings.setPreferences);
+          setTrainingProgram?.(normalizeProgramId(rehydrated.settings.program));
+          setProgramCycleStart?.(rehydrated.settings.programCycleStart || null);
           setShareStatsWithFriends(rehydrated.settings.social.shareStatsWithFriends);
           setShareRoutinesWithFriends(rehydrated.settings.social.shareRoutinesWithFriends);
           setProfileIsPublic(rehydrated.settings.social.profileIsPublic ?? true);
@@ -767,6 +783,8 @@ export function useCloudAndStorageSync({
     setStimulusYellowDays(4);
     setRoutinePreferences(['Compound', 'Compound', 'Superset', 'Superset', 'Abs']);
     setSetPreferences?.(['Warmup', 'Warmup', 'Working', 'Working', 'Working']);
+    setTrainingProgram?.('crying');
+    setProgramCycleStart?.(null);
     setShareStatsWithFriends(true);
     setShareRoutinesWithFriends(true);
     setSelectedGymId('');

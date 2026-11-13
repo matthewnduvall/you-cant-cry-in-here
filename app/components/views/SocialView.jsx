@@ -50,9 +50,16 @@ export function SocialView({
   // PRIVACY & SHARING settings (moved here from Settings)
   socialSettingsProps,
   // LEADERBOARDS (moved here from their own page)
-  leaderboardProps
+  leaderboardProps,
+  // Opens on this tab (e.g. 'privacy' from your profile's PRIVACY →); onInitialTabUsed lets the page reset it
+  initialTab = 'leaderboards',
+  onInitialTabUsed
 }) {
-  const [socialTab, setSocialTab] = useState('leaderboards');
+  const [socialTab, setSocialTab] = useState(initialTab);
+  useEffect(() => {
+    if (initialTab !== 'leaderboards') onInitialTabUsed?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only on opening the page
+  }, []);
   // A photo for any athlete who is your friend (search results and requests only carry a username)
   const photoOf = id => (friendsList || []).find(f => f.id === id)?.profilePhoto || null;
   const [searchedAthletes, setSearchedAthletes] = useState([]);

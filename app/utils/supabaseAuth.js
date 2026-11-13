@@ -1251,7 +1251,11 @@ function buildAthleteFromProfileRow(
 
   // PRs come only from logged History (no data = no PR), with the same scanner as the rest of the app: saved 1RM
   // numbers in settings / one_rep_maxes can be left over from old imports or removed workouts
-  const mergedPrs = buildHistoryPRs(rowHistory);
+  // Share stats with friends off (Social → Privacy): their history and PRs aren't used anywhere (profile, leaderboards,
+  // ticker). On by default.
+  const statsShared = row?.settings?.social?.shareStatsWithFriends !== false;
+  const sharedHistory = statsShared ? rowHistory : [];
+  const mergedPrs = buildHistoryPRs(sharedHistory);
 
   return {
     id: row?.id || `friend_${uname.toLowerCase()}`,
@@ -1268,8 +1272,9 @@ function buildAthleteFromProfileRow(
     goals: row?.settings?.goals && typeof row.settings.goals === 'object' ? row.settings.goals : null,
     setPreferences: Array.isArray(row?.settings?.setPreferences) ? row.settings.setPreferences : null,
     profilePhoto: typeof row?.settings?.profilePhoto === 'string' ? row.settings.profilePhoto : null,
+    statsShared,
     prs: mergedPrs,
-    history: rowHistory,
+    history: sharedHistory,
     sharedRoutines: shared
   };
 }

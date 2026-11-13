@@ -169,10 +169,17 @@ export function SessionTitleBar({
   saveLabel = 'SAVE',
   // Live session: the session's date (YYYY/MM/DD, from startedAt) in its own box; typing a date moves the session
   dateValue = null,
-  onChangeDate
+  onChangeDate,
+  // Programs other than Crying: a second row with PROGRAM and WEEK, each opening a picker:
+  // { label, programId, programOptions: [{ id, label, note }], onChangeProgram, week, autoWeek, weekOptions | null,
+  //   onChangeWeek }; null = no row
+  programRow = null
 }) {
   // The name pop-up: null = closed; otherwise the name being edited (the header box is too narrow for long names)
   const [nameDraft, setNameDraft] = useState(null);
+  // PROGRAM / WEEK pop-up: null | 'program' | 'week'; weekDraft = the typed week for programs without a cycle
+  const [programPicker, setProgramPicker] = useState(null);
+  const [weekDraft, setWeekDraft] = useState('');
   const saveName = () => {
     const next = String(nameDraft ?? '').trim();
     if (next && next !== title) onChangeTitle?.(next);
@@ -343,6 +350,206 @@ export function SessionTitleBar({
         </>
       )}
     </div>
+
+    {programRow && (
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)',
+          backgroundColor: '#1C1C1C'
+        }}
+      >
+        {[
+          { key: 'program', label: 'PROGRAM', value: programRow.label, aria: `Program: ${programRow.label}. Tap to change` },
+          { key: 'week', label: 'WEEK', value: programRow.week || '—', aria: `Week: ${programRow.week || 'not set'}. Tap to change` }
+        ].map((cell, i) => (
+          <button
+            key={cell.key}
+            type="button"
+            aria-label={cell.aria}
+            onClick={() => {
+              setWeekDraft(programRow.week || '');
+              setProgramPicker(cell.key);
+            }}
+            style={{
+              minWidth: 0,
+              height: '40px',
+              boxSizing: 'border-box',
+              backgroundColor: '#1C1C1C',
+              ...cellBorder,
+              ...(i === 1 ? { borderRight: 'none' } : {}),
+              padding: '0 8px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '6px',
+              textAlign: 'left',
+              cursor: 'pointer',
+              fontFamily: 'inherit',
+              color: '#FFFFFF'
+            }}
+          >
+            <span style={{ minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+              <span style={{ fontSize: '10px', fontWeight: 500, letterSpacing: '0.1em', color: '#9A9A9A', lineHeight: 1.1 }}>
+                {cell.label}
+              </span>
+              <span
+                style={{
+                  fontSize: '13px',
+                  fontWeight: 500,
+                  marginTop: '2px',
+                  lineHeight: 1.2,
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis'
+                }}
+              >
+                {cell.value}
+              </span>
+            </span>
+            <span aria-hidden="true" style={{ color: '#9A9A9A', fontSize: '10px', flexShrink: 0 }}>▾</span>
+          </button>
+        ))}
+      </div>
+    )}
+
+    {/* PROGRAM / WEEK pop-ups (the current choice is white; tapping another applies it at once) */}
+    {programRow && programPicker && (
+      <div style={{ ...UI.modalBackdrop, zIndex: 90 }} onClick={() => setProgramPicker(null)}>
+        <div
+          role="dialog"
+          aria-label={programPicker === 'program' ? 'Session program' : 'Program week'}
+          onClick={e => e.stopPropagation()}
+          style={UI.modalCard('380px')}
+        >
+          <div style={UI.modalHeader}>
+            <span>{programPicker === 'program' ? 'PROGRAM' : 'WEEK'}</span>
+            <button type="button" aria-label="Close" onClick={() => setProgramPicker(null)} style={UI.closeXBtn}>
+              ✕
+            </button>
+          </div>
+
+          {programPicker === 'program' ? (
+            <>
+              <div style={{ ...UI.sentence, marginBottom: '10px' }}>
+                This session&apos;s program. Its exercises are re-planned for the program&apos;s week.
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                {(programRow.programOptions || []).map(opt => {
+                  const on = opt.id === programRow.programId;
+                  return (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      className="kinetic-btn"
+                      aria-pressed={on}
+                      onClick={() => {
+                        if (!on) programRow.onChangeProgram?.(opt.id);
+                        setProgramPicker(null);
+                      }}
+                      style={{
+                        minHeight: '44px',
+                        padding: '0 14px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        gap: '10px',
+                        backgroundColor: on ? '#FFFFFF' : '#2A2A2A',
+                        color: on ? '#000000' : '#FFFFFF',
+                        border: 'none',
+                        borderRadius: '10px',
+                        fontFamily: 'inherit',
+                        fontSize: '15px',
+                        fontWeight: 500,
+                        textAlign: 'left',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      <span>{opt.label}</span>
+                      {opt.note && (
+                        <span style={{ fontSize: '10px', letterSpacing: '0.1em', opacity: 0.7, whiteSpace: 'nowrap' }}>{opt.note}</span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </>
+          ) : programRow.weekOptions ? (
+            <>
+              <div style={{ ...UI.sentence, marginBottom: '10px' }}>
+                Weeks keep track of themselves: the first session in a new week (Monday to Sunday) moves on a week.
+                {programRow.autoWeek ? ` Automatic: ${programRow.autoWeek}.` : ''}
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: '6px' }}>
+                {programRow.weekOptions.map(w => {
+                  const on = w === programRow.week;
+                  return (
+                    <button
+                      key={w}
+                      type="button"
+                      className="kinetic-btn"
+                      aria-pressed={on}
+                      onClick={() => {
+                        if (!on) programRow.onChangeWeek?.(w);
+                        setProgramPicker(null);
+                      }}
+                      style={{
+                        height: '44px',
+                        backgroundColor: on ? '#FFFFFF' : '#2A2A2A',
+                        color: on ? '#000000' : '#FFFFFF',
+                        border: 'none',
+                        borderRadius: '10px',
+                        fontFamily: 'inherit',
+                        fontSize: '13px',
+                        fontWeight: 500,
+                        cursor: 'pointer'
+                      }}
+                    >
+                      {w}
+                    </button>
+                  );
+                })}
+              </div>
+            </>
+          ) : (
+            <>
+              <input
+                type="text"
+                aria-label="Program week (number or name)"
+                placeholder="Week # or name"
+                autoFocus
+                value={weekDraft}
+                maxLength={40}
+                onChange={e => setWeekDraft(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') {
+                    programRow.onChangeWeek?.(weekDraft.trim());
+                    setProgramPicker(null);
+                  }
+                }}
+                style={UI.field}
+              />
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginTop: '12px' }}>
+                <button type="button" className="kinetic-btn" onClick={() => setProgramPicker(null)} style={UI.secondaryBtnCenter}>
+                  CANCEL
+                </button>
+                <button
+                  type="button"
+                  className="kinetic-btn"
+                  onClick={() => {
+                    programRow.onChangeWeek?.(weekDraft.trim());
+                    setProgramPicker(null);
+                  }}
+                  style={UI.primaryBtnCenter}
+                >
+                  SAVE WEEK
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    )}
 
     {/* SESSION NAME pop-up: the full name, editable (SAVE NAME is this pop-up's one red) */}
     {nameDraft !== null && (

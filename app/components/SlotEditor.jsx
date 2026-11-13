@@ -8,6 +8,10 @@
 // edits are written.
 // ============================================================================
 
+import { INTENSITY_MODES, formatIntensity } from '../utils/intensity';
+import { IntensityEditorModal } from './IntensityEditorModal';
+import { SchemeEditorModal, schemeButtonLabel } from './SchemeEditorModal';
+import { getProgram } from '../data/programs';
 import React, { useState } from 'react';
 import { SHARED_CELL_BORDER } from '../styles/kineticTokens';
 import {
@@ -32,14 +36,11 @@ import {
   normalizeMuscleGroupName
 } from '../data/exerciseLibrary';
 import {
-  SCHEME_OPTIONS,
-  isClusterScheme,
   normalizeSetType,
   getBestHistory1RMInfo,
   best1RMInfoOfSets,
   oneRepMaxLabel,
   getLastLoggedSetsForExercise,
-  PYRAMID_SCHEMES,
   getSchemeUniformReps,
   getSetTimerMMSS,
   getLastLoggedTimerDisplay,
@@ -126,6 +127,10 @@ const SUPERSET_HALF_CATEGORIES = ['Compound', 'Accessory'];
 
 // Width of the lock button at the left of a set's type / weight / reps cell (6 px gap before the padlock)
 const LOCK_COL_PX = 20;
+
+// Four equal set cells (intensity shown) leave the type ~38 px beside its padlock: the cell shows a short form (the
+// dropdown still lists the full names)
+const SET_TYPE_SHORT_LABELS = { Warmup: 'WARM', Working: 'WORK', 'Top Out': 'TOP', 'Burn Out': 'BURN', '1 Rep Max': '1RM' };
 
 // Padlock for the set type / weight / reps lock buttons (closed shackle = locked)
 const LockIcon = ({ locked, color }) => (
@@ -240,6 +245,9 @@ function PrBadge({ marginRight = '6px' }) {
  * - footer: optional node rendered between the sets and the bottom row
  * - onToggleSetLock({ exIdx, set, field: 'type' | 'weight' | 'reps' }): a lock at the left of each set's type, weight
  *   and reps (shown only with this callback). RECALCULATE never changes a locked value
+ * - showIntensity + onChangeSetIntensity({ exIdx, set, intensity: { mode, value } }): programs other than Crying add
+ *   an INTENSITY cell after reps (with its own lock, field 'intensity'); tapping it opens IntensityEditorModal (scale
+ *   %1RM / RIR / RPE + value; changing the scale converts the value, see utils/intensity.js)
  */
 export function SlotEditor({
   slot,
@@ -266,8 +274,14 @@ export function SlotEditor({
   actionTone = 'recalculate',
   footer = null,
   onToggleSetLock,
-  onChangeSetType
+  onChangeSetType,
+  showIntensity = false,
+  onChangeSetIntensity
 }) {
+  // The INTENSITY pop-up: { exIdx, set, label } while open
+  const [intensityTarget, setIntensityTarget] = useState(null);
+  // The SCHEME pop-up (scheme + sets + reps) is open
+  const [schemeOpen, setSchemeOpen] = useState(false);
   // Drag a set's numbered handle to reorder sets (pointer events: works with touch). Keys are 'exIdx:setIdx';
   // superset sets only move within their own exercise.
   const { handleProps: setHandleProps, rowDragStyle: setDragStyle } = usePointerReorder(
@@ -324,6 +338,23 @@ export function SlotEditor({
 
   const sendHeaderChange = (half, changes) =>
     onHeaderChange?.(isSuperset ? { ...changes, supersetHalf: half } : changes);
+
+  // Each exercise's scheme, set count and reps (the athlete's REPS choice, else the scheme's) for the SCHEME pop-up
+  const schemeHalf = half => {
+    const scheme = schemes[half] || schemes[0];
+    const sets = ((isSuperset ? slot.supersetSetsByExercise?.[half] : slot.sets) || []).length;
+    const typedReps = isSuperset ? slot.supersetTargetReps?.[half] : slot.targetReps;
+    const reps = Number(typedReps) > 0 ? Number(typedReps) : getSchemeUniformReps(scheme);
+    return { name: stripEquipmentFromExerciseName(EXERCISE_MAP[supIds[half]]?.name || ''), scheme, sets, reps };
+  };
+  // The scheme button: "5 × 8" / "PYRAMID"; a superset with different schemes shows both
+  const schemeSummary = (() => {
+    const labels = halves.map(h => {
+      const { scheme, sets, reps } = schemeHalf(h);
+      return schemeButtonLabel(scheme, sets, reps);
+    });
+    return labels.length > 1 && labels[0] !== labels[1] ? `A ${labels[0]} · B ${labels[1]}` : labels[0];
+  })();
 
   // Superset sets alternate A1, B1, A2, B2, ...
   const rows = [];
@@ -604,68 +635,6 @@ export function SlotEditor({
 
   // A SETS or REPS box in the scheme row: type a number (applied when the box loses focus, or on Enter).
   // Pyramids (and Timer reps) read a grey NA.
-  const renderNumberCell = ({ label, value, na, column, ariaLabel, onCommit }) => (
-    <label
-      style={{
-        ...headerSelectStyle,
-        gridColumn: column,
-        gridRow: 3,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        gap: '4px',
-        padding: '0 8px',
-        cursor: na ? 'default' : 'text'
-      }}
-    >
-      <span style={{ fontSize: '11px', fontWeight: 500, color: '#9A9A9A' }}>{label}</span>
-      {na ? (
-        <span aria-label={`${ariaLabel}: not used by this scheme`} style={{ fontSize: '14px', fontWeight: 500, color: '#8A8A8A' }}>
-          NA
-        </span>
-      ) : (
-        <input
-          key={`${label}_${value}`}
-          type="text"
-          inputMode="numeric"
-          pattern="[0-9]*"
-          aria-label={ariaLabel}
-          defaultValue={value}
-          onFocus={e => e.target.select()}
-          onKeyDown={e => {
-            if (e.key === 'Enter') e.currentTarget.blur();
-            if (e.key === 'Escape') {
-              e.currentTarget.value = String(value);
-              e.currentTarget.blur();
-            }
-          }}
-          onBlur={e => {
-            const next = Math.round(Number(e.target.value));
-            if (!Number.isFinite(next) || next < 1) {
-              e.target.value = String(value);
-              return;
-            }
-            if (next !== Number(value)) onCommit(next);
-          }}
-          style={{
-            width: '44px',
-            minWidth: 0,
-            height: '100%',
-            backgroundColor: 'transparent',
-            border: 'none',
-            color: '#FFFFFF',
-            // 16 px so iOS doesn't zoom into the field
-            fontSize: '16px',
-            fontWeight: 500,
-            textAlign: 'right',
-            outline: 'none',
-            padding: 0,
-            fontFamily: 'inherit'
-          }}
-        />
-      )}
-    </label>
-  );
 
   // Row 1: exercise name / search. Row 2: TYPE | MUSCLE GROUP | EQUIPMENT. Row 3: SCHEME | SETS | REPS.
   // Supersets render this twice (A, B); their SETS count is for both exercises.
@@ -716,11 +685,6 @@ export function SlotEditor({
     // A superset's type menus read SUPERSET; picking any other type ends the superset: this exercise stays as a
     // normal exercise of that type and the other one is removed
     const typeOptions = isSuperset ? ['Superset', ...SUPERSET_HALF_CATEGORIES] : categories;
-    // SETS / REPS: the exercise's set count and the scheme's reps (or the athlete's REPS choice)
-    const halfSets = (isSuperset ? slot.supersetSetsByExercise?.[half] : slot.sets) || [];
-    const isPyramid = PYRAMID_SCHEMES.includes(scheme);
-    const typedReps = isSuperset ? slot.supersetTargetReps?.[half] : slot.targetReps;
-    const repsValue = Number(typedReps) > 0 ? Number(typedReps) : getSchemeUniformReps(scheme);
     return (
       <div
         key={half}
@@ -728,7 +692,7 @@ export function SlotEditor({
           position: 'relative',
           display: 'grid',
           gridTemplateColumns: 'repeat(6, minmax(0, 1fr))',
-          gridTemplateRows: '44px 40px 40px',
+          gridTemplateRows: '44px 40px',
           gap: 0,
           minWidth: 0,
           ...(half === 1 ? { borderTop: '1px solid var(--dp-color-rule)' } : {}),
@@ -785,37 +749,7 @@ export function SlotEditor({
           ))}
         </select>
 
-        <select
-          aria-label={`${tag}Set and Rep Scheme`.trim()}
-          value={scheme}
-          onChange={e => sendHeaderChange(half, { scheme: e.target.value })}
-          className="kinetic-filter-select"
-          style={{ ...headerSelectStyle, gridColumn: '1 / 3', gridRow: 3 }}
-        >
-          {/* CLUSTER is a scheme for a single exercise (not offered in a superset) */}
-          {SCHEME_OPTIONS.filter(scm => !isSuperset || !isClusterScheme(scm)).map(scm => (
-            <option key={scm} value={scm}>
-              {scm.toUpperCase()}
-            </option>
-          ))}
-        </select>
 
-        {renderNumberCell({
-          label: 'SETS',
-          value: halfSets.length,
-          na: isPyramid,
-          column: '3 / 5',
-          ariaLabel: isSuperset ? 'Sets (both exercises)' : 'Number of sets',
-          onCommit: n => sendHeaderChange(half, { setCount: n })
-        })}
-        {renderNumberCell({
-          label: 'REPS',
-          value: repsValue || '',
-          na: isPyramid || scheme === 'Timer' || !repsValue,
-          column: '5 / 7',
-          ariaLabel: `${tag}Reps per set`.trim(),
-          onCommit: n => sendHeaderChange(half, { targetReps: n })
-        })}
 
         {renderSearchResults(half)}
       </div>
@@ -828,8 +762,8 @@ export function SlotEditor({
   // just the value.
   const withSetLock = (exIdx, st, field, cellBg, valueEl) => {
     if (!onToggleSetLock) return valueEl;
-    const locked = Boolean({ weight: st.lockWeight, reps: st.lockReps, type: st.lockType }[field]);
-    const label = field === 'weight' ? 'weight' : field === 'reps' ? 'reps' : 'set type';
+    const locked = Boolean({ weight: st.lockWeight, reps: st.lockReps, type: st.lockType, intensity: st.lockIntensity }[field]);
+    const label = field === 'weight' ? 'weight' : field === 'reps' ? 'reps' : field === 'intensity' ? 'intensity' : 'set type';
     // One box (the cell's border and background): the padlock sits inside on the left, the value fills the rest
     const innerValue = React.cloneElement(valueEl, {
       style: {
@@ -960,9 +894,11 @@ export function SlotEditor({
               display: 'grid',
               // Set type, weight and reps share the width equally; with locks the ✓ is 40 px (13 px weights, 11 px types
               // so they fit beside their padlocks), else 52 px
-              gridTemplateColumns: onToggleSetLock
-                ? 'repeat(3, minmax(0, 1fr)) 40px'
-                : 'repeat(3, minmax(0, 1fr)) 52px',
+              // + an INTENSITY cell after reps when the program uses intensity (not on Timer sets)
+              // Every value cell is the same width, with a caps label over its value (TYPE, LB, REPS, the scale)
+              gridTemplateColumns: `repeat(${showIntensity && !isTimerScheme ? 4 : 3}, minmax(0, 1fr)) ${
+                onToggleSetLock ? '40px' : '52px'
+              }`,
               gap: 0,
               alignItems: 'stretch'
             }}
@@ -970,36 +906,49 @@ export function SlotEditor({
             {/* Set type dropdown (with its lock): picking a type re-works the set's weight and reps
                 (handleUpdateSetType); a locked type is kept by RECALCULATE */}
             {withSetLock(exIdx, st, 'type', cellBg,
-            <select
-              aria-label={`Set ${setNumText} type`}
-              className={onToggleSetLock ? 'kinetic-set-type-select no-caret' : 'kinetic-set-type-select'}
-              value={curType}
-              onChange={e =>
-                onChangeSetType
-                  ? onChangeSetType({ exIdx, set: st, type: e.target.value })
-                  : editValue('type', e.target.value)
-              }
-              style={{
-                width: '100%',
-                minWidth: 0,
-                height: '44px',
-                boxSizing: 'border-box',
-                backgroundColor: cellBg,
-                ...SHARED_CELL_BORDER,
-                color: '#FFFFFF',
-                fontSize: onToggleSetLock ? '11px' : '12px',
-                fontWeight: 500,
-                textTransform: 'uppercase',
-                cursor: 'pointer',
-                fontFamily: 'inherit'
-              }}
-            >
-              {SET_TYPES_LIST.map(type => (
-                <option key={type} value={type}>
-                  {SET_TYPE_LABELS[type] || type.toUpperCase()}
-                </option>
-              ))}
-            </select>
+            <div style={{ ...setCellStyle(cellBg), position: 'relative', overflow: 'hidden' }}>
+              <span style={cellLabelStyle}>TYPE</span>
+              <span
+                style={{
+                  ...cellValueStyle('#FFFFFF', '11px'),
+                  maxWidth: '100%',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  textTransform: 'uppercase'
+                }}
+              >
+                {(showIntensity && !isTimerScheme ? SET_TYPE_SHORT_LABELS[curType] : SET_TYPE_LABELS[curType]) ||
+                  String(curType).toUpperCase()}
+              </span>
+              {/* The dropdown covers the whole cell (invisible), so the cell itself is the tap target */}
+              <select
+                aria-label={`Set ${setNumText} type`}
+                value={curType}
+                onChange={e =>
+                  onChangeSetType
+                    ? onChangeSetType({ exIdx, set: st, type: e.target.value })
+                    : editValue('type', e.target.value)
+                }
+                style={{
+                  position: 'absolute',
+                  inset: 0,
+                  width: '100%',
+                  height: '100%',
+                  opacity: 0,
+                  cursor: 'pointer',
+                  fontSize: '16px',
+                  border: 'none',
+                  appearance: 'none',
+                  WebkitAppearance: 'none'
+                }}
+              >
+                {SET_TYPES_LIST.map(type => (
+                  <option key={type} value={type}>
+                    {SET_TYPE_LABELS[type] || type.toUpperCase()}
+                  </option>
+                ))}
+              </select>
+            </div>
             )}
 
             {isBandSet ? (
@@ -1049,10 +998,9 @@ export function SlotEditor({
               }
               style={{ ...setCellStyle(cellBg), cursor: 'pointer', overflow: 'hidden' }}
             >
-              {/* Just the weight, centred in the cell (no CURRENT label) */}
-              <span style={{ ...cellValueStyle('var(--dp-color-accent)', onToggleSetLock ? '13px' : '15px'), marginTop: 0 }}>
-                {st.weight}
-              </span>
+              {/* The weight under its unit */}
+              <span style={cellLabelStyle}>LB</span>
+              <span style={cellValueStyle('var(--dp-color-accent)', onToggleSetLock ? '13px' : '15px')}>{st.weight}</span>
             </button>
             )}
 
@@ -1065,11 +1013,33 @@ export function SlotEditor({
                   style={{ ...setCellStyle(cellBg), color: '#FFFFFF', cursor: 'pointer' }}
                 >
                   <span style={cellLabelStyle}>{isTimerScheme ? 'TIMER' : 'REPS'}</span>
-                  <span style={cellValueStyle()}>{isTimerScheme ? timerMMSS : st.reps}</span>
+                  <span style={cellValueStyle('#FFFFFF', onToggleSetLock ? '13px' : '15px')}>{isTimerScheme ? timerMMSS : st.reps}</span>
                 </button>
               );
               // Timers aren't recalculated, so they get no lock
               return isTimerScheme ? repsButton : withSetLock(exIdx, st, 'reps', cellBg, repsButton);
+            })()}
+
+            {/* INTENSITY (programs other than Crying): the scale as its label, the value under it; tap = the pop-up
+                (scale + value), the lock keeps it through RECALCULATE */}
+            {showIntensity && !isTimerScheme && (() => {
+              const intensity = st.intensity && st.intensity.mode ? st.intensity : null;
+              const hasValue = intensity && intensity.value !== null && intensity.value !== undefined && intensity.value !== '';
+              const modeLabel = (INTENSITY_MODES.find(m => m.id === intensity?.mode) || { label: 'INTENSITY' }).label;
+              const intensityButton = (
+                <button
+                  type="button"
+                  aria-label={`Intensity: ${hasValue ? formatIntensity(intensity.mode, intensity.value) : 'not set'}. Tap to change`}
+                  onClick={() => setIntensityTarget({ exIdx, set: st, label: setNumText })}
+                  style={{ ...setCellStyle(cellBg), color: '#FFFFFF', cursor: 'pointer', overflow: 'hidden' }}
+                >
+                  <span style={{ ...cellLabelStyle, whiteSpace: 'nowrap' }}>{hasValue ? modeLabel : 'INT.'}</span>
+                  <span style={{ ...cellValueStyle('#FFFFFF', onToggleSetLock ? '13px' : '15px'), whiteSpace: 'nowrap' }}>
+                    {hasValue ? (intensity.mode === 'pct' ? `${intensity.value}%` : intensity.value) : '—'}
+                  </span>
+                </button>
+              );
+              return withSetLock(exIdx, st, 'intensity', cellBg, intensityButton);
             })()}
 
             <button
@@ -1112,6 +1082,7 @@ export function SlotEditor({
               </span>
             </button>
           </div>
+
         </div>
 
         <DeleteButton
@@ -1129,6 +1100,39 @@ export function SlotEditor({
     // The exercise card: one graphite tile (14 px corners, no outer border); its cells are divided by hairlines
     // While the exercise search is open the card doesn't clip, so the results list can spill past its bottom edge
     <div style={{ backgroundColor: '#1C1C1C', borderRadius: '14px', overflow: search ? 'visible' : 'hidden' }}>
+      {schemeOpen && (
+        <SchemeEditorModal
+          isSuperset={isSuperset}
+          halves={halves.map(schemeHalf)}
+          programNote={
+            slot.programmed
+              ? `${getProgram(slot.programmed.program).label} · Week ${slot.programmed.week}`
+              : null
+          }
+          onClose={() => setSchemeOpen(false)}
+          onApply={changes => {
+            // In order: the scheme (rebuilds the sets), then the set count, then the reps
+            changes.forEach(c => {
+              if (c.scheme) sendHeaderChange(c.half, { scheme: c.scheme });
+              if (c.setCount) sendHeaderChange(c.half, { setCount: c.setCount });
+              if (c.targetReps) sendHeaderChange(c.half, { targetReps: c.targetReps });
+            });
+            setSchemeOpen(false);
+          }}
+        />
+      )}
+      {intensityTarget && (
+        <IntensityEditorModal
+          title={`SET ${intensityTarget.label} INTENSITY`}
+          reps={intensityTarget.set.reps}
+          intensity={intensityTarget.set.intensity}
+          onClose={() => setIntensityTarget(null)}
+          onApply={next => {
+            onChangeSetIntensity?.({ exIdx: intensityTarget.exIdx, set: intensityTarget.set, intensity: next });
+            setIntensityTarget(null);
+          }}
+        />
+      )}
       {/* Header: drag handle + exercise picker(s), full width */}
       <div style={{ display: 'grid', gridTemplateColumns: '34px minmax(0, 1fr)', gap: 0, alignItems: 'stretch' }}>
         <DragNumberBadge
@@ -1149,33 +1153,25 @@ export function SlotEditor({
 
         {footer}
 
-        {/* + SET ^ · + SET ⌄ · RECALCULATE (widest label gets the most room) · DELETE — white text, DELETE grey (RESET in the header keeps the session's red text; DELETE still asks first) */}
+        {/* SCHEME ▾ · RECALCULATE · DELETE (sets are added / removed in the scheme pop-up) — white text, DELETE grey (DELETE still asks first) */}
         <div
           style={{
             display: 'grid',
-            gridTemplateColumns: onRemove
-              ? 'minmax(0, 0.9fr) minmax(0, 0.9fr) minmax(0, 1.3fr) minmax(0, 0.9fr)'
-              : 'minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.3fr)',
+            // Equal-width buttons: SCHEME | RECALCULATE | DELETE
+            gridTemplateColumns: `repeat(${onRemove ? 3 : 2}, minmax(0, 1fr))`,
             gap: 0
           }}
         >
+          {/* The scheme (sets × reps, or its name): opens the SCHEME pop-up */}
           <button
             type="button"
             className="kinetic-btn"
-            aria-label="Add set at top"
-            onClick={() => onInsertSet?.('top')}
-            style={bottomBtnStyle('#1C1C1C', '#FFFFFF')}
+            aria-label={`Scheme: ${schemeSummary}. Tap to change scheme, sets and reps`}
+            onClick={() => setSchemeOpen(true)}
+            style={{ ...bottomBtnStyle('#1C1C1C', '#FFFFFF'), display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
           >
-            + SET ^
-          </button>
-          <button
-            type="button"
-            className="kinetic-btn"
-            aria-label="Add set at bottom"
-            onClick={() => onInsertSet?.('bottom')}
-            style={bottomBtnStyle('#1C1C1C', '#FFFFFF')}
-          >
-            + SET ⌄
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{schemeSummary}</span>
+            <span aria-hidden="true" style={{ color: '#9A9A9A', fontSize: '10px' }}>▾</span>
           </button>
           <button
             type="button"
