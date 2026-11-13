@@ -2,6 +2,7 @@
 // WORKOUT, 1RM EQUIVALENT & SUPERSET GENERATION ENGINE
 // ============================================================================
 
+import { traceLine, isTracing, fmt } from './calcTrace';
 import {
   getSlotEquipmentChoice,
   isBandEquipment,
@@ -126,9 +127,10 @@ export const SET_TYPE_MULTIPLIER_MAP = {
 export const estimate1RMFromSet = (setItem, totalSetsCount = 1) => {
   const w = Math.max(0, Number(setItem?.weight) || 0);
   if (w <= 0) return 0;
-  const r = Math.max(1, Number(setItem?.reps) || 1);
+  // Reps in reserve count as reps the set could have done
+  const r = Math.max(1, Number(setItem?.reps) || 1) + setReportedRir(setItem);
   const sType = normalizeSetType(setItem?.type);
-  if (sType === '1 Rep Max' || (r === 1 && totalSetsCount <= 1)) return roundTo5(w);
+  if ((sType === '1 Rep Max' && r <= 1) || (r === 1 && totalSetsCount <= 1)) return roundTo5(w);
   const repPct = 1 / (1 + Math.max(0, r - 1) / 30);
   const typeMultiplier = SET_TYPE_MULTIPLIER_MAP[sType] || 0.98;
   const setStressFactor = 1 / (1 + Math.max(0, totalSetsCount - 1) * 0.035);
@@ -333,9 +335,35 @@ export const normalizeSetType = rawType => {
   return 'Working';
 };
 
-// A 1RM is "true" when it was actually lifted for 1 rep; one worked out from a multi-rep set (weight × (1 + reps / 30))
-// or entered from the 1RM calculator (set.estimated) is "calculated" and shows with an asterisk (oneRepMaxLabel).
-export const isCalculated1RMSet = set => Math.max(1, Number(set?.reps) || 1) > 1 || Boolean(set?.estimated);
+/**
+ * The reps in reserve a logged set reports: from an intensity set by hand, by the set type or by a program (RIR as
+ * it is; RPE → 10 − RPE). An intensity worked out from the set's own weight (`auto`) says nothing new, and %1RM is a
+ * load, not an effort, so both count as 0.
+ */
+export const setReportedRir = st => {
+  const i = st?.intensity;
+  if (!i || i.auto || i.mode === 'pct') return 0;
+  const v = Number(i.value);
+  if (!Number.isFinite(v)) return 0;
+  return i.mode === 'rir' ? Math.max(0, v) : Math.max(0, 10 - v);
+};
+
+/**
+ * A set's estimated 1RM (Epley), counting the reps it had left: weight × (1 + (reps + RIR) ÷ 30); a single with
+ * nothing in reserve is the weight itself. E.g. 200 × 5 at RIR 2 = 200 × (1 + 7 ÷ 30) = 246.7.
+ */
+export const estimateSet1RM = st => {
+  const w = Number(st?.weight) || 0;
+  if (w <= 0) return 0;
+  const effReps = Math.max(1, Number(st?.reps) || 1) + setReportedRir(st);
+  return effReps <= 1 ? w : w * (1 + effReps / 30);
+};
+
+// A 1RM is "true" when it was actually lifted for 1 rep with nothing left; one worked out from a multi-rep set or a
+// set with reps in reserve (weight × (1 + (reps + RIR) / 30)), or entered from the 1RM calculator (set.estimated), is
+// "calculated" and shows with an asterisk (oneRepMaxLabel).
+export const isCalculated1RMSet = set =>
+  Math.max(1, Number(set?.reps) || 1) > 1 || Boolean(set?.estimated) || setReportedRir(set) > 0;
 /** "225" for a true 1RM, "225*" for a calculated one. */
 export const oneRepMaxLabel = (value, calculated) => `${value}${calculated ? '*' : ''}`;
 /** Best 1RM over sets: { value, calculated } (on a tie a true single wins). */
@@ -345,8 +373,7 @@ export const best1RMInfoOfSets = (sets = []) => {
   (sets || []).forEach(st => {
     const w = Number(st?.weight) || 0;
     if (w <= 0) return;
-    const reps = Math.max(1, Number(st.reps) || 1);
-    const est = reps === 1 ? w : Math.round(w * (1 + reps / 30));
+    const est = Math.round(estimateSet1RM(st));
     const calc = isCalculated1RMSet(st);
     if (est > value || (est === value && calculated && !calc)) {
       value = est;
@@ -372,7 +399,7 @@ export const getBestHistory1RMInfo = (exerciseId, history = []) => {
           if (!st || Number(st.weight) <= 0) return;
           if (hasCompleted && !st.completed) return;
           const reps = Math.max(1, Number(st.reps) || 1);
-          const est = reps === 1 ? Number(st.weight) : Math.round(Number(st.weight) * (1 + reps / 30));
+          const est = Math.round(estimateSet1RM(st));
           const calc = isCalculated1RMSet(st);
           if (est > best || (est === best && bestCalculated && !calc)) {
             best = est;
@@ -432,8 +459,7 @@ const bestPerWorkout1RMs = workout => {
       const w = Number(st?.weight) || 0;
       if (w <= 0) return;
       if (hasCompleted && !st.completed) return;
-      const reps = Math.max(1, Number(st.reps) || 1);
-      const est = reps === 1 ? w : Math.round(w * (1 + reps / 30));
+      const est = Math.round(estimateSet1RM(st));
       if (est > (best[exId] || 0)) best[exId] = est;
     });
   };
@@ -595,6 +621,19 @@ export const generateSetsForScheme = (
         : normType === '1 Rep Max'
           ? roundTo5(base1RM)
           : roundToIncrement(lastW + setInc);
+      if (isTracing() && s.lastWeight === undefined) {
+        if (isBw) traceLine(`set ${idx + 1}: bodyweight ${fmt(bwDefault)} lb`);
+        else if (normType === '1 Rep Max') traceLine(`set ${idx + 1} 1 Rep Max: 1RM ${fmt(base1RM)} → ${fmt(targetW)} lb`);
+        else if (scheme !== 'Timer') {
+          const reps = Math.max(1, Number(s.reps) || 8);
+          const repPct = 1 / (1 + Math.max(0, reps - 1) / 30);
+          const typeM = SET_TYPE_MULTIPLIER_MAP[normType] ?? 0.98;
+          const fatigue = 1 / (1 + Math.max(0, totalCount - 1) * 0.035);
+          traceLine(
+            `set ${idx + 1} ${normType} × ${reps}: 1RM ${fmt(base1RM)} × reps ${fmt(repPct)} [1 ÷ (1 + (${reps} − 1) ÷ 30)] × type ${fmt(typeM)} × fatigue ${fmt(fatigue)} [${totalCount} sets] = ${fmt(lastW)} lb${setInc ? ` + increment ${fmt(setInc)}` : ''} → ${fmt(targetW)} lb`
+          );
+        }
+      }
       return {
         id: `set_${ts}_${idx}_${Math.random().toString(36).slice(2, 5)}`,
         setNumber: idx + 1,
@@ -748,7 +787,10 @@ export const getExerciseCalculated1RM = sets => {
   const nonWarmup = pool.filter(st => normalizeSetType(st.type) !== 'Warmup');
   const used = nonWarmup.length > 0 ? nonWarmup : pool;
   const total = (Array.isArray(sets) ? sets : []).length || used.length;
-  return Math.max(...used.map(st => Number(st.weight) / getSetOneRepMaxFactor(st, total)));
+  // A set's reps in reserve count as reps it could have done
+  return Math.max(
+    ...used.map(st => Number(st.weight) / getSetOneRepMaxFactor({ ...st, reps: Math.max(1, Number(st.reps) || 1) + setReportedRir(st) }, total))
+  );
 };
 
 /** Every logged session of an exercise, newest first: [{ workoutId, startedAt, sets }] (PR entries included). */
@@ -799,7 +841,15 @@ export const applyGoalProgressToSets = (
   const stored1RM = getStored1RM(exerciseId, history, oneRepMaxes, excludeWorkoutId);
   const lastSets = getLastLoggedSetsForExercise(exerciseId, history, excludeWorkoutId);
   const last1RM = getExerciseCalculated1RM(lastSets);
-  if (stored1RM <= 0 && last1RM <= 0) return list;
+  if (stored1RM <= 0 && last1RM <= 0) {
+    if (isTracing()) traceLine(`No logged sets yet: the scheme's own weights stand (from the 1RM above)`);
+    return list;
+  }
+  if (isTracing()) {
+    traceLine(
+      `Goal progress: increment ${fmt(inc)} lb · stored 1RM ${fmt(stored1RM)} lb · last session's 1RM ${fmt(last1RM)} lb · factor(set) = 1 ÷ (1 + (reps − 1) ÷ 30) × type effort × fatigue for ${total} sets`
+    );
+  }
 
   const isWarmup = st => normalizeSetType(st?.type) === 'Warmup';
   let workingIdx = list.map((st, i) => (isWarmup(st) ? -1 : i)).filter(i => i >= 0);
@@ -811,14 +861,31 @@ export const applyGoalProgressToSets = (
   const targetFor = (st, idx) => {
     const factor = getSetOneRepMaxFactor(st, total);
     const options = [];
+    const parts = [];
     if (last1RM > 0) {
       const prev = sameShape ? lastSets[idx] : null;
       const repsMatch =
         prev && Number(prev.reps) === Number(st.reps) && normalizeSetType(prev.type) === normalizeSetType(st.type);
-      options.push(repsMatch ? Number(prev.weight) + inc : last1RM * factor + inc);
+      const a = repsMatch ? Number(prev.weight) + inc : last1RM * factor + inc;
+      options.push(a);
+      parts.push(
+        repsMatch
+          ? `last ${fmt(prev.weight)} + ${fmt(inc)} = ${fmt(a)}`
+          : `last 1RM ${fmt(last1RM)} × ${fmt(factor)} + ${fmt(inc)} = ${fmt(a)}`
+      );
     }
-    if (stored1RM > 0) options.push((stored1RM + inc) * factor);
-    return Math.max(0, roundToStep(Math.min(...options), step));
+    if (stored1RM > 0) {
+      const b = (stored1RM + inc) * factor;
+      options.push(b);
+      parts.push(`(1RM ${fmt(stored1RM)} + ${fmt(inc)}) × ${fmt(factor)} = ${fmt(b)}`);
+    }
+    const result = Math.max(0, roundToStep(Math.min(...options), step));
+    if (isTracing()) {
+      traceLine(
+        `set ${idx + 1} ${normalizeSetType(st.type)} × ${st.reps}: ${parts.length > 1 ? `lower of ${parts.join(' and ')}` : parts[0]} → ${fmt(result)} lb`
+      );
+    }
+    return result;
   };
 
   const targets = {};
@@ -843,7 +910,13 @@ export const applyGoalProgressToSets = (
       const ramp = Number(startWeight) + ((targets[firstWorking] - Number(startWeight)) * idx) / firstWorking;
       return withIncrement(st, Math.max(0, roundToStep(ramp, step)));
     }
-    return withIncrement(st, Math.max(0, roundToStep(implied1RM * getSetOneRepMaxFactor(st, total), step)));
+    const w = Math.max(0, roundToStep(implied1RM * getSetOneRepMaxFactor(st, total), step));
+    if (isTracing()) {
+      traceLine(
+        `set ${idx + 1} Warm-up × ${st.reps}: 1RM implied by set ${firstWorking + 1} (${fmt(targets[firstWorking])} ÷ ${fmt(getSetOneRepMaxFactor(list[firstWorking], total))} = ${fmt(implied1RM)}) × ${fmt(getSetOneRepMaxFactor(st, total))} → ${fmt(w)} lb`
+      );
+    }
+    return withIncrement(st, w);
   });
 };
 

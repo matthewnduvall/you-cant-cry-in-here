@@ -15,7 +15,7 @@ import {
   recordFriendFirstSeen,
   daysBetweenYMD
 } from '../../utils/friendFirstSeen';
-import { buildHistoryPRs, getBestHistory1RMInfo, oneRepMaxLabel, getSetTimerMMSS } from '../../utils/workoutEngine';
+import { buildHistoryPRs, getBestHistory1RMInfo, oneRepMaxLabel, getSetTimerMMSS, estimateSet1RM } from '../../utils/workoutEngine';
 
 // ============================================================================
 // VIEW: HOME SCREEN
@@ -77,7 +77,7 @@ function getAthleteRecentExerciseEntries(friend, randomSeed = 1) {
       const score = st => {
         const w = Number(st.weight) || 0;
         const r = Math.max(1, Number(st.reps) || 1);
-        return w > 0 ? w * (1 + r / 30) : Number(st.durationSeconds) || r;
+        return w > 0 ? estimateSet1RM(st) : Number(st.durationSeconds) || r;
       };
       const best = completed.reduce((a, b) => (score(b) > score(a) ? b : a));
       const name = stripEquipmentFromExerciseName(EXERCISE_MAP[exId]?.name || exId).toUpperCase();
@@ -154,9 +154,7 @@ function getAthleteScrollerEntries(friend, randomSeed = 1, todayFallbackStr = ''
           const maxSetW = Math.max(
             0,
             ...sets.map(st => {
-              const sw = Number(st?.weight) || 0;
-              const sr = Math.max(1, Number(st?.reps) || 1);
-              return sr === 1 ? sw : Math.round(sw * (1 + sr / 30));
+              return Math.round(estimateSet1RM(st));
             })
           );
           if (maxSetW > 0) {

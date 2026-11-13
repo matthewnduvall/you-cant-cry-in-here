@@ -5,6 +5,8 @@
 // The %1RM line is the app's own rep estimate (getSetOneRepMaxFactor's rep part: a single at RIR 0 = 100 %): a set
 // of `reps` with RIR left in the tank is as hard as a set of reps + RIR taken to failure.
 
+import { traceLine, isTracing, fmt } from './calcTrace';
+
 // A set type's intensity (RPE), set when the type is picked: Warm-up 5, Working 8, Top Out 9, Burn Out 7, 1 Rep Max 10
 export const SET_TYPE_RPE = { Warmup: 5, Working: 8, 'Top Out': 9, 'Burn Out': 7, '1 Rep Max': 10 };
 
@@ -75,7 +77,7 @@ export const intensityEquivalents = (intensity, reps) => {
 //   reps to failure at a weight:  1 + 30 × (1RM / weight − 1)      (the app's rep estimate, inverted)
 //   RIR = reps to failure − reps;  RPE = 10 − RIR;  %1RM = weight / 1RM × 100
 //   weight for reps at an intensity = 1RM × 100 / (1 + (reps + RIR − 1) / 30) / 100
-//   reps for a weight at an RIR / RPE = reps to failure − RIR   (a %1RM fixes the weight, not the reps)
+//   reps for a weight at an RIR / RPE = reps to failure − RIR; at a %1RM (weight locked) = that % of reps to failure
 // ---------------------------------------------------------------------------------------------------------------
 
 /** Reps a weight allows to failure for a 1RM (unrounded; null when unknown). */
@@ -116,12 +118,22 @@ export const weightForIntensity = (oneRM, reps, intensity) => {
   return m / (1 + (Math.max(1, Number(reps) || 1) + rir - 1) / 30);
 };
 
-/** The reps a weight allows at an RIR / RPE (null for %1RM or when unknown). */
+/**
+ * The reps a weight allows at an intensity (null when unknown):
+ *   RIR / RPE → reps to failure − RIR
+ *   %1RM with the weight locked → that share of the reps to failure (100 % = to failure, 80 % = 80 % of them): the
+ *   weight is fixed, so the percentage is read as how hard the set is
+ */
 export const repsForIntensity = (oneRM, weight, intensity) => {
-  if (!intensity || intensity.mode === 'pct') return null;
+  if (!intensity) return null;
   const rtf = repsToFailure(oneRM, weight);
+  if (rtf === null) return null;
+  if (intensity.mode === 'pct') {
+    const pct = Number(intensity.value);
+    return pct > 0 ? Math.max(1, Math.round((rtf * Math.min(100, pct)) / 100)) : null;
+  }
   const rir = intensityToRir(intensity, 1);
-  if (rtf === null || rir === null) return null;
+  if (rir === null) return null;
   return Math.max(1, Math.round(rtf - rir));
 };
 
@@ -134,20 +146,53 @@ export const repsForIntensity = (oneRM, weight, intensity) => {
 export const solveSet = (st, oneRM, { step = 2.5, keepIntensity = false } = {}) => {
   if (!st || st.completed || !(Number(oneRM) > 0)) return st;
   const hasIntensity = st.intensity && st.intensity.value !== null && st.intensity.value !== undefined && st.intensity.value !== '';
+  const label = `set ${st.setNumber ?? ''}`.trim();
+  const m = Number(oneRM);
+  const tag = formatIntensity(st.intensity?.mode, st.intensity?.value);
   if (st.lockIntensity && hasIntensity) {
     if (!st.lockWeight) {
       const w = weightForIntensity(oneRM, st.reps, st.intensity);
-      return w === null ? st : { ...st, weight: Math.max(0, Math.round(w / step) * step) };
+      if (w === null) return st;
+      const weight = Math.max(0, Math.round(w / step) * step);
+      if (isTracing()) {
+        const rir = intensityToRir(st.intensity, st.reps);
+        traceLine(
+          st.intensity.mode === 'pct'
+            ? `${label}: ${tag} locked → weight = 1RM ${fmt(m)} × ${fmt(st.intensity.value)}% = ${fmt(w)} → ${fmt(weight)} lb`
+            : `${label}: ${tag} locked (RIR ${fmt(rir)}) × ${st.reps} reps → weight = ${fmt(m)} ÷ (1 + (${st.reps} + ${fmt(rir)} − 1) ÷ 30) = ${fmt(w)} → ${fmt(weight)} lb`
+        );
+      }
+      return { ...st, weight };
     }
     if (!st.lockReps) {
       const r = repsForIntensity(oneRM, st.weight, st.intensity);
-      return r === null ? st : { ...st, reps: r };
+      if (r === null) return st;
+      if (isTracing()) {
+        const rtf = repsToFailure(oneRM, st.weight);
+        const how =
+          st.intensity.mode === 'pct'
+            ? `× ${fmt(st.intensity.value)}% effort`
+            : `− RIR ${fmt(intensityToRir(st.intensity, 1))}`;
+        traceLine(
+          `${label}: ${fmt(st.weight)} lb and ${tag} locked → reps to failure = 1 + 30 × (${fmt(m)} ÷ ${fmt(st.weight)} − 1) = ${fmt(rtf)}; ${how} → ${r} reps`
+        );
+      }
+      return { ...st, reps: r };
     }
+    if (isTracing()) traceLine(`${label}: weight, reps and intensity all locked — unchanged`);
     return st;
   }
   // keepIntensity: a planned intensity (a program's week) that set the weight stays as it is
   if (keepIntensity && hasIntensity) return st;
   const mode = st.intensity?.mode || 'rpe';
   const derived = deriveIntensity(oneRM, st.weight, st.reps, mode);
+  if (derived && isTracing()) {
+    const rtf = repsToFailure(oneRM, st.weight);
+    traceLine(
+      mode === 'pct'
+        ? `${label}: intensity = ${fmt(st.weight)} ÷ ${fmt(m)} = ${fmt((Number(st.weight) / m) * 100)}% → ${formatIntensity(derived.mode, derived.value)}`
+        : `${label}: intensity from ${fmt(st.weight)} × ${st.reps}: reps to failure = 1 + 30 × (${fmt(m)} ÷ ${fmt(st.weight)} − 1) = ${fmt(rtf)}; RIR = ${fmt(rtf)} − ${st.reps} = ${fmt(Math.max(0, rtf - st.reps))} → ${formatIntensity(derived.mode, derived.value)}`
+    );
+  }
   return derived ? { ...st, intensity: derived } : st;
 };

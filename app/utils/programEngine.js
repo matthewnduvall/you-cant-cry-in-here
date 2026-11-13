@@ -13,7 +13,8 @@
 import { EXERCISE_MAP, isBodyweightExercise, isSupersetCategory, normalizeSlotCategory } from '../data/exerciseLibrary';
 import { generateSetsForScheme, getBestHistory1RM, normalizeSetType, DEFAULT_SET_PREFERENCES } from './workoutEngine';
 import { INTENSITY_OPTIONS, intensityToRir, solveSet, deriveIntensity, weightForIntensity } from './intensity';
-import { getStarting1RM } from './starting1RM';
+import { getStarting1RM, describe1RM } from './starting1RM';
+import { traceLine, isTracing, fmt } from './calcTrace';
 
 const WARMUP_SHARE = 0.755; // the app's warm-up step (× 0.74 / 0.98 of the working weight)
 const roundTo = (value, step = 2.5) => Math.max(0, Math.round(value / step) * step);
@@ -95,6 +96,13 @@ export const applyProgramToSlot = (slot, ctx, opts = {}) => {
     excludeWorkoutId: workoutId,
     startOpts: { targetStandardClass, bodyweightLbs: userBodyweightLbs, heightInches }
   });
+  if (isTracing()) {
+    traceLine(describe1RM(exId, { history, targetStandardClass, bodyweightLbs: userBodyweightLbs, heightInches }));
+    const inc = isBw ? 0 : Math.max(0, Number(incrementLbs) || 0);
+    traceLine(
+      `${program.label} · week ${week}: ${plan.scheme}${plan.maxOut ? ' (1RM day)' : `, RIR ${plan.rir}`}${handPicked ? ' (scheme picked by hand)' : ''} · cycle target 1RM = ${fmt(target1RM - inc)} + increment ${fmt(inc)} = ${fmt(target1RM)} lb`
+    );
+  }
   const fresh =
     handPicked && old.length > 0
       ? old.map(st => ({ ...st }))
@@ -130,6 +138,18 @@ export const applyProgramToSlot = (slot, ctx, opts = {}) => {
       intensity = { mode: 'rir', value: plan.rir };
     }
     const weight = prev?.lockWeight ? prev.weight : isBw ? st.weight : roundTo((target1RM * pct) / 100);
+    if (isTracing() && !prev?.lockWeight && !isBw) {
+      const why = lockedIntensity
+        ? `locked ${intensity.mode === 'pct' ? `${fmt(intensity.value)}%` : `${intensity.mode.toUpperCase()} ${fmt(intensity.value)}`}`
+        : plan.maxOut
+          ? idx === total - 1
+            ? 'the single at 100 %'
+            : `ramp 50 → 85 % (${fmt(pct)}%)`
+          : normalizeSetType(type) === 'Warmup'
+            ? `warm-up ${fmt(WARMUP_SHARE)} × the first working set's ${fmt(pctFor(firstWorkingReps, plan.rir))}%`
+            : `100 ÷ (1 + (${reps} + RIR ${plan.rir} − 1) ÷ 30) = ${fmt(pct)}%`;
+      traceLine(`set ${idx + 1} ${normalizeSetType(type)} × ${reps}: ${fmt(target1RM)} × ${why} → ${fmt(weight)} lb`);
+    }
     const planned = {
       ...st,
       ...(prev?.id ? { id: prev.id } : {}),
@@ -239,11 +259,14 @@ const planDaySlot = (spec, exerciseId, o) => {
     else if (past.length === 0) {
       // First session: a weight with about 3 reps in reserve
       weight = roundTo(weightForIntensity(est1RM, spec.reps, { mode: 'rir', value: 3 }) || est1RM * 0.7);
+      traceLine(`linear · first session: ${fmt(est1RM)} ÷ (1 + (${spec.reps} + RIR 3 − 1) ÷ 30) → ${fmt(weight)} lb`);
     } else {
       const last = past[0].slot;
       const lastWeight = Number(last.programmed?.base) || topWeight(last);
-      if (hitPlan(last, last.programmed?.plan || plan)) weight = lastWeight + inc;
-      else {
+      if (hitPlan(last, last.programmed?.plan || plan)) {
+        weight = lastWeight + inc;
+        traceLine(`linear · last session ${fmt(lastWeight)} lb, every rep done → ${fmt(lastWeight)} + ${fmt(inc)} = ${fmt(weight)} lb`);
+      } else {
         // Misses in a row at this weight: 3 → deload 10 %
         let misses = 0;
         for (const { slot } of past) {
@@ -251,6 +274,11 @@ const planDaySlot = (spec, exerciseId, o) => {
           misses += 1;
         }
         weight = misses >= 3 ? roundTo(lastWeight * 0.9) : lastWeight;
+        traceLine(
+          misses >= 3
+            ? `linear · ${misses} missed sessions at ${fmt(lastWeight)} lb → deload ${fmt(lastWeight)} × 0.9 = ${fmt(weight)} lb`
+            : `linear · last session ${fmt(lastWeight)} lb missed a rep (${misses} in a row) → repeat ${fmt(weight)} lb`
+        );
       }
     }
     const sets = [
@@ -271,6 +299,13 @@ const planDaySlot = (spec, exerciseId, o) => {
       : roundTo(est1RM * 0.9);
     const oneRM = tm / 0.9;
     const w = Math.min(4, Math.max(1, Number(week) || 1));
+    traceLine(
+      last
+        ? last.cycleStartMs === cycleStartMs
+          ? `training max = this cycle's ${fmt(tm)} lb`
+          : `training max = last cycle's ${fmt(last.tm)} + ${fmt(inc)} = ${fmt(tm)} lb`
+        : `training max = 90 % × 1RM ${fmt(est1RM)} = ${fmt(tm)} lb`
+    );
     if (spec.rule === 'bbb') {
       const weight = roundTo(tm * (w === 4 ? 0.4 : 0.5));
       return {
@@ -312,6 +347,11 @@ const planDaySlot = (spec, exerciseId, o) => {
       fiveRM = hitPlan(last, { sets: 1, reps: 5 }) ? lastFive + inc : lastFive;
     }
     const volume = roundTo(fiveRM * 0.9);
+    traceLine(
+      past.length === 0
+        ? `5-rep max = ${fmt(est1RM)} ÷ (1 + (5 + RIR 1 − 1) ÷ 30) → ${fmt(fiveRM)} lb · volume 90 % = ${fmt(volume)} lb`
+        : `5-rep max = last intensity day ${fmt(Number(past[0].slot.programmed?.base) || topWeight(past[0].slot))} lb${fiveRM > (Number(past[0].slot.programmed?.base) || topWeight(past[0].slot)) ? ` + ${fmt(inc)}` : ' (missed: repeated)'} = ${fmt(fiveRM)} lb · volume 90 % = ${fmt(volume)} lb`
+    );
     const programmed = { ...base, base: fiveRM };
     if (spec.role === 'volume') {
       return { sets: [...warmupsFor(volume, 2), ...Array.from({ length: 5 }, () => ({ type: 'Working', reps: 5, weight: volume }))], scheme: '5x5', label: '5 × 5 @ 90 %', est1RM, programmed: { ...programmed, plan: { sets: 5, reps: 5 } } };
@@ -356,6 +396,13 @@ const planDaySlot = (spec, exerciseId, o) => {
       reps = Math.min(hi, Math.max(lo, Math.min(...done.map(st => Number(st.reps) || lo)) + 1));
     }
   }
+  traceLine(
+    past.length === 0
+      ? isBw
+        ? `double · ${lo}–${hi} reps, bodyweight: start at ${reps} reps`
+        : `double · first time on this plan: ${fmt(est1RM)} ÷ (1 + (${lo} + RIR ${rir} − 1) ÷ 30) → ${fmt(weight)} lb × ${lo}`
+      : `double · last ${fmt(topWeight(past[0].slot))} lb: ${reps === lo && weight > topWeight(past[0].slot) ? `every set at ${hi} → + ${fmt(inc)} = ${fmt(weight)} lb × ${lo}` : `top of ${lo}–${hi} not reached → ${fmt(weight)} lb × ${reps}`}`
+  );
   return {
     sets: [
       ...(isBw ? [] : warmupsFor(weight, spec.warmups || 0)),
@@ -378,6 +425,10 @@ export const applyDayProgramToSlot = (slot, ctx, opts = {}) => {
   if (!spec) return slot;
   const exId = slot.exerciseId;
   const { history = [], userBodyweightLbs = 220, workoutId = null, targetStandardClass = 'Intermediate', heightInches = 70 } = opts;
+  if (isTracing()) {
+    traceLine(describe1RM(exId, { history: opts.history || [], targetStandardClass: opts.targetStandardClass, bodyweightLbs: opts.userBodyweightLbs, heightInches: opts.heightInches }));
+    traceLine(`${program.label} · ${day?.name || ''} · week ${ctx.week}: ${spec.key} (${spec.rule}${spec.role ? `, ${spec.role}` : ''})`);
+  }
   const planned = planDaySlot(spec, exId, {
     history,
     workoutId,
@@ -411,6 +462,7 @@ export const applyDayProgramToSlot = (slot, ctx, opts = {}) => {
       ...(intensity ? { intensity } : {}),
       ...(prev ? { lockType: prev.lockType, lockWeight: prev.lockWeight, lockReps: prev.lockReps, lockIntensity: prev.lockIntensity } : {})
     };
+    if (isTracing()) traceLine(`set ${idx + 1} ${normalizeSetType(type)} × ${reps} @ ${fmt(weight)} lb${prev?.lockWeight ? ' (locked)' : ''}`);
     if (isBodyweightExercise(exId)) return out;
     if (prev?.lockIntensity && prev.intensity) out = solveSet({ ...out, intensity: prev.intensity }, planned.est1RM);
     else if (prev?.lockWeight) {

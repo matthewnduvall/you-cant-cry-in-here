@@ -6,7 +6,8 @@
 // Exercises that have been logged use their own History. Bodyweight exercises keep the library default.
 
 import { EXERCISE_MAP, EXRX_CLASSES, getExRxTargetForLift, isBodyweightExercise } from '../data/exerciseLibrary';
-import { getBestHistory1RM } from './workoutEngine';
+import { getBestHistory1RM, estimateSet1RM, setReportedRir } from './workoutEngine';
+import { fmt } from './calcTrace';
 
 // Families by name: the first pattern an exercise's name matches
 const FAMILIES = [
@@ -75,3 +76,50 @@ export const getStarting1RMInfo = (exerciseId, { history = [], targetStandardCla
 };
 
 export const getStarting1RM = (exerciseId, opts) => getStarting1RMInfo(exerciseId, opts).value;
+
+/**
+ * One FORMULAS line explaining an exercise's 1RM: its best logged set (weight × (1 + reps ÷ 30)), or how the starting
+ * 1RM was worked out (a related lift × the standards' ratio, or the standard one class below the goal).
+ */
+export const describe1RM = (exerciseId, opts = {}) => {
+  const name = EXERCISE_MAP[exerciseId]?.name || exerciseId;
+  const history = opts.history || [];
+  let best = null;
+  history.forEach(w =>
+    (w?.slots || []).forEach(slot => {
+      const lists = (slot?.supersetSetsByExercise || [slot?.sets]).map((list, i) => ({
+        list: list || [],
+        id: (slot?.supersetExerciseIds || [slot?.exerciseId])[i] || slot?.exerciseId
+      }));
+      lists.forEach(({ list, id }) => {
+        if (id !== exerciseId) return;
+        const done = list.some(s => s?.completed && Number(s.weight) > 0);
+        list.forEach(st => {
+          const wt = Number(st?.weight) || 0;
+          if (wt <= 0 || (done && !st.completed)) return;
+          const reps = Math.max(1, Number(st.reps) || 1);
+          const est = estimateSet1RM(st);
+          if (!best || est > best.est) best = { est, wt, reps, rir: setReportedRir(st), at: w.startedAt };
+        });
+      });
+    })
+  );
+  if (best) {
+    const when = best.at ? ` (best logged set, ${String(best.at).slice(0, 10)})` : ' (best logged set)';
+    if (best.reps === 1 && !best.rir) return `1RM ${name} = ${fmt(best.wt)} lb × 1 rep = ${fmt(best.est)} lb${when}`;
+    return best.rir
+      ? `1RM ${name} = ${fmt(best.wt)} × (1 + (${best.reps} reps + ${fmt(best.rir)} RIR) ÷ 30) = ${fmt(best.est)} lb${when}`
+      : `1RM ${name} = ${fmt(best.wt)} × (1 + ${best.reps} ÷ 30) = ${fmt(best.est)} lb${when}`;
+  }
+  const info = getStarting1RMInfo(exerciseId, opts);
+  const cls = getStartingClass(opts.targetStandardClass || 'Intermediate');
+  if (info.source === 'related') {
+    const fromName = EXERCISE_MAP[info.fromId]?.name || info.fromId;
+    const std = id => getExRxTargetForLift(id, cls, opts.bodyweightLbs || 220, opts.heightInches || 70, {}, {});
+    return `1RM ${name} (never logged) = ${fromName} ${fmt(getBestHistory1RM(info.fromId, history))} × standards ${fmt(std(exerciseId))} ÷ ${fmt(std(info.fromId))} (${cls}) = ${fmt(info.value)} lb`;
+  }
+  if (info.source === 'standard') {
+    return `1RM ${name} (never logged) = ${cls} standard (one class below your ${opts.targetStandardClass || 'Intermediate'} goal) at ${fmt(opts.bodyweightLbs || 220)} lb bodyweight = ${fmt(info.value)} lb`;
+  }
+  return `1RM ${name} = library default ${fmt(info.value)} lb`;
+};
