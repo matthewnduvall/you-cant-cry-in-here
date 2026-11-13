@@ -871,10 +871,30 @@ export const getExerciseCalculated1RM = sets => {
 };
 
 /** Every logged session of an exercise, newest first: [{ workoutId, startedAt, sets }] (PR entries included). */
+/** A workout's time in ms: startedAt (ISO string or ms), else its YYYY/MM/DD workoutDate (local noon); 0 if unknown. */
+export const workoutTimeMs = workout => {
+  const started = workout?.startedAt;
+  const fromStarted = typeof started === 'number' ? started : Date.parse(started || '');
+  if (Number.isFinite(fromStarted) && fromStarted > 0) return fromStarted;
+  const m = /^(\d{4})[/-](\d{1,2})[/-](\d{1,2})$/.exec(String(workout?.workoutDate || '').trim());
+  return m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), 12).getTime() : 0;
+};
+
+/**
+ * History as it stood when `workout` was logged: that workout plus every one logged at or before its time. A History
+ * entry's 1RM box (LAST / NOW / PR), its weight pop-up and its PR badges read this, so they show the numbers of that
+ * day (LAST = the session before it, PR = the best up to and including it), not today's.
+ */
+export const historyAsOf = (history = [], workout = null) => {
+  const t = workoutTimeMs(workout);
+  if (!t) return history || [];
+  return (history || []).filter(w => w && (w.id === workout.id || workoutTimeMs(w) <= t));
+};
+
 const getLoggedSessionsForExercise = (exerciseId, history = [], excludeWorkoutId = null) =>
   (history || [])
     .filter(w => w && w.id !== excludeWorkoutId)
-    .sort((a, b) => (Date.parse(b.startedAt || '') || 0) - (Date.parse(a.startedAt || '') || 0))
+    .sort((a, b) => workoutTimeMs(b) - workoutTimeMs(a))
     .map(w => {
       const sets = [];
       (w.slots || []).forEach(slot => {

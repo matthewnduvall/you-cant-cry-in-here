@@ -13,7 +13,8 @@ import {
   stripDateFromTitle
 } from '../../data/exerciseLibrary';
 import {
-  getBestHistory1RMInfo
+  getBestHistory1RMInfo,
+  historyAsOf
 } from '../../utils/workoutEngine';
 import { Button } from '../Controls';
 import { SlotEditor } from '../SlotEditor';
@@ -108,6 +109,11 @@ export function RoutineEditorView({
   if (!currentEditorWorkout) return null;
 
   const hasExercises = (currentEditorWorkout.slots || []).length > 0;
+  // A logged workout (History editor, or a past workout being logged) is shown as it stood that day: LAST, NOW, PR, the
+  // weight pop-up and PR badges read History up to its date, not later sessions. A live session reads all of it.
+  const isLoggedEntry =
+    currentView === 'historical_entry' || (history || []).some(w => w?.id === currentEditorWorkout.id);
+  const shownHistory = isLoggedEntry ? historyAsOf(history, currentEditorWorkout) : history;
   // Inside an open History workout the History list already has the page gutter, so the editor adds none (set rows
   // keep their full width and set types like WORKING aren't cut off)
   const sideGutter = isEmbeddedHistorySession ? '0' : '0 var(--dp-spacing-gutter)';
@@ -388,7 +394,7 @@ export function RoutineEditorView({
               // PR badges: in an embedded History session, flag exercises whose all-time best came from this slot
               const isPrFor = exId => {
                 if (!isEmbeddedHistorySession) return false;
-                const info = getBestHistory1RMInfo(exId, history);
+                const info = getBestHistory1RMInfo(exId, shownHistory);
                 return Boolean(
                   info?.best > 0 &&
                     info?.workoutId === currentEditorWorkout.id &&
@@ -458,7 +464,7 @@ export function RoutineEditorView({
                     dragHandleProps={slotHandleProps(sIdx)}
                     selectedGymId={selectedGymId}
                     gyms={gyms}
-                    history={onPartnerTab ? slotTabs.partnerHistory || history : history}
+                    history={onPartnerTab ? slotTabs.partnerHistory || shownHistory : shownHistory}
                     workoutId={currentEditorWorkout.id}
                     prFlags={prFlags}
                     onHeaderChange={changes => slotHandler('handleUpdateSlotCategoryOrExercise')(slot.id, changes)}
