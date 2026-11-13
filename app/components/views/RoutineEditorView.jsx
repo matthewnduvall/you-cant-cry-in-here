@@ -65,8 +65,8 @@ const PARTNER_TAB_COLOR = '#BDBDBD';
 
 export function RoutineEditorView({
   colors,
-  // The live session's EASY / ADVANCED tabs: sessionMode ('easy' | 'advanced') + onChangeSessionMode(mode).
-  // EASY hides the 1RM box, the filter row, set types, intensity, locks and RECALCULATE.
+  // The live session's SIMPLE / ADVANCED tabs: sessionMode ('easy' | 'advanced') + onChangeSessionMode(mode).
+  // SIMPLE hides the 1RM box, the filter row, set types, intensity, locks and RECALCULATE.
   sessionMode = 'advanced',
   onChangeSessionMode,
   // Programs other than Crying: an INTENSITY strip under each set (%1RM / RIR / RPE)
@@ -122,7 +122,7 @@ export function RoutineEditorView({
   // Inside an open History workout the History list already has the page gutter, so the editor adds none (set rows
   // keep their full width and set types like WORKING aren't cut off)
   const sideGutter = isEmbeddedHistorySession ? '0' : '0 var(--dp-spacing-gutter)';
-  // The tabs show in a live session (not History, routines or past workouts); EASY only applies there
+  // The tabs show in a live session (not History, routines or past workouts); SIMPLE only applies there
   const showModeTabs = currentView === 'session' && !isEmbeddedHistorySession && Boolean(onChangeSessionMode);
   const easyMode = showModeTabs && sessionMode === 'easy';
 
@@ -356,13 +356,14 @@ export function RoutineEditorView({
 
       {/* ALWAYS-EXPANDED EXERCISES — SHARED BORDERS, LARGER CONTROLS & TEXT */}
       <section style={{ marginBottom: '20px', padding: sideGutter }}>
-        {/* EASY / ADVANCED (live session only) */}
+        {/* SIMPLE / ADVANCED (live session only) */}
         {showModeTabs && (
           <div style={{ marginBottom: '12px' }}>
             <TabBar
               ariaLabel="Session mode"
               tabs={[
-                { id: 'easy', label: 'EASY' },
+                // stored as 'easy'; shown as SIMPLE
+                { id: 'easy', label: 'SIMPLE' },
                 { id: 'advanced', label: 'ADVANCED' }
               ]}
               value={easyMode ? 'easy' : 'advanced'}

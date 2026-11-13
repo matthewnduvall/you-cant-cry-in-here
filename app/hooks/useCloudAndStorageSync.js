@@ -96,6 +96,9 @@ export function useCloudAndStorageSync({
   setUserHeightFeet,
   userHeightInches,
   setUserHeightInches,
+  // Bodyweight / height entered by the athlete (settings.bodyMetrics.confirmed; else the Home ticker reminds them)
+  bodyMetricsConfirmed = false,
+  setBodyMetricsConfirmed,
   stimulusGreenDays,
   setStimulusGreenDays,
   stimulusYellowDays,
@@ -111,7 +114,7 @@ export function useCloudAndStorageSync({
   setProgramCycleStart,
   programSchedules = {},
   setProgramSchedules,
-  // Crying's Variety (0–10, default 5) and the session page's EASY / ADVANCED mode
+  // Crying's Variety (0–10, default 5) and the session page's SIMPLE / ADVANCED mode
   cryingVariety = 5,
   setCryingVariety,
   sessionMode = 'advanced',
@@ -180,6 +183,7 @@ export function useCloudAndStorageSync({
           setUserBodyweightLbs(hydrated.settings.bodyMetrics.bodyweightLbs ?? 220);
           setUserHeightFeet(hydrated.settings.bodyMetrics.heightFeet ?? 5);
           setUserHeightInches(hydrated.settings.bodyMetrics.heightInches ?? 10);
+          setBodyMetricsConfirmed?.(Boolean(hydrated.settings.bodyMetrics.confirmed));
         }
         if (hydrated.settings.stimulus) {
           setStimulusGreenDays(hydrated.settings.stimulus.greenDays ?? 2);
@@ -477,6 +481,7 @@ export function useCloudAndStorageSync({
               if (cloud.settings.bodyMetrics.bodyweightLbs) setUserBodyweightLbs(cloud.settings.bodyMetrics.bodyweightLbs);
               if (cloud.settings.bodyMetrics.heightFeet !== undefined) setUserHeightFeet(cloud.settings.bodyMetrics.heightFeet);
               if (cloud.settings.bodyMetrics.heightInches !== undefined) setUserHeightInches(cloud.settings.bodyMetrics.heightInches);
+              if (cloud.settings.bodyMetrics.confirmed) setBodyMetricsConfirmed?.(true);
             }
             if (cloud.settings.goals) {
               // Only a goal the app saved (pushes stamp settings.updatedAt): a new account's row holds the database
@@ -637,7 +642,8 @@ export function useCloudAndStorageSync({
             bodyMetrics: {
               bodyweightLbs: userBodyweightLbs,
               heightFeet: userHeightFeet,
-              heightInches: userHeightInches
+              heightInches: userHeightInches,
+              confirmed: Boolean(bodyMetricsConfirmed)
             },
             goals: {
               goalType,
@@ -728,6 +734,7 @@ export function useCloudAndStorageSync({
     userBodyweightLbs,
     userHeightFeet,
     userHeightInches,
+    bodyMetricsConfirmed,
     goalType,
     goalIncrement,
     goalUnit,
@@ -793,6 +800,7 @@ export function useCloudAndStorageSync({
           setUserBodyweightLbs(rehydrated.settings.bodyMetrics.bodyweightLbs);
           setUserHeightFeet(rehydrated.settings.bodyMetrics.heightFeet);
           setUserHeightInches(rehydrated.settings.bodyMetrics.heightInches);
+          setBodyMetricsConfirmed?.(Boolean(rehydrated.settings.bodyMetrics.confirmed));
           setGoalType(rehydrated.settings.goals.goalType);
           setGoalIncrement(rehydrated.settings.goals.goalIncrement);
           setGoalUnit(rehydrated.settings.goals.goalUnit);

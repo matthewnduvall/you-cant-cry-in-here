@@ -294,7 +294,9 @@ export function ConfigurationView({
   equipmentProps,
   routinePreferencesProps,
   setPreferencesProps,
-  programProps
+  programProps,
+  // Called when NEXT / DONE leaves a tab (e.g. leaving BODY METRICS confirms the bodyweight and height)
+  onStepDone
 }) {
   const tabIndex = Math.max(
     0,
@@ -330,12 +332,24 @@ export function ConfigurationView({
 
       </div>
 
-      {/* NEXT / DONE is white: the red is on the answers above */}
+      {/* NEXT / DONE is white: the red is on the answers above. STEP n OF 4 says where you are in the setup. */}
       <div style={{ padding: '0 var(--dp-spacing-gutter)' }}>
+        <div style={{ ...UI.capsLabel, padding: '0 4px', marginBottom: '6px' }}>
+          STEP {tabIndex + 1} OF {CONFIGURATION_TABS.length}
+        </div>
         <Button
           variant="primary-row"
           style={{ backgroundColor: '#FFFFFF', color: '#000000' }}
-          onClick={() => (isLastTab ? setCurrentView('home') : setTab(CONFIGURATION_TABS[tabIndex + 1].id))}
+          onClick={() => {
+            onStepDone?.(activeTab);
+            if (isLastTab) {
+              setCurrentView('home');
+              return;
+            }
+            setTab(CONFIGURATION_TABS[tabIndex + 1].id);
+            // The next step starts at its top
+            if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'instant' });
+          }}
         >
           <span>{isLastTab ? 'DONE' : `NEXT: ${CONFIGURATION_TABS[tabIndex + 1].label}`}</span>
           <span>→</span>

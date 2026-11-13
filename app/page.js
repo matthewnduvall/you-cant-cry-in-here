@@ -42,6 +42,7 @@ import {
 import { useSyncedHistoryUpdates } from './hooks/useSyncedHistoryUpdates';
 import { useRoutineShares } from './hooks/useRoutineShares';
 import { CORE_LIFT_IDS, getLiftGoalStats } from './components/LiftGoals';
+import { LeaderboardView } from './components/views/LeaderboardView';
 import { SendRoutineModal } from './components/RoutineShareModals';
 import { EXERCISE_MAP, formatDateYMD, stripDateFromTitle } from './data/exerciseLibrary';
 import { useIdleAutoFinish } from './hooks/useIdleAutoFinish';
@@ -154,6 +155,10 @@ export default function App() {
   setEngineBodyweight(userBodyweightLbs);
   const [userHeightFeet, setUserHeightFeet] = useState(5);
   const [userHeightInches, setUserHeightInches] = useState(10);
+  // The athlete entered bodyweight / height (Configuration → BODY METRICS). Values other than the defaults count too.
+  const [bodyMetricsConfirmed, setBodyMetricsConfirmed] = useState(false);
+  const bodyMetricsSet =
+    bodyMetricsConfirmed || Number(userBodyweightLbs) !== 220 || Number(userHeightFeet) !== 5 || Number(userHeightInches) !== 10;
   const [stimulusGreenDays, setStimulusGreenDays] = useState(2);
   const [stimulusYellowDays, setStimulusYellowDays] = useState(4);
   const [routinePreferences, setRoutinePreferences] = useState([
@@ -174,7 +179,7 @@ export default function App() {
   const [programSchedules, setProgramSchedules] = useState({});
   // Crying's Variety (0 = the fewest different exercises, 10 = none repeats within 20 sessions; 5 = default)
   const [cryingVariety, setCryingVariety] = useState(5);
-  // The session page's EASY / ADVANCED tabs (easy hides the program row, 1RM box, filters, types, intensity, locks…)
+  // The session page's SIMPLE / ADVANCED tabs (easy hides the program row, 1RM box, filters, types, intensity, locks…)
   const [sessionMode, setSessionMode] = useState('advanced');
   // Picking a different program starts its cycle today (week 1)
   const selectTrainingProgram = id => {
@@ -189,7 +194,7 @@ export default function App() {
   // Friends see your bodyweight (BW leaderboards, their goal maths) only when this is on; off by default
   const [shareBodyweightWithFriends, setShareBodyweightWithFriends] = useState(false);
   // The Social page's first tab when it next opens ('privacy' from your profile's PRIVACY →)
-  const [socialInitialTab, setSocialInitialTab] = useState('leaderboards');
+  const [socialInitialTab, setSocialInitialTab] = useState('friends');
   // Profile photo: a small JPEG data URL (settings.profilePhoto, local + cloud); see ProfileAvatar.jsx
   const [profilePhoto, setProfilePhoto] = useState(null);
 
@@ -321,6 +326,8 @@ export default function App() {
     setUserHeightFeet,
     userHeightInches,
     setUserHeightInches,
+    bodyMetricsConfirmed,
+    setBodyMetricsConfirmed,
     stimulusGreenDays,
     setStimulusGreenDays,
     stimulusYellowDays,
@@ -799,6 +806,25 @@ export default function App() {
     load();
   };
 
+  // The Leaderboards page (view 'leaderboards'): boards ranked from logged History
+  const leaderboardProps = {
+    onSignIn: () => setCurrentView('auth'),
+    profilePhoto,
+    // A leaderboard row opens that athlete's profile
+    onOpenProfile: entry => {
+      if (entry?.isSelf) {
+        setCurrentView(user ? 'profile' : 'auth');
+      } else if (entry?.friend) {
+        setViewingFriendProfile(entry.friend);
+        setCurrentView('friend_profile');
+      }
+    },
+    oneRepMaxes: effectiveOneRepMaxes,
+    userBodyweightLbs,
+    totalHeightInches,
+    history
+  };
+
   // Home's TO GOAL tile: lb still to go to the strength class goal over the Big 3 + OHP you have logged (null = none)
   const homeGoalToGo = (() => {
     const stats = CORE_LIFT_IDS.map(liftId =>
@@ -1142,6 +1168,7 @@ export default function App() {
               pendingIncomingRequests={pendingIncomingRequests}
               muscleStimulusStatus={muscleStimulusStatus}
               receivedRoutineCount={routineShares.incoming.length}
+              bodyMetricsSet={bodyMetricsSet}
               goalToGoLbs={homeGoalToGo}
               goalClassName={targetStandardClass}
               activeSessionSummary={
@@ -1282,14 +1309,28 @@ export default function App() {
               colors={colors}
               tab={configurationTab}
               setTab={setConfigurationTab}
+              // Leaving BODY METRICS with NEXT confirms the bodyweight and height (even if left at the defaults)
+              onStepDone={tabId => {
+                if (tabId === 'body') setBodyMetricsConfirmed(true);
+              }}
               setCurrentView={setCurrentView}
               bodyMetricsProps={{
+                // Any edit here confirms them (the Home ticker stops reminding)
                 userBodyweightLbs,
-                setUserBodyweightLbs,
+                setUserBodyweightLbs: v => {
+                  setBodyMetricsConfirmed(true);
+                  setUserBodyweightLbs(v);
+                },
                 userHeightFeet,
-                setUserHeightFeet,
+                setUserHeightFeet: v => {
+                  setBodyMetricsConfirmed(true);
+                  setUserHeightFeet(v);
+                },
                 userHeightInches,
-                setUserHeightInches
+                setUserHeightInches: v => {
+                  setBodyMetricsConfirmed(true);
+                  setUserHeightInches(v);
+                }
               }}
               goalsProps={{
                 goalType,
@@ -1349,11 +1390,17 @@ export default function App() {
             />
           )}
 
+          {/* LEADERBOARDS: its own page (tabs BIG 3 / BW, BIG 3 LB, OHP / BW, IMPROVED) */}
+          {currentView === 'leaderboards' && (
+            <LeaderboardView colors={colors} user={user} friendsList={friendsList} {...leaderboardProps} />
+          )}
+
+          {/* FRIENDS (view id 'social'): find athletes, requests, friends list, PRIVACY */}
           {currentView === 'social' && (
             <SocialView
               colors={colors}
               initialTab={socialInitialTab}
-              onInitialTabUsed={() => setSocialInitialTab('leaderboards')}
+              onInitialTabUsed={() => setSocialInitialTab('friends')}
               user={user}
               friendSearchQuery={friendSearchQuery}
               setFriendSearchQuery={setFriendSearchQuery}
@@ -1368,23 +1415,6 @@ export default function App() {
               appendSessionLog={appendSessionLog}
               setViewingFriendProfile={setViewingFriendProfile}
               setCurrentView={setCurrentView}
-              leaderboardProps={{
-                onSignIn: () => setCurrentView('auth'),
-                profilePhoto,
-                // A leaderboard row opens that athlete's profile
-                onOpenProfile: entry => {
-                  if (entry?.isSelf) {
-                    setCurrentView(user ? 'profile' : 'auth');
-                  } else if (entry?.friend) {
-                    setViewingFriendProfile(entry.friend);
-                    setCurrentView('friend_profile');
-                  }
-                },
-                oneRepMaxes: effectiveOneRepMaxes,
-                userBodyweightLbs,
-                totalHeightInches,
-                history
-              }}
               socialSettingsProps={{
                 profileIsPublic,
                 setProfileIsPublic,
@@ -1484,6 +1514,7 @@ export default function App() {
               setUser={setUser}
               setCurrentView={setCurrentView}
               hasLocalHistory={(history || []).length > 0}
+              onStartSetup={() => setConfigurationTab('body')}
             />
           )}
         </div>
@@ -1507,7 +1538,7 @@ export default function App() {
         {/* FORMULAS console (workout editors): the formulas behind RECALCULATE and new exercises, for checking */}
         {(['session', 'routine_editor', 'historical_entry', 'routine_preview'].includes(currentView) ||
           (currentView === 'history' && expandedHistoryWorkoutId)) &&
-          // EASY mode (live session) hides the FORMULAS drawer
+          // SIMPLE mode (live session) hides the FORMULAS drawer
           !(currentView === 'session' && sessionMode === 'easy') && <FormulaConsole />}
 
         {/* MODALS */}

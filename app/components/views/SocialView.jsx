@@ -17,11 +17,10 @@ import { DeleteButton, TabBar } from '../Controls';
 import { ProfileAvatar } from '../ProfileAvatar';
 import { UI } from '../../styles/kineticTokens';
 import { SocialSettingsSection } from './SettingsView';
-import { LeaderboardView } from './LeaderboardView';
 
-// Social tabs: LEADERBOARDS (default) · FRIENDS (find athletes, requests, friends list) · PRIVACY
+// The Friends page (view id 'social'): FRIENDS (find athletes, requests, friends list) · PRIVACY. Leaderboards are
+// their own page now (view 'leaderboards').
 const SOCIAL_TABS = [
-  { id: 'leaderboards', label: 'LEADERBOARDS' },
   { id: 'friends', label: 'FRIENDS' },
   { id: 'privacy', label: 'PRIVACY' }
 ];
@@ -49,15 +48,13 @@ export function SocialView({
   setCurrentView,
   // PRIVACY & SHARING settings (moved here from Settings)
   socialSettingsProps,
-  // LEADERBOARDS (moved here from their own page)
-  leaderboardProps,
   // Opens on this tab (e.g. 'privacy' from your profile's PRIVACY →); onInitialTabUsed lets the page reset it
-  initialTab = 'leaderboards',
+  initialTab = 'friends',
   onInitialTabUsed
 }) {
   const [socialTab, setSocialTab] = useState(initialTab);
   useEffect(() => {
-    if (initialTab !== 'leaderboards') onInitialTabUsed?.();
+    if (initialTab !== 'friends') onInitialTabUsed?.();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- only on opening the page
   }, []);
   // A photo for any athlete who is your friend (search results and requests only carry a username)
@@ -269,7 +266,7 @@ export function SocialView({
     <div style={{ paddingTop: '12px' }}>
       <div style={{ padding: '0 var(--dp-spacing-gutter)', marginBottom: '14px' }}>
         <TabBar
-          ariaLabel="Social"
+          ariaLabel="Friends"
           // Waiting friend requests show on the FRIENDS tab, e.g. FRIENDS (2)
           tabs={SOCIAL_TABS.map(t =>
             t.id === 'friends' && pendingIncomingRequests.length > 0 ? { ...t, label: `FRIENDS (${pendingIncomingRequests.length})` } : t
@@ -278,10 +275,6 @@ export function SocialView({
           onChange={setSocialTab}
         />
       </div>
-
-      {socialTab === 'leaderboards' && (
-        <LeaderboardView colors={colors} user={user} friendsList={friendsList} embedded {...leaderboardProps} />
-      )}
 
       {socialTab === 'privacy' && <SocialSettingsSection colors={colors} collapsible={false} {...socialSettingsProps} />}
 
