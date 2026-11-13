@@ -40,6 +40,9 @@ const FRIEND_ACTIVITY_POLL_MS = 30000;
 // Crying's Variety: a whole number 0–10 (5 = the default)
 const normalizeVariety = v => (Number.isFinite(Number(v)) && v !== null && v !== '' ? Math.min(10, Math.max(0, Math.round(Number(v)))) : 5);
 
+// The account whose workouts / routines are stored on this device (see the sign-in pull)
+const DATA_OWNER_KEY = 'yccih_data_owner_v1';
+
 export function useCloudAndStorageSync({
   isStorageHydrated,
   setIsStorageHydrated,
@@ -289,6 +292,30 @@ export function useCloudAndStorageSync({
       return;
     }
     const isCloudAccount = isUuid(user?.id);
+
+    // This device's workouts and routines belong to the account that was signed in when they were saved
+    // (DATA_OWNER_KEY). Signing in as a different account starts from that account's own data: the previous account's
+    // History, routines and session are left behind (they're on the server under that account), never uploaded here.
+    if (isCloudAccount) {
+      let owner = null;
+      try {
+        owner = window.localStorage.getItem(DATA_OWNER_KEY);
+      } catch {
+        owner = null;
+      }
+      if (owner && owner !== user.id) {
+        setHistory([]);
+        setSavedRoutines([]);
+        setSharedRoutines([]);
+        setActiveSession(null);
+        setOneRepMaxes(getInitial1RMs());
+      }
+      try {
+        window.localStorage.setItem(DATA_OWNER_KEY, user.id);
+      } catch {
+        // storage unavailable: nothing to remember
+      }
+    }
 
     // Hold uploads until this pull finishes, so a device can't re-upload a workout that another
     // device deleted before it learns about the deletion.
@@ -649,6 +676,18 @@ export function useCloudAndStorageSync({
           });
           pushCloudStateForUser(user, payload, { historyToUpload }).then(result => {
             if (!result || !isUuid(user.id)) return;
+            // Workouts / routines the server says belong to another account (left on this device by an account that
+            // was signed in before): they aren't this athlete's, so they leave this device
+            const foreignIds = new Set((result.foreignWorkoutIds || []).map(String));
+            const foreignKeys = new Set((result.foreignRoutineKeys || []).map(String));
+            if (foreignIds.size > 0) setHistory(prev => (prev || []).filter(w => !foreignIds.has(String(w?.id))));
+            if (foreignKeys.size > 0) {
+              setSavedRoutines(prev => (prev || []).filter(r => !foreignKeys.has(String(r?.key))));
+              setSharedRoutines(prev => (prev || []).filter(r => !foreignKeys.has(String(r?.key))));
+            }
+            if (foreignIds.size > 0 || foreignKeys.size > 0) {
+              console.warn(`Removed ${foreignIds.size} workout(s) and ${foreignKeys.size} routine(s) that belong to another account from this device`);
+            }
             const confirmed = {};
             (result.syncedWorkoutIds || []).forEach(id => {
               if (signatures[id]) confirmed[id] = signatures[id];
@@ -672,6 +711,8 @@ export function useCloudAndStorageSync({
     }, 300);
 
     return () => clearTimeout(debounceTimer);
+    // (the History / routine setters only drop rows another account owns; they don't need to re-run this)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     isStorageHydrated,
     user,
