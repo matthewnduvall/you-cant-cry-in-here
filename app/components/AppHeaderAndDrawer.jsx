@@ -21,7 +21,7 @@ export const PAGE_TITLES = {
   friend_profile: 'PROFILE',
   routines: 'ROUTINES',
   gym_editor: 'EQUIPMENT SETUP',
-  session: 'SESSION',
+  // The live session has no page title: its locked header already names it, and the space goes to the sets
   routine_editor: 'ROUTINE',
   historical_entry: 'PAST WORKOUT'
 };

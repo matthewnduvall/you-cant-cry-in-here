@@ -71,7 +71,8 @@ export const workoutMatchesHistoryFilter = (workout, filter) =>
 
 const SEARCH_LABEL = 'SEARCH';
 
-export function HistoryExerciseFilter({ history = [], filter, onChange }) {
+// showEquipment={false}: no EQUIPMENT dropdown (the routine browser has its own equipment filter); EXERCISE takes the row
+export function HistoryExerciseFilter({ history = [], filter, onChange, showEquipment = true }) {
   const [query, setQuery] = useState(null); // null = search box closed
 
   // Only exercises that appear in History can be picked
@@ -156,7 +157,8 @@ export function HistoryExerciseFilter({ history = [], filter, onChange }) {
       </select>
 
       {/* Row 2: EQUIPMENT | EXERCISE in equal halves, so ALL EQUIPMENT / ALL EXERCISES (N) fit at phone width */}
-      <div style={{ gridColumn: '1 / 6', gridRow: 2, display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: 0 }}>
+      <div style={{ gridColumn: '1 / 6', gridRow: 2, display: 'grid', gridTemplateColumns: showEquipment ? 'minmax(0, 1fr) minmax(0, 1fr)' : 'minmax(0, 1fr)', gap: 0 }}>
+        {showEquipment && (
         <select
           className="kinetic-filter-select"
           aria-label="Filter by equipment"
@@ -171,7 +173,8 @@ export function HistoryExerciseFilter({ history = [], filter, onChange }) {
             </option>
           ))}
         </select>
-  
+        )}
+
         <select
           className="kinetic-filter-select"
           aria-label="Filter by exercise"
