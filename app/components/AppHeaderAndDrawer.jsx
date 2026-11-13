@@ -263,7 +263,8 @@ export function AppHeaderAndDrawer({
                 // Programs with set days: the session's day (Workout A / B, push / pull / legs…)
                 dayOptions: program.days ? program.days.map(d => ({ id: d.id, label: d.name })) : null,
                 dayId: ctx?.day?.id || null,
-                dayLabel: ctx?.day?.name || '',
+                // The header's DAY box is narrow: a day's short name when it has one (Society's 'Wed & Thu')
+                dayLabel: ctx?.day?.shortName || ctx?.day?.name || '',
                 onChangeDay: id => onChangeProgramDay?.(id)
               };
             })()}

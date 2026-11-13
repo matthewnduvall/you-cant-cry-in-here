@@ -65,12 +65,13 @@ export const PROGRAMS = [
     // A / B / C are Society's stimulus sessions (routine + week plan below); the second day of a pair repeats the
     // first day's exercises from that week. The pump days are fixed templates of high-rep accessories.
     days: [
-      { id: 'A', name: 'Session A', stimulus: true },
-      { id: 'B', name: 'Session B', stimulus: true },
-      { id: 'C', name: 'Session C', stimulus: true },
+      { id: 'A', name: 'Monday & Tuesday', shortName: 'Mon & Tue', stimulus: true },
+      { id: 'B', name: 'Wednesday & Thursday', shortName: 'Wed & Thu', stimulus: true },
+      { id: 'C', name: 'Friday & Saturday', shortName: 'Fri & Sat', stimulus: true },
       {
         id: 'legpump',
-        name: 'Leg pump',
+        name: 'Sunday leg pump',
+        shortName: 'Sun legs',
         restSeconds: 60,
         slots: [
           { key: 'quads', category: 'Accessory', pick: { category: 'Accessory', muscleGroup: 'Thighs', specific: /quadriceps/i }, rule: 'double', sets: 3, reps: [15, 20], rir: 2, inc: 5 },
@@ -81,7 +82,8 @@ export const PROGRAMS = [
       },
       {
         id: 'armpump',
-        name: 'Arm pump',
+        name: 'Sunday arm pump',
+        shortName: 'Sun arms',
         restSeconds: 60,
         slots: [
           { key: 'biceps', category: 'Accessory', pick: { category: 'Accessory', muscleGroup: 'Upper Arms', specific: /biceps/i }, rule: 'double', sets: 3, reps: [12, 15], rir: 2, inc: 2.5 },
@@ -116,8 +118,8 @@ export const PROGRAMS = [
     variables: [
       ['Based on', 'Original: an 8-week peaking cycle'],
       ['Frequency', 'Every day: 6 stimulus sessions and a Sunday pump session'],
-      ['Schedule', 'Mon & Tue: Session A · Wed & Thu: Session B · Fri & Sat: Session C · Sun: leg pump or arm pump (alternating weeks)'],
-      ['Routine', 'Sessions A, B, C: 2 compound lifts (one of the Big 3, then Big 3 variants), 2 supersets, 1 accessory, picked by muscle stimulus; the second day of each pair repeats the first · Leg pump: quads, hamstrings, glutes, calves · Arm pump: biceps, triceps, side delts, forearms'],
+      ['Schedule', 'Monday & Tuesday: the same session · Wednesday & Thursday: the same session · Friday & Saturday: the same session · Sunday: leg pump or arm pump (alternating weeks)'],
+      ['Routine', 'Monday to Saturday: 2 compound lifts (one of the Big 3, then Big 3 variants), 2 supersets, 1 accessory, picked by muscle stimulus; the second day of each pair repeats the first · Leg pump: quads, hamstrings, glutes, calves · Arm pump: biceps, triceps, side delts, forearms'],
       ['Sets', '5 on compound lifts; accessories and supersets keep the defaults; pump days 3–4 per exercise'],
       ['Reps', '8 in weeks 1–2, Pyramid in weeks 3–7, 1RM Pyramid in week 8; pump days 12–20'],
       ['Intensity', 'RIR 6 in week 1, one less each week, 1RM in week 8; pump days RIR 2'],
