@@ -13,7 +13,17 @@ import { TabBar, Button } from '../Controls';
 import { BodyMetricsSection, RoutinePreferencesSection, SetPreferencesSection } from './SettingsView';
 import { GoalsView } from './GoalsView';
 import { GymsView } from './GymsView';
-import { PROGRAMS, getProgram, getAutoProgramWeek } from '../../data/programs';
+import {
+  PROGRAMS,
+  getProgram,
+  getAutoProgramWeek,
+  WEEKDAYS,
+  WEEKDAY_NAMES,
+  weekdayOf,
+  getProgramSchedule,
+  getScheduledDayId,
+  describeSchedule
+} from '../../data/programs';
 import { formatDateYMD } from '../../data/exerciseLibrary';
 import { IOSListSection } from '../Primitives';
 import { UI, SHARED_CELL_BORDER } from '../../styles/kineticTokens';
@@ -30,14 +40,41 @@ const subscribeMinute = cb => {
 const minuteNowIso = () => new Date(Math.floor(Date.now() / 60000) * 60000).toISOString();
 const noNowOnServer = () => null;
 
-function ProgramSection({ colors, trainingProgram = 'crying', setTrainingProgram, programCycleStart = null, history = [], onRestartCycle }) {
+function ProgramSection({
+  colors,
+  trainingProgram = 'crying',
+  setTrainingProgram,
+  programCycleStart = null,
+  history = [],
+  programSchedules = {},
+  setProgramSchedule,
+  onRestartCycle
+}) {
   const chosen = getProgram(trainingProgram);
   const nowIso = useSyncExternalStore(subscribeMinute, minuteNowIso, noNowOnServer);
-  // The week a session started now would get (it keeps track of itself from the logged sessions)
   const runsWeeks = Boolean(chosen.weekPlan || chosen.days);
-  const next = runsWeeks && nowIso ? getAutoProgramWeek(chosen, history, nowIso, programCycleStart) : null;
+  const schedule = getProgramSchedule(chosen, programSchedules);
+  const ownSchedule = Array.isArray(programSchedules?.[chosen.id]) && programSchedules[chosen.id].length > 0;
+  // The next training day on the schedule (today if it is one), its week and its day
+  const nextDateIso = (() => {
+    if (!nowIso) return null;
+    if (schedule.length === 0) return nowIso;
+    for (let i = 0; i < 7; i += 1) {
+      const d = new Date(new Date(nowIso).getTime() + i * 24 * 60 * 60 * 1000).toISOString();
+      if (schedule.includes(weekdayOf(d))) return d;
+    }
+    return nowIso;
+  })();
+  const next = runsWeeks && nextDateIso ? getAutoProgramWeek(chosen, history, nextDateIso, programCycleStart) : null;
   const currentWeek = next?.week || null;
-  const nextDayName = next?.day ? (chosen.days || []).find(d => d.id === next.day)?.name : null;
+  const nextDayId = runsWeeks && nextDateIso ? getScheduledDayId(chosen, programSchedules, nextDateIso, next?.week) || next?.day : null;
+  const nextDayName = nextDayId ? (chosen.days || []).find(d => d.id === nextDayId)?.name : null;
+  const nextWeekday = nextDateIso && schedule.length > 0 ? WEEKDAY_NAMES[weekdayOf(nextDateIso)] : null;
+  const toggleDay = day => {
+    const nextDays = schedule.includes(day) ? schedule.filter(d => d !== day) : [...schedule, day];
+    if (nextDays.length === 0) return; // at least one training day
+    setProgramSchedule?.(chosen.id, WEEKDAYS.filter(d => nextDays.includes(d)));
+  };
   return (
     <IOSListSection header="PROGRAM" colors={colors}>
       <div role="group" aria-label="Training program" style={{ display: 'flex', flexDirection: 'column' }}>
@@ -93,6 +130,60 @@ function ProgramSection({ colors, trainingProgram = 'crying', setTrainingProgram
           ))}
         </dl>
       )}
+      {/* Training days: the program's own, or the athlete's pick; day-specific programs map their days onto them */}
+      {runsWeeks && (
+        <div style={{ padding: '12px 16px', borderTop: '1px solid var(--dp-color-rule)' }}>
+          <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: '8px' }}>
+            <div style={UI.capsLabel}>TRAINING DAYS</div>
+            {ownSchedule && (
+              <button
+                type="button"
+                className="kinetic-btn"
+                onClick={() => setProgramSchedule?.(chosen.id, [])}
+                style={{ background: 'none', border: 'none', color: '#9A9A9A', fontSize: '11px', fontWeight: 500, letterSpacing: '0.1em', cursor: 'pointer', minHeight: '32px' }}
+              >
+                USE THE PROGRAM&apos;S
+              </button>
+            )}
+          </div>
+          <div role="group" aria-label="Training days" style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: '4px', marginTop: '8px' }}>
+            {WEEKDAYS.map(day => {
+              const on = schedule.includes(day);
+              return (
+                <button
+                  key={day}
+                  type="button"
+                  className="kinetic-btn"
+                  aria-pressed={on}
+                  aria-label={`${WEEKDAY_NAMES[day]}: ${on ? 'training day' : 'rest day'}`}
+                  onClick={() => toggleDay(day)}
+                  style={{
+                    height: '40px',
+                    borderRadius: '10px',
+                    border: on ? 'none' : '1px solid #3A3A3A',
+                    backgroundColor: on ? '#FFFFFF' : 'transparent',
+                    color: on ? '#000000' : '#9A9A9A',
+                    fontFamily: 'inherit',
+                    fontSize: '11px',
+                    fontWeight: 500,
+                    cursor: 'pointer',
+                    padding: 0
+                  }}
+                >
+                  {day.toUpperCase()}
+                </button>
+              );
+            })}
+          </div>
+          <div style={{ ...UI.sentence, fontSize: '12px', marginTop: '8px', color: '#BDBDBD' }}>{describeSchedule(chosen, programSchedules)}</div>
+          {chosen.dayAssignment === 'weekday' && schedule.length !== (chosen.schedule || []).length && (
+            <div style={{ ...UI.sentence, fontSize: '12px', marginTop: '4px' }}>
+              This program is built for {(chosen.schedule || []).length} days a week; its days wrap round the ones you pick.
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Where the cycle stands; RESTART puts today at week 1 */}
       {runsWeeks && (
         <div
@@ -108,12 +199,17 @@ function ProgramSection({ colors, trainingProgram = 'crying', setTrainingProgram
           <div style={{ minWidth: 0 }}>
             <div style={UI.capsLabel}>NEXT SESSION</div>
             <div style={{ fontSize: '17px', fontWeight: 500, color: '#FFFFFF', marginTop: '2px' }}>
+              {nextWeekday ? `${nextWeekday} · ` : ''}
               {currentWeek ? `${chosen.weekName(currentWeek)} of ${chosen.cycleWeeks}` : `Week 1 of ${chosen.cycleWeeks}`}
               {nextDayName ? ` · ${nextDayName}` : ''}
             </div>
             <div style={{ ...UI.sentence, fontSize: '12px', marginTop: '2px' }}>
               Moves on a week the first time you train in a new week (Monday to Sunday)
-              {chosen.days ? '; the days follow on in order from your last logged session.' : '.'}
+              {chosen.days
+                ? chosen.dayAssignment === 'weekday'
+                  ? '; each training day has its own workout (off-schedule sessions take the next one).'
+                  : '; the workouts alternate from your last logged session.'
+                : '.'}
             </div>
           </div>
           <button

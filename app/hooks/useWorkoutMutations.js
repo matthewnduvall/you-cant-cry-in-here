@@ -57,6 +57,8 @@ import {
 import { deleteCloudRoutineByKey, deleteCloudWorkoutsByIds, postSyncHistoryUpdate } from '../utils/supabaseAuth';
 import {
   withProgramInfo,
+  getWorkoutProgramInfo,
+  calendarWeekIndex,
   getProgram,
   getProgramContext,
   getSlotSpecExercise,
@@ -164,6 +166,8 @@ export function useWorkoutMutations({
   // scheme, sets, intensity and weights of the exercises it covers (utils/programEngine.js)
   trainingProgram = 'crying',
   programCycleStart = null,
+  // The athlete's training weekdays per program (a 'weekday' program's days follow them)
+  programSchedules = null,
   // For exercises never logged (utils/starting1RM.js): the goal's strength class (one class below is the start)
   // and height
   targetStandardClass = 'Intermediate',
@@ -215,7 +219,7 @@ export function useWorkoutMutations({
   }
   const defaultScheme = getDefaultSchemeForGoal(goalType);
   // The program context of a workout (null = no week plan: the app's usual rules)
-  const programContextFor = workout => getProgramContext(trainingProgram, programCycleStart, workout, history);
+  const programContextFor = workout => getProgramContext(trainingProgram, programCycleStart, workout, history, programSchedules);
   // A slot with the workout's program week applied (unchanged when the program doesn't cover it)
   const programSlot = (slot, workout) =>
     applyProgramToSlot(slot, programContextFor(workout), {
@@ -445,7 +449,45 @@ export function useWorkoutMutations({
 
     // A program with set days (Starting Strength, 5/3/1, PPL…): the session is that day's exercises, in order; + ADD
     // EXERCISE adds the next one not in the session yet, then carries on with Routine Preferences
-    if (hasProgramDays(programCtx?.program) && programCtx.day) {
+    // A stimulus session that pairs with another day (Society: Mon & Tue are the same session A, Wed & Thu B, Fri &
+    // Sat C): the second day repeats the exercises logged for that session earlier the same week, re-planned for it
+    if (programCtx?.day?.stimulus && !addOne && cleanExisting.length === 0) {
+      const { program, day } = programCtx;
+      const weekIdx = calendarWeekIndex; // Monday to Sunday, local time
+      const at = new Date(programWorkout?.startedAt || Date.now()).getTime();
+      const partner = (history || [])
+        .filter(w => w && w.id !== programWorkout?.id)
+        .filter(w => {
+          const info = getWorkoutProgramInfo(w);
+          const t = new Date(w.startedAt || 0).getTime();
+          return info?.program === program.id && info?.programDay === day.id && t < at && weekIdx(t) === weekIdx(at);
+        })
+        .sort((a, b) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime())[0];
+      if (partner) {
+        if (isTracing()) traceLine(`${day.name}: repeating the exercises from ${String(partner.startedAt).slice(0, 10)}`);
+        const repeated = (partner.slots || []).map(slot => {
+          const isSup = isSupersetCategory(slot.category);
+          const ids = isSup ? (slot.supersetExerciseIds || [slot.exerciseId, slot.secondaryExerciseId]).slice(0, 2) : [slot.exerciseId];
+          ids.forEach(id => id && usedIds.add(id));
+          const built = createWorkoutSlot({
+            category: slot.category,
+            slotLabel: slot.category,
+            exerciseId: ids[0],
+            ...(isSup ? { supersetExerciseIds: ids, supersetSchemes: getSupersetSchemes(slot) } : {}),
+            scheme: slot.scheme || defaultScheme,
+            oneRepMaxes,
+            history,
+            incrementLbs: currentIncrementLbs,
+            setPreferences,
+            userBodyweightLbs
+          });
+          return programSlot(built, programWorkout);
+        });
+        return normalizeSlotLabels(repeated);
+      }
+    }
+
+    if (hasProgramDays(programCtx?.program) && programCtx.day?.slots) {
       const { program, day, week } = programCtx;
       const present = new Set(
         cleanExisting
@@ -530,7 +572,7 @@ export function useWorkoutMutations({
       id: `session_${Date.now()}`,
       startedAt,
       updatedAt: startedAt,
-      defaultRestSeconds: ctx?.program?.restSeconds || 90,
+      defaultRestSeconds: ctx?.day?.restSeconds || ctx?.program?.restSeconds || 90,
       gymId: selectedGymId,
       slots: [],
       ...(ctx
@@ -805,6 +847,8 @@ export function useWorkoutMutations({
       label: finalTitle,
       author: user?.username || 'test_lifter',
       gymType: routineGymType,
+      // When it was saved (shown on the routine browser)
+      savedAt: new Date().toISOString(),
       slots: normalizedSlots
     };
     // ROUTINE toggle: the routine editor always saves a routine; sessions/History only when it is on.
@@ -824,6 +868,7 @@ export function useWorkoutMutations({
         label: finalTitle,
         author: user?.username || 'test_lifter',
         gymType: routineGymType,
+        savedAt: new Date().toISOString(),
         slots: normalizedSlots
       };
       setSharedRoutines(prev => {
@@ -2010,7 +2055,7 @@ export function useWorkoutMutations({
         ...base,
         programWeek: ctx ? ctx.program.weekName(ctx.week) : '',
         programDay: ctx?.day?.id || null,
-        defaultRestSeconds: ctx?.program?.restSeconds || prev.defaultRestSeconds || 90
+        defaultRestSeconds: ctx?.day?.restSeconds || ctx?.program?.restSeconds || prev.defaultRestSeconds || 90
       }));
     });
   };

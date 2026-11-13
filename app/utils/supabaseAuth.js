@@ -817,7 +817,7 @@ export async function fetchCloudStateForUser(user) {
       : Promise.resolve(),
     user.id
       ? getJson(
-          `${baseUrl}/rest/v1/routines?user_id=eq.${encodeURIComponent(user.id)}&select=key,user_id,author_username,label,is_shared,slots`
+          `${baseUrl}/rest/v1/routines?user_id=eq.${encodeURIComponent(user.id)}&select=key,user_id,author_username,label,is_shared,slots,created_at,updated_at`
         ).then(rows => {
           if (Array.isArray(rows)) routineRows = rows;
         })
@@ -904,6 +904,7 @@ export async function fetchCloudStateForUser(user) {
           key: r.key,
           label: r.label,
           author: r.author_username || user.username,
+          savedAt: r.updated_at || r.created_at || null,
           slots: Array.isArray(r.slots) ? r.slots : []
         }))
     : [];
@@ -915,6 +916,7 @@ export async function fetchCloudStateForUser(user) {
           key: r.key,
           label: r.label,
           author: r.author_username || user.username,
+          savedAt: r.updated_at || r.created_at || null,
           slots: Array.isArray(r.slots) ? r.slots : []
         }))
     : [];
@@ -1168,7 +1170,9 @@ export async function pushCloudStateForUser(user, payload, { historyToUpload } =
         author_username: r.author || user.username || 'athlete',
         label: r.label || 'Custom Routine',
         is_shared: Boolean(r.isShared),
-        slots: Array.isArray(r.slots) ? r.slots : []
+        slots: Array.isArray(r.slots) ? r.slots : [],
+        // The saved date (routines saved before dates were kept keep the server's own)
+        ...(r.savedAt ? { updated_at: r.savedAt } : {})
       })),
       'resolution=merge-duplicates'
     );
@@ -1216,6 +1220,7 @@ const mapRoutineTableRow = r => ({
   label: r.label,
   author: r.author_username,
   isShared: Boolean(r.is_shared),
+  savedAt: r.updated_at || r.created_at || null,
   slots: Array.isArray(r.slots) ? r.slots : []
 });
 
@@ -1398,7 +1403,7 @@ async function fetchFriendProfiles(user, ids) {
     ),
     authedRequest(
       user,
-      `/rest/v1/routines?user_id=in.${inList}&is_shared=eq.true&select=key,user_id,author_username,label,is_shared,slots`
+      `/rest/v1/routines?user_id=in.${inList}&is_shared=eq.true&select=key,user_id,author_username,label,is_shared,slots,created_at,updated_at`
     )
   ]);
   if (!profilesRes.ok || !Array.isArray(profilesRes.data)) return null;

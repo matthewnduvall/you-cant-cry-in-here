@@ -103,6 +103,8 @@ export function useCloudAndStorageSync({
   setTrainingProgram,
   programCycleStart = null,
   setProgramCycleStart,
+  programSchedules = {},
+  setProgramSchedules,
   shareStatsWithFriends,
   setShareStatsWithFriends,
   shareRoutinesWithFriends,
@@ -180,6 +182,7 @@ export function useCloudAndStorageSync({
         }
         setTrainingProgram?.(normalizeProgramId(hydrated.settings.program));
         setProgramCycleStart?.(hydrated.settings.programCycleStart || null);
+        setProgramSchedules?.(hydrated.settings.programSchedules || {});
         if (typeof hydrated.settings.profilePhoto === 'string') setProfilePhoto?.(hydrated.settings.profilePhoto);
         if (hydrated.settings.social) {
           setShareStatsWithFriends(hydrated.settings.social.shareStatsWithFriends ?? true);
@@ -465,6 +468,9 @@ export function useCloudAndStorageSync({
             }
             if (typeof cloud.settings.program === 'string') setTrainingProgram?.(normalizeProgramId(cloud.settings.program));
             if (typeof cloud.settings.programCycleStart === 'string') setProgramCycleStart?.(cloud.settings.programCycleStart);
+            if (cloud.settings.programSchedules && typeof cloud.settings.programSchedules === 'object') {
+              setProgramSchedules?.(cloud.settings.programSchedules);
+            }
             if (cloud.settings.social) {
               if (cloud.settings.social.shareStatsWithFriends !== undefined) {
                 setShareStatsWithFriends(cloud.settings.social.shareStatsWithFriends);
@@ -607,6 +613,7 @@ export function useCloudAndStorageSync({
             setPreferences,
             program: trainingProgram || 'crying',
             programCycleStart: programCycleStart || null,
+            programSchedules: programSchedules || {},
             social: { shareStatsWithFriends, shareRoutinesWithFriends, profileIsPublic, shareBodyweightWithFriends },
             selectedGymId,
             availableEquipment,
@@ -678,6 +685,7 @@ export function useCloudAndStorageSync({
     setPreferences,
     trainingProgram,
     programCycleStart,
+    programSchedules,
     shareStatsWithFriends,
     shareRoutinesWithFriends,
     profileIsPublic,
@@ -739,6 +747,7 @@ export function useCloudAndStorageSync({
           if (Array.isArray(rehydrated.settings.setPreferences)) setSetPreferences?.(rehydrated.settings.setPreferences);
           setTrainingProgram?.(normalizeProgramId(rehydrated.settings.program));
           setProgramCycleStart?.(rehydrated.settings.programCycleStart || null);
+          setProgramSchedules?.(rehydrated.settings.programSchedules || {});
           setShareStatsWithFriends(rehydrated.settings.social.shareStatsWithFriends);
           setShareRoutinesWithFriends(rehydrated.settings.social.shareRoutinesWithFriends);
           setProfileIsPublic(rehydrated.settings.social.profileIsPublic ?? true);
@@ -785,6 +794,7 @@ export function useCloudAndStorageSync({
     setSetPreferences?.(['Warmup', 'Warmup', 'Working', 'Working', 'Working']);
     setTrainingProgram?.('crying');
     setProgramCycleStart?.(null);
+    setProgramSchedules?.({});
     setShareStatsWithFriends(true);
     setShareRoutinesWithFriends(true);
     setSelectedGymId('');
