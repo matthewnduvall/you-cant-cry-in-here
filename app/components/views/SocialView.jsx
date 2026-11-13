@@ -13,17 +13,13 @@ import {
 } from '../../utils/supabaseAuth';
 import { isSameFriend, applyFriendshipSync, applyOutgoingInvitesSync } from '../../utils/storageMigration';
 import { formatDateYMD } from '../../data/exerciseLibrary';
-import { DeleteButton, TabBar } from '../Controls';
+import { DeleteButton } from '../Controls';
 import { ProfileAvatar } from '../ProfileAvatar';
 import { UI } from '../../styles/kineticTokens';
 import { SocialSettingsSection } from './SettingsView';
 
-// The Friends page (view id 'social'): FRIENDS (find athletes, requests, friends list) · PRIVACY. Leaderboards are
-// their own page now (view 'leaderboards').
-const SOCIAL_TABS = [
-  { id: 'friends', label: 'FRIENDS' },
-  { id: 'privacy', label: 'PRIVACY' }
-];
+// The Friends page (view id 'social'): find athletes, requests, friends list, then PRIVACY & SHARING. Leaderboards are
+// their own page (view 'leaderboards').
 
 // One red per component: a list's ✕ buttons are grey (they still ask first, or are reversible)
 const GREY_X = { color: '#9A9A9A' };
@@ -52,9 +48,14 @@ export function SocialView({
   initialTab = 'friends',
   onInitialTabUsed
 }) {
-  const [socialTab, setSocialTab] = useState(initialTab);
+  // PRIVACY & SHARING (bottom of the page): scrolled to when the page opens for it
+  const privacyRef = React.useRef(null);
   useEffect(() => {
+    // After the page's own scroll to the top on opening
+    let timer = null;
+    if (initialTab === 'privacy') timer = setTimeout(() => privacyRef.current?.scrollIntoView({ block: 'start' }), 250);
     if (initialTab !== 'friends') onInitialTabUsed?.();
+    return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- only on opening the page
   }, []);
   // A photo for any athlete who is your friend (search results and requests only carry a username)
@@ -264,21 +265,8 @@ export function SocialView({
 
   return (
     <div style={{ paddingTop: '12px' }}>
-      <div style={{ padding: '0 var(--dp-spacing-gutter)', marginBottom: '14px' }}>
-        <TabBar
-          ariaLabel="Friends"
-          // Waiting friend requests show on the FRIENDS tab, e.g. FRIENDS (2)
-          tabs={SOCIAL_TABS.map(t =>
-            t.id === 'friends' && pendingIncomingRequests.length > 0 ? { ...t, label: `FRIENDS (${pendingIncomingRequests.length})` } : t
-          )}
-          value={socialTab}
-          onChange={setSocialTab}
-        />
-      </div>
-
-      {socialTab === 'privacy' && <SocialSettingsSection colors={colors} collapsible={false} {...socialSettingsProps} />}
-
-      {socialTab === 'friends' && (
+      {/* One page, no tabs (the title already says FRIENDS): find athletes, requests, your friends, then PRIVACY &
+          SHARING at the bottom (collapsed; open and scrolled to when you came from your profile's PRIVACY →) */}
       <>
       {/* FIND ATHLETES: the search bar sits straight under the heading (no surrounding box); results and invite
           feedback appear in a list box below it */}
@@ -580,7 +568,10 @@ export function SocialView({
           ))}
       </IOSListSection>
       </>
-      )}
+
+      <div ref={privacyRef} style={{ scrollMarginTop: '170px' }}>
+        <SocialSettingsSection colors={colors} defaultOpen={initialTab === 'privacy'} {...socialSettingsProps} />
+      </div>
     </div>
   );
 }

@@ -35,7 +35,6 @@ export function CalculatedOneRepMaxKey({ style }) {
     </div>
   );
 }
-const TO_GO_RED = '#FF4A3D';
 
 export const formatLiftLabel = (exId, rawName) => {
   const upper = String(rawName || '').trim().toUpperCase();
@@ -237,7 +236,8 @@ export function LiftGoalRow({
         {showGoal && (
           <div style={cellStyle}>
             <span style={cellLabel}>TO GO</span>
-            <span style={{ ...cellValue, color: !stats.logged ? '#9A9A9A' : stats.toGo > 0 ? TO_GO_RED : '#FFFFFF' }}>
+            {/* White: red stays for the selected lift (its line and title strip), not every row's number */}
+            <span style={{ ...cellValue, color: !stats.logged ? '#9A9A9A' : '#FFFFFF' }}>
               {!stats.logged ? '—' : stats.toGo > 0 ? stats.toGo : 'DONE ✓'}
             </span>
           </div>
@@ -346,7 +346,7 @@ export function StrengthClassGoalPicker({ targetStandardClass, setTargetStandard
           <span style={{ color: '#FFFFFF' }}>
             BIG 3 TOTAL: {club.total} / {THOUSAND_LB_CLUB_TOTAL} LB
           </span>
-          <span style={{ color: club.remaining > 0 ? TO_GO_RED : '#FFFFFF', whiteSpace: 'nowrap' }}>
+          <span style={{ color: '#FFFFFF', whiteSpace: 'nowrap' }}>
             {club.remaining > 0 ? `${club.remaining} LB TO GO` : 'REACHED ✓'}
           </span>
         </div>

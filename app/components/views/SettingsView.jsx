@@ -394,11 +394,13 @@ export function SocialSettingsSection({
   setShareRoutinesWithFriends,
   shareBodyweightWithFriends = false,
   setShareBodyweightWithFriends,
-  // false = always open, no SHOW / HIDE (the Social page's PRIVACY tab)
-  collapsible = true
+  // false = always open, no SHOW / HIDE
+  collapsible = true,
+  // Starts open (the Friends page when you came for PRIVACY)
+  defaultOpen = false
 }) {
   // Starts collapsed; collapsed it shows a one-line summary of the current choices
-  const [collapsedState, setCollapsed] = useState(true);
+  const [collapsedState, setCollapsed] = useState(!defaultOpen);
   const collapsed = collapsible && collapsedState;
   const toggle = (
     <CollapseToggle collapsed={collapsed} onClick={() => setCollapsed(v => !v)} label="privacy and sharing" />
@@ -488,7 +490,8 @@ export function DataBackupSection({
         </IOSListRow>
   
         <IOSListRow isLast={true} colors={colors} onClick={handleResetToDemoDefaults}>
-          <span style={{ ...UI.rowTitle, color: '#FF4A3D' }}>Clear and reset all local data</span>
+          {/* The row's title is white: RESET is the group's one red */}
+          <span style={UI.rowTitle}>Clear and reset all local data</span>
           <span style={{ ...UI.badge(false), color: '#FF4A3D' }}>RESET ↺</span>
         </IOSListRow>
       </IOSListSection>

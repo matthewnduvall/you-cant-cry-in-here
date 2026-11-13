@@ -362,10 +362,19 @@ export function HomeView({
     .filter(w => w && w.loadedRoutineTitle !== 'PERSONAL RECORD')
     .map(workoutMs)
     .filter(t => t > 0);
-  const lastMs = loggedTimes.length > 0 ? Math.max(...loggedTimes) : 0;
+  // Calendar days in local time (a session at 6 pm yesterday is "1D AGO" at 9 am today, not "TODAY"); sessions dated
+  // after today (a typed future date) don't count
   const DAY = 24 * 60 * 60 * 1000;
-  const lastAgoDays = nowMs && lastMs ? Math.max(0, Math.floor((nowMs - lastMs) / DAY)) : null;
-  const thisWeek = nowMs ? loggedTimes.filter(t => nowMs - t < 7 * DAY).length : null;
+  const dayStart = ms => {
+    const d = new Date(ms);
+    return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  };
+  const todayStart = nowMs ? dayStart(nowMs) : null;
+  const pastTimes = todayStart === null ? [] : loggedTimes.filter(t => dayStart(t) <= todayStart);
+  const lastMs = pastTimes.length > 0 ? Math.max(...pastTimes) : 0;
+  const lastAgoDays = todayStart !== null && lastMs ? Math.max(0, Math.round((todayStart - dayStart(lastMs)) / DAY)) : null;
+  // Today and the 6 days before it
+  const thisWeek = todayStart === null ? null : pastTimes.filter(t => dayStart(t) >= todayStart - 6 * DAY).length;
   // Muscle groups: overdue first, then the longest since trained (never-trained last)
   const statusEntries = Object.entries(muscleStimulusStatus || {});
   const overdue = statusEntries
@@ -389,7 +398,8 @@ export function HomeView({
       label: 'TO GOAL',
       value: goalToGoLbs === null ? '—' : goalToGoLbs === 0 ? 'DONE' : String(goalToGoLbs),
       unit: goalToGoLbs > 0 ? 'LB' : '',
-      sub: goalToGoLbs === null ? 'LOG A BIG 3 LIFT' : (goalClassName || 'GOAL').toUpperCase(),
+      // The same number as Performance's BIG 3 + OHP TO GOAL row (TO GO summed over the Big 3 + OHP)
+      sub: goalToGoLbs === null ? 'LOG A BIG 3 LIFT' : `BIG 3 + OHP · ${(goalClassName || 'GOAL').toUpperCase()}`,
       view: 'history'
     },
     {

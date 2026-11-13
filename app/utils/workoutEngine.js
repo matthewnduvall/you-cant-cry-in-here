@@ -370,6 +370,17 @@ export const setEngineBodyweight = lbs => {
   ENGINE_BODYWEIGHT_LBS = Math.max(0, Number(lbs) || 0);
 };
 export const getEngineBodyweight = () => ENGINE_BODYWEIGHT_LBS;
+/** Runs fn with another athlete's bodyweight (a friend's History is worked out with theirs; 0 / unknown = loads as
+ * stored), then puts the signed-in athlete's back. */
+export const withEngineBodyweight = (lbs, fn) => {
+  const previous = ENGINE_BODYWEIGHT_LBS;
+  ENGINE_BODYWEIGHT_LBS = Math.max(0, Number(lbs) || 0);
+  try {
+    return fn();
+  } finally {
+    ENGINE_BODYWEIGHT_LBS = previous;
+  }
+};
 const isTimedSet = st => Number(st?.durationSeconds) > 0 || (typeof st?.timerStr === 'string' && st.timerStr.includes(':'));
 /** Does this exercise's 1RM count bodyweight? */
 export const countsBodyweight = exerciseId => ENGINE_BODYWEIGHT_LBS > 0 && isBodyweightExercise(exerciseId);

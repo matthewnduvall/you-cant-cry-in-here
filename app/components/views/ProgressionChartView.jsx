@@ -155,7 +155,7 @@ function GoalDistanceRow({ className, selected, onTitleClick, cells, onOpenWorko
         <span style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
           <span aria-hidden="true" style={{ width: '14px', height: '2px', flexShrink: 0, backgroundColor: selected ? '#FFFFFF' : CUSTOM_COLOR }} />
           <span style={{ fontSize: '13px', fontWeight: 500, letterSpacing: '0.06em', textTransform: 'uppercase', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-            DISTANCE TO {className} GOAL
+            BIG 3 + OHP TO GOAL
           </span>
         </span>
         <span style={{ fontSize: '11px', fontWeight: 500, color: selected ? '#FFFFFF' : '#9A9A9A', whiteSpace: 'nowrap', flexShrink: 0, textTransform: 'uppercase' }}>
@@ -398,7 +398,8 @@ export function ProgressionChartView({
 
   // Value labels: every point of the selected series, and the end (lift + value) of each grey line that is inside the
   // frame. Labels whose boxes would overlap aren't all drawn: the latest point's label wins (then the selected one).
-  const LABEL_CHAR_W = 6.9;
+  // Chart text is 12.5 units of Chakra Petch: ~7.6 units per character, so boxes don't undercount and labels collide
+  const LABEL_CHAR_W = 7.6;
   const LABEL_H = 13;
   const labelCandidates = [];
   drawOrder.forEach(liftId => {
@@ -409,7 +410,8 @@ export function ProgressionChartView({
       if (!c.inWindow || c.y < padT - 2 || c.y > padT + plotH + 2) return;
       const isEnd = cIdx === lastInWindow;
       if (!isHighlighted && !isEnd) return;
-      const text = isEnd ? `${liftMeta[liftId]?.short || ''} ${c.label}`.trim() : c.label;
+      // The selected series' end label is just its value (its name is on its row); grey lines' ends carry their name
+      const text = isEnd && !isHighlighted ? `${liftMeta[liftId]?.short || ''} ${c.label}`.trim() : c.label;
       const anchor = c.x > padL + plotW - 40 ? 'end' : 'middle';
       const w = text.length * LABEL_CHAR_W;
       const left = anchor === 'end' ? c.x - w : c.x - w / 2;
@@ -548,7 +550,7 @@ export function ProgressionChartView({
                   setTimeFrame(tf.id);
                   setOffsetMs(0);
                 }}
-                style={{ height: '38px', padding: '0 4px', fontSize: '11px' }}
+                style={{ height: '44px', padding: '0 4px', fontSize: '11px' }}
               >
                 {tf.label}
               </SegmentButton>
@@ -720,7 +722,8 @@ export function ProgressionChartView({
                               <circle
                                 cx={c.x}
                                 cy={c.y}
-                                r="12"
+                                // ~44 px on a phone (the chart's viewBox is scaled down); later points sit on top
+                                r="25"
                                 fill="transparent"
                                 role="button"
                                 tabIndex={0}

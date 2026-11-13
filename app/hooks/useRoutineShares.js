@@ -120,7 +120,8 @@ export function useRoutineShares({ user, setSavedRoutines, onLoadRoutine, append
     const list = (Array.isArray(friends) ? friends : [friends]).filter(Boolean);
     if (!sendTarget || list.length === 0) return;
     setSendState({ busy: true, sentTo: null, error: '' });
-    const results = await Promise.all(list.map(f => sendRoutineToFriend(user, f.id, sendTarget)));
+    const batchId = `send_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const results = await Promise.all(list.map(f => sendRoutineToFriend(user, f.id, { ...sendTarget, batchId })));
     const sent = list.filter((f, i) => results[i]?.ok);
     const failed = results.find(r => !r?.ok);
     if (sent.length > 0) {
@@ -139,7 +140,8 @@ export function useRoutineShares({ user, setSavedRoutines, onLoadRoutine, append
   const sendRoutine = async (routine, friends) => {
     const list = (friends || []).filter(f => f?.id);
     if (!user?.id || !routine || list.length === 0) return { ok: true, sent: 0 };
-    const results = await Promise.all(list.map(f => sendRoutineToFriend(user, f.id, routine)));
+    const batchId = `send_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const results = await Promise.all(list.map(f => sendRoutineToFriend(user, f.id, { ...routine, batchId })));
     const sent = list.filter((f, i) => results[i]?.ok);
     appendSessionLog?.('ROUTINE_SHARE_SENT', `Sent "${routine.label}" to ${sent.map(f => `@${f.username}`).join(', ') || 'nobody'}`);
     refreshSent();

@@ -42,6 +42,8 @@ const normalizeVariety = v => (Number.isFinite(Number(v)) && v !== null && v !==
 
 // The account whose workouts / routines are stored on this device (see the sign-in pull)
 const DATA_OWNER_KEY = 'yccih_data_owner_v1';
+// The ids of the owner's workouts / routines on this device ({ owner, workouts, routines }), kept while signed in
+const OWNER_ITEMS_KEY = 'yccih_owner_items_v1';
 
 export function useCloudAndStorageSync({
   isStorageHydrated,
@@ -132,6 +134,41 @@ export function useCloudAndStorageSync({
   profilePhoto,
   setProfilePhoto
 }) {
+  // Every per-account setting back to its default (bodyweight, goals, equipment, program, privacy, photo, friends
+  // cache, 1RMs): the device reset, and switching to a different account on sign-in
+  function resetAccountSettings() {
+    setOneRepMaxes(getInitial1RMs());
+    setGyms([]);
+    setFriendsList([]);
+    setPendingIncomingRequests([]);
+    setOutgoingInvites([]);
+    setBodyMetricsConfirmed?.(false);
+    setAvailableEquipment?.(null);
+    setProfilePhoto?.(null);
+    setProfileIsPublic?.(true);
+    setShareBodyweightWithFriends?.(false);
+    setCryingVariety?.(5);
+    setSessionMode?.('advanced');
+    setUserBodyweightLbs(220);
+    setUserHeightFeet(5);
+    setUserHeightInches(10);
+    setGoalType('Balanced');
+    setGoalIncrement(1.25);
+    setGoalUnit('lb');
+    setTargetStandardClass('Novice');
+    setCustomGoalWeights({});
+    setStimulusGreenDays(2);
+    setStimulusYellowDays(4);
+    setRoutinePreferences(['Compound', 'Compound', 'Superset', 'Superset', 'Abs']);
+    setSetPreferences?.(['Warmup', 'Warmup', 'Working', 'Working', 'Working']);
+    setTrainingProgram?.('crying');
+    setProgramCycleStart?.(null);
+    setProgramSchedules?.({});
+    setShareStatsWithFriends(true);
+    setShareRoutinesWithFriends(true);
+    setSelectedGymId('');
+  }
+
   const cloudSyncReadyForUserKeyRef = useRef(null);
   const [cloudPullReadyTick, setCloudPullReadyTick] = useState(0);
   // Bumped when a friend logs or changes a workout (3b), so friends' data reloads straight away
@@ -308,11 +345,27 @@ export function useCloudAndStorageSync({
         owner = null;
       }
       if (owner && owner !== user.id) {
-        setHistory([]);
-        setSavedRoutines([]);
-        setSharedRoutines([]);
+        // The previous account's workouts / routines (the ids it had while signed in, OWNER_ITEMS_KEY) leave the
+        // device; anything logged since, while signed out, has no owner and stays to be uploaded to this account.
+        // Without a record (older app versions) everything goes.
+        let items = null;
+        try {
+          items = JSON.parse(window.localStorage.getItem(OWNER_ITEMS_KEY) || 'null');
+        } catch {
+          items = null;
+        }
+        const known = items && items.owner === owner;
+        const ownerWorkouts = new Set(known ? (items.workouts || []).map(String) : []);
+        const ownerRoutines = new Set(known ? (items.routines || []).map(String) : []);
+        const keepWorkout = w => known && w && !ownerWorkouts.has(String(w.id));
+        const keepRoutine = r => known && r && !ownerRoutines.has(String(r.key));
+        setHistory(prev => (prev || []).filter(keepWorkout));
+        setSavedRoutines(prev => (prev || []).filter(keepRoutine));
+        setSharedRoutines(prev => (prev || []).filter(keepRoutine));
         setActiveSession(null);
-        setOneRepMaxes(getInitial1RMs());
+        // Settings and the profile photo were the previous account's too: back to the defaults until this account's
+        // own come down with the pull (a brand-new account keeps the defaults instead of inheriting them)
+        resetAccountSettings();
       }
       try {
         window.localStorage.setItem(DATA_OWNER_KEY, user.id);
@@ -668,6 +721,17 @@ export function useCloudAndStorageSync({
           }
         };
         window.localStorage.setItem(PERSISTENCE_KEY, JSON.stringify(payload));
+        // Which workouts / routines on this device are the signed-in account's (see the account switch on sign-in)
+        if (user && isUuid(user.id)) {
+          window.localStorage.setItem(
+            OWNER_ITEMS_KEY,
+            JSON.stringify({
+              owner: user.id,
+              workouts: (Array.isArray(history) ? history : []).map(w => w && w.id).filter(Boolean),
+              routines: [...(savedRoutines || []), ...(sharedRoutines || [])].map(r => r && r.key).filter(Boolean)
+            })
+          );
+        }
 
         const userKey = user?.id || user?.email || user?.username || null;
         if (user && userKey && cloudSyncReadyForUserKeyRef.current === userKey) {
@@ -836,36 +900,14 @@ export function useCloudAndStorageSync({
 
   const handleResetToDemoDefaults = () => {
     signOutUser();
-    const freshMaxes = getInitial1RMs();
     setUser(null);
-    setOneRepMaxes(freshMaxes);
     setHistory([]);
     setActiveSession(null);
     setSavedRoutines([]);
     setSharedRoutines([]);
-    setGyms([]);
-    setFriendsList([]);
-    setPendingIncomingRequests([]);
-    setOutgoingInvites([]);
-    setUserBodyweightLbs(220);
-    setUserHeightFeet(5);
-    setUserHeightInches(10);
-    setGoalType('Balanced');
-    setGoalIncrement(1.25);
-    setGoalUnit('lb');
-    setTargetStandardClass('Novice');
-    setCustomGoalWeights({});
-    setStimulusGreenDays(2);
-    setStimulusYellowDays(4);
-    setRoutinePreferences(['Compound', 'Compound', 'Superset', 'Superset', 'Abs']);
-    setSetPreferences?.(['Warmup', 'Warmup', 'Working', 'Working', 'Working']);
-    setTrainingProgram?.('crying');
-    setProgramCycleStart?.(null);
-    setProgramSchedules?.({});
-    setShareStatsWithFriends(true);
-    setShareRoutinesWithFriends(true);
-    setSelectedGymId('');
+    resetAccountSettings();
   };
+
 
   /**
    * Permanently deletes the signed-in account (server data + sign-in account), then erases this
