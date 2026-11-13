@@ -1430,6 +1430,7 @@ export default function App() {
           setPrRecordDate={setPrRecordDate}
           handleApplyCalculatedWeight={handleApplyCalculatedWeight}
           onOpenHistoryWorkout={openHistoryWorkout}
+          bodyweightLbs={userBodyweightLbs}
         />
 
         <SetValueEditorModal

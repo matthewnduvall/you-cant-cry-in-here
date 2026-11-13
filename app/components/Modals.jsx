@@ -131,7 +131,9 @@ export function PlateCalculatorModal({
   setPrRecordDate,
   handleApplyCalculatedWeight,
   // Opens a logged History workout (the PR's) on the PROGRESS page
-  onOpenHistoryWorkout
+  onOpenHistoryWorkout,
+  // Your saved bodyweight (Configuration → BODY METRICS): the BW button enters it as the weight
+  bodyweightLbs = null
 }) {
   // Page held still while open (no jump after APPLY / SAVE / SEND)
   useModalScrollLock(Boolean(plateCalcTarget));
@@ -340,6 +342,38 @@ export function PlateCalculatorModal({
                     </button>
                   ))
               )}
+            </div>
+
+            {/* CLEAR: no plates and nothing extra (the empty bar, or 0 with no bar). BW: your saved bodyweight as the
+                total, split into plates like a typed total */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px', marginBottom: '12px' }}>
+              <button
+                type="button"
+                className="kinetic-btn"
+                aria-label={calcBarWeight > 0 && !calcIsSingleLoad ? `Clear the weight back to the empty ${calcBarWeight} lb bar` : 'Clear the weight to 0'}
+                disabled={calcPlatesPerSide.length === 0 && calcExtraLbs === 0}
+                onClick={() => {
+                  setCalcPlatesPerSide([]);
+                  clearCalcExtra?.();
+                }}
+                style={{
+                  ...UI.secondaryBtnCenter,
+                  minHeight: '44px',
+                  opacity: calcPlatesPerSide.length === 0 && calcExtraLbs === 0 ? 0.4 : 1
+                }}
+              >
+                CLEAR
+              </button>
+              <button
+                type="button"
+                className="kinetic-btn"
+                aria-label={Number(bodyweightLbs) > 0 ? `Use your bodyweight, ${bodyweightLbs} lb` : 'No bodyweight saved (Configuration, Body metrics)'}
+                disabled={!(Number(bodyweightLbs) > 0)}
+                onClick={() => setCalcTotalFromInput(Number(bodyweightLbs))}
+                style={{ ...UI.secondaryBtnCenter, minHeight: '44px', opacity: Number(bodyweightLbs) > 0 ? 1 : 0.4 }}
+              >
+                BW{Number(bodyweightLbs) > 0 ? <span style={{ color: '#9A9A9A', marginLeft: '6px' }}>{Number(bodyweightLbs)} LB</span> : null}
+              </button>
             </div>
         </div>
 
