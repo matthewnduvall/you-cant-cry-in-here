@@ -1,7 +1,7 @@
 'use client';
 
 // Configuration → EQUIPMENT → PLATES: which plates the athlete owns and how many (settings.plateInventory, local +
-// cloud). Off = not counted (standard plates, as many as needed). On, barbells, EZ / trap / Smith bars and
+// cloud). On by default with a standard 300 lb set's plates; off (false) = standard plates, as many as needed. On, barbells, EZ / trap / Smith bars and
 // plate-loaded machines are loaded only from these — half of each size on each side — in the weight pop-up and in
 // every suggested weight (utils/loading.js). Counts go up and down in pairs (one plate for each side).
 
@@ -27,7 +27,7 @@ const stepBtn = disabled => ({
 
 export function PlateInventorySection({ colors, value, onChange }) {
   const inventory = normalizePlateInventory(value);
-  const counting = Boolean(inventory);
+  const counting = inventory !== false;
   const total = counting ? PLATE_SIZES.reduce((n, s) => n + (inventory[s] || 0), 0) : 0;
   const setCount = (size, next) => onChange?.({ ...inventory, [size]: Math.max(0, Math.min(98, next)) });
 
@@ -38,12 +38,12 @@ export function PlateInventorySection({ colors, value, onChange }) {
       footer={
         counting
           ? 'Bars and plate-loaded machines are loaded only from these: half of each size goes on each side. Counts go up in pairs.'
-          : 'Off: weights use standard plates (45 to 1.25 lb), as many as needed. Turn on to count the plates you have.'
+          : 'Off: weights use standard plates (45 to 1.25 lb), as many as needed. Turn on to set the plates you have.'
       }
     >
-      <IOSListRow colors={colors} isLast={!counting} onClick={() => onChange?.(counting ? null : { ...DEFAULT_PLATE_INVENTORY })}>
+      <IOSListRow colors={colors} isLast={!counting} onClick={() => onChange?.(counting ? false : { ...DEFAULT_PLATE_INVENTORY })}>
         <span role="switch" aria-checked={counting} style={UI.rowTitle}>
-          Count my plates
+          Plates
         </span>
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
           {counting && <span style={UI.rowSub}>{total} plates</span>}
