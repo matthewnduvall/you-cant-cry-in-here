@@ -1559,6 +1559,25 @@ export async function syncFriendshipsForUser(user) {
  * Sends a friend request to an athlete found through search. If they already sent you one, this
  * accepts it instead. Returns { ok, status: 'requested' | 'accepted' | 'exists' | 'error' }.
  */
+/**
+ * Asks the server to email the recipient of a friend request just sent (/api/notify-friend-request). The server
+ * looks up their email itself, sends at most one email per request, and skips athletes who turned the emails off.
+ * Fire and forget: the request stands whether or not the email goes out.
+ */
+async function notifyFriendRequestByEmail(user, targetId) {
+  try {
+    const accessToken = await getValidSupabaseAccessToken(user);
+    if (!accessToken) return;
+    await fetch('/api/notify-friend-request', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+      body: JSON.stringify({ targetId })
+    });
+  } catch {
+    // The email is a courtesy; the request itself already went through
+  }
+}
+
 export async function sendFriendRequestToAthlete(user, targetAthlete) {
   if (!user || !isUuid(user.id) || !isUuid(targetAthlete?.id) || user.id === targetAthlete.id) {
     return { ok: false, status: 'error' };
@@ -1576,6 +1595,7 @@ export async function sendFriendRequestToAthlete(user, targetAthlete) {
     method: 'POST',
     body: { requester_id: user.id, addressee_id: targetAthlete.id, status: 'pending' }
   });
+  if (res.ok) notifyFriendRequestByEmail(user, targetAthlete.id);
   return { ok: res.ok, status: res.ok ? 'requested' : 'error' };
 }
 
