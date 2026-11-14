@@ -178,3 +178,4 @@ Once your domain is verified in Resend, you can also configure Supabase so passw
    * **Username:** `resend`
    * **Password:** Your `RESEND_API_KEY`
 
+3. **Email templates:** paste `supabase/email-templates/confirm-signup.html` and `reset-password.html` into **Authentication → Email Templates** (Confirm signup / Reset password) so they match the app's look. See `supabase/email-templates/README.md`.
