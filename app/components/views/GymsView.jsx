@@ -6,6 +6,7 @@ import { IOSListSection, IOSListRow } from '../Primitives';
 import { GYM_EQUIPMENT_OPTIONS } from '../../data/exerciseLibrary';
 import { Button, DeleteButton } from '../Controls';
 import { EquipmentToggleList } from '../EquipmentToggleList';
+import { PlateInventorySection } from '../PlateInventory';
 
 const GYM_STATUS_BTN_STYLE = isSelected => ({
   ...UI.badge(isSelected),
@@ -42,12 +43,17 @@ export function GymsView({
   availableEquipment,
   setAvailableEquipment,
   setGymDraft,
-  setCurrentView
+  setCurrentView,
+  // PLATES: the plates the athlete owns (settings.plateInventory; null = not counted)
+  plateInventory = null,
+  setPlateInventory
 }) {
   const currentEquipment = Array.isArray(availableEquipment) ? availableEquipment : GYM_EQUIPMENT_OPTIONS;
   return (
     <div style={UI.pagePad}>
       <EquipmentToggleList colors={colors} value={availableEquipment} onChange={setAvailableEquipment} />
+
+      <PlateInventorySection colors={colors} value={plateInventory} onChange={setPlateInventory} />
 
       <IOSListSection header="SAVED SETUPS" colors={colors}>
         {gyms.length === 0 ? (

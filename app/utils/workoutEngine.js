@@ -3,6 +3,7 @@
 // ============================================================================
 
 import { traceLine, isTracing, fmt } from './calcTrace';
+import { getLoadSetup, isTwoSidedLoad, snapToLoadableWeight } from './loading';
 import {
   getSlotEquipmentChoice,
   isBandEquipment,
@@ -455,6 +456,39 @@ export const applyBandWeights = slot => {
     const matrix = slot.supersetSetsByExercise.map((sets, half) => fixSets(sets, ids[half], half));
     if (matrix.every((m, i) => m === slot.supersetSetsByExercise[i])) return slot;
     return { ...slot, supersetSetsByExercise: matrix, sets: matrix[0] || [] };
+  }
+  const sets = fixSets(slot.sets, slot.exerciseId, 0);
+  return sets === slot.sets ? slot : { ...slot, sets };
+};
+
+/**
+ * Weights loaded on both sides (barbell, trap bar, Smith, EZ bar, plate-loaded machines) snapped to what standard
+ * plates (down to 1.25 lb) can make: the bar + a multiple of 2.5 lb (utils/loading.js). Run by normalizeSlotLabels on
+ * every edit, so suggested, recalculated, programmed and routine weights all land on real loads. Done sets (History)
+ * are left as logged.
+ */
+export const snapSlotToPlates = slot => {
+  if (!slot) return slot;
+  const fixSets = (sets, exId, half) => {
+    const setup = getLoadSetup(exId, getSlotEquipmentChoice(slot, half));
+    if (!isTwoSidedLoad(setup)) return sets;
+    let changed = false;
+    const next = (sets || []).map(st => {
+      if (!st || st.completed || isTimedSet(st)) return st;
+      const w = Number(st.weight) || 0;
+      if (w <= 0) return st;
+      const snapped = snapToLoadableWeight(w, setup);
+      if (snapped === w) return st;
+      changed = true;
+      return { ...st, weight: snapped };
+    });
+    return changed ? next : sets;
+  };
+  if (isSupersetCategory(slot.category) && Array.isArray(slot.supersetSetsByExercise)) {
+    const ids = slot.supersetExerciseIds || [slot.exerciseId, slot.secondaryExerciseId];
+    const matrix = slot.supersetSetsByExercise.map((sets, half) => fixSets(sets, ids[half], half));
+    if (matrix.every((m, i) => m === slot.supersetSetsByExercise[i])) return slot;
+    return { ...slot, supersetSetsByExercise: matrix, sets: matrix[0] || [], secondarySets: matrix[1] || [] };
   }
   const sets = fixSets(slot.sets, slot.exerciseId, 0);
   return sets === slot.sets ? slot : { ...slot, sets };
@@ -1330,6 +1364,7 @@ export const normalizeSlotLabels = slots => {
   return (slots || [])
     .filter(slot => slot && slot.category !== 'Warm-Up Routine' && slot.exerciseId !== 'warmup_12_step')
     .map(applyBandWeights)
+    .map(snapSlotToPlates)
     .map(slot => {
       const normCat = normalizeSlotCategory(slot.category);
       if (normCat === 'Compound') {

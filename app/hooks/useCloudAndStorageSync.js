@@ -33,6 +33,7 @@ import {
 } from '../utils/cloudSyncLedger';
 import { getInitial1RMs, buildHistoryPRs } from '../utils/workoutEngine';
 import { getEquipmentListForGymSelection, normalizeSlotCategory } from '../data/exerciseLibrary';
+import { normalizePlateInventory } from '../utils/loading';
 
 // How often an on-screen app checks whether a friend has logged a new workout (one tiny request)
 const FRIEND_ACTIVITY_POLL_MS = 30000;
@@ -119,6 +120,9 @@ export function useCloudAndStorageSync({
   // Crying's Variety (0–10, default 5) and the session page's SIMPLE / ADVANCED mode
   cryingVariety = 5,
   setCryingVariety,
+  // Configuration → EQUIPMENT → PLATES ({ [size]: count } | null = not counted)
+  plateInventory = null,
+  setPlateInventory,
   sessionMode = 'advanced',
   setSessionMode,
   shareStatsWithFriends,
@@ -149,6 +153,7 @@ export function useCloudAndStorageSync({
     setShareBodyweightWithFriends?.(false);
     setCryingVariety?.(5);
     setSessionMode?.('advanced');
+    setPlateInventory?.(null);
     setUserBodyweightLbs(220);
     setUserHeightFeet(5);
     setUserHeightInches(10);
@@ -236,6 +241,7 @@ export function useCloudAndStorageSync({
         setProgramCycleStart?.(hydrated.settings.programCycleStart || null);
         setProgramSchedules?.(hydrated.settings.programSchedules || {});
         setCryingVariety?.(normalizeVariety(hydrated.settings.cryingVariety));
+        setPlateInventory?.(normalizePlateInventory(hydrated.settings.plateInventory));
         setSessionMode?.(hydrated.settings.sessionMode === 'easy' ? 'easy' : 'advanced');
         if (typeof hydrated.settings.profilePhoto === 'string') setProfilePhoto?.(hydrated.settings.profilePhoto);
         if (hydrated.settings.social) {
@@ -567,6 +573,7 @@ export function useCloudAndStorageSync({
               setProgramSchedules?.(cloud.settings.programSchedules);
             }
             if (cloud.settings.cryingVariety !== undefined) setCryingVariety?.(normalizeVariety(cloud.settings.cryingVariety));
+            if (cloud.settings.plateInventory !== undefined) setPlateInventory?.(normalizePlateInventory(cloud.settings.plateInventory));
             if (cloud.settings.sessionMode === 'easy' || cloud.settings.sessionMode === 'advanced') setSessionMode?.(cloud.settings.sessionMode);
             if (cloud.settings.social) {
               if (cloud.settings.social.shareStatsWithFriends !== undefined) {
@@ -713,6 +720,7 @@ export function useCloudAndStorageSync({
             programCycleStart: programCycleStart || null,
             programSchedules: programSchedules || {},
             cryingVariety: normalizeVariety(cryingVariety),
+            plateInventory: normalizePlateInventory(plateInventory),
             sessionMode: sessionMode === 'easy' ? 'easy' : 'advanced',
             social: { shareStatsWithFriends, shareRoutinesWithFriends, profileIsPublic, shareBodyweightWithFriends },
             selectedGymId,
@@ -813,6 +821,7 @@ export function useCloudAndStorageSync({
     programCycleStart,
     programSchedules,
     cryingVariety,
+    plateInventory,
     sessionMode,
     shareStatsWithFriends,
     shareRoutinesWithFriends,
@@ -878,6 +887,7 @@ export function useCloudAndStorageSync({
           setProgramCycleStart?.(rehydrated.settings.programCycleStart || null);
           setProgramSchedules?.(rehydrated.settings.programSchedules || {});
           setCryingVariety?.(normalizeVariety(rehydrated.settings.cryingVariety));
+          setPlateInventory?.(normalizePlateInventory(rehydrated.settings.plateInventory));
           setSessionMode?.(rehydrated.settings.sessionMode === 'easy' ? 'easy' : 'advanced');
           setShareStatsWithFriends(rehydrated.settings.social.shareStatsWithFriends);
           setShareRoutinesWithFriends(rehydrated.settings.social.shareRoutinesWithFriends);
