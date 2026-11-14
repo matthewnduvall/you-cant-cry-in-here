@@ -394,6 +394,8 @@ export function SocialSettingsSection({
   setShareRoutinesWithFriends,
   shareBodyweightWithFriends = false,
   setShareBodyweightWithFriends,
+  emailFriendRequests = true,
+  setEmailFriendRequests,
   // false = always open, no SHOW / HIDE
   collapsible = true,
   // Starts open (the Friends page when you came for PRIVACY)
@@ -450,9 +452,15 @@ export function SocialSettingsSection({
       </IOSListRow>
 
       {/* Off: friends' apps don't use your bodyweight (you're left off their BW leaderboards) */}
-      <IOSListRow isLast={true} colors={colors} onClick={() => setShareBodyweightWithFriends?.(p => !p)}>
+      <IOSListRow colors={colors} onClick={() => setShareBodyweightWithFriends?.(p => !p)}>
         <span style={UI.rowTitle}>Share bodyweight with friends</span>
         <span style={UI.badge(shareBodyweightWithFriends)}>{shareBodyweightWithFriends ? 'ON' : 'OFF'}</span>
+      </IOSListRow>
+
+      {/* An email when someone sends you a friend request (/api/notify-friend-request) */}
+      <IOSListRow isLast={true} colors={colors} onClick={() => setEmailFriendRequests?.(p => !p)}>
+        <span style={UI.rowTitle}>Email me friend requests</span>
+        <span style={UI.badge(emailFriendRequests)}>{emailFriendRequests ? 'ON' : 'OFF'}</span>
       </IOSListRow>
     </IOSListSection>
   );

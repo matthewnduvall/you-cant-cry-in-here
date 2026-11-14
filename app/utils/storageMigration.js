@@ -95,7 +95,7 @@ export const DEFAULT_SETTINGS_V2 = {
   cryingVariety: 5,
   sessionMode: 'advanced',
   // shareBodyweightWithFriends: off unless the athlete turns it on (also for accounts saved before it existed)
-  social: { shareStatsWithFriends: true, shareRoutinesWithFriends: true, profileIsPublic: true, shareBodyweightWithFriends: false },
+  social: { shareStatsWithFriends: true, shareRoutinesWithFriends: true, profileIsPublic: true, shareBodyweightWithFriends: false, emailFriendRequests: true },
   selectedGymId: '',
   // the Equipment page list (GYM_EQUIPMENT_OPTIONS the athlete has); null = not chosen yet (derived from selectedGymId)
   availableEquipment: null,

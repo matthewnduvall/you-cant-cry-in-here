@@ -203,6 +203,8 @@ export default function App() {
   const [profileIsPublic, setProfileIsPublic] = useState(true);
   // Friends see your bodyweight (BW leaderboards, their goal maths) only when this is on; off by default
   const [shareBodyweightWithFriends, setShareBodyweightWithFriends] = useState(false);
+  // Email me when someone sends a friend request (/api/notify-friend-request); on by default
+  const [emailFriendRequests, setEmailFriendRequests] = useState(true);
   // The Social page's first tab when it next opens ('privacy' from your profile's PRIVACY →)
   const [socialInitialTab, setSocialInitialTab] = useState('friends');
   // Profile photo: a small JPEG data URL (settings.profilePhoto, local + cloud); see ProfileAvatar.jsx
@@ -366,6 +368,8 @@ export default function App() {
     setProfileIsPublic,
     shareBodyweightWithFriends,
     setShareBodyweightWithFriends,
+    emailFriendRequests,
+    setEmailFriendRequests,
     profilePhoto,
     setProfilePhoto
   });
@@ -1464,7 +1468,9 @@ export default function App() {
                 shareRoutinesWithFriends,
                 setShareRoutinesWithFriends,
                 shareBodyweightWithFriends,
-                setShareBodyweightWithFriends
+                setShareBodyweightWithFriends,
+                emailFriendRequests,
+                setEmailFriendRequests
               }}
               receivedRoutines={user ? routineShares.incoming : []}
               onSaveReceived={routineShares.saveShare}

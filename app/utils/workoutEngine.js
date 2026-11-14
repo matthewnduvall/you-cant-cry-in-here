@@ -4,6 +4,7 @@
 
 import { traceLine, isTracing, fmt } from './calcTrace';
 import { getLoadSetup, isTwoSidedLoad, snapToLoadableWeight } from './loading';
+import { DEFAULT_PROGRAM_ID, getProgram, getProgramDay, hasProgramDays, weekdayOf, WEEKDAY_NAMES } from '../data/programs';
 import {
   getSlotEquipmentChoice,
   isBandEquipment,
@@ -79,6 +80,22 @@ export const getSessionMuscleName = slots => {
   return top.join(' and ');
 };
 
+/**
+ * A session under a regimented program (anything but Crying) is named after it: "Society Week 2 Saturday",
+ * "Weekly Undulating Strength Week 1 Volume day". The day is the session's day name; Society's paired days
+ * ("Friday & Saturday") use the session's own weekday instead. "" for Crying / no program.
+ */
+export const getProgramSessionName = session => {
+  const id = session?.program;
+  if (!id || id === DEFAULT_PROGRAM_ID) return '';
+  const program = getProgram(id);
+  if (program.id !== id) return '';
+  const weekday = WEEKDAY_NAMES[weekdayOf(session.startedAt)] || '';
+  const day = hasProgramDays(program) && session.programDay ? getProgramDay(program, session.programDay) : null;
+  const dayName = day?.name && !(day.name.includes('&') && weekday && day.name.includes(weekday)) ? day.name : weekday;
+  return [program.label, String(session.programWeek || '').trim(), dayName].filter(Boolean).join(' ');
+};
+
 const isDefaultSessionTitle = title => {
   const t = stripDateFromTitle(title || '').trim();
   return t === '' || t === getDefaultSessionName() || t === getDefaultAutoSessionName();
@@ -106,7 +123,8 @@ export const withAutoSessionName = (prev, next) => {
   if (titleChanged && !isDefaultSessionTitle(next.title)) return { ...next, autoNamed: false };
   const eligible = isDefaultSessionTitle(next.title) || (next.autoNamed && !titleChanged);
   if (!eligible) return next;
-  const name = getSessionMuscleName(next.slots);
+  // Under a regimented program the session is named after it (program, week, day); under Crying after its muscles
+  const name = getProgramSessionName(next) || getSessionMuscleName(next.slots);
   if (!name) {
     return next.autoNamed ? { ...next, title: getDefaultSessionName(), autoNamed: false } : next;
   }

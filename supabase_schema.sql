@@ -814,3 +814,41 @@ DROP TRIGGER IF EXISTS strip_app_state_from_user_metadata ON auth.users;
 CREATE TRIGGER strip_app_state_from_user_metadata
   BEFORE INSERT OR UPDATE OF raw_user_meta_data ON auth.users
   FOR EACH ROW EXECUTE FUNCTION public.strip_app_state_from_user_metadata();
+
+-- 14. Friend request emails: see supabase/migrations/2026-11-14_friend_request_emails.sql
+ALTER TABLE public.friendships ADD COLUMN IF NOT EXISTS notified_at TIMESTAMPTZ;
+
+CREATE OR REPLACE FUNCTION public.claim_friend_request_email(requester UUID, addressee UUID)
+RETURNS TABLE (email TEXT, requester_username TEXT, addressee_username TEXT, wants_email BOOLEAN)
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  claimed UUID;
+BEGIN
+  UPDATE public.friendships f
+     SET notified_at = NOW()
+   WHERE f.requester_id = requester
+     AND f.addressee_id = addressee
+     AND f.status = 'pending'
+     AND f.notified_at IS NULL
+  RETURNING f.id INTO claimed;
+
+  IF claimed IS NULL THEN
+    RETURN;
+  END IF;
+
+  RETURN QUERY
+  SELECT u.email::TEXT,
+         (SELECT p.username FROM public.user_profiles p WHERE p.id = requester)::TEXT,
+         ap.username::TEXT,
+         COALESCE((ap.settings -> 'social' ->> 'emailFriendRequests') <> 'false', TRUE)
+    FROM auth.users u
+    LEFT JOIN public.user_profiles ap ON ap.id = u.id
+   WHERE u.id = addressee;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.claim_friend_request_email(UUID, UUID) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.claim_friend_request_email(UUID, UUID) TO service_role;

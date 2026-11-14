@@ -134,6 +134,9 @@ export function useCloudAndStorageSync({
   // Share bodyweight with friends (settings.social.shareBodyweightWithFriends; off unless turned on)
   shareBodyweightWithFriends = false,
   setShareBodyweightWithFriends,
+  // Email me when someone sends a friend request (settings.social.emailFriendRequests; on unless turned off)
+  emailFriendRequests = true,
+  setEmailFriendRequests,
   // Profile photo (small JPEG data URL; settings.profilePhoto, local + cloud)
   profilePhoto,
   setProfilePhoto
@@ -151,6 +154,7 @@ export function useCloudAndStorageSync({
     setProfilePhoto?.(null);
     setProfileIsPublic?.(true);
     setShareBodyweightWithFriends?.(false);
+    setEmailFriendRequests?.(true);
     setCryingVariety?.(5);
     setSessionMode?.('advanced');
     setPlateInventory?.(null);
@@ -249,6 +253,7 @@ export function useCloudAndStorageSync({
           setShareRoutinesWithFriends(hydrated.settings.social.shareRoutinesWithFriends ?? true);
           setProfileIsPublic(hydrated.settings.social.profileIsPublic ?? true);
           setShareBodyweightWithFriends?.(hydrated.settings.social.shareBodyweightWithFriends === true);
+          setEmailFriendRequests?.(hydrated.settings.social.emailFriendRequests !== false);
         }
       }
     }
@@ -588,6 +593,9 @@ export function useCloudAndStorageSync({
               if (cloud.settings.social.shareBodyweightWithFriends !== undefined) {
                 setShareBodyweightWithFriends?.(cloud.settings.social.shareBodyweightWithFriends === true);
               }
+              if (cloud.settings.social.emailFriendRequests !== undefined) {
+                setEmailFriendRequests?.(cloud.settings.social.emailFriendRequests !== false);
+              }
             }
           }
         }
@@ -722,7 +730,13 @@ export function useCloudAndStorageSync({
             cryingVariety: normalizeVariety(cryingVariety),
             plateInventory: normalizePlateInventory(plateInventory),
             sessionMode: sessionMode === 'easy' ? 'easy' : 'advanced',
-            social: { shareStatsWithFriends, shareRoutinesWithFriends, profileIsPublic, shareBodyweightWithFriends },
+            social: {
+              shareStatsWithFriends,
+              shareRoutinesWithFriends,
+              profileIsPublic,
+              shareBodyweightWithFriends,
+              emailFriendRequests: emailFriendRequests !== false
+            },
             selectedGymId,
             availableEquipment,
             profilePhoto: profilePhoto || null
@@ -827,6 +841,7 @@ export function useCloudAndStorageSync({
     shareRoutinesWithFriends,
     profileIsPublic,
     shareBodyweightWithFriends,
+    emailFriendRequests,
     selectedGymId,
     availableEquipment,
     profilePhoto,
@@ -893,6 +908,7 @@ export function useCloudAndStorageSync({
           setShareRoutinesWithFriends(rehydrated.settings.social.shareRoutinesWithFriends);
           setProfileIsPublic(rehydrated.settings.social.profileIsPublic ?? true);
           setShareBodyweightWithFriends?.(rehydrated.settings.social.shareBodyweightWithFriends === true);
+          setEmailFriendRequests?.(rehydrated.settings.social.emailFriendRequests !== false);
           setSelectedGymId(rehydrated.settings.selectedGymId);
           setAvailableEquipment(
             Array.isArray(rehydrated.settings.availableEquipment)
