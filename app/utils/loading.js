@@ -38,17 +38,25 @@ export const getLoadSetup = (exerciseId, equipment) => {
 
 // ---------------------------------------------------------------------------------------------------------------
 // The athlete's plates (Configuration → EQUIPMENT → PLATES; settings.plateInventory): { [size]: plates owned } in
-// total (a pair = one on each side), or null = not counted (standard plates, as many as needed). Both-sided loads use
+// total (a pair = one on each side), or false = turned off (standard plates, as many as needed). Not set yet
+// (null / undefined) = ON with a standard 300 lb set's plates (DEFAULT_PLATE_INVENTORY). Both-sided loads use
 // only these: per side, half of each size (rounded down). Single loads (dumbbells, stacks…) are unaffected. Set once
 // per render by page.js (setPlateInventory), like the engine's bodyweight.
 // ---------------------------------------------------------------------------------------------------------------
 export const PLATE_SIZES = [55, 45, 35, 25, 15, 10, 5, 2.5, 1.25];
-/** Where counting starts when the athlete turns it on (a typical gym's plates). */
-export const DEFAULT_PLATE_INVENTORY = { 55: 0, 45: 8, 35: 4, 25: 4, 15: 0, 10: 4, 5: 4, 2.5: 4, 1.25: 4 };
+/**
+ * The default: the plates in a standard 300 lb Olympic set (with its 45 lb bar): 2 × 45, 2 × 35, 2 × 25, 2 × 10,
+ * 4 × 5 and 2 × 2.5 (255 lb of plates), no 1.25s.
+ */
+export const DEFAULT_PLATE_INVENTORY = { 55: 0, 45: 2, 35: 2, 25: 2, 15: 0, 10: 2, 5: 4, 2.5: 2, 1.25: 0 };
 
-/** A saved inventory cleaned up: known sizes, whole non-negative counts; anything else = null (not counted). */
+/**
+ * A saved setting cleaned up: false = off (kept as false); an object = known sizes, whole non-negative counts;
+ * anything else (not set yet) = the default 300 lb set.
+ */
 export const normalizePlateInventory = value => {
-  if (!value || typeof value !== 'object') return null;
+  if (value === false) return false;
+  if (!value || typeof value !== 'object') return { ...DEFAULT_PLATE_INVENTORY };
   const out = {};
   PLATE_SIZES.forEach(size => {
     const n = Math.floor(Number(value[size]));
@@ -59,7 +67,8 @@ export const normalizePlateInventory = value => {
 
 let PLATE_INVENTORY = null;
 export const setPlateInventory = inventory => {
-  PLATE_INVENTORY = normalizePlateInventory(inventory);
+  const v = normalizePlateInventory(inventory);
+  PLATE_INVENTORY = v === false ? null : v;
 };
 export const getPlateInventory = () => PLATE_INVENTORY;
 
