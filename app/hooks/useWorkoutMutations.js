@@ -68,9 +68,9 @@ import {
   isBig3Variant
 } from '../data/programs';
 import { applyProgramToSlot, isProgrammedSlot, fitsProgramEquipment } from '../utils/programEngine';
-import { SET_TYPE_RIR, solveSet } from '../utils/intensity';
+import { SET_TYPE_RIR, solveSet, deriveIntensity, weightForIntensity, intensityToRir, formatIntensity } from '../utils/intensity';
 import { getStarting1RM, describe1RM, getLiftFamilyParent } from '../utils/starting1RM';
-import { withTrace, traceLine, traceTitle, isTracing, fmt } from '../utils/calcTrace';
+import { withTrace, traceLine, traceTitle, isTracing, fmt, logOperation } from '../utils/calcTrace';
 import { buildHistoryUpdate, findAddedSlots, getWorkoutSyncInfo, withSyncInfo } from '../utils/syncedHistory';
 import { markWorkoutIdDeleted, clearDeletedWorkoutIds } from '../utils/cloudSyncLedger';
 
@@ -248,7 +248,7 @@ export function useWorkoutMutations({
     if (currentView === 'historical_entry') return historicalDraft;
     if (currentView === 'routine_editor') return routineDraft;
     if (currentView === 'routine_preview') return previewRoutineDraft;
-    if (currentView === 'history' && expandedHistoryWorkoutId) {
+    if (currentView === 'history_editor' && expandedHistoryWorkoutId) {
       if (historyEditDraft?.id === expandedHistoryWorkoutId) return historyEditDraft;
       return asHistoricalWorkout(history.find(w => w.id === expandedHistoryWorkoutId)) || null;
     }
@@ -259,7 +259,7 @@ export function useWorkoutMutations({
   const updateCurrentWorkoutState = updater => {
     setIsCurrentEditorShared(false);
     // An open History workout: edits go to a draft (historyEditDraft); History changes only on SAVE
-    if (currentView === 'history' && expandedHistoryWorkoutId) {
+    if (currentView === 'history_editor' && expandedHistoryWorkoutId) {
       const targetHistId = expandedHistoryWorkoutId;
       setHistoryEditDraft?.(prev => {
         const base = prev?.id === targetHistId ? prev : asHistoricalWorkout(history.find(w => w.id === targetHistId));
@@ -688,6 +688,103 @@ export function useWorkoutMutations({
     };
   };
 
+  // ---------------------------------------------------------------------------------------------------------------
+  // Routines carry no weights. A routine stores each set's reps and its intensity (the effort it was done at); when it
+  // is loaded (or opened to edit) every weight is worked out for the athlete loading it, from their calculated 1RM as
+  // of now. So a friend's routine, or your own from months ago, starts at your numbers today.
+  // ---------------------------------------------------------------------------------------------------------------
+  const hasIntensityValue = st => Boolean(st?.intensity) && intensityToRir(st.intensity, st.reps) !== null;
+  const slotSetLists = slot => {
+    const isSup = isSupersetCategory(slot?.category) && Array.isArray(slot?.supersetSetsByExercise);
+    const ids = isSup ? slot.supersetExerciseIds || [slot.exerciseId, slot.secondaryExerciseId] : [slot?.exerciseId];
+    const schemes = isSup ? getSupersetSchemes(slot) : [slot?.scheme || defaultScheme];
+    return { isSup, ids, schemes };
+  };
+  const mapSlotLists = (slot, fn) => {
+    if (!slot) return slot;
+    const { isSup, ids, schemes } = slotSetLists(slot);
+    if (isSup) {
+      const matrix = slot.supersetSetsByExercise.map((list, half) => fn(list, ids[half] || slot.exerciseId, schemes[half] || schemes[0], half));
+      return { ...slot, supersetSetsByExercise: matrix, sets: matrix[0] || [], secondarySets: matrix[1] || [] };
+    }
+    const sets = fn(slot.sets || [], slot.exerciseId, schemes[0], 0);
+    return { ...slot, sets, supersetSetsByExercise: [sets] };
+  };
+  const isTimedRoutineSet = (st, scheme) =>
+    scheme === 'Timer' || Number(st?.durationSeconds) > 0 || (typeof st?.timerStr === 'string' && st.timerStr.includes(':'));
+
+  /**
+   * A workout's exercises as a routine to store: weights removed. A set without an intensity of its own gets the
+   * effort it was done at, worked out from its weight and reps against the author's calculated 1RM
+   * (RIR = reps to failure − reps; reps to failure = 1 + 30 × (1RM ÷ weight − 1)), so whoever loads it gets the same
+   * effort at their own weight.
+   */
+  const routineSlotsForStorage = slots =>
+    (slots || []).map(slot =>
+      mapSlotLists(slot, (list, exId, scheme) => {
+        const oneRM = exId && !isBodyweightExercise(exId) ? getHistoricalCalculated1RM(exId, history, oneRepMaxes) : 0;
+        const name = EXERCISE_MAP[exId]?.name || exId;
+        return (list || []).map((st, idx) => {
+          if (!st) return st;
+          const { weight, lastWeight: _lw, lockWeight: _lk, ...rest } = st;
+          let intensity = st.intensity;
+          const w = Number(weight) || 0;
+          if (!isTimedRoutineSet(st, scheme) && oneRM > 0 && w > 0 && (!hasIntensityValue(st) || st.intensity.auto)) {
+            intensity = deriveIntensity(oneRM, w, st.reps, st.intensity?.mode || 'rir') || st.intensity;
+            if (isTracing() && intensity) {
+              traceLine(`${name} set ${idx + 1}: ${fmt(w)} lb × ${st.reps} against your 1RM ${fmt(oneRM)} → reps to failure 1 + 30 × (${fmt(oneRM)} ÷ ${fmt(w)} − 1) = ${fmt(1 + 30 * (oneRM / Math.min(w, oneRM) - 1))} → ${formatIntensity(intensity.mode, intensity.value)} kept; weight removed`);
+            }
+          } else if (isTracing() && w > 0) {
+            traceLine(`${name} set ${idx + 1}: ${fmt(w)} lb removed; ${hasIntensityValue(st) ? `its ${formatIntensity(st.intensity.mode, st.intensity.value)} kept` : `its type (${normalizeSetType(st.type)}) sets the effort`}`);
+          }
+          return { ...rest, weight: 0, lockWeight: false, ...(intensity ? { intensity } : {}) };
+        });
+      })
+    );
+
+  /**
+   * A routine's exercise with weights for the athlete loading it (now): each set = their calculated 1RM for that
+   * exercise at the set's reps and intensity — weight = 1RM ÷ (1 + (reps + RIR − 1) ÷ 30), or 1RM × %1RM — where the
+   * intensity is the set's own, else its type's (Warm-up RIR 5, Working 2, Top Out 1, Burn Out 3; 1 Rep Max = the
+   * 1RM). Weights round to 2.5 lb; bodyweight exercises store what is added; timed sets keep their time.
+   */
+  const weighRoutineSlot = slot =>
+    toAddedWeights(
+      mapSlotLists(slot, (list, exId, scheme) => {
+        const name = EXERCISE_MAP[exId]?.name || exId;
+        if (list.every(st => isTimedRoutineSet(st, scheme))) {
+          if (isTracing()) traceLine(`${name}: timed sets, kept as they are`);
+          return list;
+        }
+        const oneRM = getHistoricalCalculated1RM(exId, history, oneRepMaxes);
+        if (isTracing()) traceLine(describe1RM(exId, startOpts));
+        return list.map((st, idx) => {
+          if (!st || isTimedRoutineSet(st, scheme) || !(oneRM > 0)) return st;
+          const type = normalizeSetType(st.type);
+          const reps = Math.max(1, Number(st.reps) || 1);
+          let load;
+          let how;
+          if (type === '1 Rep Max') {
+            load = oneRM;
+            how = `1 Rep Max = your 1RM ${fmt(oneRM)}`;
+          } else {
+            const own = hasIntensityValue(st);
+            const intensity = own ? st.intensity : { mode: 'rir', value: SET_TYPE_RIR[type] ?? 2 };
+            load = weightForIntensity(oneRM, reps, intensity) || 0;
+            const label = formatIntensity(intensity.mode, intensity.value);
+            const source = own ? 'the routine\'s intensity' : `${type}'s effort`;
+            how =
+              intensity.mode === 'pct'
+                ? `${fmt(oneRM)} × ${intensity.value}% (${source})`
+                : `${fmt(oneRM)} ÷ (1 + (${reps} reps + ${fmt(intensityToRir(intensity, reps))} RIR − 1) ÷ 30) (${label}, ${source})`;
+          }
+          const weight = Math.max(0, Math.round(load / 2.5) * 2.5);
+          if (isTracing()) traceLine(`${name} set ${idx + 1}: ${type} × ${reps} → ${how} = ${fmt(weight)} lb`);
+          return { ...st, weight, lockWeight: false, completed: false };
+        });
+      })
+    );
+
   const handleDirectLoadRoutine = (routineObj, returnToView = 'session') => {
     const wasOnRoutinesPage = currentView === 'routines';
     // A friend's routine: its structure, your weights (re-worked from your own History, as RECALCULATE would)
@@ -697,7 +794,21 @@ export function useWorkoutMutations({
     const freshSlots = cloneSlots(
       routineObj.slots || buildPresetSlots(routineObj.key, oneRepMaxes, history, currentIncrementLbs, userBodyweightLbs)
     ).map(freshRoutineSlot);
-    const builtSlots = normalizeSlotLabels(fromFriend ? freshSlots.map(slot => recalculateSlot(slot, null)) : freshSlots);
+    // Every routine's weights are worked out for you now (routines store reps and intensity, not weights)
+    const authorName = String(routineObj.friendName || routineObj.author || '').replace(/^@/, '');
+    const builtSlots = withTrace(
+      `LOAD ${fromFriend ? `@${authorName}'S ` : ''}${routineObj.isWorkout ? 'WORKOUT' : 'ROUTINE'}: ${stripDateFromTitle(routineObj.label) || 'Routine'}`,
+      () => {
+        traceLine(
+          fromFriend
+            ? `Converting @${authorName}'s ${routineObj.isWorkout ? 'workout' : 'routine'} to your numbers: their weights are not used; each set's weight comes from YOUR calculated 1RM at the set's reps and effort.`
+            : 'Routines keep reps and effort, not weights: each set\'s weight comes from your calculated 1RM as of today.'
+        );
+        traceLine(`${freshSlots.length} exercise${freshSlots.length === 1 ? '' : 's'}; sets start not done.`);
+        return normalizeSlotLabels(freshSlots.map(weighRoutineSlot));
+      },
+      `load_${routineObj.key || routineObj.label}`
+    );
     const datedTitle = formatTitleWithDate(routineObj.label);
     const routineLabel = routineObj.label || datedTitle;
 
@@ -705,8 +816,8 @@ export function useWorkoutMutations({
     if (wasOnRoutinesPage) setOpenedFromRoutines(true);
     appendSessionLog?.('LOAD_ROUTINE', `Loaded routine: ${routineLabel}`);
 
-    if (returnToView === 'history' && expandedHistoryWorkoutId) {
-      setCurrentView('history');
+    if (returnToView === 'history_editor' && expandedHistoryWorkoutId) {
+      setCurrentView('history_editor');
       updateCurrentWorkoutState(prev => ({
         ...prev,
         title: datedTitle,
@@ -759,8 +870,8 @@ export function useWorkoutMutations({
       setCurrentView('historical_entry');
     } else if (returnTarget === 'routine_editor' && routineDraft) {
       setCurrentView('routine_editor');
-    } else if (returnTarget === 'history' && expandedHistoryWorkoutId) {
-      setCurrentView('history');
+    } else if (returnTarget === 'history_editor' && expandedHistoryWorkoutId) {
+      setCurrentView('history_editor');
     } else {
       handleOpenNewSession();
     }
@@ -780,7 +891,7 @@ export function useWorkoutMutations({
       currentView === 'historical_entry' ||
       currentView === 'routine_editor' ||
       currentView === 'session' ||
-      currentView === 'history'
+      currentView === 'history_editor'
         ? currentView
         : routineSelectReturnView || 'session';
 
@@ -791,7 +902,7 @@ export function useWorkoutMutations({
         : `Generated auto workout: ${autoTitle}`
     );
 
-    if (returnTarget === 'history' && expandedHistoryWorkoutId) {
+    if (returnTarget === 'history_editor' && expandedHistoryWorkoutId) {
       updateCurrentWorkoutState(prev => ({
         ...prev,
         title: autoTitle,
@@ -891,6 +1002,17 @@ export function useWorkoutMutations({
     const sourceView = confirmed?.sourceView || currentView;
     const normalizedSlots = normalizeSlotLabels(cloneSlots(currentWorkout.slots));
     const routineGymType = inferRoutineGymCategory(normalizedSlots);
+    // The routine copy (saved / shared): worked out once, traced in the CONSOLE
+    let routineCopy = null;
+    const storedRoutineSlots = () => {
+      if (!routineCopy) {
+        routineCopy = withTrace(`SAVE ROUTINE: ${finalTitle}`, () => {
+          traceLine('Routines are stored without weights: each set keeps its reps and the effort it was done at, so it loads at the right weight for whoever opens it.');
+          return routineSlotsForStorage(normalizedSlots);
+        }, `save_${currentWorkout.key || currentWorkout.id || finalTitle}`);
+      }
+      return routineCopy;
+    };
 
     // Routines are matched by key, never by name: saving under a name another routine already uses must not
     // overwrite or delete that routine (renaming a workout used to wipe a same-named routine). A session (no key)
@@ -906,7 +1028,8 @@ export function useWorkoutMutations({
       gymType: routineGymType,
       // When it was saved (shown on the routine browser)
       savedAt: new Date().toISOString(),
-      slots: normalizedSlots
+      // Stored without weights: reps and the effort they were done at (see routineSlotsForStorage)
+      slots: storedRoutineSlots()
     };
     // ROUTINE toggle: the routine editor always saves a routine; sessions/History only when it is on.
     const shouldSaveRoutine = sourceView === 'routine_editor' || Boolean(confirmed?.saveAsRoutine);
@@ -926,7 +1049,7 @@ export function useWorkoutMutations({
         author: user?.username || 'test_lifter',
         gymType: routineGymType,
         savedAt: new Date().toISOString(),
-        slots: normalizedSlots
+        slots: storedRoutineSlots()
       };
       setSharedRoutines(prev => {
         const exists = prev.some(r => r.key === sharedItem.key);
@@ -947,7 +1070,7 @@ export function useWorkoutMutations({
       return;
     }
 
-    if (sourceView === 'history' && expandedHistoryWorkoutId) {
+    if (sourceView === 'history_editor' && expandedHistoryWorkoutId) {
       // Saves the History editor's draft (name, date, exercises and sets) over the logged workout
       const original = (history || []).find(w => w.id === expandedHistoryWorkoutId) || null;
       const syncInfo = getWorkoutSyncInfo(original) || getWorkoutSyncInfo(currentWorkout);
@@ -981,6 +1104,10 @@ export function useWorkoutMutations({
         );
       }
       appendSessionLog?.('HISTORY_EDIT', `Saved edits to historical workout: ${finalTitle}`);
+      logOperation(`SAVE HISTORY EDIT: ${finalTitle}`, [
+        `The logged workout${currentWorkout.workoutDate ? ` (${currentWorkout.workoutDate})` : ''} was replaced by your edits: name, date, ${normalizedSlots.length} exercise${normalizedSlots.length === 1 ? '' : 's'} and their sets, exactly as shown (no weights were recalculated).`,
+        'PRs, the PROGRESS chart and LAST / PR in later sessions read History, so they follow these numbers from now on.'
+      ], `history_save_${expandedHistoryWorkoutId}`);
       setHistoryEditDraft?.(null);
       setConfirmedHistoryEditWorkoutId?.(null);
       return;
@@ -1009,6 +1136,18 @@ export function useWorkoutMutations({
     // FINISH logs only the sets marked done (exercises with none are left out); nothing done = nothing logged.
     // LOG off: nothing goes to History (SAVE / SHARE above still happened); the session closes.
     const doneSlots = confirmed?.log === false ? [] : keepCompletedSets(normalizedSlots);
+    {
+      const countSets = list => list.reduce((n, sl) => n + (sl.supersetSetsByExercise || [sl.sets || []]).flat().length, 0);
+      logOperation(`FINISH: ${finalTitle}`, [
+        confirmed?.log === false
+          ? 'LOG was off: nothing was written to History; the session closed.'
+          : doneSlots.length === 0
+            ? 'No set was marked done, so nothing was written to History; the session closed.'
+            : `Logged ${countSets(doneSlots)} done set${countSets(doneSlots) === 1 ? '' : 's'} from ${doneSlots.length} exercise${doneSlots.length === 1 ? '' : 's'} to History (sets not marked done, and exercises with none, were left out). Logged sets are marked done and their type, weight and reps locked.`,
+        shouldSaveRoutine ? 'Also saved as a routine (without weights: see SAVE ROUTINE).' : null,
+        shouldShare ? 'Also shared with @all your friends.' : null
+      ], `finish_${currentWorkout.id || finalTitle}`);
+    }
     if (doneSlots.length === 0) {
       setActiveSession(null);
       setCurrentView('home');
@@ -1076,7 +1215,8 @@ export function useWorkoutMutations({
       label: currentWorkout.title || 'Shared Routine',
       author: user?.username || 'test_lifter',
       gymType: routineGymType,
-      slots: normalizedSlots
+      // Shared routines carry no weights (reps + effort)
+      slots: routineSlotsForStorage(normalizedSlots)
     };
     setSharedRoutines(prev => {
       const exists = prev.some(r => r.label === sharedItem.label);
@@ -1266,7 +1406,7 @@ export function useWorkoutMutations({
   const handleChangeGymSelection = nextGymId => {
     setSelectedGymId(nextGymId);
     // Logged/historical workouts keep the exercises that were actually performed.
-    if (currentView === 'historical_entry' || (currentView === 'history' && expandedHistoryWorkoutId)) return;
+    if (currentView === 'historical_entry' || (currentView === 'history_editor' && expandedHistoryWorkoutId)) return;
     const editorWorkout = getCurrentEditorWorkout();
     if (!editorWorkout?.slots?.length) return;
 
@@ -2240,8 +2380,10 @@ export function useWorkoutMutations({
     });
   };
 
+  // A logged History workout opens as a full editor page too ('history_editor'), like a routine
   const isRoutineEditorView =
     currentView === 'session' ||
+    currentView === 'history_editor' ||
     currentView === 'historical_entry' ||
     currentView === 'routine_editor' ||
     currentView === 'routine_preview';
@@ -2250,7 +2392,8 @@ export function useWorkoutMutations({
 
   const handleToggleSetDone = (slot, exIndex, setItem) => {
     const markingDone = !setItem.completed;
-    if (markingDone && isRoutineEditorView) {
+    // No rest timer while editing a logged workout or looking at a preview
+    if (markingDone && isRoutineEditorView && currentView !== 'history_editor' && currentView !== 'routine_preview') {
       setTimerTrigger({
         isRunning: true,
         // The exercise that started it (deleting that exercise stops the timer)
@@ -2287,6 +2430,8 @@ export function useWorkoutMutations({
   };
 
   return {
+    weighRoutineSlot,
+    routineSlotsForStorage,
     isRoutineEditorView,
     currentEditorWorkout,
     updateCurrentWorkoutState,

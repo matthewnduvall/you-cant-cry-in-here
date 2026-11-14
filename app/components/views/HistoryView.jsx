@@ -1,8 +1,7 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { SHARED_CELL_BORDER, SHARED_GROUP_OUTER, SHARED_PICKER_GROUP, UI } from '../../styles/kineticTokens';
-import { RoutineEditorView } from './RoutineEditorView';
 import {
   EXERCISE_LIBRARY,
   EXERCISE_MAP,
@@ -132,8 +131,8 @@ export function HistoryView({
   history,
   setHistory,
   currentIncrementLbs = 0,
-  expandedHistoryWorkoutId,
-  setExpandedHistoryWorkoutId,
+  // Opens a workout as a full editor page (onOpenWorkout(id), page.js openHistoryWorkout)
+  onOpenWorkout,
   oneRepMaxes,
   selectedGymId = '',
   gyms = [],
@@ -143,8 +142,8 @@ export function HistoryView({
   openPlateCalculatorForSet,
   setSetValueTarget,
   setDeleteConfirmTarget,
-  buildHistoryWorkoutEditorProps,
-  // A friend's profile: LOAD on each row starts a session from that workout (onLoadWorkout(workout))
+  // A friend's profile: tapping a row opens that workout as a locked preview page (onLoadWorkout(workout)), whose
+  // START loads it as your session at your weights
   onLoadWorkout = null,
   // Date range filter ({ from, to, preset } with YYYY/MM/DD, or null). Your own History passes it from page.js (so
   // Home's THIS WEEK can open it filtered); a friend's keeps its own
@@ -571,16 +570,6 @@ export function HistoryView({
   const totalSessions = filteredHistory.length;
   const totalPages = Math.max(1, Math.ceil(totalSessions / PAGE_SIZE));
 
-  // If a linked workout is beyond the initial 10, automatically switch to See All and its 100-item page
-  useEffect(() => {
-    if (!expandedHistoryWorkoutId) return;
-    const idx = filteredHistory.findIndex(w => w?.id === expandedHistoryWorkoutId);
-    if (idx >= INITIAL_LIMIT) {
-      setShowAllHistory(true);
-      setHistoryPage(Math.floor(idx / PAGE_SIZE));
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [expandedHistoryWorkoutId, history]);
 
   const visibleHistory = showAllHistory
     ? filteredHistory.slice(historyPage * PAGE_SIZE, (historyPage + 1) * PAGE_SIZE)
@@ -802,11 +791,9 @@ export function HistoryView({
           ) : (
             <>
               {visibleHistory.map(w => {
-                const isExp = expandedHistoryWorkoutId === w.id;
-                const editorProps =
-                  isExp && buildHistoryWorkoutEditorProps
-                    ? buildHistoryWorkoutEditorProps(w)
-                    : null;
+                // Tapping a row opens the workout as a full page: yours to edit, a friend's as a locked preview
+                const open = () => (readOnly ? onLoadWorkout?.(w) : onOpenWorkout?.(w.id));
+                const tappable = !readOnly || Boolean(onLoadWorkout);
 
                 return (
                   <div id={`history-entry-${w.id}`} key={w.id}>
@@ -815,22 +802,23 @@ export function HistoryView({
                         display: 'grid',
                         gridTemplateColumns: readOnly
                           ? onLoadWorkout
-                            ? 'minmax(0, 1fr) 72px'
+                            ? 'minmax(0, 1fr) 48px'
                             : 'minmax(0, 1fr)'
                           : 'minmax(0, 1fr) 48px 48px',
                         gap: 0,
                         alignItems: 'stretch',
-                        backgroundColor: isExp ? '#1C1C1C' : '#1C1C1C'
+                        backgroundColor: '#1C1C1C'
                       }}
                     >
                       <div
-                        role={readOnly ? undefined : 'button'}
-                        tabIndex={readOnly ? undefined : 0}
-                        onClick={readOnly ? undefined : () => setExpandedHistoryWorkoutId(isExp ? null : w.id)}
-                        onKeyDown={readOnly ? undefined : e => {
+                        role={tappable ? 'button' : undefined}
+                        tabIndex={tappable ? 0 : undefined}
+                        aria-label={tappable ? `Open ${stripDateFromTitle(w.title) || getDefaultSessionName()}, ${formatDateYMD(w.startedAt)}` : undefined}
+                        onClick={tappable ? open : undefined}
+                        onKeyDown={!tappable ? undefined : e => {
                           if (e.key === 'Enter' || e.key === ' ') {
                             e.preventDefault();
-                            setExpandedHistoryWorkoutId(isExp ? null : w.id);
+                            open();
                           }
                         }}
                         style={{
@@ -841,7 +829,7 @@ export function HistoryView({
                           display: 'flex',
                           flexDirection: 'column',
                           justifyContent: 'center',
-                          cursor: readOnly ? 'default' : 'pointer',
+                          cursor: tappable ? 'pointer' : 'default',
                           ...SHARED_CELL_BORDER
                         }}
                       >
@@ -924,28 +912,27 @@ export function HistoryView({
                         )}
                       </div>
 
-                      {/* A friend's workout: LOAD it as your session (their exercises, your weights) */}
+                      {/* A friend's workout: › opens it as a locked preview (START there loads it at your weights) */}
                       {readOnly && onLoadWorkout && (
                         <button
                           type="button"
                           className="kinetic-btn"
-                          aria-label={`Load ${stripDateFromTitle(w.title) || getDefaultSessionName()} (${formatDateYMD(w.startedAt)}) as a session`}
-                          onClick={() => onLoadWorkout(w)}
+                          aria-label={`Preview ${stripDateFromTitle(w.title) || getDefaultSessionName()}, ${formatDateYMD(w.startedAt)}`}
+                          onClick={open}
                           style={{
+                            width: '48px',
                             minHeight: '48px',
                             boxSizing: 'border-box',
-                            backgroundColor: '#2A2A2A',
-                            color: '#FFFFFF',
+                            backgroundColor: '#1C1C1C',
+                            color: '#9A9A9A',
                             border: 'none',
                             ...SHARED_CELL_BORDER,
-                            fontFamily: 'inherit',
-                            fontSize: '12px',
-                            fontWeight: 500,
-                            letterSpacing: '0.08em',
+                            fontSize: '20px',
+                            fontWeight: 300,
                             cursor: 'pointer'
                           }}
                         >
-                          LOAD
+                          ›
                         </button>
                       )}
 
@@ -953,24 +940,24 @@ export function HistoryView({
                       <>
                       <button
                         type="button"
-                        aria-label={`${isExp ? 'Collapse' : 'Expand'} ${stripDateFromTitle(w.title) || getDefaultSessionName()}, ${formatDateYMD(w.startedAt)}`}
-                        onClick={() => setExpandedHistoryWorkoutId(isExp ? null : w.id)}
+                        aria-label={`Edit ${stripDateFromTitle(w.title) || getDefaultSessionName()}, ${formatDateYMD(w.startedAt)}`}
+                        onClick={open}
                         style={{
                           width: '48px',
                           minHeight: '48px',
                           boxSizing: 'border-box',
                           backgroundColor: '#1C1C1C',
-                          color: isExp ? 'var(--dp-color-accent)' : '#FFFFFF',
+                          color: '#9A9A9A',
                           ...SHARED_CELL_BORDER,
-                          fontSize: '16px',
-                          fontWeight: 500,
+                          fontSize: '20px',
+                          fontWeight: 300,
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
                           cursor: 'pointer'
                         }}
                       >
-                        {isExp ? '−' : '+'}
+                        ›
                       </button>
 
                       <DeleteButton
@@ -991,17 +978,6 @@ export function HistoryView({
                       )}
                     </div>
 
-                    {!readOnly && isExp && editorProps && (
-                      <div
-                        style={{
-                          paddingBottom: '12px',
-                          backgroundColor: '#000000',
-                          ...SHARED_CELL_BORDER
-                        }}
-                      >
-                        <RoutineEditorView {...editorProps} />
-                      </div>
-                    )}
                   </div>
                 );
               })}

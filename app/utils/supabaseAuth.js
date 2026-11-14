@@ -1817,10 +1817,16 @@ const routinePayloadForShare = routine => ({
   // One send to several friends shares a batch id (the sender's SHARED tab shows it as one row)
   ...(routine?.batchId ? { batchId: String(routine.batchId) } : {}),
   slots: (Array.isArray(routine?.slots) ? routine.slots : []).map(slot => {
-    const clean = sets => (Array.isArray(sets) ? sets.map(st => ({ ...st, completed: false })) : sets);
+    // Routines carry no weights (the recipient's app works them out from reps and effort); older saved routines may
+    // still have them, so they are dropped here too
+    const clean = sets =>
+      Array.isArray(sets)
+        ? sets.map(st => (st ? { ...st, completed: false, weight: 0, lockWeight: false, lastWeight: undefined } : st))
+        : sets;
     return {
       ...slot,
       sets: clean(slot.sets),
+      ...(Array.isArray(slot.secondarySets) ? { secondarySets: clean(slot.secondarySets) } : {}),
       ...(Array.isArray(slot.supersetSetsByExercise) ? { supersetSetsByExercise: slot.supersetSetsByExercise.map(clean) } : {})
     };
   })

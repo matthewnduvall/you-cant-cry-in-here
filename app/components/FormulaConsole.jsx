@@ -1,6 +1,8 @@
 'use client';
 
-// FORMULAS: a collapsible debugging console at the bottom of the workout editor. Collapsed it is a small tab; open it
+// CONSOLE: a collapsible console at the bottom of the workout editors (and the Routines page). It spells out what the
+// app just did — loading a routine or a friend's workout (and how their weights were converted to yours), saving a
+// routine (weights removed, effort kept), finishing a session, saving History edits — and the formulas behind it. Collapsed it is a small tab; open it
 // is a terminal (5 lines; drag the bar on top to make it taller, double-tap it to toggle between 5 lines and the most) showing the formulas behind the last calculations (RECALCULATE, an added exercise, AUTO
 // SESSION, a program / week / day change, an exercise swap): the 1RM everything is based on, then each value worked
 // out from it, with the numbers used, so a result can be checked by hand. Lines come from utils/calcTrace.js.
@@ -149,12 +151,12 @@ export function FormulaConsole() {
                   cursor: 'pointer'
                 }}
               >
-                ƒx FORMULAS ▴
+                CONSOLE ▴
               </button>
             </div>
           ) : (
             <section
-              aria-label="Formulas"
+              aria-label="Console"
               style={{
                 backgroundColor: '#0A0A0A',
                 borderTop: '1px solid #2E2E2E',
@@ -185,7 +187,7 @@ export function FormulaConsole() {
                 <span aria-hidden="true" style={{ width: '40px', height: '4px', borderRadius: '2px', backgroundColor: '#3A3A3A' }} />
               </div>
               <div style={{ height: `${HEADER_PX}px`, display: 'flex', alignItems: 'center', gap: '6px', padding: '0 8px 0 12px' }}>
-                <span style={{ fontFamily: mono, fontSize: '11px', color: '#FFFFFF', flexShrink: 0 }}>ƒx</span>
+                <span style={{ fontFamily: mono, fontSize: '11px', color: '#FFFFFF', flexShrink: 0 }}>&gt;_</span>
                 <span
                   style={{
                     flex: 1,
@@ -198,7 +200,7 @@ export function FormulaConsole() {
                     textOverflow: 'ellipsis'
                   }}
                 >
-                  {latest ? latest.title : 'No calculations yet'}
+                  {latest ? latest.title : 'Nothing yet'}
                 </span>
                 <button type="button" className="kinetic-btn" onClick={copy} disabled={!log.length} style={headerBtn}>
                   {copied ? 'COPIED' : 'COPY'}

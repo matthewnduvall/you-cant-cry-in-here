@@ -24,6 +24,10 @@ export const PAGE_TITLES = {
   gym_editor: 'EQUIPMENT SETUP',
   // The live session has no page title: its locked header already names it, and the space goes to the sets
   routine_editor: 'ROUTINE',
+  // A logged workout opened from History (full editor page, like a routine)
+  history_editor: 'HISTORY',
+  // A friend's logged workout, locked (START loads it as your session)
+  routine_preview: 'PREVIEW',
   historical_entry: 'PAST WORKOUT'
 };
 
@@ -100,6 +104,8 @@ export function AppHeaderAndDrawer({
   onFinishSession,
   // RESET in the locked session header
   onResetSession,
+  // The header's second action label (RESET, or DISCARD / CLOSE on a logged workout)
+  resetLabel = 'RESET',
   // SYNC in the locked session header (live session sync): { status, onClick } or null to hide it
   sessionSync = null,
   // true while the save confirmation opened by the ✓ is showing (the ✓ turns green)
@@ -264,14 +270,25 @@ export function AppHeaderAndDrawer({
             onReset={onResetSession}
             showActions={(currentEditorWorkout.slots || []).length > 0 && Boolean(onFinishSession)}
             sync={currentView === 'session' ? sessionSync : null}
-            saveLabel={currentView === 'session' ? 'FINISH' : 'SAVE'}
+            saveLabel={currentView === 'session' ? 'FINISH' : currentView === 'routine_preview' ? 'START' : 'SAVE'}
+            resetLabel={resetLabel}
             dateValue={
               currentView === 'session' && currentEditorWorkout.startedAt
                 ? formatDateYMD(currentEditorWorkout.startedAt)
-                : null
+                : currentView === 'history_editor'
+                  ? formatDateYMD(currentEditorWorkout.workoutDate || currentEditorWorkout.startedAt) || null
+                  : null
             }
-            onChangeDate={ymd => updateCurrentWorkoutState(prev => ({ ...prev, startedAt: parseYMDToISO(ymd) }))}
+            onChangeDate={ymd =>
+              updateCurrentWorkoutState(prev =>
+                currentView === 'history_editor'
+                  ? { ...prev, workoutDate: ymd, startedAt: parseYMDToISO(ymd) }
+                  : { ...prev, startedAt: parseYMDToISO(ymd) }
+              )
+            }
             programRow={(() => {
+              // A logged workout keeps the program it was done under (no re-planning); so does a friend's preview
+              if (currentView === 'history_editor' || currentView === 'routine_preview') return null;
               // SIMPLE mode (live session): no PROGRAM / WEEK / DAY row
               if (currentView === 'session' && sessionMode === 'easy') return null;
               // Shown while a program other than Crying is chosen, or this session has one
