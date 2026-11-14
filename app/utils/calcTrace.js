@@ -1,6 +1,7 @@
-// Formula trace for the FORMULAS console (app/components/FormulaConsole.jsx): while an action runs (RECALCULATE, an
-// added exercise, a program / week / day change) the calculations write human-readable lines with the values that
-// were used, so each result can be checked by hand. Lines are only kept while a trace is open (withTrace), so the
+// Trace for the CONSOLE (app/components/FormulaConsole.jsx): while an action runs (loading / saving / editing a
+// routine, a friend's workout, RECALCULATE, an added exercise, a program / week / day change, finishing a session,
+// saving a History edit) it writes plain lines saying what was done and the formulas and values used, so each result
+// can be checked by hand. Lines are only kept while a trace is open (withTrace), so the
 // same functions cost nothing the rest of the time. State updaters can run twice in development (StrictMode): each
 // run opens the trace again, so the last run's lines are the ones kept.
 
@@ -48,6 +49,10 @@ export const withTrace = (title, fn, id = title) => {
     notify();
   }
 };
+
+/** Records an operation with no calculation behind it (e.g. FINISH): a title and its lines. */
+export const logOperation = (title, lines = [], id = title) =>
+  withTrace(title, () => (lines || []).filter(Boolean).forEach(traceLine), id);
 
 export const clearTrace = () => {
   log = [];

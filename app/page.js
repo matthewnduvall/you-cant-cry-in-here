@@ -42,6 +42,7 @@ import {
 import { useSyncedHistoryUpdates } from './hooks/useSyncedHistoryUpdates';
 import { useRoutineShares } from './hooks/useRoutineShares';
 import { CORE_LIFT_IDS, getLiftGoalStats } from './components/LiftGoals';
+import { withTrace, traceLine, logOperation } from './utils/calcTrace';
 import { historyDateRangeFor } from './components/views/HistoryView';
 import { LeaderboardView } from './components/views/LeaderboardView';
 import { SendRoutineModal } from './components/RoutineShareModals';
@@ -208,8 +209,8 @@ export default function App() {
   const [expandedHistoryWorkoutId, setExpandedHistoryWorkoutId] = useState(null);
   // Unsaved edits to the open History workout (saved with SAVE, dropped with DISCARD)
   const [historyEditDraft, setHistoryEditDraft] = useState(null);
-  // An open History workout (PR link, History edits) always shows the HISTORY tab
-  const progressTab = expandedHistoryWorkoutId ? 'history' : progressTabChoice === 'history' ? 'history' : 'progress';
+  // The PROGRESS page's tab (a logged workout opens on its own page, 'history_editor')
+  const progressTab = progressTabChoice === 'history' ? 'history' : 'progress';
   const [customPrExerciseIds, setCustomPrExerciseIds] = useState([]);
 
   // --- Social & Friends State ---
@@ -534,6 +535,8 @@ export default function App() {
     onEditPartnerSession: handleEditPartnerSession
   });
   const {
+    weighRoutineSlot,
+    routineSlotsForStorage,
     isRoutineEditorView,
     currentEditorWorkout,
     updateCurrentWorkoutState,
@@ -601,6 +604,22 @@ export default function App() {
   };
   // RESET asks first: it clears every exercise in one tap (and, while synced, ends the sync)
   const requestResetSession = () => {
+    // A logged workout's editor: DISCARD drops the unsaved edits (CLOSE with none) and goes back
+    // A friend's workout preview: CLOSE goes back
+    if (currentView === 'routine_preview') {
+      goBackRef.current?.();
+      return;
+    }
+    if (currentView === 'history_editor') {
+      if (historyEditorDirty) {
+        logOperation(`DISCARD HISTORY EDITS: ${stripDateFromTitle(currentEditorWorkout?.title) || 'Workout'}`, [
+          'Your unsaved changes were dropped; the logged workout is unchanged.'
+        ]);
+      }
+      setHistoryEditDraft(null);
+      goBackRef.current?.();
+      return;
+    }
     const count = (currentEditorWorkout?.slots || []).length;
     const what = currentView === 'routine_editor' ? 'this routine' : currentView === 'session' ? 'this session' : 'this workout';
     setDeleteConfirmTarget({
@@ -612,7 +631,16 @@ export default function App() {
       onConfirm: handleResetSession
     });
   };
+  // The open logged workout has unsaved edits
+  const historyEditorDirty =
+    currentView === 'history_editor' && Boolean(expandedHistoryWorkoutId) && historyEditDraft?.id === expandedHistoryWorkoutId;
   const handleFinishSession = () => {
+    // A friend's workout preview: START loads it as your session (at your weights)
+    if (currentView === 'routine_preview' && currentEditorWorkout?.previewOf) {
+      const { workout, friendName } = currentEditorWorkout.previewOf;
+      handleLoadFriendWorkout(workout, friendName);
+      return;
+    }
     setPartnerSlotTabs({});
     handleSaveCurrentEditor();
   };
@@ -642,7 +670,7 @@ export default function App() {
 
   useEffect(() => {
     appendSessionLog('VIEW_CHANGE', `Navigated to view: ${currentView}`);
-    if (currentView !== 'history') {
+    if (currentView !== 'history_editor') {
       setConfirmedHistoryEditWorkoutId(null);
     }
   }, [currentView]);
@@ -654,7 +682,7 @@ export default function App() {
   const placeOf = () => ({
     view: currentView,
     progressTab: progressTabChoice,
-    workoutId: currentView === 'history' ? expandedHistoryWorkoutId : null
+    workoutId: currentView === 'history_editor' ? expandedHistoryWorkoutId : null
   });
   const backStackRef = useRef([]);
   const placeRef = useRef({ view: currentView, progressTab: progressTabChoice, workoutId: null });
@@ -713,6 +741,7 @@ export default function App() {
       !(place.view === 'gym_editor' && !gymDraft) &&
       !(place.view === 'historical_entry' && !historicalDraft) &&
       !(place.view === 'routine_editor' && !routineDraft) &&
+      !(place.view === 'routine_preview' && !previewRoutineDraft) &&
       !(place.view === 'friend_profile' && !viewingFriendProfile) &&
       !(place.view === 'auth' && user) &&
       !(place.workoutId && !history.some(w => w?.id === place.workoutId));
@@ -786,6 +815,24 @@ export default function App() {
   // An open History workout (e.g. from the 1RM box's PR link) always shows your HISTORY tab.
   // A friend's logged workout → your session: their exercises and sets (none done), your weights (handleDirectLoadRoutine
   // re-works a friend's routine to your History). A session with exercises asks before it is replaced.
+  // A friend's logged workout opens as a locked preview page ('routine_preview'): their exercises and numbers, every
+  // set done and locked, as they logged it. START (the header's red action) loads it as your session at your weights.
+  const openFriendWorkoutPreview = (workout, friendName) => {
+    if (!workout) return;
+    setRoutineSelectReturnView(null);
+    setPreviewRoutineDraft({
+      ...asHistoricalWorkout(workout),
+      id: `preview_${workout.id}`,
+      title: stripDateFromTitle(workout.title) || 'Session',
+      previewOf: { kind: 'friend_workout', friendName: friendName || 'friend', workout }
+    });
+    setCurrentView('routine_preview');
+    window.scrollTo(0, 0);
+    logOperation(`PREVIEW @${friendName || 'friend'}'S WORKOUT: ${stripDateFromTitle(workout.title) || 'Session'}`, [
+      `Shown as @${friendName || 'friend'} logged it: their exercises, sets and weights, every set done and locked. Nothing here changes their History.`,
+      'START loads it as your session: their weights are dropped and each set is worked out from YOUR 1RM at its reps and effort.'
+    ], `preview_${workout.id}`);
+  };
   const handleLoadFriendWorkout = (workout, friendName) => {
     const load = () =>
       handleDirectLoadRoutine(
@@ -793,7 +840,8 @@ export default function App() {
           key: `friend_workout_${workout.id}`,
           label: stripDateFromTitle(workout.title) || 'Session',
           slots: workout.slots || [],
-          friendName: friendName || 'friend'
+          friendName: friendName || 'friend',
+          isWorkout: true
         },
         'session'
       );
@@ -896,7 +944,11 @@ export default function App() {
       isEditingExisting: true,
       author: routine.author,
       defaultRestSeconds: routine.defaultRestSeconds || 90,
-      slots: Array.isArray(routine.slots) ? routine.slots : []
+      // Routines store reps and effort, not weights: the editor shows them at your weights today (traced)
+      slots: withTrace(`EDIT ROUTINE: ${stripDateFromTitle(routine.label) || 'Routine'}`, () => {
+        traceLine('Routines keep reps and effort, not weights: each set is shown at your calculated 1RM for its reps and effort. Weights are removed again when it is saved.');
+        return (Array.isArray(routine.slots) ? routine.slots : []).map(weighRoutineSlot);
+      }, `edit_${routine.key}`)
     });
     setCurrentView('routine_editor');
   };
@@ -969,11 +1021,7 @@ export default function App() {
           currentIncrementLbs={currentIncrementLbs}
           historySessionsExpanded={historySessionsExpanded}
           setHistorySessionsExpanded={setHistorySessionsExpanded}
-          expandedHistoryWorkoutId={expandedHistoryWorkoutId}
-          setExpandedHistoryWorkoutId={id => {
-            setConfirmedHistoryEditWorkoutId(null);
-            setExpandedHistoryWorkoutId(id);
-          }}
+          onOpenWorkout={readOnly ? undefined : openHistoryWorkout}
           oneRepMaxes={prs}
           selectedGymId={selectedGymId}
           gyms={gyms}
@@ -986,83 +1034,25 @@ export default function App() {
           openPlateCalculatorForSet={openPlateCalculatorForSet}
           setSetValueTarget={setSetValueTarget}
           setDeleteConfirmTarget={setDeleteConfirmTarget}
-          buildHistoryWorkoutEditorProps={buildHistoryWorkoutEditorProps}
         />
       )}
     </>
   );
 
-  // Opens a logged workout on the PROGRESS page (expanded) and scrolls it into view below the sticky header
+  // Opens a logged workout as a full editor page ('history_editor'), the way a routine opens in the routine editor:
+  // the locked header has its name and date, SAVE (writes the edits to History) and DISCARD / CLOSE. Edits stay a
+  // draft (historyEditDraft) until SAVE. BACK returns to where it was opened from (History list, chart point, Home).
   const openHistoryWorkout = workoutId => {
     if (!workoutId) return;
-    // Already on the PROGRESS page (e.g. a chart point): opening the workout is still a back step
-    if (currentView === 'history' && expandedHistoryWorkoutId !== workoutId) pushPlace(placeRef.current);
     setRoutineSelectReturnView(null);
     setConfirmedHistoryEditWorkoutId(null);
-    // A date filter could hide the workout being opened
-    setHistoryDateRange(null);
+    // From one logged workout to another (the 1RM box's PR link): still a back step, though the view stays the same.
+    // The draft is kept (it is keyed by workout), so BACK returns to that workout's unsaved edits.
+    if (currentView === 'history_editor' && expandedHistoryWorkoutId !== workoutId) pushPlace(placeRef.current);
     setExpandedHistoryWorkoutId(workoutId);
-    setProgressTabChoice('history');
-    setCurrentView('history');
-    let tries = 0;
-    const scrollToEntry = () => {
-      const el = document.getElementById(`history-entry-${workoutId}`);
-      if (!el) {
-        if (tries++ < 20) setTimeout(scrollToEntry, 100);
-        return;
-      }
-      const headerHeight = document.querySelector('header')?.offsetHeight || 0;
-      const top = el.getBoundingClientRect().top + window.scrollY - headerHeight - 8;
-      window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
-    };
-    setTimeout(scrollToEntry, 50);
+    setCurrentView('history_editor');
+    window.scrollTo(0, 0);
   };
-
-  const buildHistoryWorkoutEditorProps = historyWorkout => ({
-    // Logged under a program other than Crying: its sets keep their INTENSITY strip
-    showIntensity: Boolean(getWorkoutProgramInfo(historyWorkout)),
-    colors,
-    currentView: 'history',
-    // The open workout's unsaved edits, if any
-    // History workouts show their sets done and locked (asHistoricalWorkout)
-    currentEditorWorkout: historyEditDraft?.id === historyWorkout?.id ? historyEditDraft : asHistoricalWorkout(historyWorkout),
-    historyEdit: {
-      dirty: Boolean(historyWorkout && historyEditDraft?.id === historyWorkout.id),
-      onSave: handleSaveCurrentEditor,
-      onDiscard: () => setHistoryEditDraft(null)
-    },
-    routineSelectReturnView,
-    setRoutineSelectReturnView,
-    setCurrentView,
-    selectedGymId,
-    setSelectedGymId,
-    gyms,
-    history,
-    oneRepMaxes: effectiveOneRepMaxes,
-    currentIncrementLbs,
-    setHistoricalDraft,
-    setDeleteConfirmTarget,
-    isCurrentEditorShared,
-    updateCurrentWorkoutState,
-    handleApplyPreviewRoutine,
-    handleAutoBuildWorkout,
-    handleAddAutoSlot,
-    handleSaveCurrentEditor,
-    handleShareCurrentEditor,
-    handleResetCurrentEditor,
-    handleUpdateSlotCategoryOrExercise,
-    handleUpdateSetField,
-    handleUpdateSetType,
-    handleInsertSetAtPosition,
-    handleRecalculateSlotWeights,
-    handleToggleSetLock,
-    handleToggleSetDone,
-    handleReorderExercises,
-    handleReorderSets,
-    openPlateCalculatorForSet,
-    setSetValueTarget,
-    isEmbeddedHistorySession: true
-  });
 
   // Newer deployment live: reload on returning to the app, or offer RELOAD (both synced phones run the same version)
   const appUpdate = useAppUpdateCheck();
@@ -1122,6 +1112,9 @@ export default function App() {
           currentEditorWorkout={currentEditorWorkout}
           onFinishSession={handleFinishSession}
           onResetSession={requestResetSession}
+          resetLabel={
+            currentView === 'history_editor' ? (historyEditorDirty ? 'DISCARD' : 'CLOSE') : currentView === 'routine_preview' ? 'CLOSE' : 'RESET'
+          }
           receivedRoutineCount={routineShares.incoming.length}
           sessionMode={sessionMode}
           onOpenSession={handleOpenNewSession}
@@ -1206,7 +1199,13 @@ export default function App() {
               colors={colors}
               sessionMode={sessionMode}
               onChangeSessionMode={setSessionMode}
-              showIntensity={getProgram(currentEditorWorkout?.program || trainingProgram).usesIntensity}
+              showIntensity={
+                currentView === 'history_editor'
+                  ? // Logged under a program other than Crying: its sets keep their INTENSITY cell
+                    Boolean(getWorkoutProgramInfo(currentEditorWorkout))
+                  : getProgram(currentEditorWorkout?.program || trainingProgram).usesIntensity
+              }
+              historyEdit={currentView === 'history_editor' ? { dirty: historyEditorDirty } : null}
               currentView={currentView}
               currentEditorWorkout={currentEditorWorkout}
               routineSelectReturnView={routineSelectReturnView}
@@ -1477,7 +1476,7 @@ export default function App() {
               shareStatsWithFriends={shareStatsWithFriends}
               shareBodyweightWithFriends={shareBodyweightWithFriends}
               profileIsPublic={profileIsPublic}
-              onLoadFriendWorkout={handleLoadFriendWorkout}
+              onLoadFriendWorkout={openFriendWorkoutPreview}
               onOpenPrivacy={() => {
                 setSocialInitialTab('privacy');
                 setCurrentView('social');
@@ -1566,10 +1565,9 @@ export default function App() {
           Copyright © 2026 MaNoDuV LLC
         </footer>
 
-        {/* FORMULAS console (workout editors): the formulas behind RECALCULATE and new exercises, for checking */}
-        {(['session', 'routine_editor', 'historical_entry', 'routine_preview'].includes(currentView) ||
-          (currentView === 'history' && expandedHistoryWorkoutId)) &&
-          // SIMPLE mode (live session) hides the FORMULAS drawer
+        {/* CONSOLE (workout editors, Routines): what the app just did and the formulas behind it */}
+        {['session', 'routine_editor', 'historical_entry', 'routine_preview', 'history_editor', 'routines'].includes(currentView) &&
+          // SIMPLE mode (live session) hides the CONSOLE
           !(currentView === 'session' && sessionMode === 'easy') && <FormulaConsole />}
 
         {/* MODALS */}
@@ -1663,11 +1661,14 @@ export default function App() {
             const workout = currentEditorWorkout;
             if (user && chosen.length > 0 && workout?.slots?.length) {
               routineShares.sendRoutine(
-                { key: `share_${Date.now()}`, label: stripDateFromTitle(confirmed?.name) || stripDateFromTitle(workout.title) || 'Routine', slots: workout.slots },
+                { key: `share_${Date.now()}`, label: stripDateFromTitle(confirmed?.name) || stripDateFromTitle(workout.title) || 'Routine', slots: routineSlotsForStorage(workout.slots) },
                 chosen
               );
             }
+            const fromHistoryEditor = saveConfirmTarget?.sourceView === 'history_editor';
             handleConfirmSaveWorkout(confirmed);
+            // A logged workout saved: back to where it was opened from (as a routine returns to Routines)
+            if (fromHistoryEditor) goBackRef.current?.();
           }}
         />
 

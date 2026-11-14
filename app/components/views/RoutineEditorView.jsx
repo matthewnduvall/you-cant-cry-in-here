@@ -187,6 +187,20 @@ export function RoutineEditorView({
           Ask them to close the app and open it again.
         </div>
       )}
+      {/* A friend's workout, as they logged it: START (header) loads it as your session at your weights */}
+      {currentView === 'routine_preview' && currentEditorWorkout.previewOf && (
+        <div style={{ ...UI.sentence, padding: '0 var(--dp-spacing-gutter)', marginBottom: '12px' }}>
+          @{currentEditorWorkout.previewOf.friendName}&apos;s workout from {formatDateYMD(currentEditorWorkout.previewOf.workout?.startedAt) || 'their History'}, as they logged it. START loads it as your session, with every weight worked out from your own 1RMs.
+        </div>
+      )}
+      {/* A logged workout (History): edits stay a draft until SAVE in the header */}
+      {currentView === 'history_editor' && (
+        <div style={{ ...UI.sentence, padding: '0 var(--dp-spacing-gutter)', marginBottom: '12px', color: historyEdit?.dirty ? '#FFFFFF' : '#9A9A9A' }}>
+          {historyEdit?.dirty
+            ? 'Unsaved changes. SAVE writes them to History; DISCARD drops them.'
+            : 'A logged workout. Changes are kept only when you tap SAVE.'}
+        </div>
+      )}
       {/* Session name, SAVE and RESET sit in the locked header (SessionTitleBar). This block only holds the
           past-workout title / date, and the name for the History inline editor (which has no locked header). */}
       {(currentView === 'historical_entry' || isEmbeddedHistorySession) && (
@@ -416,7 +430,7 @@ export function RoutineEditorView({
 
               // PR badges: in an embedded History session, flag exercises whose all-time best came from this slot
               const isPrFor = exId => {
-                if (!isEmbeddedHistorySession) return false;
+                if (!isEmbeddedHistorySession && currentView !== 'history_editor') return false;
                 const info = getBestHistory1RMInfo(exId, shownHistory);
                 return Boolean(
                   info?.best > 0 &&
@@ -487,6 +501,7 @@ export function RoutineEditorView({
                     </div>
                   )}
                   <SlotEditor
+                    muteWhenDone={currentView === 'session'}
                     slot={slot}
                     number={sIdx + 1}
                     dragHandleProps={slotHandleProps(sIdx)}

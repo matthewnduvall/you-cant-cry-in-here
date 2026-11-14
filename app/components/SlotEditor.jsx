@@ -290,7 +290,10 @@ export function SlotEditor({
   onChangeSetIntensity,
   // SIMPLE mode (the session page's tabs): no 1RM box, no filter row (type / muscle / equipment / rest), no set type
   // cell and no RECALCULATE; the host also leaves out locks and intensity
-  simple = false
+  simple = false,
+  // Live session: a card whose sets are all done mutes, so the remaining work stands out (not in a logged
+  // workout, where every set is done)
+  muteWhenDone = true
 }) {
   // The INTENSITY pop-up: { exIdx, set, label } while open
   const [intensityTarget, setIntensityTarget] = useState(null);
@@ -1265,7 +1268,7 @@ export function SlotEditor({
     const sets = lists.flat().filter(Boolean);
     return sets.length > 0 && sets.every(st => st.completed);
   })();
-  const muted = allSetsDone && !search && !schemeOpen;
+  const muted = muteWhenDone && allSetsDone && !search && !schemeOpen;
 
   return (
     // The exercise card: one graphite tile (14 px corners, no outer border); its cells are divided by hairlines

@@ -206,12 +206,9 @@ export function RoutinesView({
     if (!exerciseFilter.exerciseId) return '';
     const sets = getWorkoutSetsForExercise(r, exerciseFilter.exerciseId);
     if (sets.length === 0) return '';
-    const top = sets.reduce((best, st) => {
-      const w = Number(st?.weight) || 0;
-      const reps = Number(st?.reps) || 0;
-      return !best || w > best.w || (w === best.w && reps > best.r) ? { w, r: reps } : best;
-    }, null);
-    const topText = top && top.w > 0 ? ` • TOP ${top.w} LB × ${top.r}` : top && top.r > 0 ? ` • TOP ${top.r} REPS` : '';
+    // Routines carry no weights (they're worked out for you on load): the most reps a set asks for
+    const topReps = sets.reduce((best, st) => Math.max(best, Number(st?.reps) || 0), 0);
+    const topText = topReps > 0 ? ` • UP TO ${topReps} REPS` : '';
     return `${sets.length} SET${sets.length === 1 ? '' : 'S'}${topText}`;
   };
   const subLine = { fontSize: '11px', fontWeight: 500, color: '#9A9A9A', marginTop: '1px', textTransform: 'uppercase' };
