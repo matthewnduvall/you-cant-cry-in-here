@@ -469,7 +469,7 @@ export function AppHeaderAndDrawer({
                     rows: [
                       {
                         id: 'session',
-                        label: hasActiveSession ? 'Current session' : 'New session',
+                        label: 'Session',
                         active: currentView === 'session',
                         onClick: () => {
                           setShowHamburgerDrawer(false);
@@ -481,7 +481,7 @@ export function AppHeaderAndDrawer({
                   },
                   { title: 'TRACK', rows: [{ id: 'history', label: 'Performance' }, { id: 'stimulus_map', label: 'Stimulus' }] },
                   {
-                    title: 'PEOPLE',
+                    title: 'SOCIAL',
                     rows: [
                       // Friends (view id 'social'): find athletes, requests, your friends, privacy
                       // The Social page; its INBOX holds friend requests and routines friends sent (the count) and
