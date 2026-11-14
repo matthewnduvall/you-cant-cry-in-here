@@ -126,9 +126,9 @@ export function PlateCalculatorModal({
   calcBarLabel = 'Barbell',
   calcPlatesPerSide,
   setCalcPlatesPerSide,
-  calcExtraLbs = 0,
-  clearCalcExtra,
   setCalcTotalFromInput,
+  // [{ size, left }]: the plate buttons (left = pairs still free when plates are counted, else null)
+  calcPlateOptions = [45, 35, 25, 10, 5, 2.5, 1.25].map(size => ({ size, left: null })),
   handleApplyCalculatedWeight,
   // Opens a logged History workout (the PR's) on the PROGRESS page
   onOpenHistoryWorkout,
@@ -265,31 +265,44 @@ export function PlateCalculatorModal({
                   ? `Plates per side (added to both sides) · ${calcBarLabel} ${calcBarWeight} lb bar`
                   : `Plates per side (added to both sides) · ${calcBarLabel}, no bar`}
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '6px', marginBottom: '6px' }}>
-              {[45, 35, 25].map(p => (
-                <Button
-                  variant="toggle"
-                  key={p}
-                  onClick={() => setCalcPlatesPerSide(prev => [...prev, p].sort((a, b) => b - a))}
-                  style={{ padding: '10px 4px', fontSize: '12px' }}
+            {/* The plate buttons: big plates on the first row, small on the second. Counted plates (Configuration →
+                EQUIPMENT → PLATES) show only the sizes owned, each with the pairs still free; a size runs out at 0 */}
+            {[calcPlateOptions.filter(o => o.size >= 25), calcPlateOptions.filter(o => o.size < 25)]
+              .filter(row => row.length > 0)
+              .map((row, r, rows) => (
+                <div
+                  key={r}
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: `repeat(${Math.max(row.length, r === 0 ? 3 : 4)}, minmax(0, 1fr))`,
+                    gap: '6px',
+                    marginBottom: r === rows.length - 1 ? '10px' : '6px'
+                  }}
                 >
-                  +{p} LB
-                </Button>
+                  {row.map(o => (
+                    <Button
+                      variant="toggle"
+                      key={o.size}
+                      disabled={o.left !== null && o.left <= 0}
+                      aria-label={`Add ${o.size} lb${calcIsSingleLoad ? '' : ' per side'}${o.left !== null ? `, ${o.left} ${o.left === 1 ? 'pair' : 'pairs'} left` : ''}`}
+                      onClick={() => setCalcPlatesPerSide(prev => [...prev, o.size].sort((a, b) => b - a))}
+                      style={{
+                        padding: o.left !== null ? '6px 2px' : '10px 2px',
+                        fontSize: r === 0 ? '12px' : '11px',
+                        opacity: o.left !== null && o.left <= 0 ? 0.4 : 1,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '1px'
+                      }}
+                    >
+                      <span>+{o.size} LB</span>
+                      {o.left !== null && <span style={{ fontSize: '10px', color: '#9A9A9A' }}>{o.left} LEFT</span>}
+                    </Button>
+                  ))}
+                </div>
               ))}
-            </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '6px', marginBottom: '10px' }}>
-              {[10, 5, 2.5, 1.25].map(p => (
-                <Button
-                  variant="toggle"
-                  key={p}
-                  onClick={() => setCalcPlatesPerSide(prev => [...prev, p].sort((a, b) => b - a))}
-                  style={{ padding: '10px 2px', fontSize: '11px' }}
-                >
-                  +{p} LB
-                </Button>
-              ))}
-            </div>
 
             <div
               style={{
@@ -297,30 +310,16 @@ export function PlateCalculatorModal({
                 marginBottom: '12px', minHeight: '38px', display: 'flex', flexWrap: 'wrap', gap: '4px', alignItems: 'center'
               }}
             >
-              {/* Bar + these plates + the leftover chip always add up to TOTAL WEIGHT */}
-              {calcExtraLbs !== 0 && (
-                <button
-                  type="button"
-                  aria-label={`Remove the ${Math.abs(calcExtraLbs)} lb that plates can't make up`}
-                  onClick={() => clearCalcExtra?.()}
-                  style={{
-                    padding: '2px 6px', backgroundColor: '#3A3A3E',
-                    color: '#FFFFFF', border: 'none', fontSize: '11px', fontWeight: 500, cursor: 'pointer'
-                  }}
-                >
-                  {calcExtraLbs > 0 ? '+' : '−'}{Math.abs(calcExtraLbs)} LB OTHER ✕
-                </button>
-              )}
+              {/* Bar + these standard plates always add up to TOTAL WEIGHT (no leftover: weights plates can't make are
+                  snapped to the nearest they can) */}
               {calcPlatesPerSide.length === 0 ? (
-                calcExtraLbs === 0 && (
-                  <span style={{ fontSize: '11px', color: '#9A9A9A' }}>
-                    {calcIsSingleLoad
-                      ? `${calcBarLabel}: tap weights above (no bar, not doubled)`
-                      : calcBarWeight > 0
-                        ? `${calcBarLabel} (${calcBarWeight} lb): tap plates above (per side)`
-                        : `${calcBarLabel}: tap plates above (per side)`}
-                  </span>
-                )
+                <span style={{ fontSize: '11px', color: '#9A9A9A' }}>
+                  {calcIsSingleLoad
+                    ? `${calcBarLabel}: tap weights above (no bar, not doubled)`
+                    : calcBarWeight > 0
+                      ? `${calcBarLabel} (${calcBarWeight} lb): tap plates above (per side)`
+                      : `${calcBarLabel}: tap plates above (per side)`}
+                </span>
               ) : (
                 [...calcPlatesPerSide]
                   .sort((a, b) => b - a)
@@ -352,15 +351,12 @@ export function PlateCalculatorModal({
                 type="button"
                 className="kinetic-btn"
                 aria-label={calcBarWeight > 0 && !calcIsSingleLoad ? `Clear the weight back to the empty ${calcBarWeight} lb bar` : 'Clear the weight to 0'}
-                disabled={calcPlatesPerSide.length === 0 && calcExtraLbs === 0}
-                onClick={() => {
-                  setCalcPlatesPerSide([]);
-                  clearCalcExtra?.();
-                }}
+                disabled={calcPlatesPerSide.length === 0}
+                onClick={() => setCalcPlatesPerSide([])}
                 style={{
                   ...UI.secondaryBtnCenter,
                   minHeight: '44px',
-                  opacity: calcPlatesPerSide.length === 0 && calcExtraLbs === 0 ? 0.4 : 1
+                  opacity: calcPlatesPerSide.length === 0 ? 0.4 : 1
                 }}
               >
                 CLEAR

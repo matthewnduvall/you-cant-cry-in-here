@@ -1,39 +1,12 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import {
-  EXERCISE_MAP,
-  roundTo5,
-  getExerciseEquipmentOptions
-} from '../data/exerciseLibrary';
+import { roundTo5 } from '../data/exerciseLibrary';
+import { getLoadSetup, platesForLoad, plateLimitsFor } from '../utils/loading';
 
-const BARBELL_WEIGHT_LBS = 45;
-const EZ_BAR_WEIGHT_LBS = 17;
-const AVAILABLE_LB_PLATES = [45, 35, 25, 10, 5, 2.5, 1.25];
-
-/**
- * How a weight is loaded for the exercise's equipment:
- * - barbell / Smith / trap bar: 45 lb bar + plates on both sides; EZ bar: 17 lb bar + plates on both sides
- * - plate-loaded machines (Lever / Sled "plate loaded"): plates on both sides, no bar
- * - everything else (dumbbells, kettlebells, cable and selectorized stacks, machines, landmine, plates, weighted
- *   bodyweight): the picked weights ARE the total (no bar, not doubled)
- * `equipment` is the athlete's equipment choice for an exercise that allows several ("Barbell / EZ Bar");
- * without one, the exercise's first equipment option is used.
- */
-export const getLoadSetup = (exerciseId, equipment) => {
-  const eq = String(equipment || getExerciseEquipmentOptions(EXERCISE_MAP[exerciseId])[0] || '').toLowerCase();
-  if (eq.includes('dumbbell')) return { singleLoad: true, barWeight: 0, barLabel: 'Dumbbell' };
-  if (eq.includes('kettlebell')) return { singleLoad: true, barWeight: 0, barLabel: 'Kettlebell' };
-  if (/\bez\b|ez[- ]?bar/.test(eq)) return { singleLoad: false, barWeight: EZ_BAR_WEIGHT_LBS, barLabel: 'EZ bar' };
-  if (eq.includes('barbell') || eq.includes('trap bar')) {
-    return { singleLoad: false, barWeight: BARBELL_WEIGHT_LBS, barLabel: 'Barbell' };
-  }
-  if (eq.includes('smith')) return { singleLoad: false, barWeight: BARBELL_WEIGHT_LBS, barLabel: 'Smith bar' };
-  if (eq.includes('plate loaded')) return { singleLoad: false, barWeight: 0, barLabel: 'Plate-loaded machine' };
-  if (eq.includes('landmine')) return { singleLoad: true, barWeight: 0, barLabel: 'Landmine' };
-  if (/cable|lever|machine|selectorized|sled/.test(eq)) return { singleLoad: true, barWeight: 0, barLabel: 'Machine stack' };
-  return { singleLoad: true, barWeight: 0, barLabel: 'Weight' };
-};
+// Bars, plates and the weights they can make live in utils/loading.js (shared with the workout engine, which snaps
+// suggested weights to them)
+export { getLoadSetup };
 
 export function usePlateCalculator({
   handleUpdateSetField,
@@ -46,48 +19,24 @@ export function usePlateCalculator({
   const [calcLoad, setCalcLoad] = useState(() => getLoadSetup(null, 'Barbell'));
   const calcIsSingleLoad = calcLoad.singleLoad;
   const [calcPlatesPerSide, setCalcPlatesPerSideRaw] = useState([]);
-  // The part of the weight the plates can't make up exactly (e.g. 152 lb on a barbell = 45 + 2 × 52.5 + 2). It stays
-  // when plates are added or removed, so TOTAL WEIGHT always equals bar + plates + this, and shows as its own chip.
-  const [calcExtraLbs, setCalcExtraLbs] = useState(0);
 
   const calcBarWeight = calcLoad.barWeight;
   const calcBarLabel = calcLoad.barLabel;
   const sideMultiplier = calcIsSingleLoad ? 1 : 2;
 
   const setCalcPlatesPerSide = updater => setCalcPlatesPerSideRaw(updater);
-  const clearCalcExtra = () => setCalcExtraLbs(0);
 
-  const platesForWeight = (weight, { singleLoad, barWeight }) => {
-    let remaining = Math.max(0, (weight - barWeight) / (singleLoad ? 1 : 2));
-    const plates = [];
-    AVAILABLE_LB_PLATES.forEach(plate => {
-      while (remaining >= plate - 0.01) {
-        plates.push(plate);
-        remaining = Math.round((remaining - plate) * 100) / 100;
-      }
-    });
-    return plates.sort((a, b) => b - a);
-  };
-
-  // Weight → bar + plates (largest first) + whatever is left over. 0 / no weight = the empty bar.
+  // Weight → bar + standard plates (largest first, down to 1.25 lb). A weight the plates can't make is snapped to
+  // the nearest one they can (both-sided loads move in 2.5 lb steps); there is no leftover. 0 = the empty bar.
   const decomposeWeightToPlates = (initialWeight, exerciseId, equipment) => {
     const load = getLoadSetup(exerciseId, equipment);
     setCalcUnit('lb');
     setCalcLoad(load);
     const weight = Math.max(0, Number(initialWeight) || 0);
-    if (weight <= 0) {
-      setCalcPlatesPerSideRaw([]);
-      setCalcExtraLbs(0);
-      return;
-    }
-    const plates = platesForWeight(weight, load);
-    setCalcPlatesPerSideRaw(plates);
-    const platesTotal = plates.reduce((a, p) => a + p, 0);
-    const extra = Math.round((weight - load.barWeight - platesTotal * (load.singleLoad ? 1 : 2)) * 100) / 100;
-    setCalcExtraLbs(Math.abs(extra) < 0.01 ? 0 : extra);
+    setCalcPlatesPerSideRaw(weight > 0 ? platesForLoad(weight, load) : []);
   };
 
-  // TOTAL WEIGHT typed in by hand: show the plates for it, keeping the typed number if they can't match it
+  // TOTAL WEIGHT typed in by hand: the plates for the nearest weight they can make
   const setCalcTotalFromInput = value => {
     const weight = Math.max(0, Math.round((Number(value) || 0) * 100) / 100);
     decomposeWeightToPlates(weight, plateCalcTarget?.exerciseId, plateCalcTarget?.equipment);
@@ -124,10 +73,17 @@ export function usePlateCalculator({
     setPlateCalcTarget({ mode: 'goal', exerciseId, exerciseName });
   };
 
+  // The plate buttons: the athlete's counted plates on both-sided loads ({ size, left } = pairs still free for each
+  // side), else the standard sizes with no limit (left: null)
+  const plateLimits = plateLimitsFor(calcLoad);
+  const calcPlateOptions = plateLimits
+    ? plateLimits.map(p => ({ size: p.size, left: p.perSide - calcPlatesPerSide.filter(x => x === p.size).length }))
+    : [45, 35, 25, 10, 5, 2.5, 1.25].map(size => ({ size, left: null }));
+
   const computedPlateCalculatorTotal = useMemo(() => {
     const oneSideSum = calcPlatesPerSide.reduce((acc, p) => acc + p, 0);
-    return Math.max(0, Math.round((calcBarWeight + oneSideSum * sideMultiplier + calcExtraLbs) * 100) / 100);
-  }, [calcExtraLbs, calcPlatesPerSide, calcBarWeight, sideMultiplier]);
+    return Math.max(0, Math.round((calcBarWeight + oneSideSum * sideMultiplier) * 100) / 100);
+  }, [calcPlatesPerSide, calcBarWeight, sideMultiplier]);
 
   const handleApplyCalculatedWeight = () => {
     if (!plateCalcTarget) return;
@@ -165,8 +121,7 @@ export function usePlateCalculator({
     calcBarLabel,
     calcPlatesPerSide,
     setCalcPlatesPerSide,
-    calcExtraLbs,
-    clearCalcExtra,
+    calcPlateOptions,
     setCalcTotalFromInput,
     openPlateCalculatorForSet,
     openPlateCalculatorForGoal,

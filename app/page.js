@@ -43,8 +43,9 @@ import { useSyncedHistoryUpdates } from './hooks/useSyncedHistoryUpdates';
 import { useRoutineShares } from './hooks/useRoutineShares';
 import { CORE_LIFT_IDS, getLiftGoalStats } from './components/LiftGoals';
 import { withTrace, traceLine, logOperation } from './utils/calcTrace';
+import { setPlateInventory } from './utils/loading';
 import { historyDateRangeFor } from './components/views/HistoryView';
-import { LeaderboardView } from './components/views/LeaderboardView';
+import { LeaderboardView, getBig3BwRank } from './components/views/LeaderboardView';
 import { SendRoutineModal } from './components/RoutineShareModals';
 import { EXERCISE_MAP, formatDateYMD, stripDateFromTitle } from './data/exerciseLibrary';
 import { useIdleAutoFinish } from './hooks/useIdleAutoFinish';
@@ -183,6 +184,11 @@ export default function App() {
   const [programSchedules, setProgramSchedules] = useState({});
   // Crying's Variety (0 = the fewest different exercises, 10 = none repeats within 20 sessions; 5 = default)
   const [cryingVariety, setCryingVariety] = useState(5);
+  // Configuration → EQUIPMENT → PLATES: the plates the athlete owns ({ [size]: count }) or null = not counted
+  const [plateInventory, setPlateInventoryState] = useState(null);
+  // Both-sided loads (barbells, plate-loaded machines) use only the athlete's plates, when counted (set every render,
+  // like the engine's bodyweight)
+  setPlateInventory(plateInventory);
   // The session page's SIMPLE / ADVANCED tabs (easy hides the program row, 1RM box, filters, types, intensity, locks…)
   const [sessionMode, setSessionMode] = useState('advanced');
   // Picking a different program starts its cycle today (week 1)
@@ -348,6 +354,8 @@ export default function App() {
     setProgramSchedules,
     cryingVariety,
     setCryingVariety,
+    plateInventory,
+    setPlateInventory: setPlateInventoryState,
     sessionMode,
     setSessionMode,
     shareStatsWithFriends,
@@ -653,8 +661,7 @@ export default function App() {
     calcBarLabel,
     calcPlatesPerSide,
     setCalcPlatesPerSide,
-    calcExtraLbs,
-    clearCalcExtra,
+    calcPlateOptions,
     setCalcTotalFromInput,
     openPlateCalculatorForSet,
     openPlateCalculatorForGoal,
@@ -875,6 +882,15 @@ export default function App() {
     totalHeightInches,
     history
   };
+
+  // Home's RANK tile: your place on BIG 3 / BW (null = no Big 3 logged); worked out only when its inputs change
+  const homeRank = useMemo(
+    () =>
+      user
+        ? getBig3BwRank({ oneRepMaxes: effectiveOneRepMaxes, friendsList, userBodyweightLbs, userId: user.id })
+        : null,
+    [user, effectiveOneRepMaxes, friendsList, userBodyweightLbs]
+  );
 
   // Home's TO GOAL tile: lb still to go to the strength class goal over the Big 3 + OHP you have logged (null = none)
   const homeGoalToGo = (() => {
@@ -1185,6 +1201,7 @@ export default function App() {
                 setCurrentView('history');
               }}
               goalToGoLbs={homeGoalToGo}
+              rank={homeRank}
               goalClassName={targetStandardClass}
               activeSessionSummary={
                 activeSession?.slots?.length > 0
@@ -1382,7 +1399,9 @@ export default function App() {
                 setSelectedGymId,
                 availableEquipment,
                 setAvailableEquipment,
-                setGymDraft
+                setGymDraft,
+                plateInventory,
+                setPlateInventory: setPlateInventoryState
               }}
               routinePreferencesProps={{ routinePreferences, setRoutinePreferences }}
               setPreferencesProps={{ setPreferences, setSetPreferences }}
@@ -1596,9 +1615,8 @@ export default function App() {
           calcBarLabel={calcBarLabel}
           calcPlatesPerSide={calcPlatesPerSide}
           setCalcPlatesPerSide={setCalcPlatesPerSide}
-          calcExtraLbs={calcExtraLbs}
-          clearCalcExtra={clearCalcExtra}
           setCalcTotalFromInput={setCalcTotalFromInput}
+          calcPlateOptions={calcPlateOptions}
           handleApplyCalculatedWeight={handleApplyCalculatedWeight}
           onOpenHistoryWorkout={openHistoryWorkout}
           bodyweightLbs={userBodyweightLbs}

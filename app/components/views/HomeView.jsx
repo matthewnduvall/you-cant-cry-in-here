@@ -265,6 +265,8 @@ export function HomeView({
   // 7 days (onOpenThisWeek)
   onOpenWorkout,
   onOpenThisWeek,
+  // RANK tile: { rank, of } on the BIG 3 / BW board, or null (getBig3BwRank)
+  rank = null,
   // INBOX opens the Routines page on its INBOX tab
   onOpenInbox
 }) {
@@ -396,7 +398,6 @@ export function HomeView({
     .sort(([, a], [, b]) => (b?.daysAgo || 0) - (a?.daysAgo || 0))
     .map(([g]) => g);
   const nextUp = (overdue.length > 0 ? overdue : behind).slice(0, 2);
-  const friendCount = (friendsList || []).length;
   const requestCount = (pendingIncomingRequests || []).length;
   const inboxTotal = requestCount + (receivedRoutineCount || 0);
   const open = view => {
@@ -461,20 +462,20 @@ export function HomeView({
       onClick: onOpenInbox || null
     },
     {
-      id: 'friends',
-      label: 'FRIENDS',
-      value: String(friendCount),
-      unit: '',
-      // Requests are counted in INBOX
-      sub: 'FIND ATHLETES',
-      view: 'social'
+      // Your place on the BIG 3 / BW leaderboard; opens the Leaderboards page
+      id: 'rank',
+      label: 'RANK',
+      value: rank ? `#${rank.rank}` : '—',
+      unit: rank ? `OF ${rank.of}` : '',
+      sub: !user ? 'SIGN IN TO RANK' : !rank ? 'LOG THE BIG 3' : rank.of === 1 ? 'BIG 3 / BW · ADD FRIENDS' : 'BIG 3 / BW',
+      view: 'leaderboards'
     }
   ];
 
   return (
     <div>
-      {/* No big title on Home (the locked header already says YOU CAN'T CRY IN HERE): the ticker sits at the top,
-          straight under the header. The page's heading is kept for screen readers. */}
+      {/* No big title on Home (the locked header already says YOU CAN'T CRY IN HERE): TODAY, the ticker, then the
+          readouts. The page's heading is kept for screen readers. */}
       <h1
         style={{
           position: 'absolute', width: '1px', height: '1px', margin: '-1px', padding: 0, overflow: 'hidden',
@@ -525,6 +526,49 @@ export function HomeView({
         </div>
       </section>
 
+      {/* NEWS TICKER: friends' lifts and your muscles, between TODAY and the readouts (a rounded strip in the gutter,
+          like the tiles); tap anywhere on it to pause / play */}
+      <div style={{ padding: '8px var(--dp-spacing-gutter) 0' }}>
+      <button
+        type="button"
+        aria-pressed={marqueePaused}
+        aria-label={marqueePaused ? 'News ticker paused. Tap to play' : 'News ticker. Tap to pause'}
+        onClick={() => setMarqueePaused(p => !p)}
+        className={marqueePaused ? 'kinetic-marquee-paused' : ''}
+        style={{
+          width: '100%',
+          minHeight: '40px',
+          padding: 0,
+          border: 'none',
+          borderRadius: '12px',
+          backgroundColor: '#1C1C1C',
+          color: '#FFFFFF',
+          display: 'flex',
+          alignItems: 'center',
+          overflow: 'hidden',
+          cursor: 'pointer',
+          textAlign: 'left',
+          fontFamily: 'inherit'
+        }}
+      >
+        <span style={{ display: 'block', flex: 1, overflow: 'hidden', padding: '8px 0' }}>
+          <span
+            className="kinetic-marquee-track"
+            style={{
+              '--dp-marquee-duration': `${marqueeDurationSec}s`,
+              fontSize: '11px',
+              fontWeight: 500,
+              letterSpacing: '0.08em',
+              textTransform: 'uppercase'
+            }}
+          >
+            <span style={{ paddingRight: '32px' }}>{friendsTickerText}</span>
+            <span aria-hidden="true" style={{ paddingRight: '32px' }}>{friendsTickerText}</span>
+          </span>
+        </span>
+      </button>
+      </div>
+
       {/* READOUTS: each tile is a number worth tapping (it opens its page); no list of pages here (the menu has those) */}
       <section
         aria-label="Your training at a glance"
@@ -571,45 +615,6 @@ export function HomeView({
         ))}
       </section>
 
-      {/* NEWS TICKER: friends' lifts and your muscles, under the readouts; tap anywhere on it to pause / play */}
-            <button
-        type="button"
-        aria-pressed={marqueePaused}
-        aria-label={marqueePaused ? 'News ticker paused. Tap to play' : 'News ticker. Tap to pause'}
-        onClick={() => setMarqueePaused(p => !p)}
-        className={marqueePaused ? 'kinetic-marquee-paused' : ''}
-        style={{
-          width: '100%',
-          minHeight: '40px',
-          padding: 0,
-          border: 'none',
-          borderBottom: '1px solid var(--dp-color-rule)',
-          backgroundColor: '#1C1C1C',
-          color: '#FFFFFF',
-          display: 'flex',
-          alignItems: 'center',
-          overflow: 'hidden',
-          cursor: 'pointer',
-          textAlign: 'left',
-          fontFamily: 'inherit'
-        }}
-      >
-        <span style={{ display: 'block', flex: 1, overflow: 'hidden', padding: '8px 0' }}>
-          <span
-            className="kinetic-marquee-track"
-            style={{
-              '--dp-marquee-duration': `${marqueeDurationSec}s`,
-              fontSize: '11px',
-              fontWeight: 500,
-              letterSpacing: '0.08em',
-              textTransform: 'uppercase'
-            }}
-          >
-            <span style={{ paddingRight: '32px' }}>{friendsTickerText}</span>
-            <span aria-hidden="true" style={{ paddingRight: '32px' }}>{friendsTickerText}</span>
-          </span>
-        </span>
-      </button>
 
     </div>
   );

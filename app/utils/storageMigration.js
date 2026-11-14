@@ -98,7 +98,9 @@ export const DEFAULT_SETTINGS_V2 = {
   social: { shareStatsWithFriends: true, shareRoutinesWithFriends: true, profileIsPublic: true, shareBodyweightWithFriends: false },
   selectedGymId: '',
   // the Equipment page list (GYM_EQUIPMENT_OPTIONS the athlete has); null = not chosen yet (derived from selectedGymId)
-  availableEquipment: null
+  availableEquipment: null,
+  // Configuration → EQUIPMENT → PLATES: { [size]: plates owned } or null = not counted (utils/loading.js)
+  plateInventory: null
 };
 
 export const normalizeSlotFromStorage = rawSlot => {

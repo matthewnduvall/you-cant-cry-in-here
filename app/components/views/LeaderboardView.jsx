@@ -88,6 +88,31 @@ const statsOf = hist => ({
   )
 });
 
+/**
+ * Your place on the default board (BIG 3 / BW: Big 3 total ÷ bodyweight), for Home's RANK tile — the same rule as
+ * the board: you and the friends with something logged and a bodyweight saved, ranked by the ratio. Returns
+ * { rank, of } (rank 1 = top), or null when you have no Big 3 logged.
+ */
+export function getBig3BwRank({ oneRepMaxes = {}, friendsList = [], userBodyweightLbs = 220, userId = null }) {
+  const selfBw = Math.max(50, Number(userBodyweightLbs) || 220);
+  const selfTotal = BIG_THREE_LIFT_IDS.reduce((n, id) => n + (Number(oneRepMaxes?.[id]) || 0), 0);
+  if (!(selfTotal > 0)) return null;
+  const self = selfTotal / selfBw;
+  const seen = new Set(userId ? [String(userId)] : []);
+  const others = [];
+  (friendsList || []).forEach(f => {
+    const id = String(f?.id || '');
+    if (!id || seen.has(id)) return;
+    seen.add(id);
+    const bw = rankingBwOf(f);
+    if (!(bw > 0)) return;
+    const prs = withEngineBodyweight(bw, () => buildHistoryPRs(f.history));
+    const total = BIG_THREE_LIFT_IDS.reduce((n, liftId) => n + (Number(prs?.[liftId]) || 0), 0);
+    if (total > 0) others.push(total / bw);
+  });
+  return { rank: 1 + others.filter(v => v > self).length, of: others.length + 1 };
+}
+
 export function LeaderboardView({
   colors,
   user,
