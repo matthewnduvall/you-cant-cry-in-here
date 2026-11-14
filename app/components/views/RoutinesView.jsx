@@ -490,9 +490,9 @@ export function RoutinesView({
             </Button>
           )}
           {onAutoRoutine && (
-            <Button variant="primary-row" onClick={onAutoRoutine}>
-              <span>AUTO ROUTINE</span>
-              <span>→</span>
+            // Centred like + NEW ROUTINE beside it, its arrow just after the text (a mirror of the leading +)
+            <Button variant="primary" onClick={onAutoRoutine} style={{ minHeight: '52px' }}>
+              AUTO ROUTINE →
             </Button>
           )}
         </div>

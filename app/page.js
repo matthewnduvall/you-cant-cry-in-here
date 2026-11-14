@@ -106,8 +106,6 @@ export default function App() {
   const [progressTabChoice, setProgressTabChoice] = useState('progress');
   // History tab's date range filter ({ from, to, preset } | null): Home's THIS WEEK opens History with the last 7 days
   const [historyDateRange, setHistoryDateRange] = useState(null);
-  // The Routines page opens on this tab once (Home's INBOX tile: 'received')
-  const [routinesInitialTab, setRoutinesInitialTab] = useState(null);
   // CONFIGURATION page tab: 'body' | 'goals' | 'equipment' | 'routines'
   const [configurationTab, setConfigurationTab] = useState('body');
   const [isCurrentEditorShared, setIsCurrentEditorShared] = useState(false);
@@ -1120,6 +1118,11 @@ export default function App() {
           onOpenSession={handleOpenNewSession}
           hasActiveSession={Boolean(activeSession?.slots?.length > 0)}
           pendingRequestCount={(pendingIncomingRequests || []).length}
+          onOpenInbox={() => {
+            setRoutineSelectReturnView(null);
+            setSocialInitialTab('inbox');
+            setCurrentView('social');
+          }}
           sessionSync={
             sessionSync.canSync
               ? {
@@ -1170,8 +1173,8 @@ export default function App() {
               onOpenWorkout={openHistoryWorkout}
               onOpenInbox={() => {
                 setRoutineSelectReturnView(null);
-                setRoutinesInitialTab(user ? 'received' : null);
-                setCurrentView('routines');
+                setSocialInitialTab('inbox');
+                setCurrentView('social');
               }}
               onOpenThisWeek={() => {
                 setRoutineSelectReturnView(null);
@@ -1288,7 +1291,8 @@ export default function App() {
               }
               handleCancelRoutineSelection={handleCancelRoutineSelection}
               showCancel={!routinesAsPage}
-              sections={user ? ['saved', 'shared', 'received'] : ['saved', 'shared']}
+              // Routines friends send you arrive in the Social page's INBOX (SAVE moves them to SAVED here)
+              sections={['saved', 'shared']}
               onNewRoutine={routinesAsPage ? handleNewRoutine : undefined}
               onEditRoutine={routinesAsPage ? handleEditRoutine : undefined}
               received={routineShares.incoming}
@@ -1299,8 +1303,6 @@ export default function App() {
                 confirmReplaceSession(share?.label || 'this routine', () => routineShares.loadShare(share))
               }
               onDismissReceived={routineShares.dismissShare}
-              initialTab={routinesInitialTab}
-              onInitialTabUsed={() => setRoutinesInitialTab(null)}
               setDeleteConfirmTarget={setDeleteConfirmTarget}
               onAutoRoutine={handleAutoBuildWorkout}
               availableEquipment={availableEquipment}
@@ -1445,6 +1447,12 @@ export default function App() {
                 shareBodyweightWithFriends,
                 setShareBodyweightWithFriends
               }}
+              receivedRoutines={user ? routineShares.incoming : []}
+              onSaveReceived={routineShares.saveShare}
+              onLoadReceived={share =>
+                confirmReplaceSession(share?.label || 'this routine', () => routineShares.loadShare(share))
+              }
+              onDismissReceived={routineShares.dismissShare}
             />
           )}
 

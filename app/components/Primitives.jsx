@@ -273,7 +273,8 @@ export function SessionTitleBar({
         }}
       >
         <span style={{ fontSize: '10px', fontWeight: 500, letterSpacing: '0.06em', color: '#9A9A9A', lineHeight: 1.1, whiteSpace: 'nowrap' }}>
-          {dateValue ? `SESSION · ${dateValue}` : 'SESSION NAME'}
+          {/* The date isn't shown here (just the name); it is edited in the name pop-up */}
+          SESSION NAME
         </span>
         <span
           style={{
