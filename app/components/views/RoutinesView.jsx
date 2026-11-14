@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { UI } from '../../styles/kineticTokens';
 import { IOSListSection, IOSListRow } from '../Primitives';
 import {
@@ -70,9 +70,17 @@ export function RoutinesView({
   onWithdrawSent,
   onSaveReceived,
   onLoadReceived,
-  onDismissReceived
+  onDismissReceived,
+  // Opens on this tab (Home's INBOX tile: 'received'); onInitialTabUsed lets the page reset it
+  initialTab = null,
+  onInitialTabUsed
 }) {
-  const [tabChoice, setTabChoice] = useState(null);
+  const [tabChoice, setTabChoice] = useState(initialTab);
+  useEffect(() => {
+    if (initialTab) onInitialTabUsed?.();
+    // Once, on opening
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   // The History tab's SEARCH / TYPE / MUSCLE / EQUIPMENT / EXERCISE filter, over the exercises in the routines
   const [exerciseFilter, setExerciseFilter] = useState(EMPTY_HISTORY_FILTER);
   const exerciseFilterActive = isHistoryFilterActive(exerciseFilter);

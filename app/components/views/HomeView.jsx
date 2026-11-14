@@ -264,7 +264,9 @@ export function HomeView({
   // LAST SESSION opens that workout in History (onOpenWorkout(id)); THIS WEEK opens History filtered to the last
   // 7 days (onOpenThisWeek)
   onOpenWorkout,
-  onOpenThisWeek
+  onOpenThisWeek,
+  // INBOX opens the Routines page on its INBOX tab
+  onOpenInbox
 }) {
   const [scrollerSeed, setScrollerSeed] = useState(1);
   const [todayFallbackStr, setTodayFallbackStr] = useState('');
@@ -445,7 +447,8 @@ export function HomeView({
       unit: receivedRoutineCount === 1 ? 'ROUTINE' : 'ROUTINES',
       sub: receivedRoutineCount > 0 ? 'FROM FRIENDS' : 'NOTHING NEW',
       badge: receivedRoutineCount,
-      view: 'routines'
+      view: 'routines',
+      onClick: onOpenInbox || null
     },
     {
       id: 'friends',

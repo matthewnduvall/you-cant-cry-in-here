@@ -105,6 +105,8 @@ export default function App() {
   const [progressTabChoice, setProgressTabChoice] = useState('progress');
   // History tab's date range filter ({ from, to, preset } | null): Home's THIS WEEK opens History with the last 7 days
   const [historyDateRange, setHistoryDateRange] = useState(null);
+  // The Routines page opens on this tab once (Home's INBOX tile: 'received')
+  const [routinesInitialTab, setRoutinesInitialTab] = useState(null);
   // CONFIGURATION page tab: 'body' | 'goals' | 'equipment' | 'routines'
   const [configurationTab, setConfigurationTab] = useState('body');
   const [isCurrentEditorShared, setIsCurrentEditorShared] = useState(false);
@@ -1178,6 +1180,11 @@ export default function App() {
               receivedRoutineCount={routineShares.incoming.length}
               bodyMetricsSet={bodyMetricsSet}
               onOpenWorkout={openHistoryWorkout}
+              onOpenInbox={() => {
+                setRoutineSelectReturnView(null);
+                setRoutinesInitialTab(user ? 'received' : null);
+                setCurrentView('routines');
+              }}
               onOpenThisWeek={() => {
                 setRoutineSelectReturnView(null);
                 setConfirmedHistoryEditWorkoutId(null);
@@ -1298,6 +1305,8 @@ export default function App() {
                 confirmReplaceSession(share?.label || 'this routine', () => routineShares.loadShare(share))
               }
               onDismissReceived={routineShares.dismissShare}
+              initialTab={routinesInitialTab}
+              onInitialTabUsed={() => setRoutinesInitialTab(null)}
               setDeleteConfirmTarget={setDeleteConfirmTarget}
               onAutoRoutine={handleAutoBuildWorkout}
               availableEquipment={availableEquipment}
