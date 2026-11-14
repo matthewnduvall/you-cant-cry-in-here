@@ -50,7 +50,7 @@ import { useIdleAutoFinish } from './hooks/useIdleAutoFinish';
 import { collectSetValues, sameSetValues, overlaySetValues } from './utils/sessionSync';
 import { useWorkoutMutations } from './hooks/useWorkoutMutations';
 import { usePlateCalculator } from './hooks/usePlateCalculator';
-import { NestedTabBar, TabBar } from './components/Controls';
+import { TabBar } from './components/Controls';
 
 const PROGRESS_TABS = [
   { id: 'progress', label: 'PROGRESS' },
@@ -914,9 +914,8 @@ export default function App() {
     goalSettings = null,
     // A friend's profile: LOAD on their History rows (onLoadHistoryWorkout(workout))
     onLoadHistoryWorkout = null,
-    // On a profile the page sits under the profile's own PERFORMANCE tab: its tabs are indented with an elbow
-    // line so they read as that tab's children rather than a second row of page tabs
-    nested = false,
+    // On a profile, PROGRESS and HISTORY are the profile's own tabs: no tab row of its own (the profile passes `tab`)
+    hideTabs = false,
     onTabChange = nextTab => {
       if (nextTab !== 'history' && expandedHistoryWorkoutId) {
         setConfirmedHistoryEditWorkoutId(null);
@@ -926,11 +925,7 @@ export default function App() {
     }
   } = {}) => (
     <>
-      {nested ? (
-        <div style={{ padding: '0 var(--dp-spacing-gutter)' }}>
-          <NestedTabBar ariaLabel="Performance sections" tabs={PROGRESS_TABS} value={tab} onChange={onTabChange} />
-        </div>
-      ) : (
+      {!hideTabs && (
         <div style={{ padding: '12px var(--dp-spacing-gutter) 0' }}>
           <TabBar ariaLabel="Progress sections" tabs={PROGRESS_TABS} value={tab} onChange={onTabChange} />
         </div>

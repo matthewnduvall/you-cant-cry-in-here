@@ -17,10 +17,11 @@ import { buildProgressionSeriesByLift } from '../../hooks/useTelemetryAndAnalyti
 import { ProfileAvatar, resizeImageFileToDataUrl } from '../ProfileAvatar';
 import { SHARED_CELL_BORDER, SHARED_GROUP_OUTER, UI } from '../../styles/kineticTokens';
 
-// Profile tabs: PERFORMANCE (their Progress page: progress / personal records / history — not called PROGRESS,
-// so it doesn't read PROGRESS > PROGRESS) · ROUTINES · FRIENDS
+// Profile tabs: PROGRESS (the chart + lift rows) · HISTORY (logged workouts) · ROUTINES · FRIENDS. PROGRESS and
+// HISTORY are the athlete's Progress page's two tabs, shown here as profile tabs of their own (no nested row)
 const PROFILE_TABS = [
-  { id: 'progress', label: 'PERFORMANCE' },
+  { id: 'progress', label: 'PROGRESS' },
+  { id: 'history', label: 'HISTORY' },
   { id: 'routines', label: 'ROUTINES' },
   { id: 'friends', label: 'FRIENDS' }
 ];
@@ -71,8 +72,9 @@ export function ProfileView({
   // object here made each refresh re-run both effects, looping between LOADING FRIENDS and the empty state)
   const isFriend = Boolean(currentView === 'friend_profile' && viewingFriendProfile);
   const [profileTab, setProfileTab] = useState('progress');
+  // PROGRESS and HISTORY both show the athlete's stats (hidden when they don't share them)
+  const isStatsTab = profileTab === 'progress' || profileTab === 'history';
   // A friend's Progress page has its own inner tab (yours shares the PROGRESS page's)
-  const [friendProgressTab, setFriendProgressTab] = useState('progress');
   const [friendUnavailable, setFriendUnavailable] = useState(false);
   // A friend's friends (public profiles only): { forId, result: { ok, friends } } for the profile it was loaded for
   const [friendsOfFriendEntry, setFriendsOfFriendEntry] = useState(null);
@@ -456,20 +458,20 @@ export function ProfileView({
       </div>
 
       {/* Your stats with sharing off: friends see nothing here, so neither does the preview */}
-      {profileTab === 'progress' && !isFriend && user && !shareStatsWithFriends && (
+      {isStatsTab && !isFriend && user && !shareStatsWithFriends && (
         <PreviewHiddenNote text="Your stats are hidden from friends (Share stats with friends is off)." />
       )}
 
-      {profileTab === 'progress' && isFriend && profUser?.statsShared === false && (
+      {isStatsTab && isFriend && profUser?.statsShared === false && (
         <PreviewHiddenNote text={`@${profUser.username} doesn’t share their stats.`} />
       )}
 
-      {profileTab === 'progress' &&
+      {isStatsTab &&
         (isFriend ? profUser?.statsShared !== false : !user || shareStatsWithFriends) &&
         renderProgressPage?.(
           isFriend
             ? {
-                nested: true,
+                hideTabs: true,
                 readOnly: true,
                 history: profHistory,
                 oneRepMaxes: profPRs,
@@ -480,12 +482,11 @@ export function ProfileView({
                   customGoalWeights: profUser?.goals?.customGoalWeights || {},
                   bodyweightLbs: profUser?.bodyweightLbs
                 },
-                tab: friendProgressTab,
-                onTabChange: setFriendProgressTab,
+                tab: profileTab,
                 // LOAD on their History rows: start a session from that workout
                 onLoadHistoryWorkout: onLoadFriendWorkout ? w => onLoadFriendWorkout(w, profUser?.username) : null
               }
-            : { nested: true }
+            : { hideTabs: true, tab: profileTab }
         )}
 
       {profileTab === 'routines' &&
@@ -517,7 +518,7 @@ export function ProfileView({
           />
         ))}
 
-      {/* FRIENDS tab: same breathing room under the tabs as PERFORMANCE / ROUTINES */}
+      {/* FRIENDS tab: same breathing room under the tabs as the others */}
       {profileTab === 'friends' && <div style={{ height: '16px' }} />}
 
       {profileTab === 'friends' && !isFriend && user && !profileIsPublic && (
