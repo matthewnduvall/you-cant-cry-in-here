@@ -13,13 +13,15 @@ import {
 } from '../../utils/supabaseAuth';
 import { isSameFriend, applyFriendshipSync, applyOutgoingInvitesSync } from '../../utils/storageMigration';
 import { formatDateYMD } from '../../data/exerciseLibrary';
-import { DeleteButton } from '../Controls';
+import { DeleteButton, TabBar } from '../Controls';
+import { InboxSection } from './InboxSection';
 import { ProfileAvatar } from '../ProfileAvatar';
 import { UI } from '../../styles/kineticTokens';
 import { SocialSettingsSection } from './SettingsView';
 
-// The Friends page (view id 'social'): find athletes, requests, friends list, then PRIVACY & SHARING. Leaderboards are
-// their own page (view 'leaderboards').
+// The Social page (view id 'social', titled FRIENDS): tabs FRIENDS (find athletes, sent requests, friends list, then
+// PRIVACY & SHARING) and INBOX (friend requests and routines friends sent you, as messages: InboxSection).
+// Leaderboards are their own page (view 'leaderboards').
 
 // One red per component: a list's ✕ buttons are grey (they still ask first, or are reversible)
 const GREY_X = { color: '#9A9A9A' };
@@ -44,10 +46,18 @@ export function SocialView({
   setCurrentView,
   // PRIVACY & SHARING settings (moved here from Settings)
   socialSettingsProps,
-  // Opens on this tab (e.g. 'privacy' from your profile's PRIVACY →); onInitialTabUsed lets the page reset it
+  // Routines friends sent you (INBOX): routine_shares rows and their answers
+  receivedRoutines = [],
+  onSaveReceived,
+  onLoadReceived,
+  onDismissReceived,
+  // Opens on this tab: 'inbox' (Home's INBOX tile, the menu's Friends row while messages wait), 'privacy' (your
+  // profile's PRIVACY →: FRIENDS, scrolled to the privacy section) or 'friends'; onInitialTabUsed resets it
   initialTab = 'friends',
   onInitialTabUsed
 }) {
+  const inboxTotal = (pendingIncomingRequests || []).length + (receivedRoutines || []).length;
+  const [tab, setTab] = useState(initialTab === 'inbox' ? 'inbox' : 'friends');
   // PRIVACY & SHARING (bottom of the page): scrolled to when the page opens for it
   const privacyRef = React.useRef(null);
   useEffect(() => {
@@ -265,8 +275,35 @@ export function SocialView({
 
   return (
     <div style={{ paddingTop: '12px' }}>
-      {/* One page, no tabs (the title already says FRIENDS): find athletes, requests, your friends, then PRIVACY &
-          SHARING at the bottom (collapsed; open and scrolled to when you came from your profile's PRIVACY →) */}
+      {/* FRIENDS | INBOX (n) */}
+      <div style={{ padding: '0 var(--dp-spacing-gutter)', marginBottom: '16px' }}>
+        <TabBar
+          ariaLabel="Social sections"
+          tabs={[
+            { id: 'friends', label: 'FRIENDS' },
+            { id: 'inbox', label: inboxTotal > 0 ? `INBOX (${inboxTotal})` : 'INBOX' }
+          ]}
+          value={tab}
+          onChange={setTab}
+        />
+      </div>
+
+      {tab === 'inbox' && (
+        <InboxSection
+          requests={pendingIncomingRequests}
+          onAcceptRequest={handleAcceptFriendInvite}
+          onDeclineRequest={handleDeclineFriendInvite}
+          received={receivedRoutines}
+          onSaveReceived={onSaveReceived}
+          onLoadReceived={onLoadReceived}
+          onDismissReceived={onDismissReceived}
+          photoOf={photoOf}
+        />
+      )}
+
+      {/* FRIENDS: find athletes, sent requests, your friends, then PRIVACY & SHARING at the bottom (collapsed; open and
+          scrolled to when you came from your profile's PRIVACY →) */}
+      {tab === 'friends' && (
       <>
       {/* FIND ATHLETES: the search bar sits straight under the heading (no surrounding box); results and invite
           feedback appear in a list box below it */}
@@ -469,32 +506,6 @@ export function SocialView({
         )}
       </section>
 
-      {pendingIncomingRequests.length > 0 && (
-        <IOSListSection header="INCOMING REQUESTS" colors={colors}>
-          {pendingIncomingRequests.map((req, idx) => (
-            <IOSListRow key={req.id || req.username || idx} isLast={idx === pendingIncomingRequests.length - 1} colors={colors}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
-                <ProfileAvatar photo={photoOf(req.id)} username={req.username} size={32} />
-                <div style={{ fontSize: '15px', fontWeight: 500 }}>@{req.username}</div>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
-                <button
-                  type="button"
-                  onClick={() => handleAcceptFriendInvite(req)}
-                  style={{
-                    padding: '6px 12px', backgroundColor: 'var(--dp-color-accent)',
-                    color: '#000000', border: '2px solid #FFFFFF', fontSize: '11px', fontWeight: 500, cursor: 'pointer'
-                  }}
-                >
-                  ACCEPT
-                </button>
-                <DeleteButton label={`Decline @${req.username}`} onClick={() => handleDeclineFriendInvite(req)} style={GREY_X} />
-              </div>
-            </IOSListRow>
-          ))}
-        </IOSListSection>
-      )}
-
       {sentCount > 0 && (
         <IOSListSection header={`SENT REQUESTS (${sentCount})`} colors={colors}>
           {sentFriendRequests.map((req, idx) => (
@@ -567,11 +578,12 @@ export function SocialView({
             </IOSListRow>
           ))}
       </IOSListSection>
-      </>
 
       <div ref={privacyRef} style={{ scrollMarginTop: '170px' }}>
         <SocialSettingsSection colors={colors} defaultOpen={initialTab === 'privacy'} {...socialSettingsProps} />
       </div>
+      </>
+      )}
     </div>
   );
 }

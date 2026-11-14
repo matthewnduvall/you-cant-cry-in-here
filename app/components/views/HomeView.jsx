@@ -398,6 +398,7 @@ export function HomeView({
   const nextUp = (overdue.length > 0 ? overdue : behind).slice(0, 2);
   const friendCount = (friendsList || []).length;
   const requestCount = (pendingIncomingRequests || []).length;
+  const inboxTotal = requestCount + (receivedRoutineCount || 0);
   const open = view => {
     setRoutineSelectReturnView(null);
     setCurrentView(view);
@@ -443,11 +444,20 @@ export function HomeView({
     {
       id: 'inbox',
       label: 'INBOX',
-      value: String(receivedRoutineCount || 0),
-      unit: receivedRoutineCount === 1 ? 'ROUTINE' : 'ROUTINES',
-      sub: receivedRoutineCount > 0 ? 'FROM FRIENDS' : 'NOTHING NEW',
-      badge: receivedRoutineCount,
-      view: 'routines',
+      // The Social page's INBOX: friend requests + routines friends sent
+      value: String(inboxTotal),
+      unit: inboxTotal === 1 ? 'MESSAGE' : 'MESSAGES',
+      sub:
+        inboxTotal > 0
+          ? [
+              requestCount > 0 ? `${requestCount} ${requestCount === 1 ? 'REQUEST' : 'REQUESTS'}` : null,
+              receivedRoutineCount > 0 ? `${receivedRoutineCount} ${receivedRoutineCount === 1 ? 'ROUTINE' : 'ROUTINES'}` : null
+            ]
+              .filter(Boolean)
+              .join(' · ')
+          : 'NOTHING NEW',
+      badge: inboxTotal,
+      view: 'social',
       onClick: onOpenInbox || null
     },
     {
@@ -455,8 +465,8 @@ export function HomeView({
       label: 'FRIENDS',
       value: String(friendCount),
       unit: '',
-      sub: requestCount > 0 ? `${requestCount} ${requestCount === 1 ? 'REQUEST' : 'REQUESTS'}` : 'FIND ATHLETES',
-      badge: requestCount,
+      // Requests are counted in INBOX
+      sub: 'FIND ATHLETES',
       view: 'social'
     }
   ];

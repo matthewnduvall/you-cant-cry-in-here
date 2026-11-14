@@ -128,7 +128,9 @@ export function AppHeaderAndDrawer({
   // The menu's TRAIN → New / Current session row, and the Social row's request count
   onOpenSession,
   hasActiveSession = false,
-  pendingRequestCount = 0
+  pendingRequestCount = 0,
+  // Opens the Social page on its INBOX tab
+  onOpenInbox
 }) {
   return (
     <>
@@ -474,7 +476,7 @@ export function AppHeaderAndDrawer({
                           onOpenSession?.();
                         }
                       },
-                      { id: 'routines', label: 'Routines', badge: receivedRoutineCount }
+                      { id: 'routines', label: 'Routines' }
                     ]
                   },
                   { title: 'TRACK', rows: [{ id: 'history', label: 'Performance' }, { id: 'stimulus_map', label: 'Stimulus' }] },
@@ -482,7 +484,20 @@ export function AppHeaderAndDrawer({
                     title: 'PEOPLE',
                     rows: [
                       // Friends (view id 'social'): find athletes, requests, your friends, privacy
-                      { id: 'social', label: 'Friends', badge: pendingRequestCount },
+                      // The Social page; its INBOX holds friend requests and routines friends sent (the count) and
+                      // opens first while anything waits
+                      {
+                        id: 'social',
+                        label: 'Friends',
+                        badge: pendingRequestCount + receivedRoutineCount,
+                        onClick:
+                          pendingRequestCount + receivedRoutineCount > 0 && onOpenInbox
+                            ? () => {
+                                setShowHamburgerDrawer(false);
+                                onOpenInbox();
+                              }
+                            : null
+                      },
                       { id: 'leaderboards', label: 'Leaderboards' }
                     ]
                   },
