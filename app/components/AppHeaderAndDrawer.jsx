@@ -392,16 +392,17 @@ export function AppHeaderAndDrawer({
                 </button>
               </div>
 
-              {/* The menu is a quiet index of every place (Home is the title in the header): who you are, then the
-                  pages grouped by what they're for. The page you're on is a white row (aria-current); counts are pills;
-                  SIGN OUT at the bottom is the menu's one red. */}
+              {/* The menu is an index of every place (Home is the title in the header): who you are, then the pages
+                  grouped by what they're for, as camera-menu list groups — a grey caps heading over a graphite tile of
+                  sentence-case page rows divided by hairlines, so groups and pages never read alike. The page you're on
+                  is a white row (aria-current); counts are pills; SIGN OUT at the bottom is the menu's one red. */}
               {(() => {
                 const go = (view, clearReturn = true) => {
                   setShowHamburgerDrawer(false);
                   if (clearReturn) setRoutineSelectReturnView(null);
                   setCurrentView(view);
                 };
-                const row = ({ id, label, badge, onClick, active, lead, asTyped = false }) => (
+                const row = ({ id, label, badge, onClick, active, lead, first = true }) => (
                   <button
                     key={id}
                     type="button"
@@ -410,24 +411,25 @@ export function AppHeaderAndDrawer({
                     onClick={onClick}
                     style={{
                       width: '100%',
-                      minHeight: '44px',
-                      padding: '0 12px',
+                      minHeight: '48px',
+                      padding: '0 14px',
                       boxSizing: 'border-box',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'space-between',
                       gap: '10px',
                       border: 'none',
-                      borderRadius: '10px',
+                      // Square cells inside the group's rounded tile, divided by hairlines
+                      borderTop: first ? 'none' : '1px solid var(--dp-color-rule)',
+                      borderRadius: 0,
                       backgroundColor: active ? '#FFFFFF' : 'transparent',
                       color: active ? '#000000' : '#FFFFFF',
                       fontFamily: 'inherit',
-                      fontSize: '13px',
+                      // Page names are list titles: sentence case, larger, never tracked (headings are the caps)
+                      fontSize: '16px',
                       fontWeight: 500,
-                      letterSpacing: '0.08em',
-                      // Usernames are shown as typed (no capitals, no tracking)
-                      textTransform: asTyped ? 'none' : 'uppercase',
-                      ...(asTyped ? { letterSpacing: 0, fontSize: '15px' } : {}),
+                      letterSpacing: 0,
+                      textTransform: 'none',
                       textAlign: 'left',
                       cursor: 'pointer'
                     }}
@@ -475,29 +477,34 @@ export function AppHeaderAndDrawer({
                     ]
                   }
                 ];
+                const tile = { backgroundColor: '#1C1C1C', borderRadius: '14px', overflow: 'hidden' };
                 return (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
                     {/* Who you are: the profile (or SIGN IN) */}
+                    <div style={tile}>
                     {row({
                       id: 'profile',
                       label: user ? `@${user.username}` : 'Sign in',
                       active: currentView === (user ? 'profile' : 'auth'),
                       onClick: () => go(user ? 'profile' : 'auth', false),
-                      lead: user ? <ProfileAvatar photo={profilePhoto} username={user.username} size={28} /> : null,
-                      asTyped: Boolean(user)
+                      lead: user ? <ProfileAvatar photo={profilePhoto} username={user.username} size={28} /> : null
                     })}
+                    </div>
                     {groups.map(g => (
                       <nav key={g.title} aria-label={g.title.toLowerCase()}>
-                        <div style={{ ...UI.capsLabel, padding: '0 12px', marginBottom: '2px' }}>{g.title}</div>
-                        {g.rows.map(r =>
-                          row({
-                            id: r.id,
-                            label: r.label,
-                            badge: r.badge,
-                            active: r.active ?? currentView === r.id,
-                            onClick: r.onClick || (() => go(r.id, !r.keepReturn))
-                          })
-                        )}
+                        <div style={{ ...UI.capsLabel, padding: '0 4px', marginBottom: '6px' }}>{g.title}</div>
+                        <div style={tile}>
+                          {g.rows.map((r, i) =>
+                            row({
+                              id: r.id,
+                              label: r.label,
+                              badge: r.badge,
+                              active: r.active ?? currentView === r.id,
+                              onClick: r.onClick || (() => go(r.id, !r.keepReturn)),
+                              first: i === 0
+                            })
+                          )}
+                        </div>
                       </nav>
                     ))}
                   </div>
