@@ -16,7 +16,8 @@ import {
   StrengthClassGoalPicker,
   formatLiftLabel as formatProgressExerciseLabel,
   getLiftGoalStats,
-  getClassGoalSummary
+  getClassGoalSummary,
+  latest1RMsOf
 } from '../LiftGoals';
 
 // Big 3 + OHP: each has its own row in the legend and is shown by default
@@ -257,6 +258,8 @@ export function ProgressionChartView({
       .filter(pt => pt.timestampMs > 0)
       .sort((a, b) => a.timestampMs - b.timestampMs);
   });
+  // The 1000 LB CLUB's goals are split from each lift's LATEST 1RM
+  const goalBase1RMs = latest1RMsOf(fullSeriesById);
   // Each tracked lift's goal for the selected STRENGTH CLASS GOAL (changing the class re-draws the goal line)
   const goalStatsById = {};
   CORE_LIFT_IDS.forEach(id => {
@@ -267,7 +270,7 @@ export function ProgressionChartView({
       targetStandardClass,
       userBodyweightLbs,
       totalHeightInches,
-      customGoalWeights
+      customGoalWeights, goalBase1RMs
     });
   });
   // The class goal as one number: the tracked lifts' 1RMs added up, over time, against their goals added up
@@ -287,7 +290,7 @@ export function ProgressionChartView({
       : Object.fromEntries(
           legendLiftIds.map(id => [
             id,
-            getLiftGoalStats({ liftId: id, series: fullSeriesById[id], oneRepMaxes, targetStandardClass, userBodyweightLbs, totalHeightInches, customGoalWeights }).goal
+            getLiftGoalStats({ liftId: id, series: fullSeriesById[id], oneRepMaxes, targetStandardClass, userBodyweightLbs, totalHeightInches, customGoalWeights, goalBase1RMs }).goal
           ])
         );
   // The selected series' goal, drawn as a dashed line (the class total's goal, or the lift's own)
@@ -303,7 +306,7 @@ export function ProgressionChartView({
         targetStandardClass,
         userBodyweightLbs,
         totalHeightInches,
-        customGoalWeights
+        customGoalWeights, goalBase1RMs
       }).goal ||
       0
     );
@@ -502,7 +505,7 @@ export function ProgressionChartView({
             <StrengthClassGoalPicker
               targetStandardClass={targetStandardClass}
               setTargetStandardClass={setTargetStandardClass}
-              oneRepMaxes={oneRepMaxes}
+              goalBase1RMs={goalBase1RMs}
               // The class goal row under the chart already shows the total
               showClubTotal={false}
             />
@@ -857,7 +860,7 @@ export function ProgressionChartView({
               targetStandardClass,
               userBodyweightLbs,
               totalHeightInches,
-              customGoalWeights
+              customGoalWeights, goalBase1RMs
             });
 
             return (
