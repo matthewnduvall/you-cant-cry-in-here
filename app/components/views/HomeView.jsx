@@ -254,6 +254,8 @@ export function HomeView({
   // logged) and the class's name
   goalToGoLbs = null,
   goalClassName = '',
+  // Which lifts the goal adds up ('BIG 3 + OHP', or 'BIG 3' for the 1000 LB CLUB)
+  goalLiftsLabel = 'BIG 3 + OHP',
   // The TODAY panel while a session is open: { title, done, total } (sets)
   activeSessionSummary = null,
   // Bodyweight / height not entered yet: the ticker starts with a reminder
@@ -407,8 +409,8 @@ export function HomeView({
       label: 'TO GOAL',
       value: goalToGoLbs === null ? '—' : goalToGoLbs === 0 ? 'DONE' : String(goalToGoLbs),
       unit: goalToGoLbs > 0 ? 'LB' : '',
-      // The same number as Performance's BIG 3 + OHP TO GOAL row (TO GO summed over the Big 3 + OHP)
-      sub: goalToGoLbs === null ? 'LOG A BIG 3 LIFT' : `BIG 3 + OHP · ${(goalClassName || 'GOAL').toUpperCase()}`,
+      // The same number as TO GO on Performance's STRENGTH CLASS GOAL row (goal total − latest total)
+      sub: goalToGoLbs === null ? 'LOG A BIG 3 LIFT' : `${goalLiftsLabel} · ${(goalClassName || 'GOAL').toUpperCase()}`,
       view: 'history'
     },
     {

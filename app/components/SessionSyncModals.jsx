@@ -33,7 +33,7 @@ export function SessionSyncModal({
   const syncableFriends = (friends || []).filter(f => isUuid(f?.id));
 
   return (
-    <div style={{ ...UI.modalBackdrop, zIndex: 1300 }} onClick={onClose}>
+    <div style={{ ...UI.modalBackdrop, zIndex: 1300 }}>
       <div onClick={e => e.stopPropagation()} style={UI.modalCard('390px')} role="dialog" aria-label="Sync session">
         <div style={UI.modalHeader}>
           {/* Left padding = the ✕ button's width, so the title sits in the middle of the card */}
@@ -126,6 +126,8 @@ export function IncomingSyncInviteModal({ invite, fromName = 'friend', willRepla
             <div style={UI.fieldLabel}>SYNC INVITE</div>
             <div style={{ fontSize: '16px', fontWeight: 500, textTransform: 'uppercase' }}>@{fromName} WANTS TO TRAIN TOGETHER</div>
           </div>
+          {/* ✕ = DECLINE (the invite needs an answer) */}
+          <CloseButton label="Decline the sync invite" onClick={busy ? undefined : onDecline} />
         </div>
         <div style={bodyText}>
           Join their session{exerciseCount ? ` (${exerciseCount} exercise${exerciseCount === 1 ? '' : 's'})` : ''}. Changes
@@ -148,9 +150,12 @@ export function IncomingSyncInviteModal({ invite, fromName = 'friend', willRepla
 export function SyncNoticeModal({ message, onClose, title = 'SYNC' }) {
   if (!message) return null;
   return (
-    <div style={{ ...UI.modalBackdrop, zIndex: 1400 }} onClick={onClose}>
+    <div style={{ ...UI.modalBackdrop, zIndex: 1400 }}>
       <div onClick={e => e.stopPropagation()} style={UI.modalCard('360px')} role="alertdialog" aria-label={`${title} update`}>
-        <div style={{ ...UI.fieldLabel, marginBottom: '8px', textAlign: 'center' }}>{title}</div>
+        <div style={UI.modalHeader}>
+          <span style={{ ...UI.fieldLabel, flex: 1, textAlign: 'center' }}>{title}</span>
+          <CloseButton onClick={onClose} />
+        </div>
         <div style={{ ...bodyText, color: '#FFFFFF', fontSize: '13px', fontWeight: 500 }}>{message}</div>
         <Button variant="primary" onClick={onClose} style={{ ...centredButton, width: '100%', height: '44px' }}>
           OK
@@ -180,6 +185,8 @@ export function SyncedHistoryUpdateModal({ update, exerciseName = id => id, form
               @{update.partnerName} added {names.length === 1 ? 'an exercise' : `${names.length} exercises`}
             </div>
           </div>
+          {/* ✕ = DISMISS */}
+          <CloseButton label="Dismiss" onClick={onDismiss} />
         </div>
         <div style={bodyText}>
           They added to the workout you did together{update.workoutDate ? ` on ${formatDate(update.workoutDate)}` : ''}:

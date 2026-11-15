@@ -70,9 +70,20 @@ export function GoalsView({
         customGoalWeights,
         oneRepMaxes
       );
-      openPlateCalculatorForGoal(selectedExId, ex.name, initialGoal);
+      openPlateCalculatorForGoal(selectedExId, ex.name, initialGoal, keepGoalsForCustom);
     }
   };
+
+  // Editing a goal switches the class to CUSTOM; until then the other lifts keep the goals they show now
+  const keepGoalsForCustom =
+    targetStandardClass === 'Custom'
+      ? null
+      : Object.fromEntries(
+          displayedGoalIds.map(id => [
+            id,
+            getExRxTargetForLift(id, targetStandardClass, userBodyweightLbs, totalHeightInches, customGoalWeights, oneRepMaxes)
+          ])
+        );
 
   return (
     <div style={{ paddingTop: '12px', paddingBottom: '36px' }}>
@@ -194,7 +205,7 @@ export function GoalsView({
           }}
         >
           {/* STRENGTH CLASS GOAL (+ 1000 LB CLUB total), then one row per tracked lift — the same rows as the
-              PROGRESS page: START | PR | LATEST | TO GO | GOAL ✎ */}
+              PROGRESS page: PR | LATEST | TO GO | GOAL ✎ */}
           <StrengthClassGoalPicker
             targetStandardClass={targetStandardClass}
             setTargetStandardClass={setTargetStandardClass}
@@ -218,7 +229,7 @@ export function GoalsView({
                 name={formatLiftLabel(liftId, ex.name)}
                 color={CORE_LIFT_META[liftId]?.color || '#FFFFFF'}
                 stats={stats}
-                onEditGoal={() => openPlateCalculatorForGoal(liftId, ex.name, stats.goal)}
+                onEditGoal={() => openPlateCalculatorForGoal(liftId, ex.name, stats.goal, keepGoalsForCustom)}
                 onOpenWorkout={onOpenHistoryWorkout}
               />
             );
@@ -239,7 +250,7 @@ export function GoalsView({
 
       {/* ADD EXERCISE MODAL FOR CUSTOM GOALS */}
       {showAddGoalExerciseModal && (
-        <div className="cr-config-off" style={UI.modalBackdrop} onClick={() => setShowAddGoalExerciseModal(false)}>
+        <div className="cr-config-off" style={UI.modalBackdrop}>
           <div onClick={e => e.stopPropagation()} style={UI.modalCard('400px')}>
             <div style={UI.modalHeader}>
               <span>ADD EXERCISE</span>

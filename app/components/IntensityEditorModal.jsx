@@ -37,7 +37,7 @@ export function IntensityEditorModal({ title = 'INTENSITY', reps = 8, intensity 
   const options = INTENSITY_OPTIONS[draft.mode];
 
   return (
-    <div style={{ ...UI.modalBackdrop, zIndex: 90 }} onClick={onClose}>
+    <div style={{ ...UI.modalBackdrop, zIndex: 90 }}>
       <div role="dialog" aria-label={title} onClick={e => e.stopPropagation()} style={UI.modalCard('400px')}>
         <div style={UI.modalHeader}>
           <span>{title}</span>

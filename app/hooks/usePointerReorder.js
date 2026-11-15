@@ -8,8 +8,11 @@
 // - the row it would land on gets an orange outline (an outline, not an inset box-shadow, so the row's own
 //   filled cells can't cover it).
 // On release, `onMove(fromKey, overKey)` runs if they differ; numeric keys come back as numbers.
-// Not too sensitive: the row only lifts after the finger moves LIFT_THRESHOLD_PX, and it only lands on another row
-// once the finger passes that row's middle (so a small wobble never reorders anything).
+// Not too sensitive: the handle has to be held still for HOLD_MS (1 s) before the row lifts — moving the finger
+// further than LIFT_THRESHOLD_PX before then cancels — and a lifted row only lands on another row once the finger
+// passes that row's middle (so a small wobble never reorders anything). handleProps(key, { disabled: true }) leaves a
+// row where it is (locked sets).
+// - holdMs: how long the handle must be held before dragging (default HOLD_MS)
 // Options:
 // - attribute: the row attribute to look for (use different ones for nested lists, e.g. exercises vs sets)
 // - canDrop(fromKey, overKey): only allow some targets (e.g. sets within the same superset exercise)
@@ -21,8 +24,19 @@ import { useEffect, useRef, useState } from 'react';
 
 const ACCENT_OUTLINE = '2px solid var(--dp-color-accent)';
 const LIFT_THRESHOLD_PX = 10;
+const HOLD_MS = 1000;
 
-export function usePointerReorder(onMove, { attribute = 'data-reorder-index', canDrop, edgeTop = 90, edgeBottom = 70 } = {}) {
+export function usePointerReorder(
+  onMove,
+  { attribute = 'data-reorder-index', canDrop, edgeTop = 90, edgeBottom = 70, holdMs = HOLD_MS } = {}
+) {
+  // The hold timer: the row lifts only once the handle has been held still for holdMs
+  const holdTimer = useRef(null);
+  const clearHold = () => {
+    if (holdTimer.current) window.clearTimeout(holdTimer.current);
+    holdTimer.current = null;
+  };
+  useEffect(() => () => clearHold(), []);
   const [drag, setDrag] = useState(null); // { from, over, offsetY, lifted } while a handle is held (keys as strings)
   const pointer = useRef(null); // { x, y } latest pointer position
   const start = useRef(null); // { y, scrollY } where the drag began
@@ -38,6 +52,14 @@ export function usePointerReorder(onMove, { attribute = 'data-reorder-index', ca
   // The held row's element (keys repeat across lists, e.g. every exercise's sets start at "0:0", so rows are found
   // by element, never by querySelector on the key)
   const ownRowEl = useRef(null);
+
+  const reset = () => {
+    clearHold();
+    pointer.current = null;
+    start.current = null;
+    ownRowEl.current = null;
+    updateDrag(null);
+  };
 
   // The row under (x, y) in the same list, skipping the lifted row itself (it moves with the finger, so it is
   // always on top): { key, el } or null
@@ -59,8 +81,13 @@ export function usePointerReorder(onMove, { attribute = 'data-reorder-index', ca
     const next = (() => {
       if (!prev || !pointer.current || !start.current) return prev;
       const offsetY = pointer.current.y - start.current.y + (window.scrollY - start.current.scrollY);
-      // Nothing moves until the finger has really moved
-      if (!prev.lifted && Math.abs(offsetY) < LIFT_THRESHOLD_PX) return prev;
+      // Still waiting for the hold: moving away cancels it (nothing lifts), staying still keeps waiting
+      if (!prev.armed) {
+        if (Math.abs(offsetY) >= LIFT_THRESHOLD_PX || Math.abs(pointer.current.x - start.current.x) >= LIFT_THRESHOLD_PX) {
+          return undefined;
+        }
+        return prev;
+      }
       const hit = rowAt(pointer.current.x, pointer.current.y);
       let over = hit ? hit.key : null;
       if (hit && over !== prev.over) {
@@ -86,6 +113,10 @@ export function usePointerReorder(onMove, { attribute = 'data-reorder-index', ca
       }
       return { ...prev, over, offsetY, lifted: true };
     })();
+    if (next === undefined) {
+      reset();
+      return;
+    }
     if (next !== prev) updateDrag(next);
   };
 
@@ -108,14 +139,10 @@ export function usePointerReorder(onMove, { attribute = 'data-reorder-index', ca
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [Boolean(drag?.lifted), edgeTop, edgeBottom]);
 
-  const reset = () => {
-    pointer.current = null;
-    start.current = null;
-    ownRowEl.current = null;
-    updateDrag(null);
-  };
-
-  const handleProps = key => ({
+  const handleProps = (key, { disabled = false } = {}) => {
+    // A row that can't move (a locked set): no drag, and the page scrolls over its handle as usual
+    if (disabled) return { onContextMenu: e => e.preventDefault(), style: { cursor: 'default' }, 'aria-disabled': true };
+    return {
     onPointerDown: e => {
       if (e.button !== undefined && e.button !== 0) return;
       e.preventDefault();
@@ -128,8 +155,21 @@ export function usePointerReorder(onMove, { attribute = 'data-reorder-index', ca
       fromIsNumber.current = typeof key === 'number';
       ownRowEl.current = e.currentTarget.closest?.(`[${attribute}]`) || null;
       pointer.current = { x: e.clientX, y: e.clientY };
-      start.current = { y: e.clientY, scrollY: window.scrollY };
-      updateDrag({ from: String(key), over: String(key), offsetY: 0, lifted: false });
+      start.current = { x: e.clientX, y: e.clientY, scrollY: window.scrollY };
+      updateDrag({ from: String(key), over: String(key), offsetY: 0, lifted: false, armed: false });
+      // After holding still for holdMs the row lifts where it is (a short buzz on phones that support it)
+      clearHold();
+      holdTimer.current = window.setTimeout(() => {
+        holdTimer.current = null;
+        const cur = dragRef.current;
+        if (!cur || cur.armed) return;
+        try {
+          navigator.vibrate?.(15);
+        } catch {
+          // ignore
+        }
+        updateDrag({ ...cur, armed: true, lifted: true });
+      }, holdMs);
     },
     onPointerMove: e => {
       if (!dragRef.current) return;
@@ -152,8 +192,9 @@ export function usePointerReorder(onMove, { attribute = 'data-reorder-index', ca
     // iOS: no long-press menu / text selection on the handle
     onContextMenu: e => e.preventDefault(),
     // Holding the handle drags the row instead of scrolling the page
-    style: { touchAction: 'none', WebkitTouchCallout: 'none', WebkitUserSelect: 'none', userSelect: 'none', cursor: drag ? 'grabbing' : 'grab' }
-  });
+    style: { touchAction: 'none', WebkitTouchCallout: 'none', WebkitUserSelect: 'none', userSelect: 'none', cursor: drag?.armed ? 'grabbing' : 'grab' }
+    };
+  };
 
   // Style for a row while dragging: the held row lifts and follows; the landing row is outlined
   const rowDragStyle = key => {

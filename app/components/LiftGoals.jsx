@@ -1,7 +1,7 @@
 'use client';
 
 // Tracked-lift goal rows shared by the PROGRESS page (under the chart) and Configuration → GOALS (STANDARDS):
-// a title strip (colour swatch + name) over START | PR | LATEST | TO GO | GOAL ✎ (estimated 1RM, lb), plus the
+// a title strip (colour swatch + name) over PR | LATEST | TO GO | GOAL ✎ (estimated 1RM, lb), plus the
 // STRENGTH CLASS GOAL picker (+ the 1000 LB CLUB total row). Both pages render the same rows from the same numbers.
 
 import React from 'react';
@@ -83,8 +83,85 @@ export const getLiftGoalStats = ({
     pr,
     prCalculated: pr > 0 && pr === best && bestCalculated,
     goal,
-    toGo: Math.max(0, goal - pr),
+    // TO GO: from where you are now (LATEST) to the goal
+    toGo: Math.max(0, goal - (points.length ? Number(last.weight) : 0)),
     logged: pr > 0
+  };
+};
+
+/**
+ * The lifts a strength class goal is made of: the 1000 LB CLUB is the Big 3; every other class the Big 3 + OHP.
+ * { liftIds, liftsLabel ('BIG 3' / 'BIG 3 + OHP'), title ('ADVANCED GOAL', '1000 LB CLUB GOAL') }
+ */
+export const getClassGoalLifts = targetStandardClass => {
+  const club = targetStandardClass === THOUSAND_LB_CLUB;
+  return {
+    liftIds: club ? CORE_LIFT_IDS.slice(0, 3) : [...CORE_LIFT_IDS],
+    liftsLabel: club ? 'BIG 3' : 'BIG 3 + OHP',
+    title: `${String(targetStandardClass || 'Novice').toUpperCase()} GOAL`
+  };
+};
+
+/**
+ * The class goal as one number over time: on each date, the sum of each tracked lift's latest estimated 1RM on or before
+ * it (a lift not logged yet counts 0). [{ timestampMs, dateLabel, weight, calculated, workoutId }], oldest first.
+ * `seriesByLift[id]`: that lift's points with `timestampMs`.
+ */
+export const buildClassGoalTotalSeries = (seriesByLift, liftIds) => {
+  const lists = liftIds.map(id => (seriesByLift?.[id] || []).filter(pt => Number(pt.weight) > 0 && Number.isFinite(pt.timestampMs)));
+  const dates = Array.from(new Set(lists.flatMap(l => l.map(pt => pt.timestampMs)))).sort((a, b) => a - b);
+  const idx = lists.map(() => 0);
+  const latest = lists.map(() => null);
+  return dates.map(t => {
+    let loggedToday = null;
+    lists.forEach((l, i) => {
+      while (idx[i] < l.length && l[idx[i]].timestampMs <= t) {
+        latest[i] = l[idx[i]];
+        if (l[idx[i]].timestampMs === t) loggedToday = l[idx[i]];
+        idx[i] += 1;
+      }
+    });
+    return {
+      timestampMs: t,
+      dateLabel: loggedToday?.dateLabel || (latest.find(Boolean) || {}).dateLabel || '',
+      weight: Math.round(latest.reduce((sum, pt) => sum + (pt ? Number(pt.weight) : 0), 0)),
+      // * when any lift in the total is a calculated 1RM
+      calculated: latest.some(pt => pt?.calculated),
+      workoutId: loggedToday?.workoutId
+    };
+  });
+};
+
+/**
+ * The STRENGTH CLASS GOAL as one row (the PROGRESS page's top row and Home's TO GOAL tile): the tracked lifts' 1RMs
+ * added up. PR = the highest that total has been (the closest you have been), LATEST = the total now, GOAL = their goals
+ * added up (1000 for the 1000 LB CLUB), TO GO = GOAL − LATEST. `seriesByLift[id]` points need `timestampMs`.
+ */
+export const getClassGoalSummary = ({ seriesByLift, oneRepMaxes, targetStandardClass, userBodyweightLbs, totalHeightInches, customGoalWeights }) => {
+  const { liftIds, liftsLabel, title } = getClassGoalLifts(targetStandardClass);
+  const series = buildClassGoalTotalSeries(seriesByLift, liftIds);
+  const goal = Math.round(
+    liftIds.reduce(
+      (sum, id) =>
+        sum + (Number(getExRxTargetForLift(id, targetStandardClass, userBodyweightLbs, totalHeightInches, customGoalWeights, oneRepMaxes)) || 0),
+      0
+    )
+  );
+  const best = series.reduce((b, pt) => (!b || pt.weight > b.weight ? pt : b), null);
+  const last = series[series.length - 1] || null;
+  return {
+    liftIds,
+    liftsLabel,
+    title,
+    series,
+    goal,
+    pr: best ? best.weight : null,
+    prCalculated: Boolean(best?.calculated),
+    prWorkoutId: best?.workoutId || null,
+    latest: last ? last.weight : null,
+    latestCalculated: Boolean(last?.calculated),
+    latestWorkoutId: last?.workoutId || null,
+    toGo: last ? Math.max(0, goal - last.weight) : null
   };
 };
 
@@ -106,9 +183,10 @@ const statCell = {
 };
 
 /**
- * A tracked lift. `onTitleClick` makes the title strip a button (the Progress page: show only this lift);
- * `onEditGoal` makes GOAL ✎ editable; `showGoal={false}` (a friend's profile) shows START | PR | LATEST only;
- * `onOpenWorkout(workoutId)` makes START / PR / LATEST open the History workout each value comes from.
+ * A tracked lift: PR | LATEST | TO GO | GOAL ✎. `onTitleClick` makes the title strip a button (the Progress page:
+ * show only this lift); `onEditGoal` makes GOAL ✎ editable; `showGoal={false}` (a friend's profile) shows PR | LATEST
+ * only; `onOpenWorkout(workoutId)` makes PR / LATEST open the History workout each value comes from. TO GO =
+ * GOAL − LATEST.
  */
 export function LiftGoalRow({
   name,
@@ -211,16 +289,10 @@ export function LiftGoalRow({
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: `repeat(${showGoal ? 5 : 3}, minmax(0, 1fr))`,
+          gridTemplateColumns: `repeat(${showGoal ? 4 : 2}, minmax(0, 1fr))`,
           gap: 0
         }}
       >
-        {statCellOf(
-          'START',
-          stats.start > 0 ? oneRepMaxLabel(stats.start, stats.startCalculated) : dash,
-          stats.start > 0 ? stats.startWorkoutId : null,
-          `${stats.start} lb`
-        )}
         {statCellOf(
           'PR',
           stats.pr > 0 ? oneRepMaxLabel(stats.pr, stats.prCalculated) : dash,

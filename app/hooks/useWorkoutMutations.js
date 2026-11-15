@@ -6,6 +6,7 @@ import {
   getExerciseEquipmentOptions,
   normalizeSlotCategory,
   isSupersetCategory,
+  isClusterCategory,
   isBodyweightExercise,
   inferRoutineGymCategory,
   getDefaultSessionName,
@@ -35,6 +36,8 @@ import {
   getDefaultSchemeForGoal,
   getDefaultSchemeForExercise,
   isTimedHoldExercise,
+  CLUSTER_SCHEME,
+  CLUSTER_REST_SECONDS,
   getSupersetSchemes,
   normalizeSlotLabels,
   buildPresetSlots,
@@ -1613,7 +1616,9 @@ export function useWorkoutMutations({
       const next = withTrace(`CHANGE · ${Object.keys(changes || {}).join(', ')}`, () => applySlotHeaderChange(prev, slotId, changes), `change:${slotId}`);
       // The exercise's own REST stays through exercise / type / muscle / equipment / variation changes
       const before = (prev.slots || []).find(sl => sl.id === slotId);
-      if (!before?.customRestSeconds || changes?.customRestSeconds !== undefined || !Array.isArray(next?.slots)) return next;
+      // (Turning Cluster on or off sets the rest itself)
+      const clusterSwitch = changes?.category && isClusterCategory(changes.category) !== isClusterCategory(before?.category);
+      if (clusterSwitch || !before?.customRestSeconds || changes?.customRestSeconds !== undefined || !Array.isArray(next?.slots)) return next;
       return {
         ...next,
         slots: next.slots.map(sl => (sl.id === slotId && !sl.customRestSeconds ? { ...sl, customRestSeconds: before.customRestSeconds } : sl))
@@ -1788,14 +1793,23 @@ export function useWorkoutMutations({
         // A plank swapped in starts on Timer; swapping a timed plank for another exercise goes back to the goal's
         // scheme. A scheme the athlete picks in this change always wins.
         const swappedExercise = nextExId !== slot.exerciseId && !isSupersetCategory(nextCategory);
+        // Type CLUSTER: the Cluster scheme (3 × 18) and 15 s rest; leaving it goes back to the goal's scheme
+        const toCluster = isClusterCategory(nextCategory) && !isClusterCategory(slot.category);
+        const fromCluster = !isClusterCategory(nextCategory) && isClusterCategory(slot.category);
         const slotScheme =
-          changes.scheme !== undefined || !swappedExercise
+          changes.scheme !== undefined
             ? nextScheme
-            : isTimedHoldExercise(nextExId)
-              ? 'Timer'
-              : nextScheme === 'Timer' && isTimedHoldExercise(slot.exerciseId)
+            : toCluster
+              ? CLUSTER_SCHEME
+              : fromCluster && nextScheme === CLUSTER_SCHEME
                 ? defaultScheme
-                : nextScheme;
+                : !swappedExercise
+                  ? nextScheme
+                  : isTimedHoldExercise(nextExId)
+                    ? 'Timer'
+                    : nextScheme === 'Timer' && isTimedHoldExercise(slot.exerciseId)
+                      ? defaultScheme
+                      : nextScheme;
 
         const rebuiltSlot = createWorkoutSlot({
           category: nextCategory,
@@ -1817,6 +1831,11 @@ export function useWorkoutMutations({
           familyMuscleGroup: targetMuscleGroup,
           muscleGroupFilter: nextMuscleFilter,
           equipmentFilter: changes.equipmentFilter ?? slot.equipmentFilter,
+          ...(toCluster
+            ? { customRestSeconds: CLUSTER_REST_SECONDS }
+            : fromCluster
+              ? { customRestSeconds: slot.customRestSeconds === CLUSTER_REST_SECONDS ? null : slot.customRestSeconds || null }
+              : {}),
           // A scheme picked by hand takes the exercise off the program (it keeps that scheme)
           programOff: changes.scheme !== undefined && changes.scheme !== slot.scheme ? true : slot.programOff,
           // A program day's slot stays that slot (its rule plans the new exercise)
