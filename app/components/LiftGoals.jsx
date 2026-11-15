@@ -42,8 +42,22 @@ export const formatLiftLabel = (exId, rawName) => {
 };
 
 /**
+ * Each lift's LATEST estimated 1RM ({ [liftId]: lb }, the last point of its series; lifts not logged are left out).
+ * The 1000 LB CLUB's goals are split from these: every goal and TO GO is measured from where you are now.
+ */
+export const latest1RMsOf = seriesByLift => {
+  const out = {};
+  Object.entries(seriesByLift || {}).forEach(([id, list]) => {
+    const pts = (Array.isArray(list) ? list : []).filter(pt => Number(pt?.weight) > 0);
+    if (pts.length) out[id] = Number(pts[pts.length - 1].weight);
+  });
+  return out;
+};
+
+/**
  * One lift's numbers: START (first logged estimated 1RM), PR (best: History or a saved 1RM), LATEST (last logged),
- * GOAL (strength class / custom goal) and TO GO (goal − PR, never below 0). Unlogged lifts have pr = 0.
+ * GOAL (strength class / custom goal) and TO GO (goal − LATEST, never below 0). Unlogged lifts have pr = 0.
+ * goalBase1RMs: the 1RMs the 1000 LB CLUB's goals are split from — every lift's LATEST (latest1RMsOf).
  */
 export const getLiftGoalStats = ({
   liftId,
@@ -52,7 +66,8 @@ export const getLiftGoalStats = ({
   targetStandardClass,
   userBodyweightLbs,
   totalHeightInches,
-  customGoalWeights
+  customGoalWeights,
+  goalBase1RMs = {}
 }) => {
   const points = (Array.isArray(series) ? series : []).filter(pt => Number(pt?.weight) > 0);
   const best = Math.max(0, ...points.map(pt => Number(pt.weight)));
@@ -68,7 +83,7 @@ export const getLiftGoalStats = ({
     userBodyweightLbs,
     totalHeightInches,
     customGoalWeights,
-    oneRepMaxes
+    goalBase1RMs
   );
   // The History workouts the values come from (START / PR / LATEST open them); a PR from saved numbers has none
   const bestPoint = points.find(pt => Number(pt.weight) === best && !pt.calculated) || points.find(pt => Number(pt.weight) === best);
@@ -140,10 +155,12 @@ export const buildClassGoalTotalSeries = (seriesByLift, liftIds) => {
 export const getClassGoalSummary = ({ seriesByLift, oneRepMaxes, targetStandardClass, userBodyweightLbs, totalHeightInches, customGoalWeights }) => {
   const { liftIds, liftsLabel, title } = getClassGoalLifts(targetStandardClass);
   const series = buildClassGoalTotalSeries(seriesByLift, liftIds);
+  // The 1000 LB CLUB splits what is left from your LATEST 1RMs
+  const base = latest1RMsOf(seriesByLift);
   const goal = Math.round(
     liftIds.reduce(
       (sum, id) =>
-        sum + (Number(getExRxTargetForLift(id, targetStandardClass, userBodyweightLbs, totalHeightInches, customGoalWeights, oneRepMaxes)) || 0),
+        sum + (Number(getExRxTargetForLift(id, targetStandardClass, userBodyweightLbs, totalHeightInches, customGoalWeights, base)) || 0),
       0
     )
   );
@@ -344,8 +361,9 @@ export function LiftGoalRow({
 
 /** STRENGTH CLASS GOAL row (+ BIG 3 TOTAL for the 1000 LB CLUB). Goes inside a SHARED_GROUP_OUTER column. */
 // showClubTotal={false}: no BIG 3 TOTAL row under the picker (the PROGRESS page, whose class goal row says the same)
-export function StrengthClassGoalPicker({ targetStandardClass, setTargetStandardClass, oneRepMaxes, showClubTotal = true }) {
-  const club = showClubTotal && targetStandardClass === THOUSAND_LB_CLUB ? getThousandLbClubGoals(oneRepMaxes) : null;
+// goalBase1RMs: each lift's LATEST 1RM (latest1RMsOf), which the 1000 LB CLUB's total and goals are measured from
+export function StrengthClassGoalPicker({ targetStandardClass, setTargetStandardClass, goalBase1RMs = {}, showClubTotal = true }) {
+  const club = showClubTotal && targetStandardClass === THOUSAND_LB_CLUB ? getThousandLbClubGoals(goalBase1RMs) : null;
   return (
     <>
       <div

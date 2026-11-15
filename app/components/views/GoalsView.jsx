@@ -10,7 +10,8 @@ import {
   LiftGoalRow,
   StrengthClassGoalPicker,
   formatLiftLabel,
-  getLiftGoalStats
+  getLiftGoalStats,
+  latest1RMsOf
 } from '../LiftGoals';
 
 export function GoalsView({
@@ -47,6 +48,8 @@ export function GoalsView({
       ...Object.keys(customGoalWeights || {})
     ])
   );
+  // The 1000 LB CLUB's goals are split from each lift's LATEST 1RM (the same as the PROGRESS page)
+  const goalBase1RMs = latest1RMsOf(progressionSeriesByLift);
 
   // Always a real exercise that isn't already in the goals list
   const selectedExId = resolvePickerExerciseId(addGoalExerciseId, displayedGoalIds);
@@ -68,7 +71,7 @@ export function GoalsView({
         userBodyweightLbs,
         totalHeightInches,
         customGoalWeights,
-        oneRepMaxes
+        goalBase1RMs
       );
       openPlateCalculatorForGoal(selectedExId, ex.name, initialGoal, keepGoalsForCustom);
     }
@@ -81,7 +84,7 @@ export function GoalsView({
       : Object.fromEntries(
           displayedGoalIds.map(id => [
             id,
-            getExRxTargetForLift(id, targetStandardClass, userBodyweightLbs, totalHeightInches, customGoalWeights, oneRepMaxes)
+            getExRxTargetForLift(id, targetStandardClass, userBodyweightLbs, totalHeightInches, customGoalWeights, goalBase1RMs)
           ])
         );
 
@@ -209,7 +212,7 @@ export function GoalsView({
           <StrengthClassGoalPicker
             targetStandardClass={targetStandardClass}
             setTargetStandardClass={setTargetStandardClass}
-            oneRepMaxes={oneRepMaxes}
+            goalBase1RMs={goalBase1RMs}
           />
           {displayedGoalIds.map(liftId => {
             const ex = EXERCISE_MAP[liftId];
@@ -221,7 +224,7 @@ export function GoalsView({
               targetStandardClass,
               userBodyweightLbs,
               totalHeightInches,
-              customGoalWeights
+              customGoalWeights, goalBase1RMs
             });
             return (
               <LiftGoalRow
