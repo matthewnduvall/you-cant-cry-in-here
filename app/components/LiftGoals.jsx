@@ -343,8 +343,9 @@ export function LiftGoalRow({
 }
 
 /** STRENGTH CLASS GOAL row (+ BIG 3 TOTAL for the 1000 LB CLUB). Goes inside a SHARED_GROUP_OUTER column. */
-export function StrengthClassGoalPicker({ targetStandardClass, setTargetStandardClass, oneRepMaxes }) {
-  const club = targetStandardClass === THOUSAND_LB_CLUB ? getThousandLbClubGoals(oneRepMaxes) : null;
+// showClubTotal={false}: no BIG 3 TOTAL row under the picker (the PROGRESS page, whose class goal row says the same)
+export function StrengthClassGoalPicker({ targetStandardClass, setTargetStandardClass, oneRepMaxes, showClubTotal = true }) {
+  const club = showClubTotal && targetStandardClass === THOUSAND_LB_CLUB ? getThousandLbClubGoals(oneRepMaxes) : null;
   return (
     <>
       <div
