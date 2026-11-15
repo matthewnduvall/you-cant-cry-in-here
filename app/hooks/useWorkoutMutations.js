@@ -128,6 +128,8 @@ export function useWorkoutMutations({
   routineSelectReturnView,
   setRoutineSelectReturnView,
   isCurrentEditorShared,
+  // Privacy → SHARING DEFAULTS: what the finish / save pop-up starts with
+  shareDefaults = null,
   setIsCurrentEditorShared,
   expandedHistoryWorkoutId,
   setExpandedHistoryWorkoutId,
@@ -980,11 +982,12 @@ export function useWorkoutMutations({
     const detectedGymType = inferRoutineGymCategory(currentWorkout.slots);
     setSaveConfirmTarget({
       name: stripDateFromTitle(currentWorkout.title) || getDefaultSessionName(),
-      // LOG on for a session; SAVE (as a routine) and SHARE (@all = public, or chosen friends) off unless picked
-      log: true,
-      shareWithFriends: Boolean(isCurrentEditorShared),
+      // The athlete's SHARING DEFAULTS (Privacy): LOG, POST and SAVE AS ROUTINE → @me on, @all off unless changed there
+      log: shareDefaults?.log !== false,
+      shareWithFriends: Boolean(isCurrentEditorShared) || Boolean(shareDefaults?.routineToAll),
       shareFriendIds: [],
-      saveAsRoutine: currentView === 'routine_editor',
+      saveAsRoutine: currentView === 'routine_editor' || shareDefaults?.routineToMe !== false,
+      postToFeed: shareDefaults?.postToFeed !== false,
       gymType: detectedGymType,
       sourceView: currentView,
       // Sets whose intensity gives a 1RM out of line with the rest of their exercise (checked before it's logged)

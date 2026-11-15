@@ -15,6 +15,7 @@ export const PAGE_TITLES = {
   stimulus_map: 'STIMULUS',
   social: 'FRIENDS',
   leaderboards: 'LEADERBOARDS',
+  privacy: 'PRIVACY',
   configuration: 'CONFIGURATION',
   info: 'INFO',
   auth: 'SIGN IN',
@@ -498,7 +499,9 @@ export function AppHeaderAndDrawer({
                               }
                             : null
                       },
-                      { id: 'leaderboards', label: 'Leaderboards' }
+                      { id: 'leaderboards', label: 'Leaderboards' },
+                      // Who sees what, emails, and what the finish / save pop-up starts with
+                      { id: 'privacy', label: 'Privacy' }
                     ]
                   },
                   {

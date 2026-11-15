@@ -43,6 +43,8 @@ import { useSyncedHistoryUpdates } from './hooks/useSyncedHistoryUpdates';
 import { useRoutineShares } from './hooks/useRoutineShares';
 import { useSocialFeed, workoutExerciseNames } from './hooks/useSocialFeed';
 import { SocialFeedSection } from './components/views/SocialFeedSection';
+import { SocialSettingsSection, SharingDefaultsSection } from './components/views/SettingsView';
+import { normalizeShareDefaults } from './utils/storageMigration';
 import { CORE_LIFT_IDS, getClassGoalSummary } from './components/LiftGoals';
 import { withTrace, traceLine, logOperation } from './utils/calcTrace';
 import { setPlateInventory } from './utils/loading';
@@ -211,6 +213,8 @@ export default function App() {
   const [autoPostPRs, setAutoPostPRs] = useState(true);
   // Email me when a friend creates a challenge (/api/notify-challenge); on by default
   const [emailChallenges, setEmailChallenges] = useState(true);
+  // Privacy → SHARING DEFAULTS: what the finish / save pop-up starts with (POST on by default)
+  const [shareDefaults, setShareDefaults] = useState(() => normalizeShareDefaults(null));
   // The Social page's first tab when it next opens ('privacy' from your profile's PRIVACY →)
   const [socialInitialTab, setSocialInitialTab] = useState('friends');
   // Profile photo: a small JPEG data URL (settings.profilePhoto, local + cloud); see ProfileAvatar.jsx
@@ -380,6 +384,8 @@ export default function App() {
     setAutoPostPRs,
     emailChallenges,
     setEmailChallenges,
+    shareDefaults,
+    setShareDefaults,
     profilePhoto,
     setProfilePhoto
   });
@@ -507,6 +513,7 @@ export default function App() {
     routineSelectReturnView,
     setRoutineSelectReturnView,
     isCurrentEditorShared,
+    shareDefaults,
     setIsCurrentEditorShared,
     expandedHistoryWorkoutId,
     setExpandedHistoryWorkoutId,
@@ -1507,6 +1514,31 @@ export default function App() {
           )}
 
           {/* LEADERBOARDS: its own page (tabs BIG 3 / BW, BIG 3 LB, OHP / BW, IMPROVED) */}
+          {/* PRIVACY (menu SOCIAL → Privacy): who sees what, emails, and the sharing defaults */}
+          {currentView === 'privacy' && (
+            <div style={{ paddingTop: '12px' }}>
+              <SocialSettingsSection
+                colors={colors}
+                collapsible={false}
+                profileIsPublic={profileIsPublic}
+                setProfileIsPublic={setProfileIsPublic}
+                shareStatsWithFriends={shareStatsWithFriends}
+                setShareStatsWithFriends={setShareStatsWithFriends}
+                shareRoutinesWithFriends={shareRoutinesWithFriends}
+                setShareRoutinesWithFriends={setShareRoutinesWithFriends}
+                shareBodyweightWithFriends={shareBodyweightWithFriends}
+                setShareBodyweightWithFriends={setShareBodyweightWithFriends}
+                emailFriendRequests={emailFriendRequests}
+                setEmailFriendRequests={setEmailFriendRequests}
+                autoPostPRs={autoPostPRs}
+                setAutoPostPRs={setAutoPostPRs}
+                emailChallenges={emailChallenges}
+                setEmailChallenges={setEmailChallenges}
+              />
+              <SharingDefaultsSection colors={colors} shareDefaults={shareDefaults} setShareDefaults={setShareDefaults} />
+            </div>
+          )}
+
           {currentView === 'leaderboards' && (
             <LeaderboardView colors={colors} user={user} friendsList={friendsList} {...leaderboardProps} />
           )}
@@ -1531,22 +1563,6 @@ export default function App() {
               appendSessionLog={appendSessionLog}
               setViewingFriendProfile={setViewingFriendProfile}
               setCurrentView={setCurrentView}
-              socialSettingsProps={{
-                profileIsPublic,
-                setProfileIsPublic,
-                shareStatsWithFriends,
-                setShareStatsWithFriends,
-                shareRoutinesWithFriends,
-                setShareRoutinesWithFriends,
-                shareBodyweightWithFriends,
-                setShareBodyweightWithFriends,
-                emailFriendRequests,
-                setEmailFriendRequests,
-                autoPostPRs,
-                setAutoPostPRs,
-                emailChallenges,
-                setEmailChallenges
-              }}
               receivedRoutines={user ? routineShares.incoming : []}
               onSaveReceived={routineShares.saveShare}
               onLoadReceived={share =>
@@ -1585,10 +1601,7 @@ export default function App() {
               shareBodyweightWithFriends={shareBodyweightWithFriends}
               profileIsPublic={profileIsPublic}
               onLoadFriendWorkout={openFriendWorkoutPreview}
-              onOpenPrivacy={() => {
-                setSocialInitialTab('privacy');
-                setCurrentView('social');
-              }}
+              onOpenPrivacy={() => setCurrentView('privacy')}
               routinesProps={{
                 user,
                 savedRoutines,

@@ -521,3 +521,42 @@ export function DataBackupSection({
       </IOSListSection>
   );
 }
+
+/**
+ * SHARING DEFAULTS (the Privacy page): what the finish / save pop-up starts with — LOG to History, POST to your
+ * friends' feeds, and SAVE AS ROUTINE to @me (your routine library) and @all (your shared routines). Each save can
+ * still change them.
+ */
+export function SharingDefaultsSection({ colors, shareDefaults, setShareDefaults }) {
+  const d = shareDefaults || {};
+  const rows = [
+    { key: 'log', title: 'Log to History', sub: 'LOG' },
+    { key: 'postToFeed', title: "Post to friends' feeds", sub: 'POST' },
+    { key: 'routineToMe', title: 'Save to your routines', sub: 'SAVE AS ROUTINE · @ME' },
+    { key: 'routineToAll', title: 'Add to your shared routines', sub: 'SAVE AS ROUTINE · @ALL' }
+  ];
+  return (
+    <IOSListSection
+      header="SHARING DEFAULTS"
+      footer="What the finish and save pop-up starts with. You can still change any of them each time."
+      colors={colors}
+    >
+      {rows.map((r, i) => (
+        <IOSListRow
+          key={r.key}
+          isLast={i === rows.length - 1}
+          colors={colors}
+          onClick={() => setShareDefaults?.(prev => ({ ...(prev || {}), [r.key]: !(prev || {})[r.key] }))}
+        >
+          <span style={{ minWidth: 0 }}>
+            <span style={UI.rowTitle}>{r.title}</span>
+            <span className="kinetic-sub" style={{ ...UI.rowSub, display: 'block' }}>{r.sub}</span>
+          </span>
+          <span role="switch" aria-checked={Boolean(d[r.key])} style={UI.badge(Boolean(d[r.key]))}>
+            {d[r.key] ? 'ON' : 'OFF'}
+          </span>
+        </IOSListRow>
+      ))}
+    </IOSListSection>
+  );
+}

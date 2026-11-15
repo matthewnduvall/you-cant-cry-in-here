@@ -34,6 +34,7 @@ import {
 import { getInitial1RMs, buildHistoryPRs } from '../utils/workoutEngine';
 import { getEquipmentListForGymSelection, normalizeSlotCategory } from '../data/exerciseLibrary';
 import { normalizePlateInventory } from '../utils/loading';
+import { normalizeShareDefaults } from '../utils/storageMigration';
 
 // How often an on-screen app checks whether a friend has logged a new workout (one tiny request)
 const FRIEND_ACTIVITY_POLL_MS = 30000;
@@ -143,6 +144,9 @@ export function useCloudAndStorageSync({
   // Email me when a friend creates a challenge (settings.social.emailChallenges; on unless turned off)
   emailChallenges = true,
   setEmailChallenges,
+  // What the finish / save pop-up starts with (settings.social.shareDefaults; normalizeShareDefaults)
+  shareDefaults = null,
+  setShareDefaults,
   // Profile photo (small JPEG data URL; settings.profilePhoto, local + cloud)
   profilePhoto,
   setProfilePhoto
@@ -163,6 +167,7 @@ export function useCloudAndStorageSync({
     setEmailFriendRequests?.(true);
     setAutoPostPRs?.(true);
     setEmailChallenges?.(true);
+    setShareDefaults?.(normalizeShareDefaults(null));
     setCryingVariety?.(5);
     setSessionMode?.('advanced');
     setPlateInventory?.(null);
@@ -264,6 +269,7 @@ export function useCloudAndStorageSync({
           setEmailFriendRequests?.(hydrated.settings.social.emailFriendRequests !== false);
           setAutoPostPRs?.(hydrated.settings.social.autoPostPRs !== false);
           setEmailChallenges?.(hydrated.settings.social.emailChallenges !== false);
+          setShareDefaults?.(normalizeShareDefaults(hydrated.settings.social.shareDefaults));
         }
       }
     }
@@ -612,6 +618,9 @@ export function useCloudAndStorageSync({
               if (cloud.settings.social.emailChallenges !== undefined) {
                 setEmailChallenges?.(cloud.settings.social.emailChallenges !== false);
               }
+              if (cloud.settings.social.shareDefaults !== undefined) {
+                setShareDefaults?.(normalizeShareDefaults(cloud.settings.social.shareDefaults));
+              }
             }
           }
         }
@@ -753,7 +762,8 @@ export function useCloudAndStorageSync({
               shareBodyweightWithFriends,
               emailFriendRequests: emailFriendRequests !== false,
               autoPostPRs: autoPostPRs !== false,
-              emailChallenges: emailChallenges !== false
+              emailChallenges: emailChallenges !== false,
+              shareDefaults: normalizeShareDefaults(shareDefaults)
             },
             selectedGymId,
             availableEquipment,
@@ -862,6 +872,7 @@ export function useCloudAndStorageSync({
     emailFriendRequests,
     autoPostPRs,
     emailChallenges,
+    shareDefaults,
     selectedGymId,
     availableEquipment,
     profilePhoto,
@@ -931,6 +942,7 @@ export function useCloudAndStorageSync({
           setEmailFriendRequests?.(rehydrated.settings.social.emailFriendRequests !== false);
           setAutoPostPRs?.(rehydrated.settings.social.autoPostPRs !== false);
           setEmailChallenges?.(rehydrated.settings.social.emailChallenges !== false);
+          setShareDefaults?.(normalizeShareDefaults(rehydrated.settings.social.shareDefaults));
           setSelectedGymId(rehydrated.settings.selectedGymId);
           setAvailableEquipment(
             Array.isArray(rehydrated.settings.availableEquipment)

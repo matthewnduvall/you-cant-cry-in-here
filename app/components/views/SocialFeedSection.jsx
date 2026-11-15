@@ -129,7 +129,7 @@ function ChallengeCard({ challenge, me, nowMs, canJoin, onJoin, onLeave, onDelet
               JOIN
             </button>
           ) : (
-            <span style={{ ...UI.sentence, fontSize: '12px' }}>Share your stats with friends (Friends → Privacy) to join.</span>
+            <span style={{ ...UI.sentence, fontSize: '12px' }}>Share your stats with friends (Menu → Privacy) to join.</span>
           )}
         </div>
       )}
