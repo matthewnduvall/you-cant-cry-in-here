@@ -95,7 +95,7 @@ export const DEFAULT_SETTINGS_V2 = {
   cryingVariety: 5,
   sessionMode: 'advanced',
   // shareBodyweightWithFriends: off unless the athlete turns it on (also for accounts saved before it existed)
-  social: { shareStatsWithFriends: true, shareRoutinesWithFriends: true, profileIsPublic: true, shareBodyweightWithFriends: false, emailFriendRequests: true, autoPostPRs: true, emailChallenges: true },
+  social: { shareStatsWithFriends: true, shareRoutinesWithFriends: true, profileIsPublic: true, shareBodyweightWithFriends: false, emailFriendRequests: true, autoPostPRs: true, emailChallenges: true, shareDefaults: null },
   selectedGymId: '',
   // the Equipment page list (GYM_EQUIPMENT_OPTIONS the athlete has); null = not chosen yet (derived from selectedGymId)
   availableEquipment: null,
@@ -266,3 +266,16 @@ export const loadHydratedAppState = () => {
   }
 };
 
+/**
+ * What the finish / save pop-up starts with (Privacy → SHARING DEFAULTS; settings.social.shareDefaults): LOG to
+ * History, POST to the feed, and SAVE AS ROUTINE to @me (your routine library) and / or @all (your shared routines).
+ * Missing values take the defaults: LOG, POST and @me on, @all off. (Older saved keys saveAsRoutine /
+ * shareWithFriends are ignored: SAVE and SHARE became one SAVE AS ROUTINE tile, on for @me by default.)
+ */
+export const DEFAULT_SHARE_DEFAULTS = { log: true, postToFeed: true, routineToMe: true, routineToAll: false };
+export const normalizeShareDefaults = value => {
+  const v = value && typeof value === 'object' ? value : {};
+  return Object.fromEntries(
+    Object.entries(DEFAULT_SHARE_DEFAULTS).map(([k, d]) => [k, typeof v[k] === 'boolean' ? v[k] : d])
+  );
+};

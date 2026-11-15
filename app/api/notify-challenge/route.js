@@ -8,7 +8,7 @@ import { EXERCISE_MAP } from '../../data/exerciseLibrary';
 // (Authorization: Bearer <access token>), never from the body. Friends' emails are looked up here with the service-role
 // key (SUPABASE_SERVICE_ROLE_KEY, server only) through claim_challenge_emails
 // (supabase/migrations/2026-11-16_challenge_emails.sql), which answers only for a challenge this athlete created, at most
-// once per challenge, and only for friends who want these emails (Friends → Privacy & sharing). The creator never sees
+// once per challenge, and only for friends who want these emails (Menu → Privacy). The creator never sees
 // anyone's email. One email per friend, sent through Resend's batch endpoint (up to 100 at a time).
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -90,9 +90,9 @@ export async function POST(request) {
       headlineHtml: headline,
       bodyHtml: detail,
       button: { label: 'See the challenge', url: appUrl },
-      footer: "Turn these emails off in Friends → Privacy & sharing → Email me friends' challenges."
+      footer: "Turn these emails off in the app: Menu → Privacy → Email me friends' challenges."
     });
-    const text = `@${fromHandle} challenged you: ${name || what}.\n\n${name ? `${what}. ` : ''}${days ? `${days} days to do it. ` : ''}Join it on Home > Challenges: ${appUrl}\n\nTurn these emails off in Friends > Privacy & sharing > Email me friends' challenges.`;
+    const text = `@${fromHandle} challenged you: ${name || what}.\n\n${name ? `${what}. ` : ''}${days ? `${days} days to do it. ` : ''}Join it on Home > Challenges: ${appUrl}\n\nTurn these emails off in the app: Menu > Privacy > Email me friends' challenges.`;
 
     // One email per friend (each only sees their own address), 100 per batch
     let sent = 0;

@@ -646,14 +646,21 @@ export function SaveConfirmModal({
   const showSave = sourceView !== 'routine_editor';
   const set = changes => setSaveConfirmTarget(prev => (prev ? { ...prev, ...changes } : null));
   const sendable = (friends || []).filter(f => f?.id);
-  const shareCount = (shareWithFriends ? 1 : 0) + shareFriendIds.length;
+  // SAVE AS ROUTINE goes to: @me (your routine library; always in the routine editor), @all (your shared routines),
+  // and / or chosen friends (a copy in their INBOX)
+  const toMe = !showSave || saveAsRoutine;
+  const shareCount = (toMe ? 1 : 0) + (shareWithFriends ? 1 : 0) + shareFriendIds.length;
   const shareSummary =
     shareCount === 0
       ? 'OFF'
-      : [shareWithFriends ? '@ALL' : null, ...shareFriendIds.map(id => `@${sendable.find(f => f.id === id)?.username || 'friend'}`.toUpperCase())]
+      : [
+          toMe ? '@ME' : null,
+          shareWithFriends ? '@ALL' : null,
+          ...shareFriendIds.map(id => `@${sendable.find(f => f.id === id)?.username || 'friend'}`.toUpperCase())
+        ]
           .filter(Boolean)
           .join(', ');
-  const nothingChosen = showLog && !log && !(showSave && saveAsRoutine) && shareCount === 0 && !postToFeed;
+  const nothingChosen = showLog && !log && shareCount === 0 && !postToFeed;
   const toggleStyle = on => ({
     minHeight: '52px',
     padding: '6px 4px',
@@ -669,14 +676,20 @@ export function SaveConfirmModal({
     justifyContent: 'center',
     gap: '2px'
   });
-  const toggleLabel = { fontSize: '12px', fontWeight: 500, letterSpacing: '0.08em', textTransform: 'uppercase' };
+  const toggleLabel = { fontSize: '12px', fontWeight: 500, letterSpacing: '0.08em', textTransform: 'uppercase', textAlign: 'center', lineHeight: 1.2 };
   const toggleSub = on => ({ fontSize: '10px', fontWeight: 500, letterSpacing: '0.06em', color: on ? '#3A3A3A' : '#9A9A9A', textTransform: 'uppercase' });
   const toggles = [
     showLog && { id: 'log', label: 'LOG', on: log, sub: log ? 'TO HISTORY' : 'NOT LOGGED', onClick: () => set({ log: !log }) },
-    showSave && { id: 'save', label: 'SAVE', on: saveAsRoutine, sub: saveAsRoutine ? 'AS ROUTINE' : 'NOT SAVED', onClick: () => set({ saveAsRoutine: !saveAsRoutine }) },
     // POST: to your friends' feeds (Home → FEED), for the sake of sharing; no routine is made
     canPost && { id: 'post', label: 'POST', on: postToFeed, sub: postToFeed ? 'TO FEED' : 'NOT POSTED', onClick: () => set({ postToFeed: !postToFeed }) },
-    { id: 'share', label: shareCount > 0 ? `SHARE · ${shareCount}` : 'SHARE', on: shareCount > 0, sub: shareOpen ? 'CHOOSE ▴' : 'CHOOSE ▾', onClick: () => setShareOpen(v => !v) }
+    // SAVE AS ROUTINE ▾: the routine library — @me by default, @all, or friends (opens the list)
+    {
+      id: 'share',
+      label: 'SAVE AS ROUTINE',
+      on: shareCount > 0,
+      sub: `${shareCount === 0 ? 'OFF' : shareCount === 1 && toMe ? '@ME' : `${shareCount} PLACES`} ${shareOpen ? '▴' : '▾'}`,
+      onClick: () => setShareOpen(v => !v)
+    }
   ].filter(Boolean);
   const pickRow = (key, label, sub, on, onClick, avatar) => (
     <button
@@ -755,8 +768,8 @@ export function SaveConfirmModal({
           />
         </div>
 
-        {/* LOG (add to History) · SAVE (as a routine) · POST (to friends' feeds) · SHARE (the routine library: @all =
-            your shared routines, or a copy to chosen friends' INBOX) */}
+        {/* LOG (add to History) · POST (to friends' feeds) · SAVE AS ROUTINE ▾ (the routine library: @me = your
+            routines, @all = your shared routines, friends = a copy in their INBOX) */}
         <div style={{ display: 'grid', gridTemplateColumns: `repeat(${toggles.length}, minmax(0, 1fr))`, gap: '6px', marginBottom: shareOpen ? '8px' : '14px' }}>
           {toggles.map(t => (
             <button
@@ -774,7 +787,16 @@ export function SaveConfirmModal({
           ))}
         </div>
         {shareOpen && (
-          <div role="listbox" aria-multiselectable="true" aria-label="Share with" style={{ display: 'flex', flexDirection: 'column', gap: '4px', maxHeight: '220px', overflowY: 'auto', marginBottom: '14px' }}>
+          <div role="listbox" aria-multiselectable="true" aria-label="Save as routine to" style={{ display: 'flex', flexDirection: 'column', gap: '4px', maxHeight: '220px', overflowY: 'auto', marginBottom: '14px' }}>
+            {/* @me: your routine library (the routine editor always saves there) */}
+            {pickRow(
+              'me',
+              '@me',
+              'your routines',
+              toMe,
+              showSave ? () => set({ saveAsRoutine: !saveAsRoutine }) : () => {},
+              <span aria-hidden="true" style={{ width: '28px', height: '28px', borderRadius: '8px', backgroundColor: toMe ? '#000000' : '#1C1C1C', color: '#FFFFFF', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: '12px' }}>ME</span>
+            )}
             {pickRow(
               'all',
               '@all',
@@ -814,7 +836,7 @@ export function SaveConfirmModal({
           </div>
         )}
         {!shareOpen && shareCount > 0 && (
-          <div style={{ ...UI.sentence, fontSize: '12px', marginTop: '-6px', marginBottom: '14px' }}>Sharing with {shareSummary.toLowerCase()}.</div>
+          <div style={{ ...UI.sentence, fontSize: '12px', marginTop: '-6px', marginBottom: '14px' }}>Saving the routine to {shareSummary.toLowerCase()}.</div>
         )}
         {nothingChosen && (
           <div style={{ ...UI.sentence, fontSize: '12px', marginTop: '-6px', marginBottom: '14px' }}>

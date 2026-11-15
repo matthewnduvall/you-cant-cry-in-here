@@ -83,9 +83,9 @@ export async function POST(request) {
       headlineHtml: `<strong style="font-weight:500;">@${safeFrom}</strong> wants to be your friend.`,
       bodyHtml: 'Accept or decline it in the app under Friends &rarr; Inbox.',
       button: { label: 'Open your inbox', url: appUrl },
-      footer: 'Turn these emails off in Friends → Privacy & sharing → Email me friend requests.'
+      footer: 'Turn these emails off in the app: Menu → Privacy → Email me friend requests.'
     });
-    const text = `@${fromHandle} wants to be your friend on You Can't Cry in Here.\n\nAccept or decline it in the app under Friends > Inbox: ${appUrl}\n\nTurn these emails off in Friends > Privacy & sharing > Email me friend requests.`;
+    const text = `@${fromHandle} wants to be your friend on You Can't Cry in Here.\n\nAccept or decline it in the app under Friends > Inbox: ${appUrl}\n\nTurn these emails off in the app: Menu > Privacy > Email me friend requests.`;
 
     const resendRes = await fetch('https://api.resend.com/emails', {
       method: 'POST',

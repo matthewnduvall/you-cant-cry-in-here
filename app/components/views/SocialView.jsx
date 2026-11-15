@@ -17,10 +17,10 @@ import { DeleteButton, TabBar } from '../Controls';
 import { InboxSection } from './InboxSection';
 import { ProfileAvatar } from '../ProfileAvatar';
 import { UI } from '../../styles/kineticTokens';
-import { SocialSettingsSection } from './SettingsView';
 
-// The Social page (view id 'social', titled FRIENDS): tabs FRIENDS (find athletes, sent requests, friends list, then
-// PRIVACY & SHARING) and INBOX (friend requests and routines friends sent you, as messages: InboxSection).
+// The Social page (view id 'social', titled FRIENDS): tabs FRIENDS (find athletes, sent requests, friends list) and
+// INBOX (friend requests and routines friends sent you, as messages: InboxSection). PRIVACY is its own page (view
+// 'privacy', menu SOCIAL → Privacy).
 // Leaderboards are their own page (view 'leaderboards').
 
 // One red per component: a list's ✕ buttons are grey (they still ask first, or are reversible)
@@ -44,8 +44,6 @@ export function SocialView({
   appendSessionLog,
   setViewingFriendProfile,
   setCurrentView,
-  // PRIVACY & SHARING settings (moved here from Settings)
-  socialSettingsProps,
   // Routines friends sent you (INBOX): routine_shares rows and their answers
   receivedRoutines = [],
   onSaveReceived,
@@ -58,14 +56,8 @@ export function SocialView({
 }) {
   const inboxTotal = (pendingIncomingRequests || []).length + (receivedRoutines || []).length;
   const [tab, setTab] = useState(initialTab === 'inbox' ? 'inbox' : 'friends');
-  // PRIVACY & SHARING (bottom of the page): scrolled to when the page opens for it
-  const privacyRef = React.useRef(null);
   useEffect(() => {
-    // After the page's own scroll to the top on opening
-    let timer = null;
-    if (initialTab === 'privacy') timer = setTimeout(() => privacyRef.current?.scrollIntoView({ block: 'start' }), 250);
     if (initialTab !== 'friends') onInitialTabUsed?.();
-    return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- only on opening the page
   }, []);
   // A photo for any athlete who is your friend (search results and requests only carry a username)
@@ -301,8 +293,7 @@ export function SocialView({
         />
       )}
 
-      {/* FRIENDS: find athletes, sent requests, your friends, then PRIVACY & SHARING at the bottom (collapsed; open and
-          scrolled to when you came from your profile's PRIVACY →) */}
+      {/* FRIENDS: find athletes, sent requests, your friends (PRIVACY is its own page: menu SOCIAL → Privacy) */}
       {tab === 'friends' && (
       <>
       {/* FIND ATHLETES: the search bar sits straight under the heading (no surrounding box); results and invite
@@ -579,9 +570,6 @@ export function SocialView({
           ))}
       </IOSListSection>
 
-      <div ref={privacyRef} style={{ scrollMarginTop: '170px' }}>
-        <SocialSettingsSection colors={colors} defaultOpen={initialTab === 'privacy'} {...socialSettingsProps} />
-      </div>
       </>
       )}
     </div>
