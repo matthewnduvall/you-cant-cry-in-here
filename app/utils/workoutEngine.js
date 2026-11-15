@@ -547,15 +547,36 @@ export const best1RMInfoOfSets = (sets = []) => {
  * The whole exercise's calculated 1RM from its sets (the 1RM box's LAST / NOW, the weight pop-up's CURRENT): the
  * average of its working sets' estimates (every set but warm-ups, with a weight), each counting its own reps and
  * intensity, so changing any one set's weight, reps or intensity moves it. Only warm-ups → their average.
- * { value, calculated }. History's PRs stay the best single set (best1RMInfoOfSets).
+ * A real 1RM — a working set lifted for 1 rep with nothing in reserve — is the exercise's 1RM by itself (the best
+ * such single, `calculated: false`). { value, calculated, setId (the single, else null), sets (the sets used) }.
+ * History scanners use it per session through loggedExercise1RMInfo.
  */
 export const exercise1RMInfoOfSets = (sets = []) => {
   const weighted = (sets || []).filter(st => (Number(st?.weight) || 0) > 0);
   const working = weighted.filter(st => normalizeSetType(st?.type) !== 'Warmup');
   const pool = working.length > 0 ? working : weighted;
-  if (pool.length === 0) return { value: 0, calculated: false };
+  if (pool.length === 0) return { value: 0, calculated: false, setId: null, sets: [] };
+  // A real 1RM (a working set lifted for 1 rep, nothing in reserve): that set alone is the exercise's 1RM
+  const singles = working.filter(st => !isCalculated1RMSet(st));
+  if (singles.length > 0) {
+    const top = singles.reduce((a, b) => ((Number(b.weight) || 0) > (Number(a.weight) || 0) ? b : a));
+    return { value: Math.round(Number(top.weight) || 0), calculated: false, setId: top?.id || null, sets: [top] };
+  }
+  // Otherwise calculated from the whole exercise: the average of its working sets' estimates
   const value = Math.round(pool.reduce((sum, st) => sum + estimateSet1RM(st), 0) / pool.length);
-  return { value, calculated: pool.length > 1 || pool.some(isCalculated1RMSet) };
+  return { value, calculated: true, setId: null, sets: pool };
+};
+
+/**
+ * One logged exercise's 1RM in one session (exercise1RMInfoOfSets over its completed sets when any are done;
+ * bodyweight exercises count bodyweight by the equipment choice). Every History scanner uses this: PRs, the
+ * PROGRESS chart and its START / PR / LATEST, LAST in the 1RM box, leaderboards, the ticker. A real single (1 rep,
+ * nothing in reserve) counts as itself; otherwise the whole exercise's average. { value, calculated, setId, sets }.
+ */
+export const loggedExercise1RMInfo = (exerciseId, rawSets, option = null) => {
+  const arr = withEffectiveLoad(exerciseId, rawSets || [], option);
+  const hasCompleted = arr.some(s => s && s.completed && Number(s.weight) > 0);
+  return exercise1RMInfoOfSets(hasCompleted ? arr.filter(s => s?.completed) : arr);
 };
 
 // How far (share) a set's calculated 1RM may sit from the rest of its exercise before saving asks to check it
@@ -624,24 +645,21 @@ export const getBestHistory1RMInfo = (exerciseId, history = []) => {
 
   (history || []).forEach(w => {
     (w?.slots || []).forEach(slot => {
+      // The exercise's 1RM in this session: a real single, else the whole exercise (loggedExercise1RMInfo)
       const scanSets = (setsList, half = 0) => {
-        // Bodyweight-type exercises: their load by the slot's equipment choice (withEffectiveLoad)
-        const arr = withEffectiveLoad(exerciseId, setsList, getSlotEquipmentChoice(slot, half));
-        const hasCompleted = arr.some(s => s && s.completed && Number(s.weight) > 0);
-        arr.forEach(st => {
-          if (!st || Number(st.weight) <= 0) return;
-          if (hasCompleted && !st.completed) return;
-          const est = Math.round(estimateSet1RM(st));
-          const calc = isCalculated1RMSet(st);
-          if (est > best || (est === best && bestCalculated && !calc)) {
-            best = est;
-            bestCalculated = calc;
-            bestWorkoutId = w?.id || null;
-            bestSlotId = slot?.id || null;
-            bestSetId = st?.id || null;
-            bestDateLabel = w?.startedAt ? formatDateYMD(w.startedAt) : '';
-          }
-        });
+        const info = loggedExercise1RMInfo(exerciseId, setsList, getSlotEquipmentChoice(slot, half));
+        const est = info.value;
+        if (!(est > 0)) return;
+        const calc = info.calculated;
+        if (est > best || (est === best && bestCalculated && !calc)) {
+          best = est;
+          bestCalculated = calc;
+          bestWorkoutId = w?.id || null;
+          bestSlotId = slot?.id || null;
+          // A real single is tagged PR on its row; a whole-exercise PR is shown on the exercise (no single set)
+          bestSetId = info.setId;
+          bestDateLabel = w?.startedAt ? formatDateYMD(w.startedAt) : '';
+        }
       };
 
       if (isSupersetCategory(slot.category) && Array.isArray(slot.supersetSetsByExercise)) {
@@ -689,15 +707,8 @@ const bestPerWorkout1RMs = workout => {
   const best = {};
   const scan = (exId, rawSets, option = null) => {
     if (!exId || !Array.isArray(rawSets)) return;
-    const setsList = withEffectiveLoad(exId, rawSets, option);
-    const hasCompleted = setsList.some(s => s && s.completed && Number(s.weight) > 0);
-    setsList.forEach(st => {
-      const w = Number(st?.weight) || 0;
-      if (w <= 0) return;
-      if (hasCompleted && !st.completed) return;
-      const est = Math.round(estimateSet1RM(st));
-      if (est > (best[exId] || 0)) best[exId] = est;
-    });
+    const est = loggedExercise1RMInfo(exId, rawSets, option).value;
+    if (est > (best[exId] || 0)) best[exId] = est;
   };
   (workout?.slots || []).forEach(slot => {
     if (isSupersetCategory(slot.category) && Array.isArray(slot.supersetSetsByExercise)) {

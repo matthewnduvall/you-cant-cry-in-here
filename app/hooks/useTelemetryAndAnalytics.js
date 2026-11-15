@@ -10,7 +10,7 @@ import {
   formatDateYMD,
   parseYMDToISO
 } from '../data/exerciseLibrary';
-import { getPersonalRecord1RM, isCalculated1RMSet, estimateSet1RM,
+import { getPersonalRecord1RM, loggedExercise1RMInfo,
   withEffectiveLoad
 } from '../utils/workoutEngine';
 import { getSlotEquipmentChoice } from '../data/exerciseLibrary';
@@ -93,19 +93,16 @@ export function buildProgressionSeriesByLift(history) {
         // Bodyweight-type exercises: their load by the slot's equipment choice
         const arr = withEffectiveLoad(liftId, setsList, option);
         const hasCompleted = arr.some(s => s && s.completed && Number(s.weight) > 0);
+        // The session's 1RM for the exercise: a real single, else the whole exercise (loggedExercise1RMInfo)
+        const info = loggedExercise1RMInfo(liftId, setsList, option);
+        if (info.value > top1RM || (info.value === top1RM && topCalculated && !info.calculated)) {
+          top1RM = info.value;
+          topCalculated = info.calculated;
+        }
         arr.forEach(s => {
           if (!s || Number(s.weight) <= 0) return;
           if (hasCompleted && !s.completed) return;
-          const wVal = Number(s.weight) || 0;
-          const rVal = Math.max(1, Number(s.reps) || 1);
-          // Reps in reserve count as reps the set could have done (estimateSet1RM)
-          const est1RM = Math.round(estimateSet1RM(s));
-          const calc = isCalculated1RMSet(s);
-          if (est1RM > top1RM || (est1RM === top1RM && topCalculated && !calc)) {
-            top1RM = est1RM;
-            topCalculated = calc;
-          }
-          totalVol += wVal * rVal;
+          totalVol += (Number(s.weight) || 0) * Math.max(1, Number(s.reps) || 1);
         });
       };
 
