@@ -396,6 +396,8 @@ export function SocialSettingsSection({
   setShareBodyweightWithFriends,
   emailFriendRequests = true,
   setEmailFriendRequests,
+  autoPostPRs = true,
+  setAutoPostPRs,
   // false = always open, no SHOW / HIDE
   collapsible = true,
   // Starts open (the Friends page when you came for PRIVACY)
@@ -455,6 +457,12 @@ export function SocialSettingsSection({
       <IOSListRow colors={colors} onClick={() => setShareBodyweightWithFriends?.(p => !p)}>
         <span style={UI.rowTitle}>Share bodyweight with friends</span>
         <span style={UI.badge(shareBodyweightWithFriends)}>{shareBodyweightWithFriends ? 'ON' : 'OFF'}</span>
+      </IOSListRow>
+
+      {/* New records post themselves to your friends' feeds (Home → FEED; needs Share stats) */}
+      <IOSListRow colors={colors} onClick={() => setAutoPostPRs?.(p => !p)}>
+        <span style={UI.rowTitle}>Post my records to the feed</span>
+        <span style={UI.badge(autoPostPRs)}>{autoPostPRs ? 'ON' : 'OFF'}</span>
       </IOSListRow>
 
       {/* An email when someone sends you a friend request (/api/notify-friend-request) */}

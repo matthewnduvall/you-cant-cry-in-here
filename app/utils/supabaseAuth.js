@@ -1935,3 +1935,193 @@ export async function deleteSentRoutineShares(user, shareIds = []) {
   });
   return { ok: res.ok, status: res.status };
 }
+
+// =====================================================================================================================
+// Social feed and challenges (public.activity_posts, post_reactions, post_comments, challenges,
+// challenge_participants; supabase/migrations/2026-11-15_social_feed_challenges.sql). All as the signed-in athlete, so
+// RLS limits everything to them and their accepted friends. Usernames on rows are filled in by the database.
+// =====================================================================================================================
+
+const POST_COLUMNS =
+  'id,user_id,username,kind,ref_id,payload,caption,created_at,post_reactions(user_id,username,emoji),post_comments(id,user_id,username,body,created_at)';
+
+/** Posts by you and your friends, newest first (up to `limit`). Returns { ok, posts }. */
+export async function fetchFeedPosts(user, limit = 40) {
+  if (!user || !isUuid(user.id)) return { ok: false, posts: [] };
+  const res = await authedRequest(
+    user,
+    `/rest/v1/activity_posts?select=${POST_COLUMNS}&order=created_at.desc&limit=${Math.max(1, Math.min(100, limit))}`
+  );
+  if (!res.ok || !Array.isArray(res.data)) return { ok: false, posts: [], status: res.status };
+  const posts = res.data.map(row => ({
+    ...row,
+    payload: row.payload || {},
+    reactions: Array.isArray(row.post_reactions) ? row.post_reactions : [],
+    comments: (Array.isArray(row.post_comments) ? row.post_comments : []).sort((a, b) =>
+      String(a.created_at).localeCompare(String(b.created_at))
+    )
+  }));
+  return { ok: true, posts };
+}
+
+/**
+ * A new post as the signed-in athlete: kind 'workout' | 'routine' | 'pr' | 'challenge_done', refId (the workout /
+ * routine / challenge it is about; one post per athlete + kind + ref), payload (what to show), caption.
+ * A repeat of the same ref answers 409 and counts as done. Returns { ok, duplicate }.
+ */
+export async function createFeedPost(user, { kind, refId = null, payload = {}, caption = '' }) {
+  if (!user || !isUuid(user.id)) return { ok: false };
+  const text = String(caption || '').trim().slice(0, 280);
+  const res = await authedRequest(user, '/rest/v1/activity_posts', {
+    method: 'POST',
+    prefer: 'return=minimal',
+    body: { user_id: user.id, kind, ref_id: refId ? String(refId) : null, payload: payload || {}, caption: text || null }
+  });
+  if (res.status === 409) return { ok: true, duplicate: true };
+  return { ok: res.ok, status: res.status };
+}
+
+/** Deletes one of your posts (its reactions and comments go with it). Returns { ok }. */
+export async function deleteFeedPost(user, postId) {
+  if (!user || !isUuid(user.id) || !isUuid(postId)) return { ok: false };
+  const res = await authedRequest(user, `/rest/v1/activity_posts?id=eq.${encodeURIComponent(postId)}`, {
+    method: 'DELETE',
+    prefer: 'return=minimal'
+  });
+  return { ok: res.ok };
+}
+
+/** Adds (on = true) or removes your reaction `emoji` on a post. Returns { ok }. */
+export async function setPostReaction(user, postId, emoji, on) {
+  if (!user || !isUuid(user.id) || !isUuid(postId) || !emoji) return { ok: false };
+  if (on) {
+    const res = await authedRequest(user, '/rest/v1/post_reactions', {
+      method: 'POST',
+      prefer: 'return=minimal',
+      body: { post_id: postId, user_id: user.id, emoji }
+    });
+    return { ok: res.ok || res.status === 409 };
+  }
+  const res = await authedRequest(
+    user,
+    `/rest/v1/post_reactions?post_id=eq.${encodeURIComponent(postId)}&user_id=eq.${encodeURIComponent(user.id)}&emoji=eq.${encodeURIComponent(emoji)}`,
+    { method: 'DELETE', prefer: 'return=minimal' }
+  );
+  return { ok: res.ok };
+}
+
+/** A comment on a post (1–500 characters). Returns { ok }. */
+export async function addPostComment(user, postId, body) {
+  const text = String(body || '').trim().slice(0, 500);
+  if (!user || !isUuid(user.id) || !isUuid(postId) || !text) return { ok: false };
+  const res = await authedRequest(user, '/rest/v1/post_comments', {
+    method: 'POST',
+    prefer: 'return=minimal',
+    body: { post_id: postId, user_id: user.id, body: text }
+  });
+  return { ok: res.ok };
+}
+
+/** Deletes a comment (yours, or any on your post). Returns { ok }. */
+export async function deletePostComment(user, commentId) {
+  if (!user || !isUuid(user.id) || !isUuid(commentId)) return { ok: false };
+  const res = await authedRequest(user, `/rest/v1/post_comments?id=eq.${encodeURIComponent(commentId)}`, {
+    method: 'DELETE',
+    prefer: 'return=minimal'
+  });
+  return { ok: res.ok };
+}
+
+const CHALLENGE_COLUMNS =
+  'id,creator_id,username,kind,exercise_id,target,title,starts_at,ends_at,created_at,challenge_participants(user_id,username,progress,progress_calculated,completed_at,joined_at,updated_at)';
+
+/** Challenges by you and your friends that ended less than `keepDays` ago, soonest end first. Returns { ok, challenges }. */
+export async function fetchChallenges(user, keepDays = 7) {
+  if (!user || !isUuid(user.id)) return { ok: false, challenges: [] };
+  const since = new Date(Date.now() - keepDays * 86400000).toISOString();
+  const res = await authedRequest(
+    user,
+    `/rest/v1/challenges?select=${CHALLENGE_COLUMNS}&ends_at=gte.${encodeURIComponent(since)}&order=ends_at.asc&limit=40`
+  );
+  if (!res.ok || !Array.isArray(res.data)) return { ok: false, challenges: [], status: res.status };
+  return {
+    ok: true,
+    challenges: res.data.map(row => ({
+      ...row,
+      target: Number(row.target) || 0,
+      participants: (Array.isArray(row.challenge_participants) ? row.challenge_participants : []).map(p => ({
+        ...p,
+        progress: Number(p.progress) || 0
+      }))
+    }))
+  };
+}
+
+/** Join a challenge (refused by the database while you don't share your stats). Returns { ok, status }. */
+export async function joinChallenge(user, challengeId) {
+  if (!user || !isUuid(user.id) || !isUuid(challengeId)) return { ok: false };
+  const res = await authedRequest(user, '/rest/v1/challenge_participants', {
+    method: 'POST',
+    prefer: 'return=minimal',
+    body: { challenge_id: challengeId, user_id: user.id }
+  });
+  return { ok: res.ok || res.status === 409, status: res.status };
+}
+
+/** A new challenge (you join it too). { kind, exerciseId, target, title, startsAt, endsAt }. Returns { ok, id }. */
+export async function createChallenge(user, { kind, exerciseId = null, target, title = '', startsAt, endsAt }) {
+  if (!user || !isUuid(user.id)) return { ok: false };
+  const res = await authedRequest(user, '/rest/v1/challenges?select=id', {
+    method: 'POST',
+    prefer: 'return=representation',
+    body: {
+      creator_id: user.id,
+      kind,
+      exercise_id: kind === 'sessions' ? null : exerciseId,
+      target: Number(target),
+      title: String(title || '').trim().slice(0, 80) || null,
+      starts_at: startsAt,
+      ends_at: endsAt
+    }
+  });
+  const id = Array.isArray(res.data) ? res.data[0]?.id : null;
+  if (!res.ok || !id) return { ok: false, status: res.status };
+  const joined = await joinChallenge(user, id);
+  return { ok: true, id, joined: joined.ok };
+}
+
+/** Deletes a challenge you created (everyone's participation goes with it). Returns { ok }. */
+export async function deleteChallenge(user, challengeId) {
+  if (!user || !isUuid(user.id) || !isUuid(challengeId)) return { ok: false };
+  const res = await authedRequest(user, `/rest/v1/challenges?id=eq.${encodeURIComponent(challengeId)}`, {
+    method: 'DELETE',
+    prefer: 'return=minimal'
+  });
+  return { ok: res.ok };
+}
+
+/** Leave a challenge. Returns { ok }. */
+export async function leaveChallenge(user, challengeId) {
+  if (!user || !isUuid(user.id) || !isUuid(challengeId)) return { ok: false };
+  const res = await authedRequest(
+    user,
+    `/rest/v1/challenge_participants?challenge_id=eq.${encodeURIComponent(challengeId)}&user_id=eq.${encodeURIComponent(user.id)}`,
+    { method: 'DELETE', prefer: 'return=minimal' }
+  );
+  return { ok: res.ok };
+}
+
+/** Your progress in a challenge (worked out from your History by useSocialFeed). Returns { ok }. */
+export async function updateChallengeProgress(user, challengeId, { progress, calculated = false, completedAt = null }) {
+  if (!user || !isUuid(user.id) || !isUuid(challengeId)) return { ok: false };
+  const res = await authedRequest(
+    user,
+    `/rest/v1/challenge_participants?challenge_id=eq.${encodeURIComponent(challengeId)}&user_id=eq.${encodeURIComponent(user.id)}`,
+    {
+      method: 'PATCH',
+      prefer: 'return=minimal',
+      body: { progress: Math.max(0, Number(progress) || 0), progress_calculated: Boolean(calculated), completed_at: completedAt }
+    }
+  );
+  return { ok: res.ok };
+}

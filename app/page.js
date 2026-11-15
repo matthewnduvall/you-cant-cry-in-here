@@ -41,6 +41,8 @@ import {
 } from './components/SessionSyncModals';
 import { useSyncedHistoryUpdates } from './hooks/useSyncedHistoryUpdates';
 import { useRoutineShares } from './hooks/useRoutineShares';
+import { useSocialFeed, workoutExerciseNames } from './hooks/useSocialFeed';
+import { SocialFeedSection } from './components/views/SocialFeedSection';
 import { CORE_LIFT_IDS, getClassGoalSummary } from './components/LiftGoals';
 import { withTrace, traceLine, logOperation } from './utils/calcTrace';
 import { setPlateInventory } from './utils/loading';
@@ -205,6 +207,8 @@ export default function App() {
   const [shareBodyweightWithFriends, setShareBodyweightWithFriends] = useState(false);
   // Email me when someone sends a friend request (/api/notify-friend-request); on by default
   const [emailFriendRequests, setEmailFriendRequests] = useState(true);
+  // New records post themselves to the feed (Home → FEED); on by default
+  const [autoPostPRs, setAutoPostPRs] = useState(true);
   // The Social page's first tab when it next opens ('privacy' from your profile's PRIVACY →)
   const [socialInitialTab, setSocialInitialTab] = useState('friends');
   // Profile photo: a small JPEG data URL (settings.profilePhoto, local + cloud); see ProfileAvatar.jsx
@@ -370,6 +374,8 @@ export default function App() {
     setShareBodyweightWithFriends,
     emailFriendRequests,
     setEmailFriendRequests,
+    autoPostPRs,
+    setAutoPostPRs,
     profilePhoto,
     setProfilePhoto
   });
@@ -926,6 +932,38 @@ export default function App() {
     appendSessionLog
   });
 
+  // Home's CHALLENGES and FEED (posts, reactions, comments; automatic PR posts; your challenge progress)
+  const social = useSocialFeed({ user, history, shareStatsWithFriends, autoPostPRs, appendSessionLog });
+  // A post's START / LOAD: a friend's workout opens as the locked preview (their logged copy when you have it, else
+  // the post's weightless copy); a routine loads into your session at your weights (asking before it replaces one)
+  const handleStartPost = post => {
+    const p = post?.payload || {};
+    const friendName = post?.username || 'friend';
+    if (post?.kind === 'workout') {
+      const logged = (friendsList || []).find(f => f?.id === post.user_id)?.history?.find(w => w?.id === post.ref_id);
+      openFriendWorkoutPreview(
+        logged || { id: post.ref_id || post.id, title: p.title || 'Workout', startedAt: p.date || post.created_at, slots: p.slots || [] },
+        friendName
+      );
+      return;
+    }
+    confirmReplaceSession(`@${friendName}'s ${p.title || 'routine'}`, () =>
+      handleDirectLoadRoutine({ key: `feed_${post.id}`, label: p.title || 'Routine', slots: p.slots || [], friendName }, 'session')
+    );
+  };
+  // A post's author: your profile, or a friend's
+  const handleOpenPostAuthor = userId => {
+    if (user && userId === user.id) {
+      setCurrentView('profile');
+      return;
+    }
+    const friend = (friendsList || []).find(f => f?.id === userId);
+    if (friend) {
+      setViewingFriendProfile(friend);
+      setCurrentView('friend_profile');
+    }
+  };
+
   // The Routines page (Home / menu; not LOAD ROUTINE from a session): loading something replaces your session, so a
   // session with exercises asks first
   const confirmReplaceSession = (label, run) => {
@@ -1212,6 +1250,18 @@ export default function App() {
               }}
               goalToGoLbs={homeGoalToGo}
               rank={homeRank}
+              belowTiles={
+                <SocialFeedSection
+                  user={user}
+                  social={social}
+                  profilePhoto={profilePhoto}
+                  friendsList={friendsList}
+                  shareStatsWithFriends={shareStatsWithFriends}
+                  onStartPost={handleStartPost}
+                  onOpenProfile={handleOpenPostAuthor}
+                  onSignIn={() => setCurrentView('auth')}
+                />
+              }
               goalClassName={targetStandardClass}
               goalLiftsLabel={homeGoal.liftsLabel}
               activeSessionSummary={
@@ -1477,7 +1527,9 @@ export default function App() {
                 shareBodyweightWithFriends,
                 setShareBodyweightWithFriends,
                 emailFriendRequests,
-                setEmailFriendRequests
+                setEmailFriendRequests,
+                autoPostPRs,
+                setAutoPostPRs
               }}
               receivedRoutines={user ? routineShares.incoming : []}
               onSaveReceived={routineShares.saveShare}
@@ -1704,6 +1756,21 @@ export default function App() {
                 { key: `share_${Date.now()}`, label: stripDateFromTitle(confirmed?.name) || stripDateFromTitle(workout.title) || 'Routine', slots: routineSlotsForStorage(workout.slots) },
                 chosen
               );
+            }
+            // SHARE → @all also posts it to your friends' feeds: a logged workout, or a routine
+            if (user && confirmed?.shareWithFriends && workout?.slots?.length) {
+              const src = saveConfirmTarget?.sourceView;
+              const isWorkout = src === 'history_editor' || (src === 'session' && confirmed?.log !== false);
+              const doneSlots = workout.slots;
+              social.postWorkout({
+                kind: isWorkout ? 'workout' : 'routine',
+                refId: isWorkout ? workout.id : workout.key || workout.id,
+                title: stripDateFromTitle(confirmed?.name) || stripDateFromTitle(workout.title) || (isWorkout ? 'Workout' : 'Routine'),
+                date: isWorkout ? workout.startedAt || null : null,
+                exercises: workoutExerciseNames(workout),
+                slots: routineSlotsForStorage(doneSlots),
+                caption: confirmed?.caption || ''
+              });
             }
             const fromHistoryEditor = saveConfirmTarget?.sourceView === 'history_editor';
             handleConfirmSaveWorkout(confirmed);
