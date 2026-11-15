@@ -6,7 +6,7 @@
 // Exercises that have been logged use their own History. Bodyweight exercises keep the library default.
 
 import { EXERCISE_MAP, EXRX_CLASSES, getExRxTargetForLift, isBodyweightExercise } from '../data/exerciseLibrary';
-import { getBestHistory1RM, estimateSet1RM, setReportedRir,
+import { getBestHistory1RM, estimateSet1RM, setReportedRir, loggedExercise1RMInfo,
   withEffectiveLoad
 } from './workoutEngine';
 import { getSlotEquipmentChoice } from '../data/exerciseLibrary';
@@ -87,34 +87,36 @@ export const getStarting1RM = (exerciseId, opts) => getStarting1RMInfo(exerciseI
 export const describe1RM = (exerciseId, opts = {}) => {
   const name = EXERCISE_MAP[exerciseId]?.name || exerciseId;
   const history = opts.history || [];
+  // The best session: its 1RM is a real single when it has one, else the whole exercise's average
+  // (loggedExercise1RMInfo, the rule History's PRs and the PROGRESS page use)
   let best = null;
   history.forEach(w =>
     (w?.slots || []).forEach(slot => {
-      const lists = (slot?.supersetSetsByExercise || [slot?.sets]).map((list, i) => ({
-        list: list || [],
-        id: (slot?.supersetExerciseIds || [slot?.exerciseId])[i] || slot?.exerciseId
-      }));
-      lists.forEach(({ list: rawList, id }) => {
+      const ids = slot?.supersetSetsByExercise ? slot.supersetExerciseIds || [slot.exerciseId] : [slot?.exerciseId];
+      const lists = slot?.supersetSetsByExercise || [slot?.sets];
+      ids.forEach((id, i) => {
         if (id !== exerciseId) return;
-        // Bodyweight-type exercises: weight = bodyweight + what was added / taken off
-        const list = withEffectiveLoad(id, rawList, getSlotEquipmentChoice(slot, lists.findIndex(l => l.list === rawList)));
-        const done = list.some(s => s?.completed && Number(s.weight) > 0);
-        list.forEach(st => {
-          const wt = Number(st?.weight) || 0;
-          if (wt <= 0 || (done && !st.completed)) return;
-          const reps = Math.max(1, Number(st.reps) || 1);
-          const est = estimateSet1RM(st);
-          if (!best || est > best.est) best = { est, wt, reps, rir: setReportedRir(st), at: w.startedAt };
-        });
+        const info = loggedExercise1RMInfo(id, lists[i] || [], getSlotEquipmentChoice(slot, i));
+        if (info.value > 0 && (!best || info.value > best.info.value)) best = { info, at: w.startedAt };
       });
     })
   );
   if (best) {
-    const when = best.at ? ` (best logged set, ${String(best.at).slice(0, 10)})` : ' (best logged set)';
-    if (best.reps === 1 && !best.rir) return `1RM ${name} = ${fmt(best.wt)} lb × 1 rep = ${fmt(best.est)} lb${when}`;
-    return best.rir
-      ? `1RM ${name} = ${fmt(best.wt)} × (1 + (${best.reps} reps + ${fmt(best.rir)} RIR) ÷ 30) = ${fmt(best.est)} lb${when}`
-      : `1RM ${name} = ${fmt(best.wt)} × (1 + ${best.reps} ÷ 30) = ${fmt(best.est)} lb${when}`;
+    const { info } = best;
+    const day = best.at ? String(best.at).slice(0, 10) : '';
+    const setText = st => {
+      const reps = Math.max(1, Number(st.reps) || 1);
+      const rir = setReportedRir(st);
+      return rir ? `${fmt(st.weight)} × (1 + (${reps} + ${fmt(rir)} RIR) ÷ 30)` : `${fmt(st.weight)} × (1 + ${reps} ÷ 30)`;
+    };
+    if (!info.calculated) {
+      return `1RM ${name} = ${fmt(info.value)} lb, lifted for 1 rep${day ? ` (${day})` : ''}`;
+    }
+    const parts = info.sets.map(st => fmt(Math.round(estimateSet1RM(st))));
+    if (info.sets.length === 1) {
+      return `1RM ${name} = ${setText(info.sets[0])} = ${fmt(info.value)} lb (best session${day ? `, ${day}` : ''})`;
+    }
+    return `1RM ${name} = average of ${info.sets.length} working sets (${parts.join(', ')}) = ${fmt(info.value)} lb (best session${day ? `, ${day}` : ''}; each set = weight × (1 + (reps + RIR) ÷ 30))`;
   }
   const info = getStarting1RMInfo(exerciseId, opts);
   const cls = getStartingClass(opts.targetStandardClass || 'Novice');

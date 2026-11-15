@@ -7,7 +7,8 @@ import {
   EXERCISE_MAP,
   stripEquipmentFromExerciseName,
   getBandLoadLabel,
-  isBodyweightExercise
+  isBodyweightExercise,
+  getSlotEquipmentChoice
 } from '../../data/exerciseLibrary';
 import {
   NEW_FRIEND_DAYS,
@@ -15,7 +16,7 @@ import {
   recordFriendFirstSeen,
   daysBetweenYMD
 } from '../../utils/friendFirstSeen';
-import { buildHistoryPRs, getBestHistory1RMInfo, oneRepMaxLabel, getSetTimerMMSS, estimateSet1RM } from '../../utils/workoutEngine';
+import { buildHistoryPRs, getBestHistory1RMInfo, oneRepMaxLabel, getSetTimerMMSS, estimateSet1RM, loggedExercise1RMInfo } from '../../utils/workoutEngine';
 
 // ============================================================================
 // VIEW: HOME SCREEN
@@ -151,12 +152,8 @@ function getAthleteScrollerEntries(friend, randomSeed = 1, todayFallbackStr = ''
             Array.isArray(slot?.supersetSetsByExercise) && slot.supersetSetsByExercise[exIdx]
               ? slot.supersetSetsByExercise[exIdx]
               : slot?.sets || [];
-          const maxSetW = Math.max(
-            0,
-            ...sets.map(st => {
-              return Math.round(estimateSet1RM(st));
-            })
-          );
+          // The session's 1RM: a real single, else the whole exercise (the same rule as Performance)
+          const maxSetW = loggedExercise1RMInfo(exId, sets, getSlotEquipmentChoice(slot, exIdx)).value;
           if (maxSetW > 0) {
             if (maxSetW > bestHistWeight) bestHistWeight = maxSetW;
             if (!latestDateRaw || wTimeMs > latestTimeMs) {
