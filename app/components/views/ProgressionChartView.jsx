@@ -503,6 +503,8 @@ export function ProgressionChartView({
               targetStandardClass={targetStandardClass}
               setTargetStandardClass={setTargetStandardClass}
               oneRepMaxes={oneRepMaxes}
+              // The class goal row under the chart already shows the total
+              showClubTotal={false}
             />
           </div>
         )}

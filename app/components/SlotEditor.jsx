@@ -989,8 +989,8 @@ export function SlotEditor({
     // Done sets recede (a step darker than the tile); the ✓ circle fills white
     // Sets still to do sit darker; a done set lights up a step (the whole card mutes once every set is done)
     const cellBg = st.completed ? '#262626' : '#121212';
-    // A set with any value locked stays where it is (no drag)
-    const setLocked = Boolean(st.lockType || st.lockWeight || st.lockReps || st.lockIntensity);
+    // A set marked done (✓) stays where it is (no drag); locks on its values don't stop it moving
+    const setLocked = Boolean(st.completed);
     // The sets after this one in the exercise that a pop-up's "ALSO SETS" may write to: not done, not locked
     const laterSetsFor = field => {
       const list = (isSuperset ? slot.supersetSetsByExercise?.[exIdx] : slot.sets) || [];
@@ -1032,8 +1032,8 @@ export function SlotEditor({
           color={isSuperset && exIdx === 0 ? 'var(--dp-color-accent)' : '#FFFFFF'}
           height="100%"
           bg={cellBg}
-          title={setLocked ? 'Locked set: unlock it to move it' : 'Hold for a second, then drag to rearrange the set'}
-          aria-label={setLocked ? `Set ${setNumText} is locked` : `Hold, then drag to reorder set ${setNumText}`}
+          title={setLocked ? 'Done set: untick it to move it' : 'Hold for a second, then drag to rearrange the set'}
+          aria-label={setLocked ? `Set ${setNumText} is done and can't be moved` : `Hold, then drag to reorder set ${setNumText}`}
           {...setHandleProps(`${exIdx}:${setIdx}`, { disabled: setLocked })}
         />
 
