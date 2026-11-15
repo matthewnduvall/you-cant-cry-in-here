@@ -398,6 +398,8 @@ export function SocialSettingsSection({
   setEmailFriendRequests,
   autoPostPRs = true,
   setAutoPostPRs,
+  emailChallenges = true,
+  setEmailChallenges,
   // false = always open, no SHOW / HIDE
   collapsible = true,
   // Starts open (the Friends page when you came for PRIVACY)
@@ -466,9 +468,15 @@ export function SocialSettingsSection({
       </IOSListRow>
 
       {/* An email when someone sends you a friend request (/api/notify-friend-request) */}
-      <IOSListRow isLast={true} colors={colors} onClick={() => setEmailFriendRequests?.(p => !p)}>
+      <IOSListRow colors={colors} onClick={() => setEmailFriendRequests?.(p => !p)}>
         <span style={UI.rowTitle}>Email me friend requests</span>
         <span style={UI.badge(emailFriendRequests)}>{emailFriendRequests ? 'ON' : 'OFF'}</span>
+      </IOSListRow>
+
+      {/* An email when a friend creates a challenge (/api/notify-challenge) */}
+      <IOSListRow isLast={true} colors={colors} onClick={() => setEmailChallenges?.(p => !p)}>
+        <span style={UI.rowTitle}>Email me friends&apos; challenges</span>
+        <span style={UI.badge(emailChallenges)}>{emailChallenges ? 'ON' : 'OFF'}</span>
       </IOSListRow>
     </IOSListSection>
   );

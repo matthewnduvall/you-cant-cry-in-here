@@ -177,7 +177,16 @@ function NewChallengeModal({ onCreate, onClose }) {
     borderRadius: '22px',
     backgroundColor: on ? '#FFFFFF' : 'transparent',
     color: on ? '#000000' : '#FFFFFF',
-    border: on ? 'none' : '1px solid #3A3A3A'
+    border: on ? 'none' : '1px solid #3A3A3A',
+    // Centred in a quarter-width cell: little side padding so SESSIONS / 30 DAYS fit
+    padding: '0 2px',
+    minWidth: 0,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    textAlign: 'center',
+    whiteSpace: 'nowrap',
+    letterSpacing: '0.04em'
   });
 
   return (

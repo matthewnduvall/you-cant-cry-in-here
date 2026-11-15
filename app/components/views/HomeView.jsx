@@ -266,8 +266,11 @@ export function HomeView({
   onOpenThisWeek,
   // RANK tile: { rank, of } on the BIG 3 / BW board, or null (getBig3BwRank)
   rank = null,
-  // INBOX opens the Routines page on its INBOX tab
+  // The FRIENDS tile: the Friends page on its INBOX tab while messages wait (onOpenInbox), else on FRIENDS
   onOpenInbox,
+  onOpenFriends,
+  // TO GOAL opens the Performance page on its PROGRESS tab
+  onOpenProgress,
   // Below the tiles: CHALLENGES and FEED (SocialFeedSection, built in page.js)
   belowTiles = null
 }) {
@@ -394,12 +397,9 @@ export function HomeView({
     .filter(([, st]) => /OVERDUE/.test(st?.label || ''))
     .sort(([, a], [, b]) => (b?.daysAgo || 0) - (a?.daysAgo || 0))
     .map(([g]) => g);
-  const behind = statusEntries
-    .filter(([, st]) => (st?.daysAgo ?? 99) < 99)
-    .sort(([, a], [, b]) => (b?.daysAgo || 0) - (a?.daysAgo || 0))
-    .map(([g]) => g);
-  const nextUp = (overdue.length > 0 ? overdue : behind).slice(0, 2);
   const requestCount = (pendingIncomingRequests || []).length;
+  // Accepted friends (the FRIENDS tile)
+  const friendCount = (friendsList || []).filter(f => f?.id).length;
   const inboxTotal = requestCount + (receivedRoutineCount || 0);
   const open = view => {
     setRoutineSelectReturnView(null);
@@ -413,7 +413,9 @@ export function HomeView({
       unit: goalToGoLbs > 0 ? 'LB' : '',
       // The same number as TO GO on Performance's STRENGTH CLASS GOAL row (goal total − latest total)
       sub: goalToGoLbs === null ? 'LOG A BIG 3 LIFT' : `${goalLiftsLabel} · ${(goalClassName || 'GOAL').toUpperCase()}`,
-      view: 'history'
+      view: 'history',
+      // The Performance page on its PROGRESS tab (the chart and the class goal row)
+      onClick: onOpenProgress || null
     },
     {
       id: 'overdue',
@@ -444,23 +446,27 @@ export function HomeView({
       onClick: onOpenThisWeek || null
     },
     {
-      id: 'inbox',
-      label: 'INBOX',
-      // The Social page's INBOX: friend requests + routines friends sent
-      value: String(inboxTotal),
-      unit: inboxTotal === 1 ? 'MESSAGE' : 'MESSAGES',
-      sub:
-        inboxTotal > 0
+      // Your friends; opens the Friends page on FRIENDS, or on its INBOX while messages wait (the red pill counts them:
+      // friend requests + routines friends sent)
+      id: 'friends',
+      label: 'FRIENDS',
+      value: user ? String(friendCount) : '—',
+      unit: user ? (friendCount === 1 ? 'FRIEND' : 'FRIENDS') : '',
+      sub: !user
+        ? 'SIGN IN TO ADD FRIENDS'
+        : inboxTotal > 0
           ? [
               requestCount > 0 ? `${requestCount} ${requestCount === 1 ? 'REQUEST' : 'REQUESTS'}` : null,
               receivedRoutineCount > 0 ? `${receivedRoutineCount} ${receivedRoutineCount === 1 ? 'ROUTINE' : 'ROUTINES'}` : null
             ]
               .filter(Boolean)
               .join(' · ')
-          : 'NOTHING NEW',
+          : friendCount > 0
+            ? 'SEE FRIENDS'
+            : 'FIND ATHLETES',
       badge: inboxTotal,
       view: 'social',
-      onClick: onOpenInbox || null
+      onClick: inboxTotal > 0 ? onOpenInbox || null : onOpenFriends || null
     },
     {
       // Your place on the BIG 3 / BW leaderboard; opens the Leaderboards page
@@ -486,29 +492,10 @@ export function HomeView({
         You can&apos;t cry in here
       </h1>
 
-      {/* TODAY: what to do now. NEW / CURRENT SESSION is Home's one red action; AUTO SESSION is graphite */}
-      <section style={{ padding: '12px var(--dp-spacing-gutter) 0' }}>
-        <div style={{ backgroundColor: '#1C1C1C', borderRadius: '14px', padding: '14px' }}>
-          <div style={{ ...UI.capsLabel, display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
-            {activeSessionSummary && (
-              <span aria-hidden="true" style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: 'var(--cr-red)', flexShrink: 0 }} />
-            )}
-            {activeSessionSummary ? 'IN PROGRESS' : 'TODAY'}
-          </div>
-          <div style={{ fontSize: '22px', fontWeight: 300, lineHeight: 1.2, marginBottom: '12px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {activeSessionSummary
-              ? activeSessionSummary.title || 'Session'
-              : nextUp.length > 0
-                ? nextUp.join(' & ')
-                : 'Start your first session'}
-          </div>
-          <div style={{ ...UI.sentence, marginTop: '-8px', marginBottom: '12px' }}>
-            {activeSessionSummary
-              ? `${activeSessionSummary.done} of ${activeSessionSummary.total} sets done`
-              : nextUp.length > 0
-                ? `${overdue.length > 0 ? 'Overdue' : 'Longest since trained'}: AUTO SESSION builds around ${nextUp.length > 1 ? 'them' : 'it'}.`
-                : 'Log a session and Home keeps track of what to train next.'}
-          </div>
+      {/* The session buttons: NEW / CURRENT SESSION is Home's one red action; AUTO SESSION is graphite (no TODAY
+          title or description for now) */}
+      <section aria-label="Session" style={{ padding: '12px var(--dp-spacing-gutter) 0' }}>
+        <div>
           <div style={{ display: 'grid', gridTemplateColumns: activeSessionSummary ? '1fr' : '1fr 1fr', gap: '8px' }}>
             <button
               type="button"

@@ -140,6 +140,9 @@ export function useCloudAndStorageSync({
   // Post my records to the feed automatically (settings.social.autoPostPRs; on unless turned off)
   autoPostPRs = true,
   setAutoPostPRs,
+  // Email me when a friend creates a challenge (settings.social.emailChallenges; on unless turned off)
+  emailChallenges = true,
+  setEmailChallenges,
   // Profile photo (small JPEG data URL; settings.profilePhoto, local + cloud)
   profilePhoto,
   setProfilePhoto
@@ -159,6 +162,7 @@ export function useCloudAndStorageSync({
     setShareBodyweightWithFriends?.(false);
     setEmailFriendRequests?.(true);
     setAutoPostPRs?.(true);
+    setEmailChallenges?.(true);
     setCryingVariety?.(5);
     setSessionMode?.('advanced');
     setPlateInventory?.(null);
@@ -259,6 +263,7 @@ export function useCloudAndStorageSync({
           setShareBodyweightWithFriends?.(hydrated.settings.social.shareBodyweightWithFriends === true);
           setEmailFriendRequests?.(hydrated.settings.social.emailFriendRequests !== false);
           setAutoPostPRs?.(hydrated.settings.social.autoPostPRs !== false);
+          setEmailChallenges?.(hydrated.settings.social.emailChallenges !== false);
         }
       }
     }
@@ -604,6 +609,9 @@ export function useCloudAndStorageSync({
               if (cloud.settings.social.autoPostPRs !== undefined) {
                 setAutoPostPRs?.(cloud.settings.social.autoPostPRs !== false);
               }
+              if (cloud.settings.social.emailChallenges !== undefined) {
+                setEmailChallenges?.(cloud.settings.social.emailChallenges !== false);
+              }
             }
           }
         }
@@ -744,7 +752,8 @@ export function useCloudAndStorageSync({
               profileIsPublic,
               shareBodyweightWithFriends,
               emailFriendRequests: emailFriendRequests !== false,
-              autoPostPRs: autoPostPRs !== false
+              autoPostPRs: autoPostPRs !== false,
+              emailChallenges: emailChallenges !== false
             },
             selectedGymId,
             availableEquipment,
@@ -852,6 +861,7 @@ export function useCloudAndStorageSync({
     shareBodyweightWithFriends,
     emailFriendRequests,
     autoPostPRs,
+    emailChallenges,
     selectedGymId,
     availableEquipment,
     profilePhoto,
@@ -920,6 +930,7 @@ export function useCloudAndStorageSync({
           setShareBodyweightWithFriends?.(rehydrated.settings.social.shareBodyweightWithFriends === true);
           setEmailFriendRequests?.(rehydrated.settings.social.emailFriendRequests !== false);
           setAutoPostPRs?.(rehydrated.settings.social.autoPostPRs !== false);
+          setEmailChallenges?.(rehydrated.settings.social.emailChallenges !== false);
           setSelectedGymId(rehydrated.settings.selectedGymId);
           setAvailableEquipment(
             Array.isArray(rehydrated.settings.availableEquipment)

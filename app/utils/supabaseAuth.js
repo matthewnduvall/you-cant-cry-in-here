@@ -2087,7 +2087,27 @@ export async function createChallenge(user, { kind, exerciseId = null, target, t
   const id = Array.isArray(res.data) ? res.data[0]?.id : null;
   if (!res.ok || !id) return { ok: false, status: res.status };
   const joined = await joinChallenge(user, id);
+  notifyChallengeByEmail(user, id);
   return { ok: true, id, joined: joined.ok };
+}
+
+/**
+ * Asks the server to email your friends about a challenge you just created (/api/notify-challenge). The server looks
+ * up their emails itself, sends at most once per challenge, and skips friends who turned the emails off. Fire and
+ * forget: the challenge stands whether or not the emails go out.
+ */
+async function notifyChallengeByEmail(user, challengeId) {
+  try {
+    const accessToken = await getValidSupabaseAccessToken(user);
+    if (!accessToken) return;
+    await fetch('/api/notify-challenge', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+      body: JSON.stringify({ challengeId })
+    });
+  } catch {
+    // The email is a courtesy; the challenge itself already exists
+  }
 }
 
 /** Deletes a challenge you created (everyone's participation goes with it). Returns { ok }. */
