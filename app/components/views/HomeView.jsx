@@ -267,7 +267,9 @@ export function HomeView({
   // RANK tile: { rank, of } on the BIG 3 / BW board, or null (getBig3BwRank)
   rank = null,
   // INBOX opens the Routines page on its INBOX tab
-  onOpenInbox
+  onOpenInbox,
+  // Below the tiles: CHALLENGES and FEED (SocialFeedSection, built in page.js)
+  belowTiles = null
 }) {
   const [scrollerSeed, setScrollerSeed] = useState(1);
   const [todayFallbackStr, setTodayFallbackStr] = useState('');
@@ -614,7 +616,8 @@ export function HomeView({
         ))}
       </section>
 
-
+      {/* CHALLENGES and FEED (the social side of the app lives here for now) */}
+      {belowTiles}
     </div>
   );
 }

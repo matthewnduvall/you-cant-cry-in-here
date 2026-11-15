@@ -633,7 +633,9 @@ export function SaveConfirmModal({
     shareFriendIds = [],
     saveAsRoutine = false,
     sourceView,
-    intensityFlags = []
+    intensityFlags = [],
+    // SHARE → @all also posts it to your friends' feeds, with this caption
+    caption = ''
   } = saveConfirmTarget;
   // LOG: a live session or a past workout being logged (a History edit is already logged; the routine editor never
   // logs). SAVE: not in the routine editor (it always saves a routine).
@@ -770,7 +772,7 @@ export function SaveConfirmModal({
             {pickRow(
               'all',
               '@all',
-              'public to your friends',
+              "public to your friends, and posted to their feed",
               shareWithFriends,
               () => set({ shareWithFriends: !shareWithFriends }),
               <span aria-hidden="true" style={{ width: '28px', height: '28px', borderRadius: '8px', backgroundColor: shareWithFriends ? '#000000' : '#1C1C1C', color: '#FFFFFF', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>@</span>
@@ -788,6 +790,21 @@ export function SaveConfirmModal({
             {sendable.length === 0 && (
               <div style={{ ...UI.sentence, fontSize: '12px', padding: '4px 2px' }}>Add friends on the Social page to send them routines.</div>
             )}
+          </div>
+        )}
+        {/* @all posts it to your friends' feeds: an optional caption goes with it */}
+        {shareWithFriends && (
+          <div style={{ marginBottom: '14px' }}>
+            <div style={{ ...UI.fieldLabel, marginBottom: '6px' }}>CAPTION (OPTIONAL)</div>
+            <input
+              type="text"
+              aria-label="Caption for your post"
+              placeholder="Say something about it"
+              maxLength={280}
+              value={caption}
+              onChange={e => set({ caption: e.target.value })}
+              style={{ ...UI.field, width: '100%', boxSizing: 'border-box' }}
+            />
           </div>
         )}
         {!shareOpen && shareCount > 0 && (
