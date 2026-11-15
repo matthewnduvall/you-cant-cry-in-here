@@ -1747,6 +1747,7 @@ export default function App() {
           saveConfirmTarget={saveConfirmTarget}
           setSaveConfirmTarget={setSaveConfirmTarget}
           friends={user ? friendsList : []}
+          canPost={Boolean(user)}
           handleConfirmSaveWorkout={confirmed => {
             // SHARE → chosen friends: each gets a copy in their INBOX (taken before the session closes)
             const chosen = (friendsList || []).filter(f => (confirmed?.shareFriendIds || []).includes(f.id));
@@ -1757,8 +1758,8 @@ export default function App() {
                 chosen
               );
             }
-            // SHARE → @all also posts it to your friends' feeds: a logged workout, or a routine
-            if (user && confirmed?.shareWithFriends && workout?.slots?.length) {
+            // POST: to your friends' feeds (a logged workout, or a routine); separate from SHARE's routine library
+            if (user && confirmed?.postToFeed && workout?.slots?.length) {
               const src = saveConfirmTarget?.sourceView;
               const isWorkout = src === 'history_editor' || (src === 'session' && confirmed?.log !== false);
               const doneSlots = workout.slots;

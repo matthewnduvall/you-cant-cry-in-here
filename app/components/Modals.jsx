@@ -618,7 +618,9 @@ export function SaveConfirmModal({
   setSaveConfirmTarget,
   handleConfirmSaveWorkout,
   // Your friends (SHARE's list); empty when signed out
-  friends = []
+  friends = [],
+  // Signed in: POST (to the feed) is offered
+  canPost = false
 }) {
   // SHARE's list of @all + friends (closed by default)
   const [shareOpen, setShareOpen] = useState(false);
@@ -634,7 +636,8 @@ export function SaveConfirmModal({
     saveAsRoutine = false,
     sourceView,
     intensityFlags = [],
-    // SHARE → @all also posts it to your friends' feeds, with this caption
+    // POST: to your friends' feeds (visibility), with this caption; separate from SHARE (the routine library)
+    postToFeed = false,
     caption = ''
   } = saveConfirmTarget;
   // LOG: a live session or a past workout being logged (a History edit is already logged; the routine editor never
@@ -650,7 +653,7 @@ export function SaveConfirmModal({
       : [shareWithFriends ? '@ALL' : null, ...shareFriendIds.map(id => `@${sendable.find(f => f.id === id)?.username || 'friend'}`.toUpperCase())]
           .filter(Boolean)
           .join(', ');
-  const nothingChosen = showLog && !log && !(showSave && saveAsRoutine) && shareCount === 0;
+  const nothingChosen = showLog && !log && !(showSave && saveAsRoutine) && shareCount === 0 && !postToFeed;
   const toggleStyle = on => ({
     minHeight: '52px',
     padding: '6px 4px',
@@ -671,6 +674,8 @@ export function SaveConfirmModal({
   const toggles = [
     showLog && { id: 'log', label: 'LOG', on: log, sub: log ? 'TO HISTORY' : 'NOT LOGGED', onClick: () => set({ log: !log }) },
     showSave && { id: 'save', label: 'SAVE', on: saveAsRoutine, sub: saveAsRoutine ? 'AS ROUTINE' : 'NOT SAVED', onClick: () => set({ saveAsRoutine: !saveAsRoutine }) },
+    // POST: to your friends' feeds (Home → FEED), for the sake of sharing; no routine is made
+    canPost && { id: 'post', label: 'POST', on: postToFeed, sub: postToFeed ? 'TO FEED' : 'NOT POSTED', onClick: () => set({ postToFeed: !postToFeed }) },
     { id: 'share', label: shareCount > 0 ? `SHARE · ${shareCount}` : 'SHARE', on: shareCount > 0, sub: shareOpen ? 'CHOOSE ▴' : 'CHOOSE ▾', onClick: () => setShareOpen(v => !v) }
   ].filter(Boolean);
   const pickRow = (key, label, sub, on, onClick, avatar) => (
@@ -750,7 +755,8 @@ export function SaveConfirmModal({
           />
         </div>
 
-        {/* LOG (add to History) · SAVE (as a routine) · SHARE (@all = public to friends, or send to chosen friends) */}
+        {/* LOG (add to History) · SAVE (as a routine) · POST (to friends' feeds) · SHARE (the routine library: @all =
+            your shared routines, or a copy to chosen friends' INBOX) */}
         <div style={{ display: 'grid', gridTemplateColumns: `repeat(${toggles.length}, minmax(0, 1fr))`, gap: '6px', marginBottom: shareOpen ? '8px' : '14px' }}>
           {toggles.map(t => (
             <button
@@ -772,7 +778,7 @@ export function SaveConfirmModal({
             {pickRow(
               'all',
               '@all',
-              "public to your friends, and posted to their feed",
+              'in your shared routines',
               shareWithFriends,
               () => set({ shareWithFriends: !shareWithFriends }),
               <span aria-hidden="true" style={{ width: '28px', height: '28px', borderRadius: '8px', backgroundColor: shareWithFriends ? '#000000' : '#1C1C1C', color: '#FFFFFF', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>@</span>
@@ -792,8 +798,8 @@ export function SaveConfirmModal({
             )}
           </div>
         )}
-        {/* @all posts it to your friends' feeds: an optional caption goes with it */}
-        {shareWithFriends && (
+        {/* POST: an optional caption goes with it to the feed */}
+        {postToFeed && (
           <div style={{ marginBottom: '14px' }}>
             <div style={{ ...UI.fieldLabel, marginBottom: '6px' }}>CAPTION (OPTIONAL)</div>
             <input

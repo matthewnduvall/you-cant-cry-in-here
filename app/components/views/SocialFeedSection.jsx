@@ -541,7 +541,7 @@ export function SocialFeedSection({
         {social.posts.length === 0 && !social.error && (
           <div style={{ ...tile, ...UI.sentence }}>
             {social.loaded
-              ? 'Nothing here yet. Post a workout when you finish it (SHARE → @all), or set a record: it posts itself.'
+              ? 'Nothing here yet. Turn on POST when you finish a workout, or set a record: it posts itself.'
               : 'Loading…'}
           </div>
         )}
