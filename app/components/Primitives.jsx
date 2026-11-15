@@ -392,7 +392,7 @@ export function SessionTitleBar({
 
     {/* PROGRAM / WEEK pop-ups (the current choice is white; tapping another applies it at once) */}
     {programRow && programPicker && (
-      <div style={{ ...UI.modalBackdrop, zIndex: 90 }} onClick={() => setProgramPicker(null)}>
+      <div style={{ ...UI.modalBackdrop, zIndex: 90 }}>
         <div
           role="dialog"
           aria-label={programPicker === 'program' ? 'Session program' : programPicker === 'day' ? 'Program day' : 'Program week'}
@@ -569,7 +569,7 @@ export function SessionTitleBar({
 
     {/* SESSION NAME pop-up: the full name, editable (SAVE NAME is this pop-up's one red) */}
     {nameDraft !== null && (
-      <div style={{ ...UI.modalBackdrop, zIndex: 90 }} onClick={() => setNameDraft(null)}>
+      <div style={{ ...UI.modalBackdrop, zIndex: 90 }}>
         <div
           role="dialog"
           aria-label="Session name"

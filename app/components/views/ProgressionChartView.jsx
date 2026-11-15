@@ -15,55 +15,16 @@ import {
   SELECTED_STATS_BG,
   StrengthClassGoalPicker,
   formatLiftLabel as formatProgressExerciseLabel,
-  getLiftGoalStats
+  getLiftGoalStats,
+  getClassGoalSummary
 } from '../LiftGoals';
 
 // Big 3 + OHP: each has its own row in the legend and is shown by default
 export const DEFAULT_CHART_LIFTS = [...CORE_LIFT_IDS];
 const DEFAULT_CUSTOM_EXERCISE_ID = 'incline_bench_press';
-// The default view: DISTANCE TO GOAL — how far the tracked lifts (Big 3 + OHP) are below their goals for the selected
-// STRENGTH CLASS GOAL, added up, over time. Lower is better; it re-draws when the class changes.
+// The default view: the STRENGTH CLASS GOAL as one number — the tracked lifts' estimated 1RMs added up (the Big 3 for
+// the 1000 LB CLUB, else the Big 3 + OHP) over time, against their goals added up (getClassGoalSummary in LiftGoals).
 export const GOAL_SERIES_ID = 'goal_distance';
-
-/**
- * Distance to goal over time. Each lift counts goal − its latest estimated 1RM on or before the date (never below 0, so
- * a lift past its goal counts 0). Only lifts with a goal and at least one logged point are included, and the line
- * starts once each of them has a value (so it doesn't jump when a lift is first logged).
- * `liftIds` / `goalsById`: the tracked lifts and their goals. Returns [] when nothing is logged.
- */
-const buildGoalDistanceSeries = (seriesByLift, liftIds, goalsById) => {
-  const tracked = liftIds.filter(
-    id => Number(goalsById[id]) > 0 && (seriesByLift[id] || []).some(pt => Number(pt.weight) > 0)
-  );
-  if (tracked.length === 0) return [];
-  const lists = tracked.map(id => (seriesByLift[id] || []).filter(pt => Number(pt.weight) > 0));
-  const dates = Array.from(new Set(lists.flatMap(l => l.map(pt => pt.timestampMs)))).sort((a, b) => a - b);
-  const idx = lists.map(() => 0);
-  const latest = lists.map(() => null);
-  const out = [];
-  dates.forEach(t => {
-    let loggedToday = null;
-    lists.forEach((l, i) => {
-      while (idx[i] < l.length && l[idx[i]].timestampMs <= t) {
-        latest[i] = l[idx[i]];
-        if (l[idx[i]].timestampMs === t) loggedToday = l[idx[i]];
-        idx[i] += 1;
-      }
-    });
-    if (latest.some(pt => !pt)) return;
-    out.push({
-      timestampMs: t,
-      dateLabel: loggedToday?.dateLabel || latest[0].dateLabel,
-      weight: Math.round(
-        latest.reduce((sum, pt, i) => sum + Math.max(0, Number(goalsById[tracked[i]]) - Number(pt.weight)), 0)
-      ),
-      // A distance isn't a 1RM: no asterisk
-      calculated: false,
-      workoutId: loggedToday?.workoutId
-    });
-  });
-  return out;
-};
 
 const TIME_FRAME_OPTIONS = [
   { id: '30D', label: '30 DAYS', days: 30 },
@@ -124,15 +85,15 @@ const smoothPath = coords => {
   return d;
 };
 
-/** The DISTANCE TO GOAL row under the chart: a title strip (red while selected) over four readouts. */
-function GoalDistanceRow({ className, selected, onTitleClick, cells, onOpenWorkout }) {
+/** The STRENGTH CLASS GOAL row under the chart ("ADVANCED GOAL"): a title strip (red while selected) over four readouts. */
+function GoalDistanceRow({ title, liftsLabel, selected, onTitleClick, cells, onOpenWorkout }) {
   const empty = cells.every(c => c.value === null || c.value === undefined);
   return (
     <div>
       <button
         type="button"
         aria-pressed={selected}
-        aria-label={`Distance to your ${className} goal: ${selected ? 'selected' : 'show on the chart'}`}
+        aria-label={`${title}, ${liftsLabel} added up: ${selected ? 'selected' : 'show on the chart'}`}
         onClick={onTitleClick}
         style={{
           display: 'flex',
@@ -155,11 +116,11 @@ function GoalDistanceRow({ className, selected, onTitleClick, cells, onOpenWorko
         <span style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
           <span aria-hidden="true" style={{ width: '14px', height: '2px', flexShrink: 0, backgroundColor: selected ? '#FFFFFF' : CUSTOM_COLOR }} />
           <span style={{ fontSize: '13px', fontWeight: 500, letterSpacing: '0.06em', textTransform: 'uppercase', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-            BIG 3 + OHP TO GOAL
+            {title}
           </span>
         </span>
         <span style={{ fontSize: '11px', fontWeight: 500, color: selected ? '#FFFFFF' : '#9A9A9A', whiteSpace: 'nowrap', flexShrink: 0, textTransform: 'uppercase' }}>
-          {empty ? 'NOT LOGGED YET' : 'LB'}
+          {empty ? 'NOT LOGGED YET' : `${liftsLabel} · LB`}
         </span>
       </button>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 0 }}>
@@ -197,7 +158,7 @@ function GoalDistanceRow({ className, selected, onTitleClick, cells, onOpenWorko
                 ...(opens ? { textDecoration: 'underline', textUnderlineOffset: '3px', textDecorationColor: '#8A8A8A' } : {})
               }}
             >
-              {cell.value === null || cell.value === undefined ? '—' : cell.label === 'LATEST' && cell.value === 0 ? 'DONE ✓' : cell.value}
+              {cell.value === null || cell.value === undefined ? '—' : cell.label === 'TO GO' && cell.value === 0 ? 'DONE ✓' : cell.value}
             </span>
           </Tag>
           );
@@ -267,7 +228,7 @@ export function ProgressionChartView({
 
   const liftMeta = {
     ...CORE_LIFT_META,
-    [GOAL_SERIES_ID]: { short: 'TO GO', color: CUSTOM_COLOR },
+    [GOAL_SERIES_ID]: { short: 'TOTAL', color: CUSTOM_COLOR },
     [activeCustomId]: {
       short: formatProgressExerciseLabel(activeCustomId, customEx?.name || 'CUSTOM'),
       color: CUSTOM_COLOR
@@ -309,8 +270,44 @@ export function ProgressionChartView({
       customGoalWeights
     });
   });
-  const goalsById = Object.fromEntries(CORE_LIFT_IDS.map(id => [id, goalStatsById[id].goal]));
-  if (hasGoalView) fullSeriesById[GOAL_SERIES_ID] = buildGoalDistanceSeries(fullSeriesById, CORE_LIFT_IDS, goalsById);
+  // The class goal as one number: the tracked lifts' 1RMs added up, over time, against their goals added up
+  const classGoal = getClassGoalSummary({
+    seriesByLift: fullSeriesById,
+    oneRepMaxes,
+    targetStandardClass,
+    userBodyweightLbs,
+    totalHeightInches,
+    customGoalWeights
+  });
+  if (hasGoalView) fullSeriesById[GOAL_SERIES_ID] = classGoal.series;
+  // Editing a goal switches the class to CUSTOM; until then, every other shown lift keeps the goal it shows now
+  const keepGoalsForCustom =
+    targetStandardClass === 'Custom'
+      ? null
+      : Object.fromEntries(
+          legendLiftIds.map(id => [
+            id,
+            getLiftGoalStats({ liftId: id, series: fullSeriesById[id], oneRepMaxes, targetStandardClass, userBodyweightLbs, totalHeightInches, customGoalWeights }).goal
+          ])
+        );
+  // The selected series' goal, drawn as a dashed line (the class total's goal, or the lift's own)
+  const goalLineValue = (() => {
+    if (highlightId === GOAL_SERIES_ID) return classGoal.goal;
+    if (!showGoalDistance) return 0;
+    return (
+      goalStatsById[highlightId]?.goal ||
+      getLiftGoalStats({
+        liftId: highlightId,
+        series: fullSeriesById[highlightId],
+        oneRepMaxes,
+        targetStandardClass,
+        userBodyweightLbs,
+        totalHeightInches,
+        customGoalWeights
+      }).goal ||
+      0
+    );
+  })();
 
   // Time range: the selected series (framed on it), else every series
   const timestampsOf = ids => ids.flatMap(id => (fullSeriesById[id] || []).map(pt => pt.timestampMs));
@@ -350,7 +347,8 @@ export function ProgressionChartView({
   const framedVals = (inWindowByLift[highlightId] || []).map(pt => pt.weight);
   const allVals = framedVals.length > 0 ? framedVals : drawnLifts.flatMap(id => (inWindowByLift[id] || []).map(pt => pt.weight));
   const rawMin = allVals.length ? Math.min(...allVals) : 0;
-  const rawMax = allVals.length ? Math.max(...allVals) : 300;
+  // The goal line is kept in view
+  const rawMax = Math.max(allVals.length ? Math.max(...allVals) : 300, Number(goalLineValue) || 0);
   const pad = Math.max(10, Math.round((rawMax - rawMin) * 0.15));
   const tickStep = (() => {
     const span = Math.max(1, rawMax + pad - Math.max(0, rawMin - pad));
@@ -586,7 +584,7 @@ export function ProgressionChartView({
                 <span style={{ ...UI.capsLabel }}>NOT LOGGED YET</span>
                 <span style={{ ...UI.sentence, color: '#BDBDBD' }}>
                   {highlightId === GOAL_SERIES_ID
-                    ? 'Log a session with the Big 3 or overhead press to see how far you are from your goals.'
+                    ? `Log a session with the ${classGoal.liftsLabel === 'BIG 3' ? 'Big 3' : 'Big 3 or overhead press'} to see how close you are to your goal.`
                     : 'Log a session with this lift to see its 1 rep max over time.'}
                 </span>
               </div>
@@ -649,6 +647,24 @@ export function ProgressionChartView({
                   </text>
                 </g>
               ))}
+
+              {/* The selected series' goal: a dashed line with its value */}
+              {goalLineValue > 0 && !selectedSeriesEmpty && (
+                <g aria-hidden="true">
+                  <line
+                    x1={padL}
+                    x2={svgW - padR}
+                    y1={getY(goalLineValue)}
+                    y2={getY(goalLineValue)}
+                    stroke="#BDBDBD"
+                    strokeWidth="1"
+                    strokeDasharray="4 4"
+                  />
+                  <text x={svgW - padR - 2} y={getY(goalLineValue) - 5} textAnchor="end" fill="#BDBDBD" fontSize="12.5" fontWeight="500">
+                    GOAL {goalLineValue}
+                  </text>
+                </g>
+              )}
 
               <g clipPath="url(#progress-plot-clip)">
                 {/* Grey lines first, the selected (red) one on top */}
@@ -752,7 +768,7 @@ export function ProgressionChartView({
                   fontWeight="400"
                 >
                   {(seriesByLift[highlightId] || []).length === 0 && highlightId === GOAL_SERIES_ID
-                    ? 'LOG A LIFT TO SEE YOUR DISTANCE TO GOAL'
+                    ? 'LOG A LIFT TO SEE YOUR GOAL TOTAL'
                     : 'NO SESSIONS IN THIS RANGE'}
                 </text>
               )}
@@ -796,33 +812,31 @@ export function ProgressionChartView({
           </div>
           </div>
 
-          {/* DISTANCE TO GOAL: the default view. START = how far below the goals you were when the line starts, LATEST =
-              how far now, CLOSED = start − latest, REACHED = lifts at or past their goal */}
-          {hasGoalView && (() => {
-            const dist = seriesByLift[GOAL_SERIES_ID] || [];
-            const tracked = CORE_LIFT_IDS.filter(id => goalStatsById[id]?.logged && Number(goalsById[id]) > 0);
-            const reached = tracked.filter(id => goalStatsById[id].pr >= goalsById[id]).length;
-            const start = dist.length ? dist[0].weight : null;
-            const latest = dist.length ? dist[dist.length - 1].weight : null;
-            const startWorkoutId = dist[0]?.workoutId || null;
-            const latestWorkoutId = dist[dist.length - 1]?.workoutId || null;
-            const isHighlighted = highlightId === GOAL_SERIES_ID;
-            const classLabel = String(targetStandardClass || 'Novice').toUpperCase();
-            return (
-              <GoalDistanceRow
-                className={classLabel}
-                selected={isHighlighted}
-                onTitleClick={() => soloLift(GOAL_SERIES_ID)}
-                onOpenWorkout={onOpenHistoryWorkout}
-                cells={[
-                  { label: 'START', value: start, workoutId: startWorkoutId },
-                  { label: 'LATEST', value: latest, unit: latest === 0 ? null : 'LB', workoutId: latestWorkoutId },
-                  { label: 'CLOSED', value: start !== null && latest !== null ? Math.max(0, start - latest) : null },
-                  { label: 'REACHED', value: tracked.length ? `${reached}/${tracked.length}` : null }
-                ]}
-              />
-            );
-          })()}
+          {/* The STRENGTH CLASS GOAL (the default view), the tracked lifts' 1RMs added up: PR = the highest the total has
+              been, LATEST = the total now, TO GO = GOAL − LATEST, GOAL = their goals added up (1000 for the 1000 LB CLUB) */}
+          {hasGoalView && (
+            <GoalDistanceRow
+              title={classGoal.title}
+              liftsLabel={classGoal.liftsLabel}
+              selected={highlightId === GOAL_SERIES_ID}
+              onTitleClick={() => soloLift(GOAL_SERIES_ID)}
+              onOpenWorkout={onOpenHistoryWorkout}
+              cells={[
+                {
+                  label: 'PR',
+                  value: classGoal.pr === null ? null : oneRepMaxLabel(classGoal.pr, classGoal.prCalculated),
+                  workoutId: classGoal.prWorkoutId
+                },
+                {
+                  label: 'LATEST',
+                  value: classGoal.latest === null ? null : oneRepMaxLabel(classGoal.latest, classGoal.latestCalculated),
+                  workoutId: classGoal.latestWorkoutId
+                },
+                { label: 'TO GO', value: classGoal.toGo },
+                { label: 'GOAL', value: classGoal.goal > 0 ? classGoal.goal : null }
+              ]}
+            />
+          )}
 
           {/* LEGEND + VALUES: one row per lift. Tap a row to select it (red line, chart framed on it); tap the selected
               row to go back to the default view (DISTANCE TO GOAL). */}
@@ -833,7 +847,7 @@ export function ProgressionChartView({
             const color = liftMeta[liftId]?.color || CUSTOM_COLOR;
             const isHighlighted = liftId === highlightId;
             const label = formatProgressExerciseLabel(ex.id, ex.name);
-            // START / PR / LATEST over everything logged; TO GO = goal − PR
+            // PR / LATEST over everything logged; TO GO = goal − LATEST
             const stats = getLiftGoalStats({
               liftId,
               series: seriesByLift[liftId],
@@ -858,7 +872,7 @@ export function ProgressionChartView({
                 onOpenWorkout={onOpenHistoryWorkout}
                 onEditGoal={
                   showGoalDistance && openPlateCalculatorForGoal
-                    ? () => openPlateCalculatorForGoal(liftId, ex.name, stats.goal)
+                    ? () => openPlateCalculatorForGoal(liftId, ex.name, stats.goal, keepGoalsForCustom)
                     : undefined
                 }
               >

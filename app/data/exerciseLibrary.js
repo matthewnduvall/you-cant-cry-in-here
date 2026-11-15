@@ -57,7 +57,8 @@ export const DEFAULT_GYM_EQUIPMENT_PRESETS = [
   { id: 'preset_bodyweight_only', name: 'Bodyweight Only' }
 ];
 
-export const SLOT_CATEGORIES = ['Compound', 'Accessory', 'Superset'];
+// Cluster: any exercise done as clusters (3 × 18, 15 s rest; CLUSTER_SCHEME in workoutEngine.js)
+export const SLOT_CATEGORIES = ['Compound', 'Accessory', 'Cluster', 'Superset'];
 
 export const normalizeSlotCategory = rawCat => {
   if (!rawCat) return 'Compound';
@@ -75,8 +76,11 @@ export const normalizeSlotCategory = rawCat => {
     return 'Accessory';
   }
   if (c === 'Superset' || c === 'Supersets') return 'Superset';
+  if (c === 'Cluster' || c === 'Clusters') return 'Cluster';
   return 'Compound';
 };
+
+export const isClusterCategory = cat => normalizeSlotCategory(cat) === 'Cluster';
 
 export const isSupersetCategory = cat => normalizeSlotCategory(cat) === 'Superset';
 export const isAccessoryCategory = cat => normalizeSlotCategory(cat) === 'Accessory';

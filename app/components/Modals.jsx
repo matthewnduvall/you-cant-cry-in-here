@@ -23,7 +23,7 @@ export function DeleteConfirmModal({
   if (!deleteConfirmTarget) return null;
 
   return (
-    <div style={{ ...UI.modalBackdrop, zIndex: 90 }} onClick={() => setDeleteConfirmTarget(null)}>
+    <div style={{ ...UI.modalBackdrop, zIndex: 90 }}>
       <div onClick={e => e.stopPropagation()} style={UI.modalCard('360px')}>
         <div style={UI.modalHeader}>
           <span>
@@ -129,6 +129,8 @@ export function PlateCalculatorModal({
   setCalcTotalFromInput,
   // [{ size, left }]: the plate buttons (left = pairs still free when plates are counted, else null)
   calcPlateOptions = [45, 35, 25, 10, 5, 2.5, 1.25].map(size => ({ size, left: null })),
+  // Dumbbells: the buttons are the standard dumbbells and a tap picks one (not added up)
+  calcPickOne = false,
   handleApplyCalculatedWeight,
   // Opens a logged History workout (the PR's) on the PROGRESS page
   onOpenHistoryWorkout,
@@ -140,7 +142,7 @@ export function PlateCalculatorModal({
   if (!plateCalcTarget) return null;
 
   return (
-    <div style={{ ...UI.modalBackdrop, zIndex: 1300 }} onClick={() => setPlateCalcTarget(null)}>
+    <div style={{ ...UI.modalBackdrop, zIndex: 1300 }}>
       <div onClick={e => e.stopPropagation()} style={UI.modalCard('390px')}>
         <div style={UI.modalHeader}>
           <div>
@@ -259,7 +261,9 @@ export function PlateCalculatorModal({
         <div>
             {/* Always says how the buttons load (the empty-bar hint below disappears once plates are added) */}
             <div style={{ fontSize: '11px', fontWeight: 500, color: '#9A9A9A', textTransform: 'uppercase', marginBottom: '6px' }}>
-              {calcIsSingleLoad
+              {calcPickOne
+                ? 'Dumbbell weight (one dumbbell)'
+                : calcIsSingleLoad
                 ? `${calcBarLabel} weight (not doubled, no bar)`
                 : calcBarWeight > 0
                   ? `Plates per side (added to both sides) · ${calcBarLabel} ${calcBarWeight} lb bar`
@@ -267,8 +271,31 @@ export function PlateCalculatorModal({
             </div>
             {/* The plate buttons: big plates on the first row, small on the second. Counted plates (Configuration →
                 EQUIPMENT → PLATES) show only the sizes owned, each with the pairs still free; a size runs out at 0 */}
+            {calcPickOne && (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, minmax(0, 1fr))', gap: '6px', marginBottom: '10px' }}>
+                {calcPlateOptions.map(o => {
+                  const picked = calcPlatesPerSide.length === 1 && calcPlatesPerSide[0] === o.size;
+                  return (
+                    <Button
+                      variant="toggle"
+                      key={o.size}
+                      aria-pressed={picked}
+                      aria-label={`${o.size} lb dumbbell`}
+                      onClick={() => setCalcPlatesPerSide([o.size])}
+                      style={{
+                        padding: '10px 2px',
+                        fontSize: '12px',
+                        ...(picked ? { backgroundColor: '#FFFFFF', color: '#000000' } : {})
+                      }}
+                    >
+                      {o.size}
+                    </Button>
+                  );
+                })}
+              </div>
+            )}
             {[calcPlateOptions.filter(o => o.size >= 25), calcPlateOptions.filter(o => o.size < 25)]
-              .filter(row => row.length > 0)
+              .filter(row => row.length > 0 && !calcPickOne)
               .map((row, r, rows) => (
                 <div
                   key={r}
@@ -429,7 +456,7 @@ export function SetValueEditorModal({
   };
 
   return (
-    <div style={{ ...UI.modalBackdrop, zIndex: 1250 }} onClick={() => setSetValueTarget(null)}>
+    <div style={{ ...UI.modalBackdrop, zIndex: 1250 }}>
       <div onClick={e => e.stopPropagation()} style={UI.modalCard('380px')}>
         <div style={UI.modalHeader}>
           <div>
@@ -679,7 +706,7 @@ export function SaveConfirmModal({
   );
 
   return (
-    <div style={{ ...UI.modalBackdrop, zIndex: 92 }} onClick={() => setSaveConfirmTarget(null)}>
+    <div style={{ ...UI.modalBackdrop, zIndex: 92 }}>
       <div onClick={e => e.stopPropagation()} style={UI.modalCard('390px')}>
         <div style={UI.modalHeader}>
           <span>{sourceView === 'routine_editor' ? 'SAVE ROUTINE' : sourceView === 'session' ? 'FINISH SESSION' : 'SAVE WORKOUT'}</span>
@@ -797,7 +824,6 @@ export function HistoricalEditConfirmModal({
   return (
     <div
       style={{ ...UI.modalBackdrop, zIndex: 95 }}
-      onClick={() => setHistoricalEditConfirmTarget(null)}
     >
       <div onClick={e => e.stopPropagation()} style={UI.modalCard('380px')}>
         <div style={UI.modalHeader}>
@@ -927,11 +953,6 @@ export function FeedbackModal({
   return (
     <div
       style={{ ...UI.modalBackdrop, zIndex: 96 }}
-      onClick={() => {
-        setStatus('idle');
-        setErrorText('');
-        setShowFeedbackModal(false);
-      }}
     >
       <div onClick={e => e.stopPropagation()} style={UI.modalCard('400px')}>
         <div style={UI.modalHeader}>

@@ -41,7 +41,7 @@ import {
 } from './components/SessionSyncModals';
 import { useSyncedHistoryUpdates } from './hooks/useSyncedHistoryUpdates';
 import { useRoutineShares } from './hooks/useRoutineShares';
-import { CORE_LIFT_IDS, getLiftGoalStats } from './components/LiftGoals';
+import { CORE_LIFT_IDS, getClassGoalSummary } from './components/LiftGoals';
 import { withTrace, traceLine, logOperation } from './utils/calcTrace';
 import { setPlateInventory } from './utils/loading';
 import { historyDateRangeFor } from './components/views/HistoryView';
@@ -666,6 +666,7 @@ export default function App() {
     calcPlatesPerSide,
     setCalcPlatesPerSide,
     calcPlateOptions,
+    calcPickOne,
     setCalcTotalFromInput,
     openPlateCalculatorForSet,
     openPlateCalculatorForGoal,
@@ -896,21 +897,26 @@ export default function App() {
     [user, effectiveOneRepMaxes, friendsList, userBodyweightLbs]
   );
 
-  // Home's TO GOAL tile: lb still to go to the strength class goal over the Big 3 + OHP you have logged (null = none)
-  const homeGoalToGo = (() => {
-    const stats = CORE_LIFT_IDS.map(liftId =>
-      getLiftGoalStats({
-        liftId,
-        series: progressionSeriesByLift?.[liftId] || [],
-        oneRepMaxes: effectiveOneRepMaxes,
-        targetStandardClass,
-        userBodyweightLbs,
-        totalHeightInches,
-        customGoalWeights
-      })
-    ).filter(st => st.logged && st.goal > 0);
-    return stats.length > 0 ? Math.round(stats.reduce((sum, st) => sum + st.toGo, 0)) : null;
+  // Home's TO GOAL tile: the STRENGTH CLASS GOAL row's TO GO (goal total − the tracked lifts' latest 1RMs added up;
+  // null = nothing logged), the same number as the PROGRESS page
+  const homeGoal = (() => {
+    const seriesByLift = {};
+    CORE_LIFT_IDS.forEach(id => {
+      seriesByLift[id] = (progressionSeriesByLift?.[id] || [])
+        .map(pt => ({ ...pt, timestampMs: Number(pt.timestampMs) || new Date(pt.dateLabel || 0).getTime() }))
+        .filter(pt => Number.isFinite(pt.timestampMs))
+        .sort((a, b) => a.timestampMs - b.timestampMs);
+    });
+    return getClassGoalSummary({
+      seriesByLift,
+      oneRepMaxes: effectiveOneRepMaxes,
+      targetStandardClass,
+      userBodyweightLbs,
+      totalHeightInches,
+      customGoalWeights
+    });
   })();
+  const homeGoalToGo = homeGoal.toGo;
 
   // Routines sent straight to a friend: SEND in the routine browser, and the ones friends sent you (SAVE / LOAD NOW)
   const routineShares = useRoutineShares({
@@ -1207,6 +1213,7 @@ export default function App() {
               goalToGoLbs={homeGoalToGo}
               rank={homeRank}
               goalClassName={targetStandardClass}
+              goalLiftsLabel={homeGoal.liftsLabel}
               activeSessionSummary={
                 activeSession?.slots?.length > 0
                   ? (() => {
@@ -1623,6 +1630,7 @@ export default function App() {
           setCalcPlatesPerSide={setCalcPlatesPerSide}
           setCalcTotalFromInput={setCalcTotalFromInput}
           calcPlateOptions={calcPlateOptions}
+          calcPickOne={calcPickOne}
           handleApplyCalculatedWeight={handleApplyCalculatedWeight}
           onOpenHistoryWorkout={openHistoryWorkout}
           bodyweightLbs={userBodyweightLbs}

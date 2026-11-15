@@ -3,7 +3,7 @@
 // ============================================================================
 
 import { traceLine, isTracing, fmt } from './calcTrace';
-import { getLoadSetup, isTwoSidedLoad, snapToLoadableWeight } from './loading';
+import { getLoadSetup, isSnappedLoad, snapToLoadableWeight } from './loading';
 import { DEFAULT_PROGRAM_ID, getProgram, getProgramDay, hasProgramDays, weekdayOf, WEEKDAY_NAMES } from '../data/programs';
 import {
   getSlotEquipmentChoice,
@@ -238,7 +238,8 @@ export const getDefaultSchemeForExercise = (exerciseId, goalType) =>
 export const CLUSTER_SCHEME = 'Cluster';
 export const CLUSTER_SET_COUNT = 3;
 export const CLUSTER_REPS = 18;
-export const CLUSTER_REST_SECONDS = 6;
+// Rest between cluster sets (the exercise's REST, slot.customRestSeconds, when the type is set to Cluster)
+export const CLUSTER_REST_SECONDS = 15;
 export const isClusterScheme = scheme => scheme === CLUSTER_SCHEME;
 
 export const SCHEME_OPTIONS = [
@@ -489,7 +490,8 @@ export const snapSlotToPlates = slot => {
   if (!slot) return slot;
   const fixSets = (sets, exId, half) => {
     const setup = getLoadSetup(exId, getSlotEquipmentChoice(slot, half));
-    if (!isTwoSidedLoad(setup)) return sets;
+    // Bars / plate-loaded machines (plates) and dumbbells (standard sizes); other loads are left alone
+    if (!isSnappedLoad(setup)) return sets;
     let changed = false;
     const next = (sets || []).map(st => {
       if (!st || st.completed || isTimedSet(st)) return st;
@@ -1421,6 +1423,8 @@ export const normalizeSlotLabels = slots => {
         accessoryCount += 1;
         return { ...slot, ...singleExerciseIds(slot), category: 'Accessory', slotLabel: `Accessory ${accessoryCount}` };
       }
+      // Cluster: one exercise (any type) done as clusters
+      if (normCat === 'Cluster') return { ...slot, ...singleExerciseIds(slot), category: 'Cluster', slotLabel: 'Cluster' };
       return { ...slot, category: normCat };
     });
 };

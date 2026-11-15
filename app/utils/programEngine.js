@@ -12,7 +12,7 @@
 
 import { EXERCISE_MAP, isBodyweightExercise, isSupersetCategory, normalizeSlotCategory } from '../data/exerciseLibrary';
 import { generateSetsForScheme, getBestHistory1RM, normalizeSetType, DEFAULT_SET_PREFERENCES } from './workoutEngine';
-import { INTENSITY_OPTIONS, intensityToRir, solveSet, deriveIntensity, weightForIntensity } from './intensity';
+import { INTENSITY_OPTIONS, intensityToRir, solveSet, deriveIntensity, weightForIntensity, convertIntensity } from './intensity';
 import { getStarting1RM, describe1RM } from './starting1RM';
 import { traceLine, isTracing, fmt } from './calcTrace';
 
@@ -127,11 +127,12 @@ export const applyProgramToSlot = (slot, ctx, opts = {}) => {
       intensity = lockedIntensity;
       pct = pctFor(reps, plan.rir ?? 0);
     } else if (plan.maxOut) {
+      // The weights follow the %1RM ramp; the intensity is shown as RIR (the default scale) for the set's reps
       pct = idx === total - 1 ? 100 : 50 + (35 * idx) / Math.max(1, total - 2);
-      intensity = { mode: 'pct', value: nearestPct(pct) };
+      intensity = { mode: 'rir', value: convertIntensity({ mode: 'pct', value: nearestPct(pct) }, 'rir', reps) ?? 0 };
     } else if (normalizeSetType(type) === 'Warmup') {
       pct = pctFor(firstWorkingReps, plan.rir) * WARMUP_SHARE;
-      intensity = { mode: 'pct', value: nearestPct(pct) };
+      intensity = { mode: 'rir', value: convertIntensity({ mode: 'pct', value: nearestPct(pct) }, 'rir', reps) ?? 0 };
     } else {
       pct = pctFor(reps, plan.rir);
       intensity = { mode: 'rir', value: plan.rir };

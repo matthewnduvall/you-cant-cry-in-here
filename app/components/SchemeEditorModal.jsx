@@ -89,7 +89,7 @@ export function SchemeEditorModal({ halves = [], isSuperset = false, programNote
   );
 
   return (
-    <div style={{ ...UI.modalBackdrop, zIndex: 90 }} onClick={onClose}>
+    <div style={{ ...UI.modalBackdrop, zIndex: 90 }}>
       <div role="dialog" aria-label="Scheme" onClick={e => e.stopPropagation()} style={UI.modalCard('420px')}>
         <div style={UI.modalHeader}>
           <span>SCHEME</span>

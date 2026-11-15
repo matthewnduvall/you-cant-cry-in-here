@@ -29,7 +29,7 @@ export function SendRoutineModal({ routine, friends = [], busy = false, sentTo =
   const pickedTargets = picked === ALL ? sendable : pickedFriend ? [pickedFriend] : [];
 
   return (
-    <div style={{ ...UI.modalBackdrop, zIndex: 1300 }} onClick={onClose}>
+    <div style={{ ...UI.modalBackdrop, zIndex: 1300 }}>
       <div onClick={e => e.stopPropagation()} style={UI.modalCard('390px')} role="dialog" aria-label="Send routine">
         <div style={UI.modalHeader}>
           <div style={{ ...titleBlock, paddingLeft: '40px' }}>

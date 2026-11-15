@@ -54,7 +54,7 @@ import { usePointerReorder } from '../hooks/usePointerReorder';
 
 
 // Per-exercise rest choices (seconds) for the REST box in the filter row
-const EXERCISE_REST_OPTIONS = [30, 45, 60, 75, 90, 120, 150, 180, 240, 300];
+const EXERCISE_REST_OPTIONS = [15, 30, 45, 60, 75, 90, 120, 150, 180, 240, 300];
 const formatRest = sec => `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`;
 
 export const headerSelectStyle = {
@@ -359,15 +359,31 @@ export function SlotEditor({
   // Each exercise's scheme, set count and reps (the athlete's REPS choice, else the scheme's) for the SCHEME pop-up
   const schemeHalf = half => {
     const scheme = schemes[half] || schemes[0];
-    const sets = ((isSuperset ? slot.supersetSetsByExercise?.[half] : slot.sets) || []).length;
+    const list = (isSuperset ? slot.supersetSetsByExercise?.[half] : slot.sets) || [];
+    const sets = list.length;
     const typedReps = isSuperset ? slot.supersetTargetReps?.[half] : slot.targetReps;
-    const reps = Number(typedReps) > 0 ? Number(typedReps) : getSchemeUniformReps(scheme);
+    // Reps: the REPS choice, else what the working sets actually have when they agree, else the scheme's
+    const workingReps = [...new Set(list.filter(st => normalizeSetType(st?.type) !== 'Warmup').map(st => Number(st?.reps) || 0))];
+    const reps =
+      Number(typedReps) > 0 ? Number(typedReps) : workingReps.length === 1 && workingReps[0] > 0 ? workingReps[0] : getSchemeUniformReps(scheme);
     return { name: stripEquipmentFromExerciseName(EXERCISE_MAP[supIds[half]]?.name || ''), scheme, sets, reps };
+  };
+  // A program plan label ("3 × 15–20") only while the sets still follow it: N working sets, reps within the range
+  const planLabelFits = label => {
+    const m = /^(\d+)\s*×\s*(\d+)(?:\s*[–-]\s*(\d+))?$/.exec(String(label || '').trim());
+    if (!m) return true; // labels like "5 / 3 / 1+" or "1 × 5 (5RM)" aren't checked
+    const n = Number(m[1]);
+    const lo = Number(m[2]);
+    const hi = Number(m[3] || m[2]);
+    const working = (slot.sets || []).filter(st => normalizeSetType(st?.type) !== 'Warmup');
+    return working.length === n && working.every(st => (Number(st?.reps) || 0) >= lo && (Number(st?.reps) || 0) <= hi);
   };
   // The scheme button: "5 × 8" / "PYRAMID"; a superset with different schemes shows both
   const schemeSummary = (() => {
-    // A program day's exercise shows its plan ("3 × 5", "5 / 3 / 1+", "4 × 6–8")
-    if (slot.programmed?.label && slot.programRef && !slot.programOff && !isSuperset) return slot.programmed.label;
+    // A program day's exercise shows its plan ("3 × 5", "5 / 3 / 1+", "4 × 6–8") while its sets follow it
+    if (slot.programmed?.label && slot.programRef && !slot.programOff && !isSuperset && planLabelFits(slot.programmed.label)) {
+      return slot.programmed.label;
+    }
     const labels = halves.map(h => {
       const { scheme, sets, reps } = schemeHalf(h);
       return schemeButtonLabel(scheme, sets, reps);
@@ -417,7 +433,8 @@ export function SlotEditor({
     };
     const exCategory = normalizeSlotCategory(ex.category);
     const allowed = isSuperset ? SUPERSET_HALF_CATEGORIES : categories;
-    if (allowed.includes(exCategory) && exCategory !== current.category) changes.category = exCategory;
+    // A Cluster keeps its type whatever exercise is picked
+    if (allowed.includes(exCategory) && exCategory !== current.category && current.category !== 'Cluster') changes.category = exCategory;
     sendHeaderChange(half, changes);
   };
 
@@ -787,7 +804,7 @@ export function SlotEditor({
       if (!doesExerciseInteractWithMuscleGroup(next, muscle)) changes.muscleGroupFilter = next.muscleGroup || 'All Muscles';
       else changes.muscleGroupFilter = muscle;
       const nextCategory = normalizeSlotCategory(next.category);
-      if (nextCategory !== category && typeOptionsForPick.includes(nextCategory)) changes.category = nextCategory;
+      if (nextCategory !== category && category !== 'Cluster' && typeOptionsForPick.includes(nextCategory)) changes.category = nextCategory;
       sendHeaderChange(half, changes);
     };
     const tag = isSuperset ? (half === 0 ? 'A ' : 'B ') : '';
@@ -972,6 +989,8 @@ export function SlotEditor({
     // Done sets recede (a step darker than the tile); the ✓ circle fills white
     // Sets still to do sit darker; a done set lights up a step (the whole card mutes once every set is done)
     const cellBg = st.completed ? '#262626' : '#121212';
+    // A set with any value locked stays where it is (no drag)
+    const setLocked = Boolean(st.lockType || st.lockWeight || st.lockReps || st.lockIntensity);
     // The sets after this one in the exercise that a pop-up's "ALSO SETS" may write to: not done, not locked
     const laterSetsFor = field => {
       const list = (isSuperset ? slot.supersetSetsByExercise?.[exIdx] : slot.sets) || [];
@@ -1013,9 +1032,9 @@ export function SlotEditor({
           color={isSuperset && exIdx === 0 ? 'var(--dp-color-accent)' : '#FFFFFF'}
           height="100%"
           bg={cellBg}
-          title="Drag to rearrange set"
-          aria-label={`Drag to reorder set ${setNumText}`}
-          {...setHandleProps(`${exIdx}:${setIdx}`)}
+          title={setLocked ? 'Locked set: unlock it to move it' : 'Hold for a second, then drag to rearrange the set'}
+          aria-label={setLocked ? `Set ${setNumText} is locked` : `Hold, then drag to reorder set ${setNumText}`}
+          {...setHandleProps(`${exIdx}:${setIdx}`, { disabled: setLocked })}
         />
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 0, minWidth: 0 }}>

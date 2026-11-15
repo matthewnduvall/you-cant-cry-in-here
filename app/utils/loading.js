@@ -12,6 +12,18 @@ export const EZ_BAR_WEIGHT_LBS = 17;
 export const AVAILABLE_LB_PLATES = [45, 35, 25, 10, 5, 2.5, 1.25];
 export const SMALLEST_PLATE_LBS = 1.25;
 
+// Standard dumbbells (lb, the weight of one dumbbell): 5, 10, 12, 15, then every 5 lb to 150. A dumbbell exercise's
+// weight is always one of these (DUMBBELL_PICKER_WEIGHTS are the weight pop-up's buttons).
+export const DUMBBELL_WEIGHTS = [5, 10, 12, ...Array.from({ length: 28 }, (_, i) => 15 + i * 5)];
+export const DUMBBELL_PICKER_WEIGHTS = DUMBBELL_WEIGHTS.filter(w => w <= 120);
+export const isDumbbellLoad = setup => setup?.barLabel === 'Dumbbell';
+/** The standard dumbbell nearest a weight (ties go to the lighter one); 0 stays 0. */
+export const nearestDumbbell = weight => {
+  const w = Number(weight) || 0;
+  if (w <= 0) return 0;
+  return DUMBBELL_WEIGHTS.reduce((best, d) => (Math.abs(d - w) < Math.abs(best - w) ? d : best), DUMBBELL_WEIGHTS[0]);
+};
+
 /**
  * How a weight is loaded for the exercise's equipment:
  * - barbell / Smith / trap bar: 45 lb bar + plates on both sides; EZ bar: 17 lb bar + plates on both sides
@@ -74,7 +86,8 @@ export const getPlateInventory = () => PLATE_INVENTORY;
 
 /** Plates available per side for a load: [{ size, perSide }] largest first (null = unlimited standard plates). */
 export const plateLimitsFor = setup => {
-  if (!setup || setup.singleLoad || !PLATE_INVENTORY) return null;
+  // setup.unlimited: a goal weight, not a load on your bar (standard plates, as many as needed)
+  if (!setup || setup.singleLoad || setup.unlimited || !PLATE_INVENTORY) return null;
   return PLATE_SIZES.map(size => ({ size, perSide: Math.floor((PLATE_INVENTORY[size] || 0) / 2) })).filter(p => p.perSide > 0);
 };
 
@@ -130,6 +143,11 @@ const limitedPlatesPerSide = (target, limits) => {
  * they count them; past what they own, the most they can load). Never leaves a remainder.
  */
 export const platesForLoad = (weight, setup) => {
+  // Dumbbells: one standard dumbbell
+  if (isDumbbellLoad(setup) && !setup.unlimited) {
+    const d = nearestDumbbell(weight);
+    return d > 0 ? [d] : [];
+  }
   const mult = setup.singleLoad ? 1 : 2;
   const limits = plateLimitsFor(setup);
   if (limits) return limitedPlatesPerSide(Math.max(0, (Number(weight) || 0) - setup.barWeight) / mult, limits);
@@ -156,3 +174,5 @@ export const snapToLoadableWeight = (weight, setup) => {
 
 /** True when the weight is loaded on both sides (bar or plate-loaded machine): those snap to 2.5 lb steps. */
 export const isTwoSidedLoad = setup => Boolean(setup) && !setup.singleLoad;
+/** Loads whose weights snap to what really exists: both-sided loads (plates) and dumbbells (standard sizes). */
+export const isSnappedLoad = setup => isTwoSidedLoad(setup) || isDumbbellLoad(setup);
