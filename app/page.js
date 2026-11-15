@@ -209,6 +209,8 @@ export default function App() {
   const [emailFriendRequests, setEmailFriendRequests] = useState(true);
   // New records post themselves to the feed (Home → FEED); on by default
   const [autoPostPRs, setAutoPostPRs] = useState(true);
+  // Email me when a friend creates a challenge (/api/notify-challenge); on by default
+  const [emailChallenges, setEmailChallenges] = useState(true);
   // The Social page's first tab when it next opens ('privacy' from your profile's PRIVACY →)
   const [socialInitialTab, setSocialInitialTab] = useState('friends');
   // Profile photo: a small JPEG data URL (settings.profilePhoto, local + cloud); see ProfileAvatar.jsx
@@ -376,6 +378,8 @@ export default function App() {
     setEmailFriendRequests,
     autoPostPRs,
     setAutoPostPRs,
+    emailChallenges,
+    setEmailChallenges,
     profilePhoto,
     setProfilePhoto
   });
@@ -1240,6 +1244,16 @@ export default function App() {
                 setSocialInitialTab('inbox');
                 setCurrentView('social');
               }}
+              onOpenFriends={() => {
+                setRoutineSelectReturnView(null);
+                setSocialInitialTab('friends');
+                setCurrentView('social');
+              }}
+              onOpenProgress={() => {
+                setRoutineSelectReturnView(null);
+                setProgressTabChoice('progress');
+                setCurrentView('history');
+              }}
               onOpenThisWeek={() => {
                 setRoutineSelectReturnView(null);
                 setConfirmedHistoryEditWorkoutId(null);
@@ -1529,7 +1543,9 @@ export default function App() {
                 emailFriendRequests,
                 setEmailFriendRequests,
                 autoPostPRs,
-                setAutoPostPRs
+                setAutoPostPRs,
+                emailChallenges,
+                setEmailChallenges
               }}
               receivedRoutines={user ? routineShares.incoming : []}
               onSaveReceived={routineShares.saveShare}
