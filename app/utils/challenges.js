@@ -9,8 +9,10 @@
 //
 // Period (challenges.period, supabase/migrations/2026-11-17_challenge_patterns.sql):
 //   total  the target over the whole window (the default)
-//   week   the target in EACH 7-day week counted from the start ("3 sessions a week for 4 weeks"); not for weights.
-//          Progress = weeks met in a row from week 1, so a missed week ends the run; done when every week is met.
+//   day / week / month  the target in EACH day, 7-day week or calendar month counted from the start ("100 reps of
+//          push-ups a day for 30 days", "3 sessions a week for 4 weeks", "12 sessions a month for 3 months"); not for
+//          weights. Periodic challenges start at local midnight on the day they are made. Progress = periods met in a
+//          row from the first, so a missed one ends the run; done when every period is met.
 
 import { EXERCISE_MAP, isSupersetCategory, getSlotEquipmentChoice } from '../data/exerciseLibrary';
 import { loggedExercise1RMInfo, withEffectiveLoad, workoutTimeMs } from './workoutEngine';
@@ -23,30 +25,72 @@ export const CHALLENGE_KINDS = [
 ];
 export const challengeKindOf = kind => CHALLENGE_KINDS.find(k => k.id === kind) || CHALLENGE_KINDS[0];
 
-const WEEK_MS = 7 * 86400000;
-export const isWeeklyChallenge = c => c?.period === 'week' && c?.kind !== 'target_weight';
-/** A weekly challenge's number of weeks (its window in whole weeks, at least 1). */
-export const challengeWeeks = c => {
+const DAY_MS = 86400000;
+/** The repeating patterns: their words and the lengths offered when making one. */
+export const CHALLENGE_PERIODS = {
+  day: { id: 'day', each: 'each day', a: 'a day', unit: 'day', units: 'days', lengths: [7, 14, 30, 60] },
+  week: { id: 'week', each: 'each week', a: 'a week', unit: 'week', units: 'weeks', lengths: [2, 4, 6, 8] },
+  month: { id: 'month', each: 'each month', a: 'a month', unit: 'month', units: 'months', lengths: [2, 3, 6, 12] }
+};
+export const normalizeChallengePeriod = p => (CHALLENGE_PERIODS[p] ? p : 'total');
+/** The challenge repeats each day / week / month (never a weight target). */
+export const isPeriodicChallenge = c => Boolean(CHALLENGE_PERIODS[c?.period]) && c?.kind !== 'target_weight';
+export const challengePeriodOf = c => (isPeriodicChallenge(c) ? CHALLENGE_PERIODS[c.period] : null);
+
+/** The start of period i (ms) for a challenge starting at `from` (day / week: fixed lengths; month: calendar months). */
+const periodStart = (period, from, i) => {
+  if (period === 'month') {
+    const d = new Date(from);
+    d.setMonth(d.getMonth() + i);
+    return d.getTime();
+  }
+  return from + i * (period === 'day' ? DAY_MS : 7 * DAY_MS);
+};
+/** When a periodic challenge of `count` periods starting at `from` ends (ms). */
+export const challengePeriodEnd = (period, from, count) => periodStart(period, from, count);
+
+/** A periodic challenge's number of periods (at least 1). */
+export const challengePeriodCount = c => {
   const from = Date.parse(c?.starts_at || '');
   const to = Date.parse(c?.ends_at || '');
   if (!Number.isFinite(from) || !Number.isFinite(to)) return 1;
-  return Math.max(1, Math.round((to - from) / WEEK_MS));
+  if (c?.period === 'month') {
+    let n = 0;
+    while (n < 120 && periodStart('month', from, n + 1) <= to + 2 * 3600000) n += 1;
+    return Math.max(1, n);
+  }
+  return Math.max(1, Math.round((to - from) / (c?.period === 'day' ? DAY_MS : 7 * DAY_MS)));
 };
-/** What progress is measured against: the target, or (weekly) the number of weeks. */
-export const challengeGoal = c => (isWeeklyChallenge(c) ? challengeWeeks(c) : Number(c?.target) || 0);
-/** Weeks of a weekly challenge that have fully passed by `nowMs` (0 in week 1). */
-export const challengeWeeksPassed = (c, nowMs) => {
+/** Which period (0-based) a moment falls in, or -1 before the start. */
+const periodIndexAt = (c, t) => {
   const from = Date.parse(c?.starts_at || '');
-  if (!Number.isFinite(from) || !nowMs) return 0;
-  return Math.max(0, Math.min(challengeWeeks(c), Math.floor((nowMs - from) / WEEK_MS)));
+  if (!Number.isFinite(from) || t < from) return -1;
+  const n = challengePeriodCount(c);
+  let i = 0;
+  while (i < n - 1 && periodStart(c.period, from, i + 1) <= t) i += 1;
+  return i;
+};
+/** What progress is measured against: the target, or (periodic) the number of periods. */
+export const challengeGoal = c => (isPeriodicChallenge(c) ? challengePeriodCount(c) : Number(c?.target) || 0);
+/** Periods of a periodic challenge that have fully passed by `nowMs` (0 in the first one). */
+export const challengePeriodsPassed = (c, nowMs) => {
+  if (!nowMs || !isPeriodicChallenge(c)) return 0;
+  const from = Date.parse(c?.starts_at || '');
+  if (!Number.isFinite(from) || nowMs < from) return 0;
+  const n = challengePeriodCount(c);
+  let i = 0;
+  while (i < n && periodStart(c.period, from, i + 1) <= nowMs) i += 1;
+  return i;
 };
 
 /** "Bench Press 315 lb", "1,000 push-up reps", "20 sessions" — a challenge's name when it has no title. */
 export const describeChallenge = c => {
   const ex = EXERCISE_MAP[c?.exercise_id]?.name || 'exercise';
   const n = Math.round(Number(c?.target) || 0).toLocaleString('en-US');
-  // "3 sessions a week for 4 weeks"
-  const weekly = isWeeklyChallenge(c) ? ` a week for ${challengeWeeks(c)} ${challengeWeeks(c) === 1 ? 'week' : 'weeks'}` : '';
+  // "3 sessions a week for 4 weeks", "100 reps of Push-Up a day for 30 days"
+  const per = challengePeriodOf(c);
+  const count = per ? challengePeriodCount(c) : 0;
+  const weekly = per ? ` ${per.a} for ${count} ${count === 1 ? per.unit : per.units}` : '';
   if (c?.kind === 'target_weight') return `${ex} ${n} lb`;
   if (c?.kind === 'total_reps') return `${n} reps of ${ex}${weekly}`;
   if (c?.kind === 'total_volume') return `${n} lb of ${ex}${weekly}`;
@@ -86,8 +130,9 @@ const amountOf = (challenge, workouts) => {
 
 /**
  * An athlete's progress in a challenge from their History: { value, calculated } (calculated = an estimated 1RM,
- * target_weight only). Workouts outside [starts_at, ends_at] don't count. A weekly challenge also returns `weekly`:
- * { amounts } (each week's amount, week 1 first), and its value is the weeks met in a row from week 1.
+ * target_weight only). Workouts outside [starts_at, ends_at] don't count. A periodic challenge also returns
+ * `periodic`: { amounts } (each day's / week's / month's amount, the first first), and its value is the periods met
+ * in a row from the first.
  */
 export const challengeProgressFromHistory = (challenge, history = []) => {
   const from = Date.parse(challenge?.starts_at || '') || 0;
@@ -96,18 +141,18 @@ export const challengeProgressFromHistory = (challenge, history = []) => {
     const t = workoutTimeMs(w);
     return t >= from && t <= to;
   });
-  if (isWeeklyChallenge(challenge)) {
-    const weeks = challengeWeeks(challenge);
-    const byWeek = Array.from({ length: weeks }, () => []);
+  if (isPeriodicChallenge(challenge)) {
+    const count = challengePeriodCount(challenge);
+    const byPeriod = Array.from({ length: count }, () => []);
     inWindow.forEach(w => {
-      const i = Math.min(weeks - 1, Math.floor((workoutTimeMs(w) - from) / WEEK_MS));
-      if (i >= 0) byWeek[i].push(w);
+      const i = periodIndexAt(challenge, workoutTimeMs(w));
+      if (i >= 0) byPeriod[i].push(w);
     });
-    const amounts = byWeek.map(ws => Math.round(amountOf(challenge, ws)));
+    const amounts = byPeriod.map(ws => Math.round(amountOf(challenge, ws)));
     const target = Number(challenge.target) || 0;
     let streak = 0;
-    while (streak < weeks && amounts[streak] >= target) streak += 1;
-    return { value: streak, calculated: false, weekly: { amounts } };
+    while (streak < count && amounts[streak] >= target) streak += 1;
+    return { value: streak, calculated: false, periodic: { amounts } };
   }
   if (challenge?.kind !== 'target_weight') return { value: Math.round(amountOf(challenge, inWindow)), calculated: false };
   let value = 0;

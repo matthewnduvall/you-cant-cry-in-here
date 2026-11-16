@@ -1,9 +1,10 @@
--- Weekly pattern challenges ("3 sessions a week for 4 weeks", "100 push-ups a week for 6 weeks").
+-- Repeating pattern challenges ("100 push-ups a day for 30 days", "3 sessions a week for 4 weeks", "12 sessions a
+-- month for 3 months").
 --
--- challenges.period: 'total' (the target is reached over the whole window; every challenge before this) or 'week'
--- (the target must be reached in each 7-day week counted from starts_at; the number of weeks is the window's length
--- in weeks). A weekly challenge can't be a weight target. Participants' progress for a weekly challenge is the
--- number of weeks met in a row from week 1 (utils/challenges.js); it is complete when every week is met.
+-- challenges.period: 'total' (the target is reached over the whole window; every challenge before this) or 'day' /
+-- 'week' / 'month' (the target must be reached in each day, 7-day week or calendar month counted from starts_at). A
+-- repeating challenge can't be a weight target. Participants' progress is the number of periods met in a row from the
+-- first (utils/challenges.js); it is complete when every period is met. Re-running it updates the constraint.
 --
 -- claim_challenge_emails also returns period and starts_at so the email can say "a week for 4 weeks". Its return
 -- type changes, so it is dropped and created again. Safe to re-run.
@@ -11,7 +12,7 @@
 ALTER TABLE public.challenges ADD COLUMN IF NOT EXISTS period TEXT NOT NULL DEFAULT 'total';
 ALTER TABLE public.challenges DROP CONSTRAINT IF EXISTS challenges_period;
 ALTER TABLE public.challenges
-  ADD CONSTRAINT challenges_period CHECK (period IN ('total', 'week') AND (period = 'total' OR kind <> 'target_weight'));
+  ADD CONSTRAINT challenges_period CHECK (period IN ('total', 'day', 'week', 'month') AND (period = 'total' OR kind <> 'target_weight'));
 
 ALTER TABLE public.challenges ADD COLUMN IF NOT EXISTS notified_at TIMESTAMPTZ;
 
