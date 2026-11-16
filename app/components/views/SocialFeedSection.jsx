@@ -75,6 +75,8 @@ function ChallengeCard({ challenge, me, nowMs, canJoin, onJoin, onLeave, onDelet
   const currentAmount = per ? myProgress?.periodic?.amounts?.[currentIdx] ?? null : null;
   const daysLeft = challengeDaysLeft(challenge, nowMs);
   const ended = nowMs ? Date.parse(challenge.ends_at) < nowMs : false;
+  const startMs = Date.parse(challenge.starts_at || '');
+  const notStarted = nowMs && Number.isFinite(startMs) && startMs > nowMs ? new Date(startMs) : null;
   const joined = challenge.participants.some(p => p.user_id === me);
   const mine = challenge.creator_id === me;
   const people = [...challenge.participants].sort((a, b) => b.progress - a.progress);
@@ -91,7 +93,11 @@ function ChallengeCard({ challenge, me, nowMs, canJoin, onJoin, onLeave, onDelet
                 ? `FOR ${challenge.audienceIds.length} ${challenge.audienceIds.length === 1 ? 'FRIEND' : 'FRIENDS'}`
                 : `BY @${challenge.username || 'friend'}`}{' '}
             ·{' '}
-            {ended ? 'ENDED' : daysLeft === null ? '' : daysLeft === 0 ? 'ENDS TODAY' : `${daysLeft}D LEFT`}
+            {notStarted
+              ? `STARTS ${MONTHS[notStarted.getMonth()].toUpperCase()} ${notStarted.getDate()}`
+              : ended
+                ? 'ENDED'
+                : daysLeft === null ? '' : daysLeft === 0 ? 'ENDS TODAY' : `${daysLeft}D LEFT`}
           </div>
           <div style={{ fontSize: '16px', fontWeight: 500, color: '#FFFFFF', lineHeight: 1.3 }}>
             {challenge.title || describeChallenge(challenge)}
@@ -175,7 +181,30 @@ function ChallengeCard({ challenge, me, nowMs, canJoin, onJoin, onLeave, onDelet
 // Lengths of a whole-window challenge (repeating ones use CHALLENGE_PERIODS[period].lengths)
 const DURATIONS = [7, 14, 30, 60];
 
-function NewChallengeModal({ onCreate, onClose, friends = [] }) {
+// When a new challenge starts: midnight on the chosen day (today = right now for an in-total challenge)
+const START_CHOICES = ['today', 'tomorrow', 'monday', 'month', 'date'];
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const ymdOf = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+const shortDate = d => `${WEEKDAYS[d.getDay()]} ${MONTHS[d.getMonth()]} ${d.getDate()}`;
+/** Midnight (local) of the day a start choice means, from `todayMs`; null when it can't be worked out. */
+const startDayFor = (choice, todayMs, customYmd) => {
+  if (!todayMs) return null;
+  const d = new Date(todayMs);
+  d.setHours(0, 0, 0, 0);
+  if (choice === 'tomorrow') d.setDate(d.getDate() + 1);
+  else if (choice === 'monday') d.setDate(d.getDate() + ((8 - d.getDay()) % 7 || 7));
+  else if (choice === 'month') d.setMonth(d.getMonth() + 1, 1);
+  else if (choice === 'date') {
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(customYmd || '');
+    if (!m) return null;
+    const c = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+    return c.getTime() >= d.getTime() ? c : null;
+  }
+  return d;
+};
+
+function NewChallengeModal({ onCreate, onClose, friends = [], nowMs = null }) {
   useModalScrollLock(true);
   const [kind, setKind] = useState('total_reps');
   const [exerciseId, setExerciseId] = useState('barbell_bench_press');
@@ -206,6 +235,12 @@ function NewChallengeModal({ onCreate, onClose, friends = [] }) {
             ? `${nameOf(chosenIds[0])} and ${nameOf(chosenIds[1])}`
             : `${chosenIds.length} friends`;
   const [title, setTitle] = useState('');
+  // Starting: today, tomorrow, next Monday, the 1st of next month or a picked date ("today" is read after mount)
+  const [startChoice, setStartChoice] = useState('today');
+  const [customStart, setCustomStart] = useState('');
+  // "Today" comes from the Home section's clock (read after mount, every minute)
+  const todayMs = nowMs || 0;
+  const startDay = startDayFor(startChoice, todayMs, customStart);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const k = challengeKindOf(kind);
@@ -214,15 +249,18 @@ function NewChallengeModal({ onCreate, onClose, friends = [] }) {
   const repeating = Boolean(per);
   const length = lengths[period];
   const targetNum = Number(target);
-  const valid = targetNum > 0 && (!k.needsExercise || EXERCISE_MAP[exerciseId]);
+  const valid = targetNum > 0 && (!k.needsExercise || EXERCISE_MAP[exerciseId]) && Boolean(startDay);
 
   const submit = async () => {
     if (!valid || busy) return;
     setBusy(true);
     setError('');
-    // A repeating challenge starts at midnight today (whole days / weeks / months); a total one starts now
-    const start = new Date();
-    if (per) start.setHours(0, 0, 0, 0);
+    // Midnight on the chosen day (whole days / weeks / months); an in-total challenge starting today starts now
+    const start = startChoice === 'today' && !per ? new Date() : startDayFor(startChoice, Date.now(), customStart);
+    if (!start) {
+      setBusy(false);
+      return;
+    }
     const end = new Date(per ? challengePeriodEnd(period, start.getTime(), length) : start.getTime() + length * 86400000);
     const res = await onCreate({
       kind,
@@ -296,7 +334,7 @@ function NewChallengeModal({ onCreate, onClose, friends = [] }) {
             : chosenIds.length
               ? `Only ${chosenIds.length === 1 ? nameOf(chosenIds[0]) : 'the friends you chose'} can see it and join.`
               : 'Your friends see it and can join.'}{' '}
-          Only workouts logged between now and the end count.
+          Only workouts logged between the start and the end count.
         </div>
 
         {/* The challenge, as a sentence */}
@@ -464,9 +502,53 @@ function NewChallengeModal({ onCreate, onClose, friends = [] }) {
               </option>
             ))}
           </select>
+          <select
+            aria-label="Starting"
+            className="kinetic-filter-select cr-sentence-select"
+            value={startChoice}
+            onChange={e => {
+              const v = e.target.value;
+              setStartChoice(v);
+              if (v === 'date' && !customStart && todayMs) setCustomStart(ymdOf(new Date(todayMs)));
+            }}
+            style={selectChip}
+          >
+            {START_CHOICES.map(c => {
+              const d = c === 'date' ? null : startDayFor(c, todayMs);
+              const label =
+                c === 'today'
+                  ? 'starting today'
+                  : c === 'tomorrow'
+                    ? 'starting tomorrow'
+                    : c === 'monday'
+                      ? `starting next Monday${d ? ` (${MONTHS[d.getMonth()]} ${d.getDate()})` : ''}`
+                      : c === 'month'
+                        ? `starting ${d ? `${MONTHS[d.getMonth()]} 1` : 'next month'}`
+                        : 'starting on a date…';
+              return (
+                <option key={c} value={c}>
+                  {label}
+                </option>
+              );
+            })}
+          </select>
+          {startChoice === 'date' && (
+            <input
+              type="date"
+              aria-label="Start date"
+              min={todayMs ? ymdOf(new Date(todayMs)) : undefined}
+              value={customStart}
+              onChange={e => setCustomStart(e.target.value)}
+              style={{ ...chip, width: 'auto', minWidth: '150px', padding: '0 12px', colorScheme: 'dark' }}
+            />
+          )}
         </div>
         <div style={{ ...UI.sentence, fontSize: '12px', marginBottom: '12px' }}>
-          {per ? `Reach it ${per.each}, counted from today; a missed ${per.unit} ends the run.` : k.help}
+          {startChoice === 'date' && !startDay
+            ? 'Pick a start date from today on.'
+            : `${startChoice === 'today' || !startDay ? '' : `Starts ${shortDate(startDay)}. `}${
+                per ? `Reach it ${per.each}, counted from the start; a missed ${per.unit} ends the run.` : k.help
+              }`}
         </div>
 
         <div style={{ ...UI.fieldLabel, marginBottom: '6px' }}>NAME (OPTIONAL)</div>
@@ -811,7 +893,7 @@ export function SocialFeedSection({
         ))}
       </section>
 
-      {creating && <NewChallengeModal friends={friendsList} onCreate={social.createChallenge} onClose={() => setCreating(false)} />}
+      {creating && <NewChallengeModal nowMs={nowMs} friends={friendsList} onCreate={social.createChallenge} onClose={() => setCreating(false)} />}
     </>
   );
 }

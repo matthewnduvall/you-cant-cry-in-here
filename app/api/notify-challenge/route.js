@@ -86,9 +86,16 @@ export async function POST(request) {
     const what = describe(first);
     const name = String(first.title || '').trim();
     const endsMs = Date.parse(first.ends_at || '');
-    const days = Number.isFinite(endsMs) ? Math.max(1, Math.round((endsMs - Date.now()) / 86400000)) : null;
+    const startsMs = Date.parse(first.starts_at || '');
+    // Starts later than today: say when, and count the days from then
+    const later = Number.isFinite(startsMs) && startsMs > Date.now() + 3600000;
+    const fromMs = later ? startsMs : Date.now();
+    const days = Number.isFinite(endsMs) ? Math.max(1, Math.round((endsMs - fromMs) / 86400000)) : null;
+    const startsText = later
+      ? `Starts ${new Date(startsMs).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' })}. `
+      : '';
     const headline = `<strong style="font-weight:500;">@${escapeHtml(fromHandle)}</strong> challenged you: ${escapeHtml(name || what)}.`;
-    const detail = `${name ? `${escapeHtml(what)}. ` : ''}${days ? `${days} ${days === 1 ? 'day' : 'days'} to do it. ` : ''}Join it on Home &rarr; Challenges; only workouts you log from now on count.`;
+    const detail = `${name ? `${escapeHtml(what)}. ` : ''}${startsText}${days ? `${days} ${days === 1 ? 'day' : 'days'} to do it. ` : ''}Join it on Home &rarr; Challenges; only workouts you log from now on count.`;
     const html = cryingEmailHtml({
       origin,
       label: 'Challenge',
@@ -97,7 +104,7 @@ export async function POST(request) {
       button: { label: 'See the challenge', url: appUrl },
       footer: "Turn these emails off in the app: Menu → Privacy → Email me friends' challenges."
     });
-    const text = `@${fromHandle} challenged you: ${name || what}.\n\n${name ? `${what}. ` : ''}${days ? `${days} days to do it. ` : ''}Join it on Home > Challenges: ${appUrl}\n\nTurn these emails off in the app: Menu > Privacy > Email me friends' challenges.`;
+    const text = `@${fromHandle} challenged you: ${name || what}.\n\n${name ? `${what}. ` : ''}${startsText}${days ? `${days} days to do it. ` : ''}Join it on Home > Challenges: ${appUrl}\n\nTurn these emails off in the app: Menu > Privacy > Email me friends' challenges.`;
 
     // One email per friend (each only sees their own address), 100 per batch
     let sent = 0;
