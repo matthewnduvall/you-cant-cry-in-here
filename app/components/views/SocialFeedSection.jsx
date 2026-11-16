@@ -11,7 +11,16 @@ import { ProfileAvatar } from '../ProfileAvatar';
 import { ExercisePicker } from '../ExercisePicker';
 import { useModalScrollLock } from '../../hooks/useModalScrollLock';
 import { FEED_REACTIONS } from '../../hooks/useSocialFeed';
-import { CHALLENGE_KINDS, challengeKindOf, describeChallenge, challengeDaysLeft } from '../../utils/challenges';
+import {
+  CHALLENGE_KINDS,
+  challengeKindOf,
+  describeChallenge,
+  challengeDaysLeft,
+  challengeGoal,
+  challengeWeeks,
+  challengeWeeksPassed,
+  isWeeklyChallenge
+} from '../../utils/challenges';
 import { EXERCISE_MAP } from '../../data/exerciseLibrary';
 import { oneRepMaxLabel } from '../../utils/workoutEngine';
 
@@ -51,9 +60,16 @@ const fmtNum = (n, unit) => {
 // Challenges
 // ---------------------------------------------------------------------------------------------------------------
 
-function ChallengeCard({ challenge, me, nowMs, canJoin, onJoin, onLeave, onDelete }) {
+function ChallengeCard({ challenge, me, nowMs, canJoin, onJoin, onLeave, onDelete, myProgress = null }) {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const kind = challengeKindOf(challenge.kind);
+  // Weekly pattern: progress = weeks met in a row, out of every week; a week that passed unmet ends the run
+  const weekly = isWeeklyChallenge(challenge);
+  const goal = challengeGoal(challenge);
+  const weeks = challengeWeeks(challenge);
+  const weeksPassed = weekly ? challengeWeeksPassed(challenge, nowMs) : 0;
+  const thisWeekIdx = Math.min(weeks - 1, weeksPassed);
+  const thisWeekAmount = weekly ? myProgress?.weekly?.amounts?.[thisWeekIdx] ?? null : null;
   const daysLeft = challengeDaysLeft(challenge, nowMs);
   const ended = nowMs ? Date.parse(challenge.ends_at) < nowMs : false;
   const joined = challenge.participants.some(p => p.user_id === me);
@@ -64,7 +80,8 @@ function ChallengeCard({ challenge, me, nowMs, canJoin, onJoin, onLeave, onDelet
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px', alignItems: 'flex-start' }}>
         <div style={{ minWidth: 0 }}>
           <div style={{ ...meta, marginBottom: '4px' }}>
-            {kind.label} · BY @{challenge.username || 'friend'} ·{' '}
+            {kind.label}
+            {weekly ? ' · EACH WEEK' : ''} · BY @{challenge.username || 'friend'} ·{' '}
             {ended ? 'ENDED' : daysLeft === null ? '' : daysLeft === 0 ? 'ENDS TODAY' : `${daysLeft}D LEFT`}
           </div>
           <div style={{ fontSize: '16px', fontWeight: 500, color: '#FFFFFF', lineHeight: 1.3 }}>
@@ -93,9 +110,12 @@ function ChallengeCard({ challenge, me, nowMs, canJoin, onJoin, onLeave, onDelet
       <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '10px' }}>
         {people.length === 0 && <div style={{ ...UI.sentence, fontSize: '12px' }}>Nobody has joined yet.</div>}
         {people.map(p => {
-          const share = Math.max(0, Math.min(1, challenge.target > 0 ? p.progress / challenge.target : 0));
-          const value =
-            challenge.kind === 'target_weight' ? `${oneRepMaxLabel(Math.round(p.progress), p.progress_calculated)} LB` : fmtNum(p.progress, kind.unit);
+          const share = Math.max(0, Math.min(1, goal > 0 ? p.progress / goal : 0));
+          const value = weekly
+            ? `${Math.round(p.progress)} / ${weeks} WEEKS`
+            : `${challenge.kind === 'target_weight' ? `${oneRepMaxLabel(Math.round(p.progress), p.progress_calculated)} LB` : fmtNum(p.progress, kind.unit)} / ${fmtNum(challenge.target, kind.unit)}`;
+          // A week passed without meeting the target (weekly): the run is over
+          const missed = weekly && !p.completed_at && p.progress < weeksPassed;
           return (
             <div key={p.user_id}>
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px', fontSize: '13px', color: '#FFFFFF' }}>
@@ -103,14 +123,20 @@ function ChallengeCard({ challenge, me, nowMs, canJoin, onJoin, onLeave, onDelet
                   @{p.username || 'friend'}
                   {p.user_id === me ? ' (you)' : ''}
                 </span>
-                <span className="cr-num" style={{ flexShrink: 0, color: p.completed_at ? '#FFFFFF' : '#BDBDBD' }}>
-                  {p.completed_at ? 'DONE ✓ ' : ''}
-                  {value} / {fmtNum(challenge.target, kind.unit)}
+                <span className="cr-num" style={{ flexShrink: 0, color: p.completed_at ? '#FFFFFF' : missed ? '#8A8A8A' : '#BDBDBD' }}>
+                  {p.completed_at ? 'DONE ✓ ' : missed ? `MISSED WEEK ${Math.round(p.progress) + 1} · ` : ''}
+                  {value}
                 </span>
               </div>
               <div style={{ height: '4px', borderRadius: '2px', backgroundColor: '#3A3A3A', marginTop: '4px', overflow: 'hidden' }}>
-                <div style={{ width: `${share * 100}%`, height: '100%', backgroundColor: '#FFFFFF' }} />
+                <div style={{ width: `${share * 100}%`, height: '100%', backgroundColor: missed ? '#8A8A8A' : '#FFFFFF' }} />
               </div>
+              {/* Your current week (weekly, still running): how far into this week's target you are */}
+              {weekly && p.user_id === me && !p.completed_at && !missed && thisWeekAmount !== null && weeksPassed < weeks && (
+                <div style={{ ...meta, marginTop: '4px' }}>
+                  WEEK {thisWeekIdx + 1}: {fmtNum(thisWeekAmount, kind.unit)} / {fmtNum(challenge.target, kind.unit)}
+                </div>
+              )}
             </div>
           );
         })}
@@ -138,6 +164,8 @@ function ChallengeCard({ challenge, me, nowMs, canJoin, onJoin, onLeave, onDelet
 }
 
 const DURATIONS = [7, 14, 30, 60];
+// Weekly pattern challenges run whole weeks (4 weeks is about a month)
+const WEEK_DURATIONS = [2, 4, 6, 8];
 
 function NewChallengeModal({ onCreate, onClose }) {
   useModalScrollLock(true);
@@ -145,10 +173,14 @@ function NewChallengeModal({ onCreate, onClose }) {
   const [exerciseId, setExerciseId] = useState('barbell_bench_press');
   const [target, setTarget] = useState('');
   const [days, setDays] = useState(30);
+  // TOTAL (over the whole window) or EACH WEEK (the target every week; not for a weight target)
+  const [period, setPeriod] = useState('total');
+  const [weeks, setWeeks] = useState(4);
   const [title, setTitle] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const k = challengeKindOf(kind);
+  const weekly = period === 'week' && kind !== 'target_weight';
   const targetNum = Number(target);
   const valid = targetNum > 0 && (!k.needsExercise || EXERCISE_MAP[exerciseId]);
 
@@ -157,12 +189,13 @@ function NewChallengeModal({ onCreate, onClose }) {
     setBusy(true);
     setError('');
     const start = new Date();
-    const end = new Date(start.getTime() + days * 86400000);
+    const end = new Date(start.getTime() + (weekly ? weeks * 7 : days) * 86400000);
     const res = await onCreate({
       kind,
       exerciseId: k.needsExercise ? exerciseId : null,
       target: targetNum,
       title,
+      period: weekly ? 'week' : 'total',
       startsAt: start.toISOString(),
       endsAt: end.toISOString()
     });
@@ -210,18 +243,54 @@ function NewChallengeModal({ onCreate, onClose }) {
         </div>
         <div style={{ ...UI.sentence, fontSize: '12px', marginBottom: '12px' }}>{k.help}</div>
 
+        {/* PATTERN: the target over the whole challenge, or every week (e.g. 3 sessions a week for 4 weeks) */}
+        {kind !== 'target_weight' && (
+          <>
+            <div style={{ ...UI.fieldLabel, marginBottom: '6px' }}>PATTERN</div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '6px', marginBottom: '6px' }}>
+              <button type="button" aria-pressed={!weekly} style={pill(!weekly)} onClick={() => setPeriod('total')}>
+                TOTAL
+              </button>
+              <button type="button" aria-pressed={weekly} style={pill(weekly)} onClick={() => setPeriod('week')}>
+                EACH WEEK
+              </button>
+            </div>
+            <div style={{ ...UI.sentence, fontSize: '12px', marginBottom: '12px' }}>
+              {weekly
+                ? 'Reach the target in every week of the challenge. Weeks count from today; a missed week ends the run.'
+                : 'Reach the target over the whole challenge.'}
+            </div>
+          </>
+        )}
+
         {k.needsExercise && (
           <div style={{ marginBottom: '12px', borderRadius: '10px', overflow: 'visible', position: 'relative' }}>
             <ExercisePicker exerciseId={exerciseId} types={['Compound', 'Accessory']} onChange={setExerciseId} />
           </div>
         )}
 
-        <div style={{ ...UI.fieldLabel, marginBottom: '6px' }}>TARGET ({k.unit})</div>
+        <div style={{ ...UI.fieldLabel, marginBottom: '6px' }}>
+          {weekly ? 'TARGET EACH WEEK' : 'TARGET'} ({k.unit})
+        </div>
         <input
           type="text"
           inputMode="numeric"
           aria-label={`Target in ${k.unit.toLowerCase()}`}
-          placeholder={kind === 'target_weight' ? 'e.g. 315' : kind === 'total_reps' ? 'e.g. 1000' : kind === 'total_volume' ? 'e.g. 100000' : 'e.g. 12'}
+          placeholder={
+            weekly
+              ? kind === 'total_reps'
+                ? 'e.g. 300'
+                : kind === 'total_volume'
+                  ? 'e.g. 25000'
+                  : 'e.g. 3'
+              : kind === 'target_weight'
+                ? 'e.g. 315'
+                : kind === 'total_reps'
+                  ? 'e.g. 1000'
+                  : kind === 'total_volume'
+                    ? 'e.g. 100000'
+                    : 'e.g. 12'
+          }
           value={target}
           onChange={e => setTarget(e.target.value.replace(/[^0-9]/g, '').slice(0, 7))}
           style={{ ...UI.field, width: '100%', boxSizing: 'border-box', marginBottom: '12px' }}
@@ -229,11 +298,17 @@ function NewChallengeModal({ onCreate, onClose }) {
 
         <div style={{ ...UI.fieldLabel, marginBottom: '6px' }}>LENGTH</div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: '6px', marginBottom: '12px' }}>
-          {DURATIONS.map(d => (
-            <button key={d} type="button" aria-pressed={days === d} style={pill(days === d)} onClick={() => setDays(d)}>
-              {d} DAYS
-            </button>
-          ))}
+          {weekly
+            ? WEEK_DURATIONS.map(w => (
+                <button key={w} type="button" aria-pressed={weeks === w} style={pill(weeks === w)} onClick={() => setWeeks(w)}>
+                  {w} WEEKS
+                </button>
+              ))
+            : DURATIONS.map(d => (
+                <button key={d} type="button" aria-pressed={days === d} style={pill(days === d)} onClick={() => setDays(d)}>
+                  {d} DAYS
+                </button>
+              ))}
         </div>
 
         <div style={{ ...UI.fieldLabel, marginBottom: '6px' }}>NAME (OPTIONAL)</div>
@@ -285,14 +360,19 @@ function PostBody({ post }) {
   }
   if (post.kind === 'challenge_done') {
     const k = challengeKindOf(p.kind);
+    const doneChallenge = { kind: p.kind, exercise_id: p.exerciseId, target: p.target, period: p.period, starts_at: p.startsAt, ends_at: p.endsAt };
     return (
       <>
         <div style={{ ...meta, marginBottom: '4px' }}>CHALLENGE DONE</div>
         <div style={{ fontSize: '15px', fontWeight: 500, color: '#FFFFFF' }}>
-          {p.title || describeChallenge({ kind: p.kind, exercise_id: p.exerciseId, target: p.target })}
+          {p.title || describeChallenge(doneChallenge)}
         </div>
         <div style={{ ...UI.rowContents, marginTop: '2px' }}>
-          {p.kind === 'target_weight' ? `${oneRepMaxLabel(p.value, p.calculated)} lb` : fmtNum(p.value, k.unit).toLowerCase()}
+          {isWeeklyChallenge(doneChallenge)
+            ? `Every week: ${p.value} of ${challengeWeeks(doneChallenge)}`
+            : p.kind === 'target_weight'
+              ? `${oneRepMaxLabel(p.value, p.calculated)} lb`
+              : fmtNum(p.value, k.unit).toLowerCase()}
         </div>
       </>
     );
@@ -531,6 +611,7 @@ export function SocialFeedSection({
             onJoin={social.joinChallenge}
             onLeave={social.leaveChallenge}
             onDelete={social.deleteChallenge}
+            myProgress={social.myProgress?.[c.id] || null}
           />
         ))}
         {finished.length > 0 && (

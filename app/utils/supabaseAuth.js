@@ -2032,22 +2032,32 @@ export async function deletePostComment(user, commentId) {
   return { ok: res.ok };
 }
 
-const CHALLENGE_COLUMNS =
-  'id,creator_id,username,kind,exercise_id,target,title,starts_at,ends_at,created_at,challenge_participants(user_id,username,progress,progress_calculated,completed_at,joined_at,updated_at)';
+const CHALLENGE_PARTICIPANT_COLUMNS =
+  'challenge_participants(user_id,username,progress,progress_calculated,completed_at,joined_at,updated_at)';
+const CHALLENGE_COLUMNS = `id,creator_id,username,kind,exercise_id,target,title,period,starts_at,ends_at,created_at,${CHALLENGE_PARTICIPANT_COLUMNS}`;
+// Before supabase/migrations/2026-11-17_challenge_patterns.sql there is no period column (every challenge is 'total')
+const CHALLENGE_COLUMNS_NO_PERIOD = CHALLENGE_COLUMNS.replace('period,', '');
+let challengePeriodMissing = false;
 
 /** Challenges by you and your friends that ended less than `keepDays` ago, soonest end first. Returns { ok, challenges }. */
 export async function fetchChallenges(user, keepDays = 7) {
   if (!user || !isUuid(user.id)) return { ok: false, challenges: [] };
   const since = new Date(Date.now() - keepDays * 86400000).toISOString();
-  const res = await authedRequest(
-    user,
-    `/rest/v1/challenges?select=${CHALLENGE_COLUMNS}&ends_at=gte.${encodeURIComponent(since)}&order=ends_at.asc&limit=40`
-  );
+  const query = columns =>
+    authedRequest(user, `/rest/v1/challenges?select=${columns}&ends_at=gte.${encodeURIComponent(since)}&order=ends_at.asc&limit=40`);
+  // The period column isn't there yet (migration not run): read them as whole-window challenges, and don't ask for
+  // it again until the app reloads
+  let res = await query(challengePeriodMissing ? CHALLENGE_COLUMNS_NO_PERIOD : CHALLENGE_COLUMNS);
+  if (!res.ok && res.status === 400 && !challengePeriodMissing) {
+    res = await query(CHALLENGE_COLUMNS_NO_PERIOD);
+    if (res.ok) challengePeriodMissing = true;
+  }
   if (!res.ok || !Array.isArray(res.data)) return { ok: false, challenges: [], status: res.status };
   return {
     ok: true,
     challenges: res.data.map(row => ({
       ...row,
+      period: row.period === 'week' ? 'week' : 'total',
       target: Number(row.target) || 0,
       participants: (Array.isArray(row.challenge_participants) ? row.challenge_participants : []).map(p => ({
         ...p,
@@ -2055,6 +2065,21 @@ export async function fetchChallenges(user, keepDays = 7) {
       }))
     }))
   };
+}
+
+/**
+ * Challenges finished, per athlete you can see (you and your friends; Leaderboards → CHALLENGES): every participant
+ * row with completed_at that RLS shows you. Returns { ok, counts: { [userId]: n } }.
+ */
+export async function fetchCompletedChallengeCounts(user) {
+  if (!user || !isUuid(user.id)) return { ok: false, counts: {} };
+  const res = await authedRequest(user, '/rest/v1/challenge_participants?select=user_id&completed_at=not.is.null&limit=5000');
+  if (!res.ok || !Array.isArray(res.data)) return { ok: false, counts: {}, status: res.status };
+  const counts = {};
+  res.data.forEach(r => {
+    if (r?.user_id) counts[r.user_id] = (counts[r.user_id] || 0) + 1;
+  });
+  return { ok: true, counts };
 }
 
 /** Join a challenge (refused by the database while you don't share your stats). Returns { ok, status }. */
@@ -2068,8 +2093,11 @@ export async function joinChallenge(user, challengeId) {
   return { ok: res.ok || res.status === 409, status: res.status };
 }
 
-/** A new challenge (you join it too). { kind, exerciseId, target, title, startsAt, endsAt }. Returns { ok, id }. */
-export async function createChallenge(user, { kind, exerciseId = null, target, title = '', startsAt, endsAt }) {
+/**
+ * A new challenge (you join it too). { kind, exerciseId, target, title, period ('total' | 'week'), startsAt, endsAt }.
+ * Returns { ok, id }.
+ */
+export async function createChallenge(user, { kind, exerciseId = null, target, title = '', period = 'total', startsAt, endsAt }) {
   if (!user || !isUuid(user.id)) return { ok: false };
   const res = await authedRequest(user, '/rest/v1/challenges?select=id', {
     method: 'POST',
@@ -2080,6 +2108,8 @@ export async function createChallenge(user, { kind, exerciseId = null, target, t
       exercise_id: kind === 'sessions' ? null : exerciseId,
       target: Number(target),
       title: String(title || '').trim().slice(0, 80) || null,
+      // Sent only for weekly ones, so whole-window challenges still work before the period column exists
+      ...(period === 'week' && kind !== 'target_weight' ? { period: 'week' } : {}),
       starts_at: startsAt,
       ends_at: endsAt
     }

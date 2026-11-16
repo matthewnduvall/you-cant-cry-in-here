@@ -173,6 +173,8 @@ export const KINETIC_CSS = `
     padding: 0 1px !important;
   }
 
+  /* Sideways-scrolling tab rows (TabBar scrollable): no scrollbar */
+  .cr-tab-scroll::-webkit-scrollbar { display: none; }
   .kinetic-app select.kinetic-filter-select {
     -webkit-appearance: none;
     appearance: none;

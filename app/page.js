@@ -1540,7 +1540,7 @@ export default function App() {
           )}
 
           {currentView === 'leaderboards' && (
-            <LeaderboardView colors={colors} user={user} friendsList={friendsList} {...leaderboardProps} />
+            <LeaderboardView colors={colors} user={user} friendsList={friendsList} {...leaderboardProps} completedChallengeCounts={social.completedCounts} />
           )}
 
           {/* FRIENDS (view id 'social'): find athletes, requests, friends list, PRIVACY */}

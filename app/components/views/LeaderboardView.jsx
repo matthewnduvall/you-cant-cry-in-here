@@ -18,7 +18,9 @@ const LEADERBOARD_TABS = [
   // Short labels so the nested tab row stays on one line at phone width
   { id: 'big3_total', label: 'BIG 3 LB' },
   { id: 'ohp_normalized', label: 'OHP / BW' },
-  { id: 'most_improved', label: 'IMPROVED' }
+  { id: 'most_improved', label: 'IMPROVED' },
+  // Challenges finished (Home → CHALLENGES), all time
+  { id: 'challenges', label: 'CHALLENGES' }
 ];
 
 // The bodyweight a friend's BW ratios are worked out with (never shown): saved bodyweight, shared or not
@@ -130,7 +132,9 @@ export function LeaderboardView({
   // Tapping a row opens that athlete's profile (yours or the friend's): onOpenProfile(entry)
   onOpenProfile,
   // Your profile photo (beside your name on the boards; friends' come from their profiles)
-  profilePhoto = null
+  profilePhoto = null,
+  // Challenges finished per athlete (useSocialFeed completedCounts): { [userId]: n }
+  completedChallengeCounts = {}
 }) {
   const [activeTab, setActiveTab] = useState('big3_normalized');
   const selfName = user?.username || 'you (logged out)';
@@ -308,6 +312,13 @@ export function LeaderboardView({
     improvementEntries.sort((a, b) => b.normalizedGain - a.normalizedGain || b.deltaLbs - a.deltaLbs)
   );
 
+  // 5. CHALLENGES: challenges finished, you and your friends (none yet = unranked)
+  const doneOf = a => Number(completedChallengeCounts?.[a.isSelf ? userId : a.friend?.id]) || 0;
+  const challengeEntries = buildTop10WithSelfSlot(
+    rawAthletes.map(a => ({ ...a, challengesDone: doneOf(a) })).sort((a, b) => b.challengesDone - a.challengesDone),
+    a => a.challengesDone
+  );
+
   return (
     <div style={{ paddingTop: embedded ? 0 : '12px' }}>
       <div style={{ padding: '0 var(--dp-spacing-gutter)', marginBottom: '14px' }}>
@@ -315,9 +326,9 @@ export function LeaderboardView({
         {!user ? null : embedded ? (
           <NestedTabBar ariaLabel="Leaderboards" tabs={LEADERBOARD_TABS} value={activeTab} onChange={setActiveTab} />
         ) : (
-          <TabBar ariaLabel="Leaderboards" tabs={LEADERBOARD_TABS} value={activeTab} onChange={setActiveTab} />
+          <TabBar ariaLabel="Leaderboards" scrollable tabs={LEADERBOARD_TABS} value={activeTab} onChange={setActiveTab} />
         )}
-        {user && bwHiddenCount > 0 && activeTab !== 'big3_total' && (
+        {user && bwHiddenCount > 0 && activeTab !== 'big3_total' && activeTab !== 'challenges' && (
           <div style={{ ...UI.sentence, marginTop: '10px' }}>
             {bwHiddenCount === 1 ? '1 friend hasn’t' : `${bwHiddenCount} friends haven’t`} saved a bodyweight, so they’re not on this board.
           </div>
@@ -510,6 +521,32 @@ export function LeaderboardView({
           ))
         )}
       </IOSListSection>
+      )}
+      {user && activeTab === 'challenges' && (
+        <IOSListSection colors={colors}>
+          {challengeEntries.map((entry, idx, arr) => (
+            <IOSListRow
+              key={`challenges_${entry.id}_${idx}`}
+              indexLabel={formatRankLabel(entry.rank)}
+              onClick={onOpenProfile ? () => onOpenProfile(entry) : undefined}
+              isLast={idx === arr.length - 1}
+              colors={colors}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
+                <ProfileAvatar photo={entry.photo} username={entry.name} size={32} />
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', minWidth: 0 }}>
+                  <span style={{ fontSize: '16px', fontWeight: 500, color: entry.rank === 1 ? 'var(--cr-red-text)' : '#FFFFFF' }}>
+                    <span>@{entry.name}</span>
+                  </span>
+                  <span style={NOT_LOGGED_STYLE}>{entry.unlogged ? 'NO CHALLENGES FINISHED YET' : 'CHALLENGES FINISHED'}</span>
+                </div>
+              </div>
+              <span style={{ fontSize: '16px', fontWeight: 500, color: entry.unlogged ? '#8A8A8A' : 'var(--dp-color-accent)' }}>
+                {entry.unlogged ? '—' : entry.challengesDone}
+              </span>
+            </IOSListRow>
+          ))}
+        </IOSListSection>
       )}
     </div>
   );

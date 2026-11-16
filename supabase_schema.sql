@@ -1077,10 +1077,17 @@ GRANT SELECT, INSERT, DELETE ON public.post_comments TO authenticated;
 GRANT SELECT, INSERT, DELETE ON public.challenges TO authenticated;
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.challenge_participants TO authenticated;
 
--- 16. Challenge emails: see supabase/migrations/2026-11-16_challenge_emails.sql
+-- 16. Challenge emails and weekly pattern challenges: see supabase/migrations/2026-11-16_challenge_emails.sql and
+--     supabase/migrations/2026-11-17_challenge_patterns.sql (challenges.period: 'total' | 'week')
+ALTER TABLE public.challenges ADD COLUMN IF NOT EXISTS period TEXT NOT NULL DEFAULT 'total';
+ALTER TABLE public.challenges DROP CONSTRAINT IF EXISTS challenges_period;
+ALTER TABLE public.challenges
+  ADD CONSTRAINT challenges_period CHECK (period IN ('total', 'week') AND (period = 'total' OR kind <> 'target_weight'));
+
 ALTER TABLE public.challenges ADD COLUMN IF NOT EXISTS notified_at TIMESTAMPTZ;
 
-CREATE OR REPLACE FUNCTION public.claim_challenge_emails(p_challenge UUID, p_creator UUID)
+DROP FUNCTION IF EXISTS public.claim_challenge_emails(UUID, UUID);
+CREATE FUNCTION public.claim_challenge_emails(p_challenge UUID, p_creator UUID)
 RETURNS TABLE (
   email TEXT,
   username TEXT,
@@ -1089,6 +1096,8 @@ RETURNS TABLE (
   exercise_id TEXT,
   target NUMERIC,
   title TEXT,
+  period TEXT,
+  starts_at TIMESTAMPTZ,
   ends_at TIMESTAMPTZ
 )
 LANGUAGE plpgsql
@@ -1117,6 +1126,8 @@ BEGIN
          c.exercise_id,
          c.target,
          c.title,
+         c.period,
+         c.starts_at,
          c.ends_at
     FROM public.friendships f
     JOIN auth.users u

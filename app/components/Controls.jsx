@@ -157,17 +157,50 @@ export function ApplyToLaterToggle({ laterSets = [], on = false, onToggle, style
   );
 }
 
-export function TabBar({ tabs = [], value, onChange, ariaLabel = 'Tabs', style }) {
+export function TabBar({ tabs = [], value, onChange, ariaLabel = 'Tabs', style, scrollable = false }) {
+  // scrollable: one row of natural-width pills that scrolls sideways (more boards than fit, e.g. Leaderboards); it
+  // runs to the screen edges so the cut-off pill shows there is more, and the selected pill is kept in view
+  const rowRef = React.useRef(null);
+  React.useEffect(() => {
+    if (!scrollable) return;
+    const row = rowRef.current;
+    const el = row?.querySelector('[aria-selected="true"]');
+    if (!row || !el) return;
+    const pad = 24;
+    const left = el.offsetLeft - pad;
+    const right = el.offsetLeft + el.offsetWidth + pad - row.clientWidth;
+    if (row.scrollLeft > left) row.scrollTo({ left: Math.max(0, left), behavior: 'smooth' });
+    else if (row.scrollLeft < right) row.scrollTo({ left: right, behavior: 'smooth' });
+  }, [scrollable, value]);
   return (
     <div
+      ref={rowRef}
       role="tablist"
       aria-label={ariaLabel}
-      style={{
-        display: 'grid',
-        gridTemplateColumns: `repeat(${Math.max(1, tabs.length)}, minmax(0, 1fr))`,
-        gap: '6px',
-        ...style
-      }}
+      className={scrollable ? 'cr-tab-scroll' : undefined}
+      style={
+        scrollable
+          ? {
+              position: 'relative',
+              display: 'flex',
+              gap: '6px',
+              overflowX: 'auto',
+              overflowY: 'hidden',
+              overscrollBehaviorX: 'contain',
+              touchAction: 'pan-x pan-y',
+              scrollbarWidth: 'none',
+              // Edge to edge: out through the page gutter, padded back in
+              margin: '0 calc(-1 * var(--dp-spacing-gutter, 16px))',
+              padding: '0 var(--dp-spacing-gutter, 16px)',
+              ...style
+            }
+          : {
+              display: 'grid',
+              gridTemplateColumns: `repeat(${Math.max(1, tabs.length)}, minmax(0, 1fr))`,
+              gap: '6px',
+              ...style
+            }
+      }
     >
       {tabs.map(tab => (
         <SegmentButton
@@ -178,13 +211,14 @@ export function TabBar({ tabs = [], value, onChange, ariaLabel = 'Tabs', style }
           onClick={() => onChange?.(tab.id)}
           style={{
             minHeight: '44px',
-            padding: '6px 4px',
+            padding: scrollable ? '6px 16px' : '6px 4px',
             lineHeight: 1.15,
             textAlign: 'center',
             fontSize: '11px',
             borderRadius: '999px',
             border: `1px solid ${value === tab.id ? '#FFFFFF' : 'var(--cr-outline)'}`,
-            backgroundColor: value === tab.id ? '#FFFFFF' : 'transparent'
+            backgroundColor: value === tab.id ? '#FFFFFF' : 'transparent',
+            ...(scrollable ? { flex: '0 0 auto', whiteSpace: 'nowrap' } : null)
           }}
         >
           {tab.label}

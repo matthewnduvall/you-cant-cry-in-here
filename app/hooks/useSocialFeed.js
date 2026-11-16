@@ -13,7 +13,7 @@
 // `available` is false when the tables don't exist yet (the migration hasn't been run): Home then says so.
 // ============================================================================
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   addPostComment,
   createChallenge as apiCreateChallenge,
@@ -22,13 +22,14 @@ import {
   deleteFeedPost,
   deletePostComment,
   fetchChallenges,
+  fetchCompletedChallengeCounts,
   fetchFeedPosts,
   joinChallenge as apiJoinChallenge,
   leaveChallenge as apiLeaveChallenge,
   setPostReaction,
   updateChallengeProgress
 } from '../utils/supabaseAuth';
-import { challengeProgressFromHistory } from '../utils/challenges';
+import { challengeGoal, challengeProgressFromHistory } from '../utils/challenges';
 import { EXERCISE_MAP, isSupersetCategory, getSlotEquipmentChoice } from '../data/exerciseLibrary';
 import { loggedExercise1RMInfo, workoutTimeMs } from '../utils/workoutEngine';
 
@@ -102,18 +103,21 @@ export const workoutRecords = (workout, history = []) => {
 export function useSocialFeed({ user, history, shareStatsWithFriends = true, autoPostPRs = true, appendSessionLog }) {
   const [posts, setPosts] = useState([]);
   const [challenges, setChallenges] = useState([]);
+  // Challenges finished per athlete (Leaderboards → CHALLENGES): { [userId]: n }
+  const [completedCounts, setCompletedCounts] = useState({});
   const [available, setAvailable] = useState(true);
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState('');
 
   const refresh = useCallback(async () => {
     if (!user?.id) return;
-    const [feed, ch] = await Promise.all([fetchFeedPosts(user), fetchChallenges(user)]);
+    const [feed, ch, done] = await Promise.all([fetchFeedPosts(user), fetchChallenges(user), fetchCompletedChallengeCounts(user)]);
     // 404 / PGRST205 = the tables aren't there yet (migration not run)
     if (!feed.ok && (feed.status === 404 || feed.status === 400)) setAvailable(false);
     else if (feed.ok) setAvailable(true);
     if (feed.ok) setPosts(feed.posts);
     if (ch.ok) setChallenges(ch.challenges);
+    if (done.ok) setCompletedCounts(done.counts);
     setError(feed.ok || feed.status === 404 ? '' : "Couldn't load the feed. It will try again in a minute.");
     setLoaded(true);
   }, [user]);
@@ -182,7 +186,8 @@ export function useSocialFeed({ user, history, shareStatsWithFriends = true, aut
       .map(c => {
         const me = c.participants.find(p => p.user_id === user.id);
         const { value, calculated } = challengeProgressFromHistory(c, history);
-        const reached = value >= c.target;
+        // Weekly: value = weeks met in a row, goal = every week
+        const reached = value >= challengeGoal(c);
         const changed = Math.abs((me.progress || 0) - value) >= 0.5 || Boolean(me.progress_calculated) !== calculated;
         const newlyDone = reached && !me.completed_at;
         return changed || newlyDone ? { c, value, calculated, newlyDone, completedAt: reached ? me.completed_at || new Date().toISOString() : null } : null;
@@ -198,13 +203,34 @@ export function useSocialFeed({ user, history, shareStatsWithFriends = true, aut
           await createFeedPost(user, {
             kind: 'challenge_done',
             refId: u.c.id,
-            payload: { challengeId: u.c.id, kind: u.c.kind, exerciseId: u.c.exercise_id, target: u.c.target, title: u.c.title || '', value: u.value, calculated: u.calculated }
+            payload: {
+              challengeId: u.c.id,
+              kind: u.c.kind,
+              exerciseId: u.c.exercise_id,
+              target: u.c.target,
+              title: u.c.title || '',
+              value: u.value,
+              calculated: u.calculated,
+              period: u.c.period || 'total',
+              startsAt: u.c.starts_at,
+              endsAt: u.c.ends_at
+            }
           });
         }
       }
       refresh();
     })();
   }, [user, challenges, history, available, refresh]);
+
+  // Your own progress in each challenge you joined, from your History (the card's THIS WEEK line on weekly ones)
+  const myProgress = useMemo(() => {
+    const out = {};
+    if (!user?.id) return out;
+    challenges.forEach(c => {
+      if (c.participants.some(p => p.user_id === user.id)) out[c.id] = challengeProgressFromHistory(c, history);
+    });
+    return out;
+  }, [user, challenges, history]);
 
   // --- Actions (optimistic where it matters) --------------------------------------------------------------------
   const toggleReaction = async (post, emoji) => {
@@ -290,6 +316,8 @@ export function useSocialFeed({ user, history, shareStatsWithFriends = true, aut
     error: signedIn ? error : '',
     posts: signedIn ? posts : [],
     challenges: signedIn ? challenges : [],
+    myProgress: signedIn ? myProgress : {},
+    completedCounts: signedIn ? completedCounts : {},
     refresh,
     toggleReaction,
     addComment,
