@@ -16,9 +16,11 @@ import {
   describeChallenge,
   challengeDaysLeft,
   challengeGoal,
-  challengeWeeks,
-  challengeWeeksPassed,
-  isWeeklyChallenge
+  challengePeriodCount,
+  challengePeriodEnd,
+  challengePeriodOf,
+  challengePeriodsPassed,
+  CHALLENGE_PERIODS
 } from '../../utils/challenges';
 import { EXERCISE_MAP } from '../../data/exerciseLibrary';
 import { oneRepMaxLabel } from '../../utils/workoutEngine';
@@ -62,13 +64,14 @@ const fmtNum = (n, unit) => {
 function ChallengeCard({ challenge, me, nowMs, canJoin, onJoin, onLeave, onDelete, myProgress = null }) {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const kind = challengeKindOf(challenge.kind);
-  // Weekly pattern: progress = weeks met in a row, out of every week; a week that passed unmet ends the run
-  const weekly = isWeeklyChallenge(challenge);
+  // Repeating (each day / week / month): progress = periods met in a row, out of all of them; one that passed unmet
+  // ends the run
+  const per = challengePeriodOf(challenge);
   const goal = challengeGoal(challenge);
-  const weeks = challengeWeeks(challenge);
-  const weeksPassed = weekly ? challengeWeeksPassed(challenge, nowMs) : 0;
-  const thisWeekIdx = Math.min(weeks - 1, weeksPassed);
-  const thisWeekAmount = weekly ? myProgress?.weekly?.amounts?.[thisWeekIdx] ?? null : null;
+  const periods = per ? challengePeriodCount(challenge) : 0;
+  const passed = per ? challengePeriodsPassed(challenge, nowMs) : 0;
+  const currentIdx = Math.min(periods - 1, passed);
+  const currentAmount = per ? myProgress?.periodic?.amounts?.[currentIdx] ?? null : null;
   const daysLeft = challengeDaysLeft(challenge, nowMs);
   const ended = nowMs ? Date.parse(challenge.ends_at) < nowMs : false;
   const joined = challenge.participants.some(p => p.user_id === me);
@@ -80,7 +83,7 @@ function ChallengeCard({ challenge, me, nowMs, canJoin, onJoin, onLeave, onDelet
         <div style={{ minWidth: 0 }}>
           <div style={{ ...meta, marginBottom: '4px' }}>
             {kind.label}
-            {weekly ? ' · EACH WEEK' : ''} · BY @{challenge.username || 'friend'} ·{' '}
+            {per ? ` · ${per.each.toUpperCase()}` : ''} · BY @{challenge.username || 'friend'} ·{' '}
             {ended ? 'ENDED' : daysLeft === null ? '' : daysLeft === 0 ? 'ENDS TODAY' : `${daysLeft}D LEFT`}
           </div>
           <div style={{ fontSize: '16px', fontWeight: 500, color: '#FFFFFF', lineHeight: 1.3 }}>
@@ -110,11 +113,11 @@ function ChallengeCard({ challenge, me, nowMs, canJoin, onJoin, onLeave, onDelet
         {people.length === 0 && <div style={{ ...UI.sentence, fontSize: '12px' }}>Nobody has joined yet.</div>}
         {people.map(p => {
           const share = Math.max(0, Math.min(1, goal > 0 ? p.progress / goal : 0));
-          const value = weekly
-            ? `${Math.round(p.progress)} / ${weeks} WEEKS`
+          const value = per
+            ? `${Math.round(p.progress)} / ${periods} ${per.units.toUpperCase()}`
             : `${challenge.kind === 'target_weight' ? `${oneRepMaxLabel(Math.round(p.progress), p.progress_calculated)} LB` : fmtNum(p.progress, kind.unit)} / ${fmtNum(challenge.target, kind.unit)}`;
-          // A week passed without meeting the target (weekly): the run is over
-          const missed = weekly && !p.completed_at && p.progress < weeksPassed;
+          // A day / week / month passed without meeting the target: the run is over
+          const missed = Boolean(per) && !p.completed_at && p.progress < passed;
           return (
             <div key={p.user_id}>
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px', fontSize: '13px', color: '#FFFFFF' }}>
@@ -123,17 +126,17 @@ function ChallengeCard({ challenge, me, nowMs, canJoin, onJoin, onLeave, onDelet
                   {p.user_id === me ? ' (you)' : ''}
                 </span>
                 <span className="cr-num" style={{ flexShrink: 0, color: p.completed_at ? '#FFFFFF' : missed ? '#8A8A8A' : '#BDBDBD' }}>
-                  {p.completed_at ? 'DONE ✓ ' : missed ? `MISSED WEEK ${Math.round(p.progress) + 1} · ` : ''}
+                  {p.completed_at ? 'DONE ✓ ' : missed ? `MISSED ${per.unit.toUpperCase()} ${Math.round(p.progress) + 1} · ` : ''}
                   {value}
                 </span>
               </div>
               <div style={{ height: '4px', borderRadius: '2px', backgroundColor: '#3A3A3A', marginTop: '4px', overflow: 'hidden' }}>
                 <div style={{ width: `${share * 100}%`, height: '100%', backgroundColor: missed ? '#8A8A8A' : '#FFFFFF' }} />
               </div>
-              {/* Your current week (weekly, still running): how far into this week's target you are */}
-              {weekly && p.user_id === me && !p.completed_at && !missed && thisWeekAmount !== null && weeksPassed < weeks && (
+              {/* Your current day / week / month (still running): how far into its target you are */}
+              {per && p.user_id === me && !p.completed_at && !missed && currentAmount !== null && passed < periods && (
                 <div style={{ ...meta, marginTop: '4px' }}>
-                  WEEK {thisWeekIdx + 1}: {fmtNum(thisWeekAmount, kind.unit)} / {fmtNum(challenge.target, kind.unit)}
+                  {per.unit.toUpperCase()} {currentIdx + 1}: {fmtNum(currentAmount, kind.unit)} / {fmtNum(challenge.target, kind.unit)}
                 </div>
               )}
             </div>
@@ -162,24 +165,25 @@ function ChallengeCard({ challenge, me, nowMs, canJoin, onJoin, onLeave, onDelet
   );
 }
 
+// Lengths of a whole-window challenge (repeating ones use CHALLENGE_PERIODS[period].lengths)
 const DURATIONS = [7, 14, 30, 60];
-// Weekly pattern challenges run whole weeks (4 weeks is about a month)
-const WEEK_DURATIONS = [2, 4, 6, 8];
 
 function NewChallengeModal({ onCreate, onClose }) {
   useModalScrollLock(true);
   const [kind, setKind] = useState('total_reps');
   const [exerciseId, setExerciseId] = useState('barbell_bench_press');
   const [target, setTarget] = useState('');
-  const [days, setDays] = useState(30);
-  // TOTAL (over the whole window) or EACH WEEK (the target every week; not for a weight target)
+  // in total (over the whole window), or each day / week / month (the target every period; not for a weight target)
   const [period, setPeriod] = useState('total');
-  const [weeks, setWeeks] = useState(4);
+  // The length picked for each pattern: days for total, else the number of periods
+  const [lengths, setLengths] = useState({ total: 30, day: 30, week: 4, month: 3 });
   const [title, setTitle] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const k = challengeKindOf(kind);
-  const weekly = period === 'week';
+  const per = CHALLENGE_PERIODS[period] || null;
+  const repeating = Boolean(per);
+  const length = lengths[period];
   const targetNum = Number(target);
   const valid = targetNum > 0 && (!k.needsExercise || EXERCISE_MAP[exerciseId]);
 
@@ -187,14 +191,16 @@ function NewChallengeModal({ onCreate, onClose }) {
     if (!valid || busy) return;
     setBusy(true);
     setError('');
+    // A repeating challenge starts at midnight today (whole days / weeks / months); a total one starts now
     const start = new Date();
-    const end = new Date(start.getTime() + (weekly ? weeks * 7 : days) * 86400000);
+    if (per) start.setHours(0, 0, 0, 0);
+    const end = new Date(per ? challengePeriodEnd(period, start.getTime(), length) : start.getTime() + length * 86400000);
     const res = await onCreate({
       kind,
       exerciseId: k.needsExercise ? exerciseId : null,
       target: targetNum,
       title,
-      period: weekly ? 'week' : 'total',
+      period: per ? period : 'total',
       startsAt: start.toISOString(),
       endsAt: end.toISOString()
     });
@@ -206,7 +212,8 @@ function NewChallengeModal({ onCreate, onClose }) {
   // The challenge is written as a sentence whose variables are dropdowns:
   //   [100] [reps ▾] of [Bodyweight Push-Up ▾] [in total ▾] [over 30 days ▾]
   //   [3] [sessions ▾] [each week ▾] [for 4 weeks ▾]
-  //   [315] [lb 1RM ▾] on [Barbell Bench Press ▾] [within 30 days ▾]   (a weight target is never weekly)
+  //   [100] [reps ▾] of [Bodyweight Push-Up ▾] [each day ▾] [for 30 days ▾]   (also each month)
+  //   [315] [lb 1RM ▾] on [Barbell Bench Press ▾] [within 30 days ▾]   (a weight target never repeats)
   const [pickingExercise, setPickingExercise] = useState(false);
   const chip = {
     height: '44px',
@@ -228,14 +235,17 @@ function NewChallengeModal({ onCreate, onClose }) {
     { id: 'target_weight', label: 'lb 1RM' },
     { id: 'sessions', label: 'sessions' }
   ];
-  const placeholder = weekly
-    ? kind === 'total_reps' ? '300' : kind === 'total_volume' ? '25000' : '3'
+  const placeholder = per
+    ? period === 'day'
+      ? kind === 'total_reps' ? '100' : kind === 'total_volume' ? '5000' : '1'
+      : period === 'month'
+        ? kind === 'total_reps' ? '1000' : kind === 'total_volume' ? '100000' : '12'
+        : kind === 'total_reps' ? '300' : kind === 'total_volume' ? '25000' : '3'
     : kind === 'target_weight' ? '315' : kind === 'total_reps' ? '100' : kind === 'total_volume' ? '100000' : '12';
   const isWeight = kind === 'target_weight';
-  const lengthValue = weekly ? `w${weeks}` : `d${days}`;
-  const lengthOptions = weekly
-    ? WEEK_DURATIONS.map(w => ({ value: `w${w}`, label: `for ${w} weeks` }))
-    : DURATIONS.map(d => ({ value: `d${d}`, label: `${isWeight ? 'within' : 'over'} ${d} days` }));
+  const lengthOptions = per
+    ? per.lengths.map(n => ({ value: n, label: `for ${n} ${n === 1 ? per.unit : per.units}` }))
+    : DURATIONS.map(d => ({ value: d, label: `${isWeight ? 'within' : 'over'} ${d} days` }));
 
   return (
     <div style={{ ...UI.modalBackdrop, zIndex: 1300 }}>
@@ -276,7 +286,7 @@ function NewChallengeModal({ onCreate, onClose }) {
             style={selectChip}
           >
             {UNIT_OPTIONS.map(o => (
-              <option key={o.id} value={o.id} disabled={weekly && o.id === 'target_weight'}>
+              <option key={o.id} value={o.id} disabled={repeating && o.id === 'target_weight'}>
                 {o.label}
               </option>
             ))}
@@ -316,17 +326,20 @@ function NewChallengeModal({ onCreate, onClose }) {
               style={selectChip}
             >
               <option value="total">in total</option>
-              <option value="week">each week</option>
+              {Object.values(CHALLENGE_PERIODS).map(o => (
+                <option key={o.id} value={o.id}>
+                  {o.each}
+                </option>
+              ))}
             </select>
           )}
           <select
             aria-label="Length"
             className="kinetic-filter-select cr-sentence-select"
-            value={lengthValue}
+            value={length}
             onChange={e => {
-              const n = Number(e.target.value.slice(1));
-              if (e.target.value[0] === 'w') setWeeks(n);
-              else setDays(n);
+              const n = Number(e.target.value);
+              setLengths(l => ({ ...l, [period]: n }));
             }}
             style={selectChip}
           >
@@ -338,7 +351,7 @@ function NewChallengeModal({ onCreate, onClose }) {
           </select>
         </div>
         <div style={{ ...UI.sentence, fontSize: '12px', marginBottom: '12px' }}>
-          {weekly ? 'Reach it in every week, counted from today; a missed week ends the run.' : k.help}
+          {per ? `Reach it ${per.each}, counted from today; a missed ${per.unit} ends the run.` : k.help}
         </div>
 
         {/* The exercise dropdown: the app's exercise picker, opened from the sentence */}
@@ -398,6 +411,7 @@ function PostBody({ post }) {
   if (post.kind === 'challenge_done') {
     const k = challengeKindOf(p.kind);
     const doneChallenge = { kind: p.kind, exercise_id: p.exerciseId, target: p.target, period: p.period, starts_at: p.startsAt, ends_at: p.endsAt };
+    const donePer = challengePeriodOf(doneChallenge);
     return (
       <>
         <div style={{ ...meta, marginBottom: '4px' }}>CHALLENGE DONE</div>
@@ -405,8 +419,8 @@ function PostBody({ post }) {
           {p.title || describeChallenge(doneChallenge)}
         </div>
         <div style={{ ...UI.rowContents, marginTop: '2px' }}>
-          {isWeeklyChallenge(doneChallenge)
-            ? `Every week: ${p.value} of ${challengeWeeks(doneChallenge)}`
+          {donePer
+            ? `${donePer.each[0].toUpperCase()}${donePer.each.slice(1)}: ${p.value} of ${challengePeriodCount(doneChallenge)}`
             : p.kind === 'target_weight'
               ? `${oneRepMaxLabel(p.value, p.calculated)} lb`
               : fmtNum(p.value, k.unit).toLowerCase()}

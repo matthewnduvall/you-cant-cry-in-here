@@ -2057,7 +2057,7 @@ export async function fetchChallenges(user, keepDays = 7) {
     ok: true,
     challenges: res.data.map(row => ({
       ...row,
-      period: row.period === 'week' ? 'week' : 'total',
+      period: ['day', 'week', 'month'].includes(row.period) ? row.period : 'total',
       target: Number(row.target) || 0,
       participants: (Array.isArray(row.challenge_participants) ? row.challenge_participants : []).map(p => ({
         ...p,
@@ -2094,7 +2094,7 @@ export async function joinChallenge(user, challengeId) {
 }
 
 /**
- * A new challenge (you join it too). { kind, exerciseId, target, title, period ('total' | 'week'), startsAt, endsAt }.
+ * A new challenge (you join it too). { kind, exerciseId, target, title, period ('total' | 'day' | 'week' | 'month'), startsAt, endsAt }.
  * Returns { ok, id }.
  */
 export async function createChallenge(user, { kind, exerciseId = null, target, title = '', period = 'total', startsAt, endsAt }) {
@@ -2109,7 +2109,7 @@ export async function createChallenge(user, { kind, exerciseId = null, target, t
       target: Number(target),
       title: String(title || '').trim().slice(0, 80) || null,
       // Sent only for weekly ones, so whole-window challenges still work before the period column exists
-      ...(period === 'week' && kind !== 'target_weight' ? { period: 'week' } : {}),
+      ...(['day', 'week', 'month'].includes(period) && kind !== 'target_weight' ? { period } : {}),
       starts_at: startsAt,
       ends_at: endsAt
     }

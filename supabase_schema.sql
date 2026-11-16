@@ -1082,7 +1082,7 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON public.challenge_participants TO authent
 ALTER TABLE public.challenges ADD COLUMN IF NOT EXISTS period TEXT NOT NULL DEFAULT 'total';
 ALTER TABLE public.challenges DROP CONSTRAINT IF EXISTS challenges_period;
 ALTER TABLE public.challenges
-  ADD CONSTRAINT challenges_period CHECK (period IN ('total', 'week') AND (period = 'total' OR kind <> 'target_weight'));
+  ADD CONSTRAINT challenges_period CHECK (period IN ('total', 'day', 'week', 'month') AND (period = 'total' OR kind <> 'target_weight'));
 
 ALTER TABLE public.challenges ADD COLUMN IF NOT EXISTS notified_at TIMESTAMPTZ;
 
