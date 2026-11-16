@@ -189,6 +189,12 @@ export const KINETIC_CSS = `
     padding-right: 18px !important;
     text-overflow: ellipsis;
   }
+  /* Dropdowns inside a sentence (the new-challenge pop-up): sized to their words, with room for the caret */
+  .kinetic-app select.kinetic-filter-select.cr-sentence-select {
+    padding-left: 12px !important;
+    padding-right: 28px !important;
+    background-position: right 10px center;
+  }
 
   /* Configuration: selections (pressed pills and rows, ON) are a white fill with black text, as everywhere else in
      the app; number boxes and dropdowns keep their usual graphite look. Pop-ups opened from there (.cr-config-off)

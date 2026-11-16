@@ -12,7 +12,6 @@ import { ExercisePicker } from '../ExercisePicker';
 import { useModalScrollLock } from '../../hooks/useModalScrollLock';
 import { FEED_REACTIONS } from '../../hooks/useSocialFeed';
 import {
-  CHALLENGE_KINDS,
   challengeKindOf,
   describeChallenge,
   challengeDaysLeft,
@@ -204,23 +203,39 @@ function NewChallengeModal({ onCreate, onClose }) {
     else setError("Couldn't create the challenge. Check your connection and try again.");
   };
 
-  const pill = on => ({
-    ...smallBtn,
-    minHeight: '44px',
-    borderRadius: '22px',
-    backgroundColor: on ? '#FFFFFF' : 'transparent',
-    color: on ? '#000000' : '#FFFFFF',
-    border: on ? 'none' : '1px solid #3A3A3A',
-    // Centred in a quarter-width cell: little side padding so SESSIONS / 30 DAYS fit
-    padding: '0 2px',
-    minWidth: 0,
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    textAlign: 'center',
-    whiteSpace: 'nowrap',
-    letterSpacing: '0.04em'
-  });
+  // The challenge is written as a sentence whose variables are dropdowns:
+  //   [100] [reps ▾] of [Bodyweight Push-Up ▾] [in total ▾] [over 30 days ▾]
+  //   [3] [sessions ▾] [each week ▾] [for 4 weeks ▾]
+  //   [315] [lb 1RM ▾] on [Barbell Bench Press ▾] [within 30 days ▾]   (a weight target is never weekly)
+  const [pickingExercise, setPickingExercise] = useState(false);
+  const chip = {
+    height: '44px',
+    borderRadius: '10px',
+    border: 'none',
+    backgroundColor: '#2A2A2A',
+    color: '#FFFFFF',
+    fontFamily: 'inherit',
+    fontSize: '16px',
+    fontWeight: 500,
+    boxSizing: 'border-box',
+    maxWidth: '100%'
+  };
+  const selectChip = { ...chip, width: 'auto', minWidth: 0, cursor: 'pointer' };
+  const word = { fontSize: '18px', fontWeight: 300, color: '#FFFFFF', lineHeight: '44px' };
+  const UNIT_OPTIONS = [
+    { id: 'total_reps', label: 'reps' },
+    { id: 'total_volume', label: 'lb lifted' },
+    { id: 'target_weight', label: 'lb 1RM' },
+    { id: 'sessions', label: 'sessions' }
+  ];
+  const placeholder = weekly
+    ? kind === 'total_reps' ? '300' : kind === 'total_volume' ? '25000' : '3'
+    : kind === 'target_weight' ? '315' : kind === 'total_reps' ? '100' : kind === 'total_volume' ? '100000' : '12';
+  const isWeight = kind === 'target_weight';
+  const lengthValue = weekly ? `w${weeks}` : `d${days}`;
+  const lengthOptions = weekly
+    ? WEEK_DURATIONS.map(w => ({ value: `w${w}`, label: `for ${w} weeks` }))
+    : DURATIONS.map(d => ({ value: `d${d}`, label: `${isWeight ? 'within' : 'over'} ${d} days` }));
 
   return (
     <div style={{ ...UI.modalBackdrop, zIndex: 1300 }}>
@@ -229,104 +244,109 @@ function NewChallengeModal({ onCreate, onClose }) {
           <span>NEW CHALLENGE</span>
           <CloseButton onClick={onClose} />
         </div>
-        <div style={{ ...UI.sentence, marginBottom: '10px' }}>
+        <div style={{ ...UI.sentence, marginBottom: '12px' }}>
           Your friends see it and can join. Only workouts logged between now and the end count.
         </div>
 
-        {/* TARGET first: the number the challenge is about (its unit follows TYPE below) */}
-        <div style={{ ...UI.fieldLabel, marginBottom: '6px' }}>
-          {weekly ? 'TARGET EACH WEEK' : 'TARGET'} ({k.unit})
-        </div>
-        <input
-          type="text"
-          inputMode="numeric"
-          aria-label={`Target in ${k.unit.toLowerCase()}`}
-          placeholder={
-            weekly
-              ? kind === 'total_reps'
-                ? 'e.g. 300'
-                : kind === 'total_volume'
-                  ? 'e.g. 25000'
-                  : 'e.g. 3'
-              : kind === 'target_weight'
-                ? 'e.g. 315'
-                : kind === 'total_reps'
-                  ? 'e.g. 1000'
-                  : kind === 'total_volume'
-                    ? 'e.g. 100000'
-                    : 'e.g. 12'
-          }
-          value={target}
-          onChange={e => setTarget(e.target.value.replace(/[^0-9]/g, '').slice(0, 7))}
-          style={{ ...UI.field, width: '100%', boxSizing: 'border-box', marginBottom: '12px' }}
-        />
-
-        <div style={{ ...UI.fieldLabel, marginBottom: '6px' }}>TYPE</div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: '6px', marginBottom: '6px' }}>
-          {CHALLENGE_KINDS.map(o => {
-            const off = weekly && o.id === 'target_weight';
-            return (
-              <button
-                key={o.id}
-                type="button"
-                aria-pressed={kind === o.id}
-                disabled={off}
-                style={{ ...pill(kind === o.id), ...(off ? { opacity: 0.4, cursor: 'default' } : null) }}
-                onClick={() => setKind(o.id)}
-              >
-                {o.label.toUpperCase()}
-              </button>
-            );
-          })}
-        </div>
-        <div style={{ ...UI.sentence, fontSize: '12px', marginBottom: '12px' }}>{k.help}</div>
-
-        {/* PATTERN: the target over the whole challenge, or every week (e.g. 3 sessions a week for 4 weeks). A
-            weight target can't be weekly, so EACH WEEK switches WEIGHT to REPS and greys WEIGHT out. */}
-        <div style={{ ...UI.fieldLabel, marginBottom: '6px' }}>PATTERN</div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '6px', marginBottom: '6px' }}>
-          <button type="button" aria-pressed={!weekly} style={pill(!weekly)} onClick={() => setPeriod('total')}>
-            TOTAL
-          </button>
-          <button
-            type="button"
-            aria-pressed={weekly}
-            style={pill(weekly)}
-            onClick={() => {
-              setPeriod('week');
-              if (kind === 'target_weight') setKind('total_reps');
+        {/* The challenge, as a sentence */}
+        <div
+          aria-label="Challenge"
+          style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '6px', marginBottom: '10px' }}
+        >
+          <input
+            type="text"
+            inputMode="numeric"
+            aria-label={`Target in ${k.unit.toLowerCase()}`}
+            placeholder={placeholder}
+            value={target}
+            onChange={e => setTarget(e.target.value.replace(/[^0-9]/g, '').slice(0, 7))}
+            style={{
+              ...chip,
+              width: `calc(${Math.max(3, (target || placeholder).length)}ch + 24px)`,
+              padding: '0 12px',
+              textAlign: 'center',
+              outline: 'none'
             }}
+          />
+          <select
+            aria-label="What to count"
+            className="kinetic-filter-select cr-sentence-select"
+            value={kind}
+            onChange={e => setKind(e.target.value)}
+            style={selectChip}
           >
-            EACH WEEK
-          </button>
+            {UNIT_OPTIONS.map(o => (
+              <option key={o.id} value={o.id} disabled={weekly && o.id === 'target_weight'}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+          {k.needsExercise && (
+            <>
+              <span style={word}>{isWeight ? 'on' : 'of'}</span>
+              <button
+                type="button"
+                aria-expanded={pickingExercise}
+                aria-label="Exercise"
+                onClick={() => setPickingExercise(v => !v)}
+                style={{
+                  ...selectChip,
+                  padding: '0 12px',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  overflow: 'hidden'
+                }}
+              >
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {EXERCISE_MAP[exerciseId]?.name || 'Exercise'}
+                </span>
+                <span aria-hidden="true" style={{ color: '#9A9A9A', fontSize: '11px', flexShrink: 0 }}>
+                  {pickingExercise ? '▴' : '▾'}
+                </span>
+              </button>
+            </>
+          )}
+          {!isWeight && (
+            <select
+              aria-label="Pattern"
+              className="kinetic-filter-select cr-sentence-select"
+              value={period}
+              onChange={e => setPeriod(e.target.value)}
+              style={selectChip}
+            >
+              <option value="total">in total</option>
+              <option value="week">each week</option>
+            </select>
+          )}
+          <select
+            aria-label="Length"
+            className="kinetic-filter-select cr-sentence-select"
+            value={lengthValue}
+            onChange={e => {
+              const n = Number(e.target.value.slice(1));
+              if (e.target.value[0] === 'w') setWeeks(n);
+              else setDays(n);
+            }}
+            style={selectChip}
+          >
+            {lengthOptions.map(o => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
         </div>
         <div style={{ ...UI.sentence, fontSize: '12px', marginBottom: '12px' }}>
-          {weekly
-            ? 'Reach the target in every week of the challenge. Weeks count from today; a missed week ends the run.'
-            : 'Reach the target over the whole challenge.'}
+          {weekly ? 'Reach it in every week, counted from today; a missed week ends the run.' : k.help}
         </div>
 
-        {k.needsExercise && (
+        {/* The exercise dropdown: the app's exercise picker, opened from the sentence */}
+        {k.needsExercise && pickingExercise && (
           <div style={{ marginBottom: '12px', borderRadius: '10px', overflow: 'visible', position: 'relative' }}>
             <ExercisePicker exerciseId={exerciseId} types={['Compound', 'Accessory']} onChange={setExerciseId} />
           </div>
         )}
-
-
-        <div style={{ ...UI.fieldLabel, marginBottom: '6px' }}>LENGTH</div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: '6px', marginBottom: '12px' }}>
-          {weekly
-            ? WEEK_DURATIONS.map(w => (
-                <button key={w} type="button" aria-pressed={weeks === w} style={pill(weeks === w)} onClick={() => setWeeks(w)}>
-                  {w} WEEKS
-                </button>
-              ))
-            : DURATIONS.map(d => (
-                <button key={d} type="button" aria-pressed={days === d} style={pill(days === d)} onClick={() => setDays(d)}>
-                  {d} DAYS
-                </button>
-              ))}
-        </div>
 
         <div style={{ ...UI.fieldLabel, marginBottom: '6px' }}>NAME (OPTIONAL)</div>
         <input
