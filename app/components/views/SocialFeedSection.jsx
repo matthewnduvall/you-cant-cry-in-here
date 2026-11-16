@@ -233,7 +233,35 @@ function NewChallengeModal({ onCreate, onClose }) {
           Your friends see it and can join. Only workouts logged between now and the end count.
         </div>
 
-        {/* PATTERN first: the target over the whole challenge, or every week (e.g. 3 sessions a week for 4 weeks). A
+        {/* TARGET first: the number the challenge is about (its unit follows TYPE below) */}
+        <div style={{ ...UI.fieldLabel, marginBottom: '6px' }}>
+          {weekly ? 'TARGET EACH WEEK' : 'TARGET'} ({k.unit})
+        </div>
+        <input
+          type="text"
+          inputMode="numeric"
+          aria-label={`Target in ${k.unit.toLowerCase()}`}
+          placeholder={
+            weekly
+              ? kind === 'total_reps'
+                ? 'e.g. 300'
+                : kind === 'total_volume'
+                  ? 'e.g. 25000'
+                  : 'e.g. 3'
+              : kind === 'target_weight'
+                ? 'e.g. 315'
+                : kind === 'total_reps'
+                  ? 'e.g. 1000'
+                  : kind === 'total_volume'
+                    ? 'e.g. 100000'
+                    : 'e.g. 12'
+          }
+          value={target}
+          onChange={e => setTarget(e.target.value.replace(/[^0-9]/g, '').slice(0, 7))}
+          style={{ ...UI.field, width: '100%', boxSizing: 'border-box', marginBottom: '12px' }}
+        />
+
+        {/* PATTERN: the target over the whole challenge, or every week (e.g. 3 sessions a week for 4 weeks). A
             weight target can't be weekly, so EACH WEEK switches WEIGHT to REPS and greys WEIGHT out. */}
         <div style={{ ...UI.fieldLabel, marginBottom: '6px' }}>PATTERN</div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '6px', marginBottom: '6px' }}>
@@ -284,32 +312,6 @@ function NewChallengeModal({ onCreate, onClose }) {
           </div>
         )}
 
-        <div style={{ ...UI.fieldLabel, marginBottom: '6px' }}>
-          {weekly ? 'TARGET EACH WEEK' : 'TARGET'} ({k.unit})
-        </div>
-        <input
-          type="text"
-          inputMode="numeric"
-          aria-label={`Target in ${k.unit.toLowerCase()}`}
-          placeholder={
-            weekly
-              ? kind === 'total_reps'
-                ? 'e.g. 300'
-                : kind === 'total_volume'
-                  ? 'e.g. 25000'
-                  : 'e.g. 3'
-              : kind === 'target_weight'
-                ? 'e.g. 315'
-                : kind === 'total_reps'
-                  ? 'e.g. 1000'
-                  : kind === 'total_volume'
-                    ? 'e.g. 100000'
-                    : 'e.g. 12'
-          }
-          value={target}
-          onChange={e => setTarget(e.target.value.replace(/[^0-9]/g, '').slice(0, 7))}
-          style={{ ...UI.field, width: '100%', boxSizing: 'border-box', marginBottom: '12px' }}
-        />
 
         <div style={{ ...UI.fieldLabel, marginBottom: '6px' }}>LENGTH</div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: '6px', marginBottom: '12px' }}>
