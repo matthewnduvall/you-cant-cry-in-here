@@ -359,7 +359,7 @@ function NewChallengeModal({ onCreate, onClose, friends = [], nowMs = null }) {
             </span>
           </button>
           {/* Who: the app's friend list (as in SAVE AS ROUTINE / SEND ROUTINE), opened inside the sentence. @friends and
-              @me are one-tap choices; friends can be picked together */}
+              @me and each friend close the list on a tap (reopen it to add or remove another friend) */}
           {pickingWho && (
             <div style={{ flexBasis: '100%', margin: '2px 0' }}>
               <PickList label="Who it's for" maxHeight="240px">
@@ -389,15 +389,13 @@ function NewChallengeModal({ onCreate, onClose, friends = [], nowMs = null }) {
                     on={chosenIds.includes(f.id)}
                     label={`@${f.username}`}
                     avatar={friendAvatar(f)}
-                    onClick={() => toggleFriend(f.id)}
+                    onClick={() => {
+                      toggleFriend(f.id);
+                      setPickingWho(false);
+                    }}
                   />
                 ))}
               </PickList>
-              <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                <button type="button" style={{ ...greyTextBtn, minHeight: '44px' }} onClick={() => setPickingWho(false)}>
-                  DONE ▴
-                </button>
-              </div>
             </div>
           )}
           <span style={word}>to</span>
