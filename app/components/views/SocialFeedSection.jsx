@@ -180,7 +180,7 @@ function NewChallengeModal({ onCreate, onClose }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const k = challengeKindOf(kind);
-  const weekly = period === 'week' && kind !== 'target_weight';
+  const weekly = period === 'week';
   const targetNum = Number(target);
   const valid = targetNum > 0 && (!k.needsExercise || EXERCISE_MAP[exerciseId]);
 
@@ -233,35 +233,50 @@ function NewChallengeModal({ onCreate, onClose }) {
           Your friends see it and can join. Only workouts logged between now and the end count.
         </div>
 
+        {/* PATTERN first: the target over the whole challenge, or every week (e.g. 3 sessions a week for 4 weeks). A
+            weight target can't be weekly, so EACH WEEK switches WEIGHT to REPS and greys WEIGHT out. */}
+        <div style={{ ...UI.fieldLabel, marginBottom: '6px' }}>PATTERN</div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '6px', marginBottom: '6px' }}>
+          <button type="button" aria-pressed={!weekly} style={pill(!weekly)} onClick={() => setPeriod('total')}>
+            TOTAL
+          </button>
+          <button
+            type="button"
+            aria-pressed={weekly}
+            style={pill(weekly)}
+            onClick={() => {
+              setPeriod('week');
+              if (kind === 'target_weight') setKind('total_reps');
+            }}
+          >
+            EACH WEEK
+          </button>
+        </div>
+        <div style={{ ...UI.sentence, fontSize: '12px', marginBottom: '12px' }}>
+          {weekly
+            ? 'Reach the target in every week of the challenge. Weeks count from today; a missed week ends the run.'
+            : 'Reach the target over the whole challenge.'}
+        </div>
+
         <div style={{ ...UI.fieldLabel, marginBottom: '6px' }}>TYPE</div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: '6px', marginBottom: '6px' }}>
-          {CHALLENGE_KINDS.map(o => (
-            <button key={o.id} type="button" aria-pressed={kind === o.id} style={pill(kind === o.id)} onClick={() => setKind(o.id)}>
-              {o.label.toUpperCase()}
-            </button>
-          ))}
+          {CHALLENGE_KINDS.map(o => {
+            const off = weekly && o.id === 'target_weight';
+            return (
+              <button
+                key={o.id}
+                type="button"
+                aria-pressed={kind === o.id}
+                disabled={off}
+                style={{ ...pill(kind === o.id), ...(off ? { opacity: 0.4, cursor: 'default' } : null) }}
+                onClick={() => setKind(o.id)}
+              >
+                {o.label.toUpperCase()}
+              </button>
+            );
+          })}
         </div>
         <div style={{ ...UI.sentence, fontSize: '12px', marginBottom: '12px' }}>{k.help}</div>
-
-        {/* PATTERN: the target over the whole challenge, or every week (e.g. 3 sessions a week for 4 weeks) */}
-        {kind !== 'target_weight' && (
-          <>
-            <div style={{ ...UI.fieldLabel, marginBottom: '6px' }}>PATTERN</div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '6px', marginBottom: '6px' }}>
-              <button type="button" aria-pressed={!weekly} style={pill(!weekly)} onClick={() => setPeriod('total')}>
-                TOTAL
-              </button>
-              <button type="button" aria-pressed={weekly} style={pill(weekly)} onClick={() => setPeriod('week')}>
-                EACH WEEK
-              </button>
-            </div>
-            <div style={{ ...UI.sentence, fontSize: '12px', marginBottom: '12px' }}>
-              {weekly
-                ? 'Reach the target in every week of the challenge. Weeks count from today; a missed week ends the run.'
-                : 'Reach the target over the whole challenge.'}
-            </div>
-          </>
-        )}
 
         {k.needsExercise && (
           <div style={{ marginBottom: '12px', borderRadius: '10px', overflow: 'visible', position: 'relative' }}>
