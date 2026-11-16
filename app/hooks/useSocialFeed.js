@@ -199,7 +199,8 @@ export function useSocialFeed({ user, history, shareStatsWithFriends = true, aut
     (async () => {
       for (const u of updates) {
         await updateChallengeProgress(user, u.c.id, { progress: u.value, calculated: u.calculated, completedAt: u.completedAt });
-        if (u.newlyDone) {
+        // Finishing posts to the feed, except a personal challenge (only you can see it)
+        if (u.newlyDone && !u.c.isPrivate) {
           await createFeedPost(user, {
             kind: 'challenge_done',
             refId: u.c.id,

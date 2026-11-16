@@ -83,7 +83,7 @@ function ChallengeCard({ challenge, me, nowMs, canJoin, onJoin, onLeave, onDelet
         <div style={{ minWidth: 0 }}>
           <div style={{ ...meta, marginBottom: '4px' }}>
             {kind.label}
-            {per ? ` · ${per.each.toUpperCase()}` : ''} · BY @{challenge.username || 'friend'} ·{' '}
+            {per ? ` · ${per.each.toUpperCase()}` : ''} · {challenge.isPrivate ? 'JUST YOU' : `BY @${challenge.username || 'friend'}`} ·{' '}
             {ended ? 'ENDED' : daysLeft === null ? '' : daysLeft === 0 ? 'ENDS TODAY' : `${daysLeft}D LEFT`}
           </div>
           <div style={{ fontSize: '16px', fontWeight: 500, color: '#FFFFFF', lineHeight: 1.3 }}>
@@ -177,10 +177,13 @@ function NewChallengeModal({ onCreate, onClose }) {
   const [period, setPeriod] = useState('total');
   // The length picked for each pattern: days for total, else the number of periods
   const [lengths, setLengths] = useState({ total: 30, day: 30, week: 4, month: 3 });
+  // Who it's for: your friends (they see it and can join) or just you (a challenge to yourself)
+  const [audience, setAudience] = useState('friends');
   const [title, setTitle] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const k = challengeKindOf(kind);
+  const justMe = audience === 'me';
   const per = CHALLENGE_PERIODS[period] || null;
   const repeating = Boolean(per);
   const length = lengths[period];
@@ -201,15 +204,21 @@ function NewChallengeModal({ onCreate, onClose }) {
       target: targetNum,
       title,
       period: per ? period : 'total',
+      isPrivate: justMe,
       startsAt: start.toISOString(),
       endsAt: end.toISOString()
     });
     setBusy(false);
     if (res?.ok) onClose();
+    else if (res?.needsServerUpdate)
+      setError(
+        "The server isn't set up for repeating or personal challenges yet. Run the 2026-11-17 challenge migration in Supabase, or make an in-total challenge for your friends."
+      );
     else setError("Couldn't create the challenge. Check your connection and try again.");
   };
 
-  // The challenge is written as a sentence whose variables are dropdowns:
+  // The challenge is written as a sentence whose variables are dropdowns, starting "Challenge [my friends ▾ / myself ▾]
+  // to …":
   //   [100] [reps ▾] of [Bodyweight Push-Up ▾] [in total ▾] [over 30 days ▾]
   //   [3] [sessions ▾] [each week ▾] [for 4 weeks ▾]
   //   [100] [reps ▾] of [Bodyweight Push-Up ▾] [each day ▾] [for 30 days ▾]   (also each month)
@@ -255,7 +264,9 @@ function NewChallengeModal({ onCreate, onClose }) {
           <CloseButton onClick={onClose} />
         </div>
         <div style={{ ...UI.sentence, marginBottom: '12px' }}>
-          Your friends see it and can join. Only workouts logged between now and the end count.
+          {justMe
+            ? 'Only you see it. Only workouts logged between now and the end count.'
+            : 'Your friends see it and can join. Only workouts logged between now and the end count.'}
         </div>
 
         {/* The challenge, as a sentence */}
@@ -263,6 +274,18 @@ function NewChallengeModal({ onCreate, onClose }) {
           aria-label="Challenge"
           style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '6px', marginBottom: '10px' }}
         >
+          <span style={word}>Challenge</span>
+          <select
+            aria-label="Who it's for"
+            className="kinetic-filter-select cr-sentence-select"
+            value={audience}
+            onChange={e => setAudience(e.target.value)}
+            style={selectChip}
+          >
+            <option value="friends">my friends</option>
+            <option value="me">myself</option>
+          </select>
+          <span style={word}>to</span>
           <input
             type="text"
             inputMode="numeric"
@@ -315,6 +338,18 @@ function NewChallengeModal({ onCreate, onClose }) {
                   {pickingExercise ? '▴' : '▾'}
                 </span>
               </button>
+              {/* The exercise dropdown opens inside the sentence: it takes a full line of its own, and the rest of the
+                  sentence carries on underneath it */}
+              {pickingExercise && (
+                <div style={{ flexBasis: '100%', margin: '2px 0', position: 'relative', overflow: 'visible' }}>
+                  <ExercisePicker exerciseId={exerciseId} types={['Compound', 'Accessory']} onChange={setExerciseId} />
+                  <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                    <button type="button" style={{ ...greyTextBtn, minHeight: '44px' }} onClick={() => setPickingExercise(false)}>
+                      DONE ▴
+                    </button>
+                  </div>
+                </div>
+              )}
             </>
           )}
           {!isWeight && (
@@ -353,13 +388,6 @@ function NewChallengeModal({ onCreate, onClose }) {
         <div style={{ ...UI.sentence, fontSize: '12px', marginBottom: '12px' }}>
           {per ? `Reach it ${per.each}, counted from today; a missed ${per.unit} ends the run.` : k.help}
         </div>
-
-        {/* The exercise dropdown: the app's exercise picker, opened from the sentence */}
-        {k.needsExercise && pickingExercise && (
-          <div style={{ marginBottom: '12px', borderRadius: '10px', overflow: 'visible', position: 'relative' }}>
-            <ExercisePicker exerciseId={exerciseId} types={['Compound', 'Accessory']} onChange={setExerciseId} />
-          </div>
-        )}
 
         <div style={{ ...UI.fieldLabel, marginBottom: '6px' }}>NAME (OPTIONAL)</div>
         <input

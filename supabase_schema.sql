@@ -1077,14 +1077,43 @@ GRANT SELECT, INSERT, DELETE ON public.post_comments TO authenticated;
 GRANT SELECT, INSERT, DELETE ON public.challenges TO authenticated;
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.challenge_participants TO authenticated;
 
--- 16. Challenge emails and weekly pattern challenges: see supabase/migrations/2026-11-16_challenge_emails.sql and
---     supabase/migrations/2026-11-17_challenge_patterns.sql (challenges.period: 'total' | 'week')
+-- 16. Challenge emails, repeating challenges and personal challenges: see supabase/migrations/2026-11-16_challenge_emails.sql
+--     and supabase/migrations/2026-11-17_challenge_patterns.sql (challenges.period, challenges.is_private)
 ALTER TABLE public.challenges ADD COLUMN IF NOT EXISTS period TEXT NOT NULL DEFAULT 'total';
 ALTER TABLE public.challenges DROP CONSTRAINT IF EXISTS challenges_period;
 ALTER TABLE public.challenges
   ADD CONSTRAINT challenges_period CHECK (period IN ('total', 'day', 'week', 'month') AND (period = 'total' OR kind <> 'target_weight'));
 
 ALTER TABLE public.challenges ADD COLUMN IF NOT EXISTS notified_at TIMESTAMPTZ;
+
+-- Personal challenges: seen and joined by their creator only
+ALTER TABLE public.challenges ADD COLUMN IF NOT EXISTS is_private BOOLEAN NOT NULL DEFAULT FALSE;
+
+DROP POLICY IF EXISTS "Creators and their friends can view challenges" ON public.challenges;
+CREATE POLICY "Creators and their friends can view challenges"
+  ON public.challenges FOR SELECT
+  USING (auth.uid() = creator_id OR (NOT is_private AND public.are_friends(auth.uid(), creator_id)));
+
+-- Join as yourself: your own personal challenge, or (while you share your stats with friends) a challenge by you or a
+-- friend that you can see
+DROP POLICY IF EXISTS "Join a challenge you can see while sharing your stats" ON public.challenge_participants;
+CREATE POLICY "Join a challenge you can see while sharing your stats"
+  ON public.challenge_participants FOR INSERT
+  WITH CHECK (
+    auth.uid() = user_id
+    AND EXISTS (
+      SELECT 1 FROM public.challenges c
+      WHERE c.id = challenge_id
+        AND (
+          (c.creator_id = auth.uid() AND c.is_private)
+          OR (
+            NOT c.is_private
+            AND public.my_stats_shared()
+            AND (c.creator_id = auth.uid() OR public.are_friends(auth.uid(), c.creator_id))
+          )
+        )
+    )
+  );
 
 DROP FUNCTION IF EXISTS public.claim_challenge_emails(UUID, UUID);
 CREATE FUNCTION public.claim_challenge_emails(p_challenge UUID, p_creator UUID)
@@ -1114,7 +1143,8 @@ BEGIN
      AND ch.notified_at IS NULL
   RETURNING ch.* INTO c;
 
-  IF c.id IS NULL THEN
+  -- Unknown, already announced, or a personal challenge (nobody to tell)
+  IF c.id IS NULL OR c.is_private THEN
     RETURN;
   END IF;
 

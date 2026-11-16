@@ -6,6 +6,10 @@
 -- repeating challenge can't be a weight target. Participants' progress is the number of periods met in a row from the
 -- first (utils/challenges.js); it is complete when every period is met. Re-running it updates the constraint.
 --
+-- Personal challenges (challenges.is_private): a challenge an athlete sets only for themselves. Only its creator can
+-- see it or its participant row, only the creator can join it (no need to share stats for that), and nobody is
+-- emailed about it.
+--
 -- claim_challenge_emails also returns period and starts_at so the email can say "a week for 4 weeks". Its return
 -- type changes, so it is dropped and created again. Safe to re-run.
 
@@ -15,6 +19,35 @@ ALTER TABLE public.challenges
   ADD CONSTRAINT challenges_period CHECK (period IN ('total', 'day', 'week', 'month') AND (period = 'total' OR kind <> 'target_weight'));
 
 ALTER TABLE public.challenges ADD COLUMN IF NOT EXISTS notified_at TIMESTAMPTZ;
+
+-- Personal challenges: seen and joined by their creator only
+ALTER TABLE public.challenges ADD COLUMN IF NOT EXISTS is_private BOOLEAN NOT NULL DEFAULT FALSE;
+
+DROP POLICY IF EXISTS "Creators and their friends can view challenges" ON public.challenges;
+CREATE POLICY "Creators and their friends can view challenges"
+  ON public.challenges FOR SELECT
+  USING (auth.uid() = creator_id OR (NOT is_private AND public.are_friends(auth.uid(), creator_id)));
+
+-- Join as yourself: your own personal challenge, or (while you share your stats with friends) a challenge by you or a
+-- friend that you can see
+DROP POLICY IF EXISTS "Join a challenge you can see while sharing your stats" ON public.challenge_participants;
+CREATE POLICY "Join a challenge you can see while sharing your stats"
+  ON public.challenge_participants FOR INSERT
+  WITH CHECK (
+    auth.uid() = user_id
+    AND EXISTS (
+      SELECT 1 FROM public.challenges c
+      WHERE c.id = challenge_id
+        AND (
+          (c.creator_id = auth.uid() AND c.is_private)
+          OR (
+            NOT c.is_private
+            AND public.my_stats_shared()
+            AND (c.creator_id = auth.uid() OR public.are_friends(auth.uid(), c.creator_id))
+          )
+        )
+    )
+  );
 
 DROP FUNCTION IF EXISTS public.claim_challenge_emails(UUID, UUID);
 CREATE FUNCTION public.claim_challenge_emails(p_challenge UUID, p_creator UUID)
@@ -44,7 +77,8 @@ BEGIN
      AND ch.notified_at IS NULL
   RETURNING ch.* INTO c;
 
-  IF c.id IS NULL THEN
+  -- Unknown, already announced, or a personal challenge (nobody to tell)
+  IF c.id IS NULL OR c.is_private THEN
     RETURN;
   END IF;
 

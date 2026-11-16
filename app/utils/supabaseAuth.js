@@ -2034,9 +2034,10 @@ export async function deletePostComment(user, commentId) {
 
 const CHALLENGE_PARTICIPANT_COLUMNS =
   'challenge_participants(user_id,username,progress,progress_calculated,completed_at,joined_at,updated_at)';
-const CHALLENGE_COLUMNS = `id,creator_id,username,kind,exercise_id,target,title,period,starts_at,ends_at,created_at,${CHALLENGE_PARTICIPANT_COLUMNS}`;
-// Before supabase/migrations/2026-11-17_challenge_patterns.sql there is no period column (every challenge is 'total')
-const CHALLENGE_COLUMNS_NO_PERIOD = CHALLENGE_COLUMNS.replace('period,', '');
+const CHALLENGE_COLUMNS = `id,creator_id,username,kind,exercise_id,target,title,period,is_private,starts_at,ends_at,created_at,${CHALLENGE_PARTICIPANT_COLUMNS}`;
+// Before supabase/migrations/2026-11-17_challenge_patterns.sql there are no period / is_private columns (every
+// challenge is 'total' and seen by friends)
+const CHALLENGE_COLUMNS_NO_PERIOD = CHALLENGE_COLUMNS.replace('period,is_private,', '');
 let challengePeriodMissing = false;
 
 /** Challenges by you and your friends that ended less than `keepDays` ago, soonest end first. Returns { ok, challenges }. */
@@ -2058,6 +2059,7 @@ export async function fetchChallenges(user, keepDays = 7) {
     challenges: res.data.map(row => ({
       ...row,
       period: ['day', 'week', 'month'].includes(row.period) ? row.period : 'total',
+      isPrivate: row.is_private === true,
       target: Number(row.target) || 0,
       participants: (Array.isArray(row.challenge_participants) ? row.challenge_participants : []).map(p => ({
         ...p,
@@ -2094,10 +2096,14 @@ export async function joinChallenge(user, challengeId) {
 }
 
 /**
- * A new challenge (you join it too). { kind, exerciseId, target, title, period ('total' | 'day' | 'week' | 'month'), startsAt, endsAt }.
- * Returns { ok, id }.
+ * A new challenge (you join it too). { kind, exerciseId, target, title, period ('total' | 'day' | 'week' | 'month'), isPrivate (just you), startsAt,
+ * endsAt }. Returns { ok, id }, or { ok: false, status, needsServerUpdate } (needsServerUpdate: a repeating or personal
+ * challenge before supabase/migrations/2026-11-17_challenge_patterns.sql has been run).
  */
-export async function createChallenge(user, { kind, exerciseId = null, target, title = '', period = 'total', startsAt, endsAt }) {
+export async function createChallenge(
+  user,
+  { kind, exerciseId = null, target, title = '', period = 'total', isPrivate = false, startsAt, endsAt }
+) {
   if (!user || !isUuid(user.id)) return { ok: false };
   const res = await authedRequest(user, '/rest/v1/challenges?select=id', {
     method: 'POST',
@@ -2110,14 +2116,21 @@ export async function createChallenge(user, { kind, exerciseId = null, target, t
       title: String(title || '').trim().slice(0, 80) || null,
       // Sent only for weekly ones, so whole-window challenges still work before the period column exists
       ...(['day', 'week', 'month'].includes(period) && kind !== 'target_weight' ? { period } : {}),
+      ...(isPrivate ? { is_private: true } : {}),
       starts_at: startsAt,
       ends_at: endsAt
     }
   });
   const id = Array.isArray(res.data) ? res.data[0]?.id : null;
-  if (!res.ok || !id) return { ok: false, status: res.status };
+  if (!res.ok || !id) {
+    // PGRST204 "Could not find the 'period' column…" / a check constraint that doesn't know the pattern yet
+    const message = JSON.stringify(res.data || '');
+    const needsServerUpdate = (res.status === 400 || res.status === 422) && /period|is_private|challenges_/i.test(message);
+    return { ok: false, status: res.status, needsServerUpdate };
+  }
   const joined = await joinChallenge(user, id);
-  notifyChallengeByEmail(user, id);
+  // Friends hear about it by email; a personal challenge has nobody to tell
+  if (!isPrivate) notifyChallengeByEmail(user, id);
   return { ok: true, id, joined: joined.ok };
 }
 
