@@ -24,10 +24,13 @@ const supabaseUrl = () =>
 const describe = row => {
   const ex = EXERCISE_MAP[row.exercise_id]?.name || 'an exercise';
   const n = Math.round(Number(row.target) || 0).toLocaleString('en-US');
+  // Weekly pattern (challenges.period = 'week'): "3 sessions a week for 4 weeks"
+  const weeks = Math.max(1, Math.round((Date.parse(row.ends_at || '') - Date.parse(row.starts_at || '')) / (7 * 86400000)) || 1);
+  const weekly = row.period === 'week' && row.kind !== 'target_weight' ? ` a week for ${weeks} ${weeks === 1 ? 'week' : 'weeks'}` : '';
   if (row.kind === 'target_weight') return `${ex} ${n} lb`;
-  if (row.kind === 'total_reps') return `${n} reps of ${ex}`;
-  if (row.kind === 'total_volume') return `${n} lb of ${ex}`;
-  return `${n} sessions`;
+  if (row.kind === 'total_reps') return `${n} reps of ${ex}${weekly}`;
+  if (row.kind === 'total_volume') return `${n} lb of ${ex}${weekly}`;
+  return `${n} sessions${weekly}`;
 };
 
 export async function POST(request) {
