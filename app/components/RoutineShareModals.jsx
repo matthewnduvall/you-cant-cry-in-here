@@ -10,7 +10,7 @@
 import React, { useState } from 'react';
 import { UI } from '../styles/kineticTokens';
 import { Button, CloseButton } from './Controls';
-import { ProfileAvatar } from './ProfileAvatar';
+import { PickBadge, PickList, PickRow, friendAvatar } from './PickList';
 import { useModalScrollLock } from '../hooks/useModalScrollLock';
 import { isUuid } from '../utils/supabaseAuth';
 
@@ -62,60 +62,28 @@ export function SendRoutineModal({ routine, friends = [], busy = false, sentTo =
               Send to @friends (everyone) or to one friend. Each gets a copy in their Routines INBOX, worked out to
               their own weights when they load it.
             </div>
-            <div
-              role="listbox"
-              aria-label="Friends"
-              style={{ display: 'flex', flexDirection: 'column', gap: '4px', maxHeight: '280px', overflowY: 'auto', marginBottom: '12px' }}
-            >
-              {[{ id: ALL, username: 'friends', all: true }, ...sendable].map(f => {
-                const on = f.id === picked;
-                return (
-                  <button
-                    key={f.id}
-                    type="button"
-                    role="option"
-                    aria-selected={on}
-                    className="kinetic-btn"
-                    onClick={() => setPicked(f.id)}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '10px',
-                      minHeight: '52px',
-                      padding: '6px 12px',
-                      borderRadius: '10px',
-                      border: 'none',
-                      backgroundColor: on ? '#FFFFFF' : '#2A2A2A',
-                      color: on ? '#000000' : '#FFFFFF',
-                      fontFamily: 'inherit',
-                      fontSize: '14px',
-                      fontWeight: 500,
-                      textAlign: 'left',
-                      cursor: 'pointer'
-                    }}
-                  >
-                    {f.all ? (
-                      <span
-                        aria-hidden="true"
-                        style={{ width: '32px', height: '32px', borderRadius: '8px', backgroundColor: on ? '#000000' : '#1C1C1C', color: '#FFFFFF', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '15px', flexShrink: 0 }}
-                      >
+            <PickList label="Friends" multiselect={false} maxHeight="280px" style={{ marginBottom: '12px' }}>
+              {[{ id: ALL, username: 'friends', all: true }, ...sendable].map(f => (
+                <PickRow
+                  key={f.id}
+                  on={f.id === picked}
+                  showCheck={false}
+                  minHeight="52px"
+                  label={`@${f.username}`}
+                  sub={f.all ? `all ${sendable.length} ${sendable.length === 1 ? 'friend' : 'friends'}` : ''}
+                  avatar={
+                    f.all ? (
+                      <PickBadge on={f.id === picked} size={32}>
                         @
-                      </span>
+                      </PickBadge>
                     ) : (
-                      <ProfileAvatar photo={f.profilePhoto} username={f.username} size={32} />
-                    )}
-                    <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      @{f.username}
-                      {f.all && (
-                        <span style={{ color: on ? '#3A3A3A' : '#9A9A9A', fontSize: '12px', marginLeft: '6px' }}>
-                          all {sendable.length} {sendable.length === 1 ? 'friend' : 'friends'}
-                        </span>
-                      )}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
+                      friendAvatar(f, 32)
+                    )
+                  }
+                  onClick={() => setPicked(f.id)}
+                />
+              ))}
+            </PickList>
             {error && <div style={{ ...bodyText, color: 'var(--cr-red-text)' }}>Couldn’t send: {error.toLowerCase()}.</div>}
             <Button
               variant="primary"

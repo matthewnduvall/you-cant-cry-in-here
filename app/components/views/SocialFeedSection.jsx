@@ -9,6 +9,7 @@ import { UI } from '../../styles/kineticTokens';
 import { Button, CloseButton } from '../Controls';
 import { ProfileAvatar } from '../ProfileAvatar';
 import { ExercisePicker } from '../ExercisePicker';
+import { PickBadge, PickList, PickRow, friendAvatar } from '../PickList';
 import { useModalScrollLock } from '../../hooks/useModalScrollLock';
 import { FEED_REACTIONS } from '../../hooks/useSocialFeed';
 import {
@@ -83,7 +84,13 @@ function ChallengeCard({ challenge, me, nowMs, canJoin, onJoin, onLeave, onDelet
         <div style={{ minWidth: 0 }}>
           <div style={{ ...meta, marginBottom: '4px' }}>
             {kind.label}
-            {per ? ` · ${per.each.toUpperCase()}` : ''} · {challenge.isPrivate ? 'JUST YOU' : `BY @${challenge.username || 'friend'}`} ·{' '}
+            {per ? ` · ${per.each.toUpperCase()}` : ''} ·{' '}
+            {challenge.isPrivate
+              ? 'JUST YOU'
+              : mine && challenge.audienceIds?.length
+                ? `FOR ${challenge.audienceIds.length} ${challenge.audienceIds.length === 1 ? 'FRIEND' : 'FRIENDS'}`
+                : `BY @${challenge.username || 'friend'}`}{' '}
+            ·{' '}
             {ended ? 'ENDED' : daysLeft === null ? '' : daysLeft === 0 ? 'ENDS TODAY' : `${daysLeft}D LEFT`}
           </div>
           <div style={{ fontSize: '16px', fontWeight: 500, color: '#FFFFFF', lineHeight: 1.3 }}>
@@ -168,7 +175,7 @@ function ChallengeCard({ challenge, me, nowMs, canJoin, onJoin, onLeave, onDelet
 // Lengths of a whole-window challenge (repeating ones use CHALLENGE_PERIODS[period].lengths)
 const DURATIONS = [7, 14, 30, 60];
 
-function NewChallengeModal({ onCreate, onClose }) {
+function NewChallengeModal({ onCreate, onClose, friends = [] }) {
   useModalScrollLock(true);
   const [kind, setKind] = useState('total_reps');
   const [exerciseId, setExerciseId] = useState('barbell_bench_press');
@@ -177,8 +184,27 @@ function NewChallengeModal({ onCreate, onClose }) {
   const [period, setPeriod] = useState('total');
   // The length picked for each pattern: days for total, else the number of periods
   const [lengths, setLengths] = useState({ total: 30, day: 30, week: 4, month: 3 });
-  // Who it's for: your friends (they see it and can join) or just you (a challenge to yourself)
+  // Who it's for: 'friends' (every friend sees it and can join), 'me' (a challenge to yourself), or chosen friends'
+  // ids (only they see it)
   const [audience, setAudience] = useState('friends');
+  const [pickingWho, setPickingWho] = useState(false);
+  const pickable = (friends || []).filter(f => f?.id && f?.username);
+  const chosenIds = Array.isArray(audience) ? audience : [];
+  const toggleFriend = id => {
+    const next = chosenIds.includes(id) ? chosenIds.filter(x => x !== id) : [...chosenIds, id];
+    setAudience(next.length ? next : 'friends');
+  };
+  const nameOf = id => `@${pickable.find(f => f.id === id)?.username || 'friend'}`;
+  const audienceLabel =
+    audience === 'me'
+      ? 'myself'
+      : audience === 'friends'
+        ? 'my friends'
+        : chosenIds.length === 1
+          ? nameOf(chosenIds[0])
+          : chosenIds.length === 2
+            ? `${nameOf(chosenIds[0])} and ${nameOf(chosenIds[1])}`
+            : `${chosenIds.length} friends`;
   const [title, setTitle] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -205,6 +231,7 @@ function NewChallengeModal({ onCreate, onClose }) {
       title,
       period: per ? period : 'total',
       isPrivate: justMe,
+      audienceIds: chosenIds.length ? chosenIds : null,
       startsAt: start.toISOString(),
       endsAt: end.toISOString()
     });
@@ -265,8 +292,11 @@ function NewChallengeModal({ onCreate, onClose }) {
         </div>
         <div style={{ ...UI.sentence, marginBottom: '12px' }}>
           {justMe
-            ? 'Only you see it. Only workouts logged between now and the end count.'
-            : 'Your friends see it and can join. Only workouts logged between now and the end count.'}
+            ? 'Only you see it.'
+            : chosenIds.length
+              ? `Only ${chosenIds.length === 1 ? nameOf(chosenIds[0]) : 'the friends you chose'} can see it and join.`
+              : 'Your friends see it and can join.'}{' '}
+          Only workouts logged between now and the end count.
         </div>
 
         {/* The challenge, as a sentence */}
@@ -275,16 +305,63 @@ function NewChallengeModal({ onCreate, onClose }) {
           style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '6px', marginBottom: '10px' }}
         >
           <span style={word}>Challenge</span>
-          <select
-            aria-label="Who it's for"
-            className="kinetic-filter-select cr-sentence-select"
-            value={audience}
-            onChange={e => setAudience(e.target.value)}
-            style={selectChip}
+          <button
+            type="button"
+            aria-expanded={pickingWho}
+            aria-label={`Who it's for: ${audienceLabel}`}
+            onClick={() => {
+              setPickingWho(v => !v);
+              setPickingExercise(false);
+            }}
+            style={{ ...selectChip, padding: '0 12px', display: 'inline-flex', alignItems: 'center', gap: '8px', overflow: 'hidden' }}
           >
-            <option value="friends">my friends</option>
-            <option value="me">myself</option>
-          </select>
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{audienceLabel}</span>
+            <span aria-hidden="true" style={{ color: '#9A9A9A', fontSize: '11px', flexShrink: 0 }}>
+              {pickingWho ? '▴' : '▾'}
+            </span>
+          </button>
+          {/* Who: the app's friend list (as in SAVE AS ROUTINE / SEND ROUTINE), opened inside the sentence. @friends and
+              @me are one-tap choices; friends can be picked together */}
+          {pickingWho && (
+            <div style={{ flexBasis: '100%', margin: '2px 0' }}>
+              <PickList label="Who it's for" maxHeight="240px">
+                <PickRow
+                  on={audience === 'friends'}
+                  label="@friends"
+                  sub={`all ${pickable.length} ${pickable.length === 1 ? 'friend' : 'friends'}`}
+                  avatar={<PickBadge on={audience === 'friends'}>@</PickBadge>}
+                  onClick={() => {
+                    setAudience('friends');
+                    setPickingWho(false);
+                  }}
+                />
+                <PickRow
+                  on={audience === 'me'}
+                  label="@me"
+                  sub="just you"
+                  avatar={<PickBadge on={audience === 'me'}>ME</PickBadge>}
+                  onClick={() => {
+                    setAudience('me');
+                    setPickingWho(false);
+                  }}
+                />
+                {pickable.map(f => (
+                  <PickRow
+                    key={f.id}
+                    on={chosenIds.includes(f.id)}
+                    label={`@${f.username}`}
+                    avatar={friendAvatar(f)}
+                    onClick={() => toggleFriend(f.id)}
+                  />
+                ))}
+              </PickList>
+              <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                <button type="button" style={{ ...greyTextBtn, minHeight: '44px' }} onClick={() => setPickingWho(false)}>
+                  DONE ▴
+                </button>
+              </div>
+            </div>
+          )}
           <span style={word}>to</span>
           <input
             type="text"
@@ -321,7 +398,10 @@ function NewChallengeModal({ onCreate, onClose }) {
                 type="button"
                 aria-expanded={pickingExercise}
                 aria-label="Exercise"
-                onClick={() => setPickingExercise(v => !v)}
+                onClick={() => {
+                  setPickingExercise(v => !v);
+                  setPickingWho(false);
+                }}
                 style={{
                   ...selectChip,
                   padding: '0 12px',
@@ -731,7 +811,7 @@ export function SocialFeedSection({
         ))}
       </section>
 
-      {creating && <NewChallengeModal onCreate={social.createChallenge} onClose={() => setCreating(false)} />}
+      {creating && <NewChallengeModal friends={friendsList} onCreate={social.createChallenge} onClose={() => setCreating(false)} />}
     </>
   );
 }

@@ -1077,8 +1077,9 @@ GRANT SELECT, INSERT, DELETE ON public.post_comments TO authenticated;
 GRANT SELECT, INSERT, DELETE ON public.challenges TO authenticated;
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.challenge_participants TO authenticated;
 
--- 16. Challenge emails, repeating challenges and personal challenges: see supabase/migrations/2026-11-16_challenge_emails.sql
---     and supabase/migrations/2026-11-17_challenge_patterns.sql (challenges.period, challenges.is_private)
+-- 16. Challenge emails, repeating, personal and chosen-friends challenges: see
+--     supabase/migrations/2026-11-16_challenge_emails.sql and supabase/migrations/2026-11-17_challenge_patterns.sql
+--     (challenges.period, challenges.is_private, challenges.audience_ids)
 ALTER TABLE public.challenges ADD COLUMN IF NOT EXISTS period TEXT NOT NULL DEFAULT 'total';
 ALTER TABLE public.challenges DROP CONSTRAINT IF EXISTS challenges_period;
 ALTER TABLE public.challenges
@@ -1088,14 +1089,23 @@ ALTER TABLE public.challenges ADD COLUMN IF NOT EXISTS notified_at TIMESTAMPTZ;
 
 -- Personal challenges: seen and joined by their creator only
 ALTER TABLE public.challenges ADD COLUMN IF NOT EXISTS is_private BOOLEAN NOT NULL DEFAULT FALSE;
+-- Chosen friends: NULL = every friend
+ALTER TABLE public.challenges ADD COLUMN IF NOT EXISTS audience_ids UUID[];
 
 DROP POLICY IF EXISTS "Creators and their friends can view challenges" ON public.challenges;
 CREATE POLICY "Creators and their friends can view challenges"
   ON public.challenges FOR SELECT
-  USING (auth.uid() = creator_id OR (NOT is_private AND public.are_friends(auth.uid(), creator_id)));
+  USING (
+    auth.uid() = creator_id
+    OR (
+      NOT is_private
+      AND public.are_friends(auth.uid(), creator_id)
+      AND (audience_ids IS NULL OR auth.uid() = ANY (audience_ids))
+    )
+  );
 
 -- Join as yourself: your own personal challenge, or (while you share your stats with friends) a challenge by you or a
--- friend that you can see
+-- friend that is for you (every friend, or you among the chosen ones)
 DROP POLICY IF EXISTS "Join a challenge you can see while sharing your stats" ON public.challenge_participants;
 CREATE POLICY "Join a challenge you can see while sharing your stats"
   ON public.challenge_participants FOR INSERT
@@ -1109,7 +1119,13 @@ CREATE POLICY "Join a challenge you can see while sharing your stats"
           OR (
             NOT c.is_private
             AND public.my_stats_shared()
-            AND (c.creator_id = auth.uid() OR public.are_friends(auth.uid(), c.creator_id))
+            AND (
+              c.creator_id = auth.uid()
+              OR (
+                public.are_friends(auth.uid(), c.creator_id)
+                AND (c.audience_ids IS NULL OR auth.uid() = ANY (c.audience_ids))
+              )
+            )
           )
         )
     )
@@ -1166,6 +1182,7 @@ BEGIN
    WHERE f.status = 'accepted'
      AND (f.requester_id = c.creator_id OR f.addressee_id = c.creator_id)
      AND u.email IS NOT NULL
+     AND (c.audience_ids IS NULL OR u.id = ANY (c.audience_ids))
      AND COALESCE((p.settings -> 'social' ->> 'emailChallenges') <> 'false', TRUE);
 END;
 $$;
