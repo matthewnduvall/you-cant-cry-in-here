@@ -10,6 +10,9 @@
 -- see it or its participant row, only the creator can join it (no need to share stats for that), and nobody is
 -- emailed about it.
 --
+-- Chosen friends (challenges.audience_ids): a challenge for some friends only. NULL = every friend. Only those friends
+-- (and the creator) can see it, join it or be emailed about it.
+--
 -- claim_challenge_emails also returns period and starts_at so the email can say "a week for 4 weeks". Its return
 -- type changes, so it is dropped and created again. Safe to re-run.
 
@@ -22,14 +25,23 @@ ALTER TABLE public.challenges ADD COLUMN IF NOT EXISTS notified_at TIMESTAMPTZ;
 
 -- Personal challenges: seen and joined by their creator only
 ALTER TABLE public.challenges ADD COLUMN IF NOT EXISTS is_private BOOLEAN NOT NULL DEFAULT FALSE;
+-- Chosen friends: NULL = every friend
+ALTER TABLE public.challenges ADD COLUMN IF NOT EXISTS audience_ids UUID[];
 
 DROP POLICY IF EXISTS "Creators and their friends can view challenges" ON public.challenges;
 CREATE POLICY "Creators and their friends can view challenges"
   ON public.challenges FOR SELECT
-  USING (auth.uid() = creator_id OR (NOT is_private AND public.are_friends(auth.uid(), creator_id)));
+  USING (
+    auth.uid() = creator_id
+    OR (
+      NOT is_private
+      AND public.are_friends(auth.uid(), creator_id)
+      AND (audience_ids IS NULL OR auth.uid() = ANY (audience_ids))
+    )
+  );
 
 -- Join as yourself: your own personal challenge, or (while you share your stats with friends) a challenge by you or a
--- friend that you can see
+-- friend that is for you (every friend, or you among the chosen ones)
 DROP POLICY IF EXISTS "Join a challenge you can see while sharing your stats" ON public.challenge_participants;
 CREATE POLICY "Join a challenge you can see while sharing your stats"
   ON public.challenge_participants FOR INSERT
@@ -43,7 +55,13 @@ CREATE POLICY "Join a challenge you can see while sharing your stats"
           OR (
             NOT c.is_private
             AND public.my_stats_shared()
-            AND (c.creator_id = auth.uid() OR public.are_friends(auth.uid(), c.creator_id))
+            AND (
+              c.creator_id = auth.uid()
+              OR (
+                public.are_friends(auth.uid(), c.creator_id)
+                AND (c.audience_ids IS NULL OR auth.uid() = ANY (c.audience_ids))
+              )
+            )
           )
         )
     )
@@ -100,6 +118,7 @@ BEGIN
    WHERE f.status = 'accepted'
      AND (f.requester_id = c.creator_id OR f.addressee_id = c.creator_id)
      AND u.email IS NOT NULL
+     AND (c.audience_ids IS NULL OR u.id = ANY (c.audience_ids))
      AND COALESCE((p.settings -> 'social' ->> 'emailChallenges') <> 'false', TRUE);
 END;
 $$;

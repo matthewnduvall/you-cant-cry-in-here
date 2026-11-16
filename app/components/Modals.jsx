@@ -8,6 +8,7 @@ import { SET_TYPES_LIST, exercise1RMInfoOfSets, oneRepMaxLabel as oneRepMaxText,
 import { ApplyToLaterToggle, Button, CloseButton } from './Controls';
 import { useModalScrollLock } from '../hooks/useModalScrollLock';
 import { ProfileAvatar } from './ProfileAvatar';
+import { PickBadge, PickList, PickRow, friendAvatar } from './PickList';
 
 // ============================================================================
 // MODAL COMPONENTS: DELETE CONFIRMATION, PLATE CALCULATOR, SET VALUES, SAVE, HISTORY EDIT, FEEDBACK
@@ -691,40 +692,6 @@ export function SaveConfirmModal({
       onClick: () => setShareOpen(v => !v)
     }
   ].filter(Boolean);
-  const pickRow = (key, label, sub, on, onClick, avatar) => (
-    <button
-      key={key}
-      type="button"
-      role="option"
-      aria-selected={on}
-      className="kinetic-btn"
-      onClick={onClick}
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: '10px',
-        minHeight: '48px',
-        padding: '6px 12px',
-        borderRadius: '10px',
-        border: 'none',
-        backgroundColor: on ? '#FFFFFF' : '#2A2A2A',
-        color: on ? '#000000' : '#FFFFFF',
-        fontFamily: 'inherit',
-        fontSize: '14px',
-        fontWeight: 500,
-        textAlign: 'left',
-        cursor: 'pointer'
-      }}
-    >
-      {avatar}
-      <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-        {label}
-        {sub && <span style={{ color: on ? '#3A3A3A' : '#9A9A9A', fontSize: '12px', marginLeft: '6px' }}>{sub}</span>}
-      </span>
-      <span aria-hidden="true" style={{ fontSize: '15px', width: '18px', textAlign: 'center' }}>{on ? '✓' : ''}</span>
-    </button>
-  );
-
   return (
     <div style={{ ...UI.modalBackdrop, zIndex: 92 }}>
       <div onClick={e => e.stopPropagation()} style={UI.modalCard('390px')}>
@@ -787,38 +754,38 @@ export function SaveConfirmModal({
           ))}
         </div>
         {shareOpen && (
-          <div role="listbox" aria-multiselectable="true" aria-label="Save as routine to" style={{ display: 'flex', flexDirection: 'column', gap: '4px', maxHeight: '220px', overflowY: 'auto', marginBottom: '14px' }}>
+          <PickList label="Save as routine to" style={{ marginBottom: '14px' }}>
             {/* @me: your routine library (the routine editor always saves there) */}
-            {pickRow(
-              'me',
-              '@me',
-              'your routines',
-              toMe,
-              showSave ? () => set({ saveAsRoutine: !saveAsRoutine }) : () => {},
-              <span aria-hidden="true" style={{ width: '28px', height: '28px', borderRadius: '8px', backgroundColor: toMe ? '#000000' : '#1C1C1C', color: '#FFFFFF', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: '12px' }}>ME</span>
-            )}
-            {pickRow(
-              'all',
-              '@all',
-              'in your shared routines',
-              shareWithFriends,
-              () => set({ shareWithFriends: !shareWithFriends }),
-              <span aria-hidden="true" style={{ width: '28px', height: '28px', borderRadius: '8px', backgroundColor: shareWithFriends ? '#000000' : '#1C1C1C', color: '#FFFFFF', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>@</span>
-            )}
-            {sendable.map(f =>
-              pickRow(
-                f.id,
-                `@${f.username}`,
-                'send a copy',
-                shareFriendIds.includes(f.id),
-                () => set({ shareFriendIds: shareFriendIds.includes(f.id) ? shareFriendIds.filter(id => id !== f.id) : [...shareFriendIds, f.id] }),
-                <ProfileAvatar photo={f.profilePhoto} username={f.username} size={28} />
-              )
-            )}
+            <PickRow
+              on={toMe}
+              label="@me"
+              sub="your routines"
+              avatar={<PickBadge on={toMe}>ME</PickBadge>}
+              onClick={showSave ? () => set({ saveAsRoutine: !saveAsRoutine }) : () => {}}
+            />
+            <PickRow
+              on={shareWithFriends}
+              label="@all"
+              sub="in your shared routines"
+              avatar={<PickBadge on={shareWithFriends}>@</PickBadge>}
+              onClick={() => set({ shareWithFriends: !shareWithFriends })}
+            />
+            {sendable.map(f => (
+              <PickRow
+                key={f.id}
+                on={shareFriendIds.includes(f.id)}
+                label={`@${f.username}`}
+                sub="send a copy"
+                avatar={friendAvatar(f)}
+                onClick={() =>
+                  set({ shareFriendIds: shareFriendIds.includes(f.id) ? shareFriendIds.filter(id => id !== f.id) : [...shareFriendIds, f.id] })
+                }
+              />
+            ))}
             {sendable.length === 0 && (
               <div style={{ ...UI.sentence, fontSize: '12px', padding: '4px 2px' }}>Add friends on the Social page to send them routines.</div>
             )}
-          </div>
+          </PickList>
         )}
         {/* POST: an optional caption goes with it to the feed */}
         {postToFeed && (
