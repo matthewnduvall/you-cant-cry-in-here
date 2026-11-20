@@ -62,7 +62,8 @@ export function DeleteConfirmModal({
   );
 }
 
-// TOTAL WEIGHT readout that turns into a number field when tapped (replaces the old DIRECT TOTAL mode)
+// TOTAL WEIGHT readout that turns into a number field when tapped (replaces the old DIRECT TOTAL mode); the plates
+// update with every keystroke
 function EditableTotalWeight({ value, unit, onCommit }) {
   const [draft, setDraft] = useState(null);
   const commit = () => {
@@ -94,7 +95,12 @@ function EditableTotalWeight({ value, unit, onCommit }) {
           autoFocus
           value={draft}
           onFocus={e => e.target.select()}
-          onChange={e => setDraft(e.target.value.replace(/[^0-9.]/g, ''))}
+          onChange={e => {
+            // The plates follow as you type (the field keeps what you typed until you leave it)
+            const next = e.target.value.replace(/[^0-9.]/g, '');
+            setDraft(next);
+            if (next.trim() !== '' && !Number.isNaN(Number(next))) onCommit?.(next);
+          }}
           onBlur={commit}
           onKeyDown={e => {
             if (e.key === 'Enter') e.currentTarget.blur();

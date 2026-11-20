@@ -42,6 +42,7 @@ import {
   exercise1RMInfoOfSets,
   oneRepMaxLabel,
   getLastLoggedSetsForExercise,
+  getLastLoggedSessionForExercise,
   getSchemeUniformReps,
   getSetTimerMMSS,
   getLastLoggedTimerDisplay,
@@ -293,7 +294,9 @@ export function SlotEditor({
   simple = false,
   // Live session: a card whose sets are all done mutes, so the remaining work stands out (not in a logged
   // workout, where every set is done)
-  muteWhenDone = true
+  muteWhenDone = true,
+  // The 1RM box's LAST / PR open the History workout they come from (openHistoryWorkout in page.js); none = not links
+  onOpenHistoryWorkout = null
 }) {
   // The INTENSITY pop-up: { exIdx, set, label } while open
   const [intensityTarget, setIntensityTarget] = useState(null);
@@ -507,7 +510,8 @@ export function SlotEditor({
       // 1RM box on the right of the row (same estimate as History's PRs and the weight pop-up's 1RM box):
       // LAST = last logged session of the exercise; NOW = this exercise's sets here; PR = best ever logged
       const exSets = (isSuperset ? slot.supersetSetsByExercise?.[half] : slot.sets) || [];
-      const lastSession = getLastLoggedSetsForExercise(exObj.id, history, workoutId);
+      const lastLogged = getLastLoggedSessionForExercise(exObj.id, history, workoutId);
+      const lastSession = lastLogged?.sets || [];
       const lastDone = lastSession.filter(st => st && st.completed && Number(st.weight) > 0);
       const lastInfo = best1RM(lastDone.length > 0 ? lastDone : lastSession);
       // Timer sets count seconds, not reps
@@ -517,9 +521,25 @@ export function SlotEditor({
       const now1RM = nowInfo.value;
       const pr1RM = prInfoHeader.best;
       // * = calculated from reps (not lifted for 1 rep)
-      const statCell = (label, value, color = '#BDBDBD', calculated = false) => (
-        <div
+      const statCell = (label, value, color = '#BDBDBD', calculated = false, linkId = null) => {
+        const link = value > 0 && linkId && onOpenHistoryWorkout ? linkId : null;
+        const Cell = link ? 'button' : 'div';
+        return (
+        <Cell
+          {...(link
+            ? {
+                type: 'button',
+                className: 'kinetic-btn',
+                'aria-label': `${label} ${oneRepMaxLabel(value, calculated)}: open that workout in History`,
+                onClick: () => onOpenHistoryWorkout(link)
+              }
+            : {})}
           style={{
+            border: 'none',
+            backgroundColor: 'transparent',
+            padding: 0,
+            fontFamily: 'inherit',
+            cursor: link ? 'pointer' : 'default',
             flex: '1 1 0',
             minWidth: 0,
             display: 'flex',
@@ -542,8 +562,9 @@ export function SlotEditor({
               </span>
             )}
           </span>
-        </div>
-      );
+        </Cell>
+        );
+      };
       return (
         <>
           <button
@@ -602,10 +623,10 @@ export function SlotEditor({
               alignItems: 'stretch'
             }}
           >
-            {statCell('LAST', last1RM, undefined, lastInfo.calculated)}
+            {statCell('LAST', last1RM, undefined, lastInfo.calculated, lastLogged?.workoutId)}
             {/* NOW turns green once it beats the record */}
             {statCell('NOW', now1RM, pr1RM > 0 && now1RM > pr1RM ? '#FFFFFF' : '#FFFFFF', nowInfo.calculated)}
-            {statCell('PR', pr1RM, 'var(--dp-color-accent)', prInfoHeader.calculated)}
+            {statCell('PR', pr1RM, 'var(--dp-color-accent)', prInfoHeader.calculated, prInfoHeader.workoutId)}
           </div>
           )}
         </>

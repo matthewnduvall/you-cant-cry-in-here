@@ -636,7 +636,8 @@ function PostCard({ post, me, nowMs, photoOf, onReact, onComment, onDeleteCommen
   const [sending, setSending] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const mine = post.user_id === me;
-  const canStart = !mine && (post.kind === 'workout' || post.kind === 'routine') && Array.isArray(post.payload?.slots) && post.payload.slots.length > 0;
+  // START / LOAD on every workout or routine post that carries its exercises, yours included
+  const canStart = (post.kind === 'workout' || post.kind === 'routine') && Array.isArray(post.payload?.slots) && post.payload.slots.length > 0;
 
   const send = async () => {
     if (!draft.trim() || sending) return;

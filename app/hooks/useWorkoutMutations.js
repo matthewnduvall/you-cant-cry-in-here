@@ -23,7 +23,8 @@ import {
   roundToIncrement,
   CORE_PR_EXERCISE_IDS,
   isExerciseAvailableWithEquipment,
-  findEquivalentExerciseForEquipment
+  findEquivalentExerciseForEquipment,
+  getSlotEquipmentChoice
 } from '../data/exerciseLibrary';
 import {
   getBestHistory1RM,
@@ -56,7 +57,10 @@ import {
   asHistoricalWorkout,
   findIntensityMismatches,
   toAddedWeights,
-  workoutTimeMs
+  workoutTimeMs,
+  countsBodyweight,
+  setLoadLbs,
+  getEngineBodyweight
 } from '../utils/workoutEngine';
 import { deleteCloudRoutineByKey, deleteCloudWorkoutsByIds, postSyncHistoryUpdate } from '../utils/supabaseAuth';
 import {
@@ -71,7 +75,7 @@ import {
   isBig3Variant
 } from '../data/programs';
 import { applyProgramToSlot, isProgrammedSlot, fitsProgramEquipment } from '../utils/programEngine';
-import { SET_TYPE_RIR, solveSet, deriveIntensity, weightForIntensity, intensityToRir, formatIntensity } from '../utils/intensity';
+import { SET_TYPE_RIR, solveSet, deriveIntensity, weightForIntensity, repsForIntensity, intensityToRir, formatIntensity } from '../utils/intensity';
 import { getStarting1RM, describe1RM, getLiftFamilyParent } from '../utils/starting1RM';
 import { withTrace, traceLine, traceTitle, isTracing, fmt, logOperation } from '../utils/calcTrace';
 import { buildHistoryUpdate, findAddedSlots, getWorkoutSyncInfo, withSyncInfo } from '../utils/syncedHistory';
@@ -2124,6 +2128,33 @@ export function useWorkoutMutations({
   // last) is kept. Type-locked sets then follow their type's rule (setTypeTarget). Timer sets keep their times; band
   // sets keep their colour.
   // Bodyweight-type exercises store what is added (0 / the plate), not the total load
+  // One bodyweight-exercise set with a locked intensity, worked out on its real load (setLoadLbs): the reps that
+  // load allows at that intensity, or (Weighted, weight unlocked) the added weight for the set's reps
+  const solveBodyweightSet = (st, orig, oneRM, exId, option, step) => {
+    const intensity = orig.intensity;
+    const bw = getEngineBodyweight();
+    const weighted = /weighted/i.test(String(option || ''));
+    const label = `set ${st.setNumber ?? ''}`.trim();
+    // The weight comes back as the total load; toAddedWeights (after RECALCULATE) stores what is added
+    let load = setLoadLbs(exId, { ...st, weight: Number(orig.lockWeight ? orig.weight : st.weight) || 0 }, option);
+    if (weighted && !orig.lockWeight) {
+      const target = weightForIntensity(oneRM, st.reps, intensity);
+      if (target !== null && target >= bw) {
+        const total = bw + Math.max(0, Math.round((target - bw) / step) * step);
+        if (isTracing()) traceLine(`${label}: ${formatIntensity(intensity.mode, intensity.value)} locked × ${st.reps} reps → load ${fmt(target)} lb = bodyweight ${fmt(bw)} + ${fmt(total - bw)} lb added`);
+        return { ...st, intensity, lockIntensity: true, weight: total };
+      }
+      // Lighter than bodyweight: nothing added, and the reps follow instead
+      load = bw;
+      st = { ...st, weight: bw };
+    }
+    if (orig.lockReps) return { ...st, intensity, lockIntensity: true };
+    const reps = repsForIntensity(oneRM, load, intensity);
+    if (reps === null) return { ...st, intensity, lockIntensity: true };
+    if (isTracing()) traceLine(`${label}: ${formatIntensity(intensity.mode, intensity.value)} locked at a load of ${fmt(load)} lb (1RM ${fmt(oneRM)}) → ${reps} reps`);
+    return { ...st, intensity, lockIntensity: true, reps };
+  };
+
   const recalculateSlot = (slot, workoutId) => toAddedWeights(recalculateSlotLoads(slot, workoutId));
   const recalculateSlotLoads = (slot, workoutId) => {
     const isSup = isSupersetCategory(slot.category) && Array.isArray(slot.supersetSetsByExercise);
@@ -2237,6 +2268,12 @@ export function useWorkoutMutations({
       const showIntensity = intensityOn(getCurrentEditorWorkout());
       const withIntensity = withTypes.map((st, idx) => {
         const orig = original[idx];
+        // Bodyweight exercises: the load is your bodyweight (+ the added weight on Weighted, − the band on
+        // Band-Assisted). A locked intensity sets the reps for that load — on Bodyweight / Band-Assisted the load can't
+        // move, so the reps always follow — or, on Weighted with the weight unlocked, the added weight
+        if (orig && !orig.completed && isBw && !isTimer && calc1RM > 0 && orig.lockIntensity && orig.intensity && countsBodyweight(exId)) {
+          return solveBodyweightSet(st, orig, calc1RM, exId, getSlotEquipmentChoice(slot, isSup ? half : 0), step);
+        }
         if (!orig || orig.completed || isBw || isTimer || !(calc1RM > 0)) return st;
         if (orig.lockIntensity) return solveSet({ ...st, intensity: orig.intensity, lockIntensity: true }, calc1RM, { step });
         return showIntensity ? solveSet({ ...st, lockIntensity: false }, calc1RM, { step }) : st;
@@ -2275,9 +2312,41 @@ export function useWorkoutMutations({
   const handleChangeProgramWeek = week => {
     updateCurrentWorkoutState(prev =>
       prev
-        ? withTrace(`WEEK · ${week}`, () => replanForProgram({ ...prev, program: prev.program || trainingProgram, programWeek: week }))
+        ? withTrace(`WEEK · ${week}`, () =>
+            replanForProgram({ ...prev, program: prev.program || trainingProgram, programWeek: week, programWeekPicked: true })
+          )
         : prev
     );
+  };
+
+  /**
+   * The live session's automatic week and day, worked out again (page.js calls this when History changes): a session
+   * opened before History finished syncing, or kept open into a new week, would otherwise keep the week it started
+   * with. Only while no set is done and the week / day weren't picked by hand; the session is rebuilt for the new
+   * week like picking it in the WEEK box. Returns whether anything changed.
+   */
+  const refreshAutoProgramWeek = () => {
+    const session = activeSession;
+    if (!session?.program || session.programWeekPicked) return false;
+    const anyDone = (session.slots || []).some(slot =>
+      [slot.sets, slot.secondarySets, ...(slot.supersetSetsByExercise || [])].some(list => (list || []).some(st => st?.completed))
+    );
+    if (anyDone) return false;
+    const ctx = programContextFor({ ...session, programWeek: '', programDay: session.programDayPicked ? session.programDay : null });
+    if (!ctx) return false;
+    const week = ctx.program.weekName(ctx.week);
+    const day = session.programDayPicked ? session.programDay || null : ctx.day?.id || null;
+    if (week === session.programWeek && (day || null) === (session.programDay || null)) return false;
+    setActiveSession(prev =>
+      prev && prev.id === session.id
+        ? withTrace(`WEEK · ${week}`, () =>
+            (prev.slots || []).length
+              ? replanForProgram({ ...prev, programWeek: week, programDay: day })
+              : { ...prev, programWeek: week, programDay: day }
+          )
+        : prev
+    );
+    return true;
   };
 
   // The session's PROGRAM box: the session runs that program from here, at its automatic week and day (from the
@@ -2285,7 +2354,7 @@ export function useWorkoutMutations({
   const handleChangeSessionProgram = programId => {
     updateCurrentWorkoutState(prev => {
       if (!prev) return prev;
-      const base = { ...prev, program: programId, programWeek: '', programDay: null };
+      const base = { ...prev, program: programId, programWeek: '', programDay: null, programWeekPicked: false, programDayPicked: false };
       const ctx = programContextFor(base);
       return withTrace(`PROGRAM · ${getProgram(programId).label}`, () => replanForProgram({
         ...base,
@@ -2300,7 +2369,9 @@ export function useWorkoutMutations({
   const handleChangeProgramDay = dayId => {
     updateCurrentWorkoutState(prev =>
       prev
-        ? withTrace(`DAY · ${dayId}`, () => replanForProgram({ ...prev, program: prev.program || trainingProgram, programDay: dayId }))
+        ? withTrace(`DAY · ${dayId}`, () =>
+            replanForProgram({ ...prev, program: prev.program || trainingProgram, programDay: dayId, programDayPicked: true })
+          )
         : prev
     );
   };
@@ -2480,6 +2551,7 @@ export function useWorkoutMutations({
     handleInsertSetAtPosition,
     handleRecalculateSlotWeights,
     handleChangeProgramWeek,
+    refreshAutoProgramWeek,
     handleChangeSessionProgram,
     handleChangeProgramDay,
     handleToggleSetLock,

@@ -65,6 +65,8 @@ const PARTNER_TAB_COLOR = '#BDBDBD';
 
 export function RoutineEditorView({
   colors,
+  // Each exercise's 1RM box LAST / PR open that History workout (yours only: not on a friend's tab or preview)
+  onOpenHistoryWorkout = null,
   // The live session's SIMPLE / ADVANCED tabs: sessionMode ('easy' | 'advanced') + onChangeSessionMode(mode).
   // SIMPLE hides the 1RM box, the filter row, set types, intensity, locks and RECALCULATE.
   sessionMode = 'advanced',
@@ -117,7 +119,10 @@ export function RoutineEditorView({
   // A logged workout (History editor, or a past workout being logged) is shown as it stood that day: LAST, NOW, PR, the
   // weight pop-up and PR badges read History up to its date, not later sessions. A live session reads all of it.
   const isLoggedEntry =
-    currentView === 'historical_entry' || (history || []).some(w => w?.id === currentEditorWorkout.id);
+    currentView === 'historical_entry' ||
+    // A friend's logged workout (preview): their History (passed as `history`) up to its date
+    currentEditorWorkout.previewOf?.kind === 'friend_workout' ||
+    (history || []).some(w => w?.id === currentEditorWorkout.id);
   const shownHistory = isLoggedEntry ? historyAsOf(history, currentEditorWorkout) : history;
   // Inside an open History workout the History list already has the page gutter, so the editor adds none (set rows
   // keep their full width and set types like WORKING aren't cut off)
@@ -509,6 +514,7 @@ export function RoutineEditorView({
                     gyms={gyms}
                     history={onPartnerTab ? slotTabs.partnerHistory || shownHistory : shownHistory}
                     workoutId={currentEditorWorkout.id}
+                    onOpenHistoryWorkout={onPartnerTab || currentEditorWorkout.previewOf ? null : onOpenHistoryWorkout}
                     prFlags={prFlags}
                     prSetIds={prSetIds}
                     onHeaderChange={changes => slotHandler('handleUpdateSlotCategoryOrExercise')(slot.id, changes)}

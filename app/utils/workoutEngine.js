@@ -1088,6 +1088,10 @@ const getLoggedSessionsForExercise = (exerciseId, history = [], excludeWorkoutId
 export const getLastLoggedSetsForExercise = (exerciseId, history = [], excludeWorkoutId = null) =>
   getLoggedSessionsForExercise(exerciseId, history, excludeWorkoutId).find(s => !s.isPersonalRecord)?.sets || [];
 
+/** The most recent real session of the exercise: { workoutId, sets }, or null (the 1RM box's LAST link). */
+export const getLastLoggedSessionForExercise = (exerciseId, history = [], excludeWorkoutId = null) =>
+  getLoggedSessionsForExercise(exerciseId, history, excludeWorkoutId).find(s => !s.isPersonalRecord) || null;
+
 /** Stored 1RM: the highest calculated 1RM over all logged sessions (PR entries included) or a saved 1RM. */
 export const getStored1RM = (exerciseId, history = [], oneRepMaxes = {}, excludeWorkoutId = null) =>
   Math.max(
