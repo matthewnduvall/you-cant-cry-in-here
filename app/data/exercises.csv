@@ -129,17 +129,13 @@ barbell_preacher_curl,Barbell / EZ-Bar Preacher Curl,Upper Arms,Accessory,Barbel
 close_grip_bench_press,Barbell Close-Grip Bench Press,Upper Arms,Compound,Barbell,Barbell|Flat / Incline Bench|Weight Plates,Triceps Brachii|Pectoralis Major - Sternal|Deltoid - Anterior,false,195,tricep_dip|barbell_bench_press
 exrx_upper_arms_barbell_curl,Barbell Curl,Upper Arms,Accessory,Barbell,Barbell,Biceps Brachii|Brachialis,false,95,
 barbell_jm_press,Barbell JM Press,Upper Arms,Compound,Barbell,Barbell|Flat / Incline Bench|Weight Plates,Triceps Brachii|Pectoralis Major - Sternal,false,155,close_grip_bench_press
-exrx_upper_arms_barbell_lying_triceps_extension,Barbell Lying Triceps Extension,Upper Arms,Accessory,Barbell,Barbell,Triceps Brachii,false,95,
-exrx_upper_arms_barbell_preacher_curl,Barbell Preacher Curl,Upper Arms,Accessory,Barbell,Barbell,Brachialis|Biceps Brachii,false,80,
 barbell_prone_incline_curl,Barbell Prone Incline (Spider) Curl,Upper Arms,Accessory,Barbell,Barbell|Flat / Incline Bench,Biceps Brachii|Brachialis,false,75,barbell_preacher_curl
 exrx_upper_arms_barbell_prone_incline_curl,Barbell Prone Incline Curl,Upper Arms,Accessory,Barbell,Barbell,Brachialis|Biceps Brachii,false,80,
 barbell_overhead_tricep_extension,Barbell Seated / Standing Overhead Triceps Extension,Upper Arms,Accessory,Barbell,Barbell,Triceps Brachii,false,85,tricep_skullcrusher
-exrx_upper_arms_barbell_skull_crusher,Barbell Skull Crusher,Upper Arms,Accessory,Barbell,Barbell,Triceps Brachii,false,95,
 barbell_bicep_curl,Barbell Standing Curl,Upper Arms,Accessory,Barbell,Barbell,Biceps Brachii|Brachialis|Brachioradialis,false,95,ez_bar_curl|dumbbell_bicep_curl|dumbbell_hammer_curl
 exrx_upper_arms_barbell_triceps_extension,Barbell Triceps Extension,Upper Arms,Accessory,Barbell,Barbell,Triceps Brachii,false,95,
-bench_dip,Bodyweight Bench Dip,Upper Arms,Accessory,Bodyweight,,Triceps Brachii|Deltoid - Anterior,false,155,tricep_dip
+bench_dip,Bench Dip,Upper Arms,Accessory,Bodyweight / Weighted,,Triceps Brachii|Deltoid - Anterior,false,155,tricep_dip
 exrx_upper_arms_bodyweight_bench_dip_heel_on_floor,Bodyweight Bench Dip (heel on floor),Upper Arms,Accessory,Bodyweight,,Triceps Brachii,false,150,
-exrx_upper_arms_bodyweight_close_grip_push_up,Bodyweight Close Grip Push-up,Upper Arms,Accessory,Bodyweight,,Triceps Brachii,false,150,
 exrx_upper_arms_bodyweight_close_grip_push_up_on_knees,Bodyweight Close Grip Push-up (on knees),Upper Arms,Accessory,Bodyweight,,Triceps Brachii,false,150,
 diamond_push_up,Bodyweight Close-Grip (Diamond) Triceps Push-Up,Upper Arms,Accessory,Bodyweight,,Triceps Brachii|Pectoralis Major - Sternal,false,145,tricep_dip
 exrx_upper_arms_bodyweight_incline_close_grip_push_up_on_bar,Bodyweight Incline Close Grip Push-up (on bar),Upper Arms,Accessory,Bodyweight,,Triceps Brachii,false,150,
@@ -175,7 +171,7 @@ dumbbell_concentration_curl,Dumbbell Concentration Curl,Upper Arms,Accessory,Dum
 dumbbell_hammer_curl,Dumbbell Hammer Curl,Upper Arms,Accessory,Dumbbell,Dumbbell,Brachialis|Brachioradialis|Biceps Brachii,false,80,barbell_bicep_curl|reverse_barbell_curl
 dumbbell_incline_curl,Dumbbell Incline Biceps Curl,Upper Arms,Accessory,Dumbbell,Dumbbell|Flat / Incline Bench,Biceps Brachii,false,70,dumbbell_bicep_curl|barbell_bicep_curl
 exrx_upper_arms_dumbbell_kickback,Dumbbell Kickback,Upper Arms,Accessory,Dumbbell,Dumbbell,Triceps Brachii,false,65,
-dumbbell_lying_tricep_extension,Dumbbell Lying Triceps Extension,Upper Arms,Accessory,Dumbbell,Dumbbell|Flat / Incline Bench,Triceps Brachii,false,70,tricep_skullcrusher
+dumbbell_lying_tricep_extension,Dumbbell Lying Triceps Extension (Skullcrusher),Upper Arms,Accessory,Dumbbell,Dumbbell|Flat / Incline Bench,Triceps Brachii,false,70,tricep_skullcrusher
 exrx_upper_arms_dumbbell_one_arm_preacher_curl,Dumbbell One Arm Preacher Curl,Upper Arms,Accessory,Dumbbell,Dumbbell,Brachialis|Biceps Brachii,false,65,
 exrx_upper_arms_dumbbell_one_arm_triceps_extension_on_bench,Dumbbell One Arm Triceps Extension (on bench),Upper Arms,Accessory,Dumbbell,Dumbbell,Triceps Brachii,false,65,
 dumbbell_overhead_extension,Dumbbell Overhead Triceps Extension,Upper Arms,Accessory,Dumbbell,Dumbbell,Triceps Brachii,false,75,tricep_skullcrusher|cable_tricep_pushdown
@@ -208,8 +204,6 @@ exrx_upper_arms_suspended_suspended_arm_curl,Suspended Arm Curl,Upper Arms,Acces
 exrx_upper_arms_suspended_triceps_extension,Suspended Triceps Extension,Upper Arms,Accessory,Suspended,Pull-Up Bar,Triceps Brachii,false,95,
 exrx_upper_arms_stretch_towel_triceps_stretch,Towel Triceps Stretch,Upper Arms,Accessory,Stretch,,Triceps Brachii,false,25,
 tricep_dip,Triceps Dip,Upper Arms,Compound,Bodyweight / Weighted,,Triceps Brachii|Pectoralis Major - Sternal|Deltoid - Anterior,false,205,close_grip_bench_press|tricep_skullcrusher
-exrx_upper_arms_weighted_bench_dip,Weighted Bench Dip,Upper Arms,Compound,Weighted,Weight Plates,Triceps Brachii,false,205,
-exrx_upper_arms_weighted_triceps_dip,Weighted Triceps Dip,Upper Arms,Compound,Weighted,Weight Plates,Triceps Brachii,false,205,
 reverse_barbell_curl,Barbell Reverse Curl,Forearms,Compound,Barbell / EZ Bar,Barbell,Brachioradialis|Wrist Extensors|Brachialis|Biceps Brachii,false,75,dumbbell_hammer_curl|barbell_wrist_curl
 reverse_wrist_curl,Barbell Reverse Wrist Curl,Forearms,Accessory,Barbell / Dumbbell,Barbell,Wrist Extensors,false,50,reverse_barbell_curl
 barbell_wrist_curl,Barbell Seated Wrist Curl,Forearms,Accessory,Barbell,Barbell,Wrist Flexors,false,85,dumbbell_wrist_curl
@@ -273,7 +267,7 @@ close_neutral_grip_pull_up,Bodyweight Close Neutral-Grip Pull-Up,Back,Compound,B
 exrx_back_bodyweight_feet_elevated_inverted_row,Bodyweight Feet Elevated Inverted Row,Back,Compound,Bodyweight,,General Back|Latissimus Dorsi|Rhomboids,false,150,
 exrx_back_bodyweight_high_bar_inverted_row,Bodyweight High Bar Inverted Row,Back,Compound,Bodyweight,,General Back|Latissimus Dorsi|Rhomboids,false,150,
 exrx_back_bodyweight_high_bar_underhand_inverted_row,Bodyweight High Bar Underhand Inverted Row,Back,Compound,Bodyweight,,General Back|Latissimus Dorsi|Rhomboids,false,150,
-inverted_row,Bodyweight Inverted Row,Back,Compound,Bodyweight,,General Back|Rhomboids|Trapezius - Middle|Latissimus Dorsi|Biceps Brachii,false,150,chin_ups|dumbbell_row
+inverted_row,Inverted Row,Back,Compound,Bodyweight / Weighted,,General Back|Rhomboids|Trapezius - Middle|Latissimus Dorsi|Biceps Brachii,false,150,chin_ups|dumbbell_row
 exrx_back_bodyweight_inverted_shrug,Bodyweight Inverted Shrug,Back,Accessory,Bodyweight,,Trapezius - Upper|Trapezius - Lower,false,145,
 exrx_back_bodyweight_one_arm_pull_up,Bodyweight One Arm Pull-up,Back,Compound,Bodyweight,,Latissimus Dorsi|Biceps Brachii,false,210,
 exrx_back_bodyweight_parallel_close_grip_pull_up,Parallel Close Grip Pull-up,Back,Compound,Bodyweight / Weighted / Band-Assisted,,Latissimus Dorsi|Biceps Brachii,false,210,
@@ -375,7 +369,6 @@ exrx_back_suspended_row,Suspended Row,Back,Compound,Suspended,Pull-Up Bar,Genera
 exrx_back_suspended_self_assisted_pull_up,Suspended Self-Assisted Pull-up,Back,Compound,Suspended,Pull-Up Bar,Latissimus Dorsi|Biceps Brachii,false,175,
 exrx_back_suspended_shoulder_external_rotation,Suspended Shoulder External Rotation,Back,Accessory,Suspended,Pull-Up Bar,Infraspinatus & Teres Minor,false,45,
 exrx_back_stretch_upper_trapezius_stretch,Upper Trapezius Stretch,Back,Accessory,Stretch,,Trapezius - Upper,false,25,
-exrx_back_weighted_inverted_row,Weighted Inverted Row,Back,Compound,Weighted,Weight Plates,General Back|Latissimus Dorsi|Rhomboids,false,175,
 barbell_bench_press,Barbell Bench Press,Chest,Compound,Barbell,Barbell|Flat / Incline Bench|Weight Plates,Pectoralis Major - Sternal|Deltoid - Anterior|Triceps Brachii,true,225,dumbbell_press|incline_bench_press|dumbbell_incline_press
 incline_bench_press,Barbell Incline Bench Press,Chest,Compound,Barbell,Barbell|Flat / Incline Bench|Weight Plates,Pectoralis Major - Clavicular|Deltoid - Anterior|Triceps Brachii,true,195,dumbbell_incline_press|dumbbell_press|barbell_bench_press
 exrx_chest_assisted_machine_chest_dip,Assisted Machine Chest Dip,Chest,Compound,Assisted Machine,Lever / Machine,Pectoralis Major - Sternal|Triceps Brachii|Deltoid - Anterior,false,150,
@@ -449,9 +442,8 @@ lever_decline_chest_press,Lever Decline Chest Press,Chest,Compound,Lever / Machi
 lever_incline_chest_press,Lever Incline Chest Press,Chest,Compound,Lever / Machine,Lever / Machine,Pectoralis Major - Clavicular|Deltoid - Anterior|Triceps Brachii,false,165,incline_bench_press
 lever_chest_press,Lever Seated Chest Press,Chest,Compound,Lever / Machine,Lever / Machine,Pectoralis Major - Sternal|Deltoid - Anterior|Triceps Brachii,false,185,barbell_bench_press
 lever_pec_deck_fly,Lever Seated Fly (Pec Deck),Chest,Accessory,Lever / Machine,Lever / Machine,Pectoralis Major - Sternal|Pectoralis Major - Clavicular,false,135,front_flies|cable_standing_fly
-exrx_chest_plyometric_clap_push_up,Plyometric Clap Push-up,Chest,Accessory,Plyometric,,Pectoralis Major - Sternal|Triceps Brachii,false,155,
 exrx_chest_plyometric_depth_push_up,Plyometric Depth Push-up,Chest,Accessory,Plyometric,,Pectoralis Major - Sternal|Triceps Brachii,false,155,
-push_up,Push-Up,Chest,Compound,Bodyweight,,Pectoralis Major - Sternal|Serratus Anterior|Triceps Brachii|Deltoid - Anterior,false,165,dumbbell_press|chest_dip
+push_up,Push-Up,Chest,Compound,Bodyweight / Weighted,,Pectoralis Major - Sternal|Serratus Anterior|Triceps Brachii|Deltoid - Anterior,false,165,dumbbell_press|chest_dip
 exrx_chest_self_assisted_chest_dip,Self-Assisted Chest Dip,Chest,Compound,Self-Assisted,,Pectoralis Major - Sternal|Triceps Brachii,false,135,
 exrx_chest_sled_standing_chest_dip,Sled Standing Chest Dip,Chest,Compound,Sled,Lever / Machine,Pectoralis Major - Sternal|Triceps Brachii,false,185,
 exrx_chest_smith_bench_press,Smith Bench Press,Chest,Compound,Smith,Lever / Machine,Pectoralis Major - Sternal|Triceps Brachii,false,205,
@@ -465,14 +457,11 @@ exrx_chest_suspended_chest_press,Suspended Chest Press,Chest,Compound,Suspended,
 exrx_chest_suspended_fly,Suspended Fly,Chest,Compound,Suspended,Pull-Up Bar,Pectoralis Major - Sternal|Triceps Brachii,false,150,
 exrx_chest_suspended_self_assisted_chest_dip,Suspended Self-Assisted Chest Dip,Chest,Compound,Suspended,Pull-Up Bar,Pectoralis Major - Sternal|Triceps Brachii,false,150,
 exrx_chest_stretch_wall_angel_stretch,Wall Angel Stretch,Chest,Accessory,Stretch,,Pectoralis Minor,false,25,
-exrx_chest_weighted_chest_dip,Weighted Chest Dip,Chest,Compound,Weighted,Weight Plates,Pectoralis Major - Sternal|Triceps Brachii,false,225,
-exrx_chest_weighted_push_up,Weighted Push-up,Chest,Compound,Weighted,Weight Plates,Pectoralis Major - Sternal|Triceps Brachii,false,225,
 back_extension,45° Back Extension (Hyperextension),Core,Accessory,Bodyweight / Plate,,Erector Spinae|Gluteus Maximus|Hamstrings,false,60,barbell_good_morning
 barbell_lying_hip_raise,Barbell / Plate Loaded Pulse-Up (Hip Raise),Core,Accessory,Barbell,Barbell,Rectus Abdominis|Obliques,false,65,lying_leg_hip_raise
 barbell_back_extension,Barbell 45° Back Extension,Core,Compound,Barbell,Barbell,Erector Spinae|Gluteus Maximus|Hamstrings,false,115,back_extension
 barbell_rollout,Barbell Ab Rollout,Core,Compound,Barbell / Bodyweight,Barbell,Rectus Abdominis|Transverse Abdominis|Latissimus Dorsi,false,95,weighted_plank|hollow_holds
 exrx_waist_barbell_bent_knee_good_morning,Barbell Bent Knee Good-morning,Core,Compound,Barbell,Barbell,Erector Spinae|Gluteus Maximus|Hamstrings,false,185,
-exrx_waist_barbell_deadlift,Barbell Deadlift,Core,Compound,Barbell,Barbell,Erector Spinae|Gluteus Maximus|Hamstrings,false,185,
 exrx_waist_barbell_hyperextension,Barbell Hyperextension,Core,Compound,Barbell,Barbell,Erector Spinae|Gluteus Maximus|Hamstrings,false,185,
 exrx_waist_barbell_hyperextension_45deg,Barbell Hyperextension (45°),Core,Compound,Barbell,Barbell,Erector Spinae|Gluteus Maximus|Hamstrings,false,185,
 exrx_waist_barbell_push_crunch,Barbell Push Crunch,Core,Accessory,Barbell,Barbell,Rectus Abdominis|Obliques,false,65,
@@ -480,19 +469,18 @@ barbell_seated_good_morning,Barbell Seated Good Morning,Core,Compound,Barbell,Ba
 barbell_seated_twist,Barbell Seated Twist,Core,Accessory,Barbell,Barbell,Obliques,false,65,russian_twist
 barbell_side_bend,Barbell Standing Side Bend,Core,Accessory,Barbell,Barbell,Obliques|Quadratus Lumborum,false,85,dumbbell_side_bend
 exrx_waist_barbell_stiff_leg_deadlift,Barbell Stiff-leg Deadlift,Core,Compound,Barbell,Barbell,Erector Spinae|Gluteus Maximus|Hamstrings,false,185,
-exrx_waist_barbell_straight_leg_deadlift,Barbell Straight-leg Deadlift,Core,Compound,Barbell,Barbell,Erector Spinae|Gluteus Maximus|Hamstrings,false,185,
 ab_crunch,Bodyweight / Weighted Floor Crunch,Core,Accessory,Bodyweight / Plate,,Rectus Abdominis|Obliques,false,45,hollow_holds|bicycle_crunch
-sit_up,Bodyweight / Weighted Sit-Up,Core,Accessory,Bodyweight / Plate,,Rectus Abdominis|Hip Flexors|Obliques,false,50,incline_sit_up|ab_crunch
-twisting_sit_up,Bodyweight / Weighted Twisting Sit-Up,Core,Accessory,Bodyweight / Plate,,Obliques|Rectus Abdominis|Hip Flexors,false,50,sit_up
+sit_up,Bodyweight / Weighted Sit-Up,Core,Accessory,Bodyweight / Plate / Weighted,,Rectus Abdominis|Hip Flexors|Obliques,false,50,incline_sit_up|ab_crunch
+twisting_sit_up,Bodyweight / Weighted Twisting Sit-Up,Core,Accessory,Bodyweight / Plate / Weighted,,Obliques|Rectus Abdominis|Hip Flexors,false,50,sit_up
 exrx_waist_bodyweight_45deg_side_bend,Bodyweight 45° Side Bend,Core,Accessory,Bodyweight,,Obliques|Rectus Abdominis,false,45,
 side_bridge_hip_abduction,Bodyweight 45° Side Bend (Roman Chair),Core,Accessory,Bodyweight / Plate,,Obliques|Quadratus Lumborum,false,55,dumbbell_side_bend
 wheel_rollout,Bodyweight Ab Wheel Rollout,Core,Compound,Bodyweight,,Rectus Abdominis|Transverse Abdominis|Obliques,false,75,barbell_rollout
 exrx_waist_bodyweight_abdominal_vacuum,Bodyweight Abdominal Vacuum,Core,Accessory,Bodyweight,,Transverse Abdominis,false,45,
-exrx_waist_bodyweight_crunch,Bodyweight Crunch,Core,Accessory,Bodyweight,,Rectus Abdominis|Obliques,false,45,
-exrx_waist_bodyweight_crunch_arms_crossed,Bodyweight Crunch (arms crossed),Core,Accessory,Bodyweight,,Rectus Abdominis|Obliques,false,45,
+exrx_waist_bodyweight_crunch,Crunch,Core,Accessory,Bodyweight / Weighted,,Rectus Abdominis|Obliques,false,45,
+exrx_waist_bodyweight_crunch_arms_crossed,Crunch (arms crossed),Core,Accessory,Bodyweight / Weighted,,Rectus Abdominis|Obliques,false,45,
 exrx_waist_bodyweight_crunch_arms_down,Bodyweight Crunch (arms down),Core,Accessory,Bodyweight,,Rectus Abdominis|Obliques,false,45,
 exrx_waist_bodyweight_crunch_on_ball_arms_crossed,"Bodyweight Crunch (on ball, arms crossed)",Core,Accessory,Bodyweight,,Rectus Abdominis|Obliques,false,45,
-exrx_waist_bodyweight_crunch_on_ball,Bodyweight Crunch (on ball),Core,Accessory,Bodyweight,,Rectus Abdominis|Obliques,false,45,
+exrx_waist_bodyweight_crunch_on_ball,Crunch (on ball),Core,Accessory,Bodyweight / Weighted,,Rectus Abdominis|Obliques,false,45,
 hanging_knee_raise,Bodyweight Hanging Knee Raise,Core,Accessory,Bodyweight,,Rectus Abdominis|Hip Flexors,false,45,hanging_leg_raises
 exrx_waist_bodyweight_hanging_leg_hip_raise_with_ab_straps,Bodyweight Hanging Leg Hip Raise (with ab straps),Core,Accessory,Bodyweight,,Rectus Abdominis|Obliques,false,45,
 hanging_straight_leg_raise,Bodyweight Hanging Pike (Toes-to-Bar) Leg Raise,Core,Compound,Bodyweight,,Rectus Abdominis|Obliques|Hip Flexors,false,55,hanging_leg_raises
@@ -500,32 +488,30 @@ hanging_windshield_wiper,Bodyweight Hanging Twist (Windshield Wiper),Core,Access
 exrx_waist_bodyweight_hanging_twisting_leg_raise,Bodyweight Hanging Twisting Leg Raise,Core,Accessory,Bodyweight,,Obliques|Rectus Abdominis,false,45,
 hollow_holds,Bodyweight Hollow Body Hold,Core,Accessory,Bodyweight,,Rectus Abdominis|Transverse Abdominis|Obliques,false,45,hanging_leg_raises|weighted_plank
 incline_leg_hip_raise,Bodyweight Incline Bench Leg-Hip Raise,Core,Accessory,Bodyweight,Flat / Incline Bench,Rectus Abdominis|Obliques|Hip Flexors,false,50,lying_leg_hip_raise
-exrx_waist_bodyweight_incline_crunch,Bodyweight Incline Crunch,Core,Accessory,Bodyweight,,Rectus Abdominis|Obliques,false,45,
+exrx_waist_bodyweight_incline_crunch,Incline Crunch,Core,Accessory,Bodyweight / Weighted,,Rectus Abdominis|Obliques,false,45,
 exrx_waist_bodyweight_incline_crunch_arms_down,Bodyweight Incline Crunch (arms down),Core,Accessory,Bodyweight,,Rectus Abdominis|Obliques,false,45,
-exrx_waist_bodyweight_incline_sit_up,Bodyweight Incline Sit-up,Core,Accessory,Bodyweight,,Rectus Abdominis|Obliques,false,45,
-exrx_waist_bodyweight_incline_sit_up_arms_crossed,Bodyweight Incline Sit-up (arms crossed),Core,Accessory,Bodyweight,,Rectus Abdominis|Obliques,false,45,
-exrx_waist_bodyweight_incline_twisting_crunch,Bodyweight Incline Twisting Crunch,Core,Accessory,Bodyweight,,Obliques|Rectus Abdominis,false,45,
+exrx_waist_bodyweight_incline_sit_up,Incline Sit-up,Core,Accessory,Bodyweight / Weighted,,Rectus Abdominis|Obliques,false,45,
+exrx_waist_bodyweight_incline_sit_up_arms_crossed,Incline Sit-up (arms crossed),Core,Accessory,Bodyweight / Weighted,,Rectus Abdominis|Obliques,false,45,
+exrx_waist_bodyweight_incline_twisting_crunch,Incline Twisting Crunch,Core,Accessory,Bodyweight / Weighted,,Obliques|Rectus Abdominis,false,45,
 exrx_waist_bodyweight_incline_twisting_crunch_arms_crossed,Bodyweight Incline Twisting Crunch (arms crossed),Core,Accessory,Bodyweight,,Obliques|Rectus Abdominis,false,45,
-exrx_waist_bodyweight_incline_twisting_sit_up,Bodyweight Incline Twisting Sit-up,Core,Accessory,Bodyweight,,Obliques|Rectus Abdominis,false,45,
-exrx_waist_bodyweight_incline_twisting_sit_up_arms_crossed,Bodyweight Incline Twisting Sit-up (arms crossed),Core,Accessory,Bodyweight,,Obliques|Rectus Abdominis,false,45,
+exrx_waist_bodyweight_incline_twisting_sit_up,Incline Twisting Sit-up,Core,Accessory,Bodyweight / Weighted,,Obliques|Rectus Abdominis,false,45,
+exrx_waist_bodyweight_incline_twisting_sit_up_arms_crossed,Incline Twisting Sit-up (arms crossed),Core,Accessory,Bodyweight / Weighted,,Obliques|Rectus Abdominis,false,45,
 bicycle_crunch,Bodyweight Lying Alternating Twist (Bicycle) Crunch,Core,Accessory,Bodyweight,,Obliques|Rectus Abdominis,false,45,ab_crunch|russian_twist
 lying_hip_swing,Bodyweight Lying Bent-Knee Hip Swing,Core,Accessory,Bodyweight,,Obliques|Rectus Abdominis,false,45,bicycle_crunch
 lying_leg_hip_raise,Bodyweight Lying Leg-Hip Raise,Core,Accessory,Bodyweight,,Rectus Abdominis|Obliques|Hip Flexors,false,45,hanging_leg_raises
 reverse_crunch,Bodyweight Lying Reverse Crunch,Core,Accessory,Bodyweight,,Rectus Abdominis|Obliques,false,45,ab_crunch
 bodyweight_bird_dog,Bodyweight Quadruped Alternating Arm-Leg Raise (Bird-Dog),Core,Accessory,Bodyweight,,Erector Spinae|Gluteus Maximus|Rectus Abdominis,false,45,superman_hold
 exrx_waist_bodyweight_side_bend_on_ball,Bodyweight Side Bend (on ball),Core,Accessory,Bodyweight,,Obliques|Rectus Abdominis,false,45,
-exrx_waist_bodyweight_side_crunch,Bodyweight Side Crunch,Core,Accessory,Bodyweight,,Obliques|Rectus Abdominis,false,45,
+exrx_waist_bodyweight_side_crunch,Side Crunch,Core,Accessory,Bodyweight / Weighted,,Obliques|Rectus Abdominis,false,45,
 side_plank,Bodyweight Side Plank (Side Bridge),Core,Accessory,Bodyweight,,Obliques|Transverse Abdominis|Quadratus Lumborum,false,45,weighted_plank|russian_twist
-exrx_waist_bodyweight_sit_up,Bodyweight Sit-up,Core,Accessory,Bodyweight,,Rectus Abdominis|Obliques,false,45,
-exrx_waist_bodyweight_sit_up_arms_crossed,Bodyweight Sit-up (arms crossed),Core,Accessory,Bodyweight,,Rectus Abdominis|Obliques,false,45,
+exrx_waist_bodyweight_sit_up_arms_crossed,Sit-up (arms crossed),Core,Accessory,Bodyweight / Weighted,,Rectus Abdominis|Obliques,false,45,
 exrx_waist_bodyweight_sit_up_arms_down,Bodyweight Sit-up (arms down),Core,Accessory,Bodyweight,,Rectus Abdominis|Obliques,false,45,
 stomach_vacuum,Bodyweight Supine / Quadruped Stomach Vacuum,Core,Accessory,Bodyweight,,Transverse Abdominis,false,45,hollow_holds
-exrx_waist_bodyweight_twisting_crunch,Bodyweight Twisting Crunch,Core,Accessory,Bodyweight,,Obliques|Rectus Abdominis,false,45,
+exrx_waist_bodyweight_twisting_crunch,Twisting Crunch,Core,Accessory,Bodyweight / Weighted,,Obliques|Rectus Abdominis,false,45,
 exrx_waist_bodyweight_twisting_crunch_arms_crossed,Bodyweight Twisting Crunch (arms crossed),Core,Accessory,Bodyweight,,Obliques|Rectus Abdominis,false,45,
-exrx_waist_bodyweight_twisting_crunch_on_ball,Bodyweight Twisting Crunch (on ball),Core,Accessory,Bodyweight,,Obliques|Rectus Abdominis,false,45,
+exrx_waist_bodyweight_twisting_crunch_on_ball,Twisting Crunch (on ball),Core,Accessory,Bodyweight / Weighted,,Obliques|Rectus Abdominis,false,45,
 exrx_waist_bodyweight_twisting_leg_hip_raise,Bodyweight Twisting Leg Hip Raise,Core,Accessory,Bodyweight,,Obliques|Rectus Abdominis,false,45,
-exrx_waist_bodyweight_twisting_sit_up,Bodyweight Twisting Sit-up,Core,Accessory,Bodyweight,,Obliques|Rectus Abdominis,false,45,
-exrx_waist_bodyweight_twisting_sit_up_arms_crossed,Bodyweight Twisting Sit-up (arms crossed),Core,Accessory,Bodyweight,,Obliques|Rectus Abdominis,false,45,
+exrx_waist_bodyweight_twisting_sit_up_arms_crossed,Twisting Sit-up (arms crossed),Core,Accessory,Bodyweight / Weighted,,Obliques|Rectus Abdominis,false,45,
 v_up,Bodyweight V-Up (Jackknife Sit-Up),Core,Accessory,Bodyweight,,Rectus Abdominis|Obliques|Hip Flexors,false,45,sit_up
 vertical_leg_hip_raise,Bodyweight Vertical (Captain's Chair) Leg-Hip Raise,Core,Accessory,Bodyweight,,Rectus Abdominis|Hip Flexors,false,50,hanging_leg_raises
 cable_kneeling_crunch,Cable Kneeling Crunch,Core,Accessory,Cable,Cable Machine,Rectus Abdominis|Obliques,false,60,ab_crunch|hanging_leg_raises
@@ -584,7 +570,7 @@ plank,Plank,Core,Compound,Bodyweight,,Rectus Abdominis|Transverse Abdominis|Obli
 exrx_waist_plyometric_broomstick_twist,Plyometric Broomstick Twist,Core,Accessory,Plyometric,,Obliques,false,45,
 exrx_waist_plyometric_medicine_ball_seated_twist_with_partner,Plyometric Medicine Ball Seated Twist (with partner),Core,Accessory,Plyometric,,Obliques,false,45,
 exrx_waist_stretch_pretzel_stretch,Pretzel Stretch,Core,Accessory,Stretch,,Obliques,false,25,
-reverse_hyperextension,Reverse Hyperextension,Core,Accessory,Bodyweight / Lever,,Erector Spinae|Gluteus Maximus|Hamstrings,false,95,back_extension
+reverse_hyperextension,Reverse Hyperextension,Core,Accessory,Bodyweight / Lever / Weighted,,Erector Spinae|Gluteus Maximus|Hamstrings,false,95,back_extension
 horizontal_back_extension,Roman Chair Horizontal Back Extension,Core,Accessory,Bodyweight / Plate,,Erector Spinae|Gluteus Maximus|Hamstrings,false,65,back_extension
 russian_twist,Seated Russian Twist,Core,Accessory,Bodyweight / Dumbbell,Dumbbell,Obliques|Rectus Abdominis,false,45,bicycle_crunch|side_plank
 exrx_waist_sled_leg_hip_raise_ab_coaster,Sled Leg Hip Raise (Ab Coaster),Core,Accessory,Sled,Lever / Machine,Rectus Abdominis|Hip Flexors,false,75,
@@ -597,70 +583,45 @@ exrx_waist_suspended_jack_knife,Suspended Jack-knife,Core,Accessory,Suspended,Pu
 exrx_waist_suspended_pull_through,Suspended Pull Through,Core,Accessory,Suspended,Pull-Up Bar,Rectus Abdominis|Obliques,false,55,
 exrx_waist_suspended_side_bend,Suspended Side Bend,Core,Accessory,Suspended,Pull-Up Bar,Obliques|Rectus Abdominis,false,55,
 exrx_waist_suspended_twisting_jack_knife,Suspended Twisting Jack-knife,Core,Accessory,Suspended,Pull-Up Bar,Obliques|Rectus Abdominis,false,55,
-exrx_waist_weighted_crunch,Weighted Crunch,Core,Accessory,Weighted,Weight Plates,Rectus Abdominis|Obliques,false,60,
-exrx_waist_weighted_crunch_arms_crossed,Weighted Crunch (arms crossed),Core,Accessory,Weighted,Weight Plates,Rectus Abdominis|Obliques,false,60,
-exrx_waist_weighted_crunch_on_ball,Weighted Crunch (on ball),Core,Accessory,Weighted,Weight Plates,Rectus Abdominis|Obliques,false,60,
 incline_crunch,Weighted Decline / Incline Bench Crunch,Core,Accessory,Bodyweight / Plate,Flat / Incline Bench,Rectus Abdominis|Obliques,false,55,ab_crunch
 incline_sit_up,Weighted Decline Bench Sit-Up,Core,Compound,Bodyweight / Plate,Flat / Incline Bench,Rectus Abdominis|Hip Flexors|Obliques,false,65,sit_up
 incline_twisting_sit_up,Weighted Decline Twisting Sit-Up,Core,Accessory,Bodyweight / Plate,Flat / Incline Bench,Obliques|Rectus Abdominis|Hip Flexors,false,60,incline_sit_up
 exrx_waist_weighted_hyperextension,Weighted Hyperextension,Core,Accessory,Weighted,Weight Plates,Erector Spinae|Gluteus Maximus,false,85,
 exrx_waist_weighted_hyperextension_45deg,Weighted Hyperextension (45°),Core,Accessory,Weighted,Weight Plates,Erector Spinae|Gluteus Maximus,false,85,
-exrx_waist_weighted_incline_crunch,Weighted Incline Crunch,Core,Accessory,Weighted,Weight Plates,Rectus Abdominis|Obliques,false,60,
 exrx_waist_weighted_incline_crunch_arms_crossed,Weighted Incline Crunch (arms crossed),Core,Accessory,Weighted,Weight Plates,Rectus Abdominis|Obliques,false,60,
-exrx_waist_weighted_incline_sit_up,Weighted Incline Sit-up,Core,Accessory,Weighted,Weight Plates,Rectus Abdominis|Obliques,false,60,
-exrx_waist_weighted_incline_sit_up_arms_crossed,Weighted Incline Sit-up (arms crossed),Core,Accessory,Weighted,Weight Plates,Rectus Abdominis|Obliques,false,60,
-exrx_waist_weighted_incline_twisting_crunch,Weighted Incline Twisting Crunch,Core,Accessory,Weighted,Weight Plates,Obliques|Rectus Abdominis,false,60,
-exrx_waist_weighted_incline_twisting_sit_up,Weighted Incline Twisting Sit-up,Core,Accessory,Weighted,Weight Plates,Obliques|Rectus Abdominis,false,60,
-exrx_waist_weighted_incline_twisting_sit_up_arms_crossed,Weighted Incline Twisting Sit-up (arms crossed),Core,Accessory,Weighted,Weight Plates,Obliques|Rectus Abdominis,false,60,
-exrx_waist_weighted_side_crunch,Weighted Side Crunch,Core,Accessory,Weighted,Weight Plates,Obliques|Rectus Abdominis,false,60,
-exrx_waist_weighted_sit_up,Weighted Sit-up,Core,Accessory,Weighted,Weight Plates,Rectus Abdominis|Obliques,false,60,
-exrx_waist_weighted_sit_up_arms_crossed,Weighted Sit-up (arms crossed),Core,Accessory,Weighted,Weight Plates,Rectus Abdominis|Obliques,false,60,
-exrx_waist_weighted_twisting_crunch,Weighted Twisting Crunch,Core,Accessory,Weighted,Weight Plates,Obliques|Rectus Abdominis,false,60,
-exrx_waist_weighted_twisting_crunch_on_ball,Weighted Twisting Crunch (on ball),Core,Accessory,Weighted,Weight Plates,Obliques|Rectus Abdominis,false,60,
-exrx_waist_weighted_twisting_sit_up,Weighted Twisting Sit-up,Core,Accessory,Weighted,Weight Plates,Obliques|Rectus Abdominis,false,60,
-exrx_waist_weighted_twisting_sit_up_arms_crossed,Weighted Twisting Sit-up (arms crossed),Core,Accessory,Weighted,Weight Plates,Obliques|Rectus Abdominis,false,60,
 band_hip_abduction,Band Standing / Seated Hip Abduction,Hips,Accessory,Band,Resistance Bands,Hip Abductors|Gluteus Maximus,false,60,glute_bridge
 glute_bridge,Barbell / Bodyweight Glute Bridge,Hips,Accessory,Barbell / Bodyweight,,Gluteus Maximus|Hamstrings,false,225,barbell_hip_thrust
-exrx_hips_barbell_bent_knee_good_morning,Barbell Bent Knee Good-morning,Hips,Compound,Barbell,Barbell,Gluteus Maximus|Hamstrings|Quadriceps,false,225,
-exrx_hips_barbell_deadlift,Barbell Deadlift,Hips,Compound,Barbell,Barbell,Gluteus Maximus|Hamstrings|Quadriceps,false,225,
-exrx_hips_barbell_front_squat,Barbell Front Squat,Hips,Compound,Barbell,Barbell,Gluteus Maximus|Hamstrings|Quadriceps,false,225,
 barbell_hip_thrust,Barbell Hip Thrust,Hips,Compound,Barbell,Barbell|Flat / Incline Bench|Weight Plates,Gluteus Maximus|Hamstrings,false,275,glute_bridge|barbell_deadlift
-exrx_hips_barbell_lunge,Barbell Lunge,Hips,Compound,Barbell,Barbell,Gluteus Maximus|Hamstrings|Quadriceps,false,225,
 exrx_hips_barbell_rear_lunge,Barbell Rear Lunge,Hips,Compound,Barbell,Barbell,Gluteus Maximus|Hamstrings|Quadriceps,false,225,
 exrx_hips_barbell_safety_squat,Barbell Safety Squat,Hips,Compound,Barbell,Barbell,Gluteus Maximus|Hamstrings|Quadriceps,false,225,
 exrx_hips_barbell_single_leg_split_squat,Barbell Single Leg Split Squat,Hips,Compound,Barbell,Barbell,Gluteus Maximus|Hamstrings|Quadriceps,false,225,
 exrx_hips_barbell_single_leg_squat,Barbell Single Leg Squat,Hips,Compound,Barbell,Barbell,Gluteus Maximus|Hamstrings|Quadriceps,false,225,
-exrx_hips_barbell_split_squat,Barbell Split Squat,Hips,Compound,Barbell,Barbell,Gluteus Maximus|Hamstrings|Quadriceps,false,225,
 exrx_hips_barbell_squat,Barbell Squat,Hips,Compound,Barbell,Barbell,Gluteus Maximus|Hamstrings|Quadriceps,false,225,
-exrx_hips_barbell_step_up,Barbell Step-up,Hips,Compound,Barbell,Barbell,Gluteus Maximus|Hamstrings|Quadriceps,false,225,
-exrx_hips_barbell_stiff_leg_deadlift,Barbell Stiff-leg Deadlift,Hips,Compound,Barbell,Barbell,Gluteus Maximus|Hamstrings|Quadriceps,false,225,
 exrx_hips_barbell_straight_back_stiff_leg_deadlift,Barbell Straight-back Stiff-leg Deadlift,Hips,Compound,Barbell,Barbell,Gluteus Maximus|Hamstrings|Quadriceps,false,225,
 barbell_sumo_deadlift,Barbell Sumo Deadlift,Hips,Compound,Barbell,Barbell|Weight Plates,Gluteus Maximus|Hip Adductors|Quadriceps|Hamstrings|Erector Spinae,false,345,barbell_deadlift|barbell_hip_thrust
 exrx_hips_stretch_bentover_lunging_iliopsoas_stretch,Bentover Lunging Iliopsoas Stretch,Hips,Accessory,Stretch,,Hip Flexors,false,25,
-exrx_hips_bodyweight_hanging_leg_raise,Bodyweight Hanging Leg Raise,Core,Accessory,Bodyweight,,Hip Flexors|Rectus Abdominis,false,50,
+exrx_hips_bodyweight_hanging_leg_raise,Hanging Leg Raise,Core,Accessory,Bodyweight / Weighted,,Hip Flexors|Rectus Abdominis,false,50,
 exrx_hips_bodyweight_hanging_straight_leg_raise,Bodyweight Hanging Straight Leg Raise,Core,Accessory,Bodyweight,,Hip Flexors|Rectus Abdominis,false,50,
-exrx_hips_bodyweight_incline_leg_raise,Bodyweight Incline Leg Raise,Hips,Accessory,Bodyweight,,Hip Flexors|Rectus Abdominis,false,50,
+exrx_hips_bodyweight_incline_leg_raise,Incline Leg Raise,Hips,Accessory,Bodyweight / Weighted,,Hip Flexors|Rectus Abdominis,false,50,
 exrx_hips_bodyweight_incline_straight_leg_raise,Bodyweight Incline Straight Leg Raise,Hips,Accessory,Bodyweight,,Hip Flexors|Rectus Abdominis,false,50,
 exrx_hips_bodyweight_lunge,Bodyweight Lunge,Hips,Accessory,Bodyweight,,Gluteus Maximus|Quadriceps|Hamstrings,false,115,
 exrx_hips_bodyweight_lying_leg_raise_on_floor,Bodyweight Lying Leg Raise (on floor),Hips,Accessory,Bodyweight,,Hip Flexors|Rectus Abdominis,false,50,
 exrx_hips_bodyweight_lying_straight_leg_raise,Bodyweight Lying Straight Leg Raise,Hips,Accessory,Bodyweight,,Hip Flexors|Rectus Abdominis,false,50,
 exrx_hips_bodyweight_rear_lunge,Bodyweight Rear Lunge,Hips,Accessory,Bodyweight,,Gluteus Maximus|Quadriceps|Hamstrings,false,115,
-exrx_hips_bodyweight_roman_chair_sit_up,Bodyweight Roman Chair Sit-up,Hips,Accessory,Bodyweight,,Hip Flexors|Rectus Abdominis,false,50,
+exrx_hips_bodyweight_roman_chair_sit_up,Roman Chair Sit-up,Hips,Accessory,Bodyweight / Weighted,,Hip Flexors|Rectus Abdominis,false,50,
 bodyweight_seated_leg_raise,Bodyweight Seated Hip Flexion Leg Lift,Hips,Accessory,Bodyweight,,Hip Flexors|Rectus Abdominis,false,45,hanging_leg_raises
-exrx_hips_bodyweight_seated_leg_raise,Bodyweight Seated Leg Raise,Hips,Accessory,Bodyweight,,Hip Flexors|Rectus Abdominis,false,50,
+exrx_hips_bodyweight_seated_leg_raise,Seated Leg Raise,Hips,Accessory,Bodyweight / Weighted,,Hip Flexors|Rectus Abdominis,false,50,
 exrx_hips_bodyweight_side_bridge_hip_abduction,Bodyweight Side Bridge Hip Abduction,Hips,Accessory,Bodyweight,,Hip Abductors,false,65,
 side_lying_hip_abduction,Bodyweight Side-Lying Hip Abduction,Hips,Accessory,Bodyweight,,Hip Abductors|Gluteus Maximus,false,65,band_hip_abduction
 exrx_hips_bodyweight_single_leg_box_squat_pistol,Bodyweight Single Leg Box Squat (Pistol),Hips,Accessory,Bodyweight,,Gluteus Maximus|Quadriceps|Hamstrings,false,115,
-exrx_hips_bodyweight_single_leg_split_squat,Bodyweight Single Leg Split Squat,Hips,Accessory,Bodyweight,,Gluteus Maximus|Quadriceps|Hamstrings,false,115,
-exrx_hips_bodyweight_single_leg_squat,Bodyweight Single Leg Squat,Hips,Accessory,Bodyweight,,Gluteus Maximus|Quadriceps|Hamstrings,false,115,
+exrx_hips_bodyweight_single_leg_squat,Single Leg Squat,Hips,Accessory,Bodyweight / Weighted,,Gluteus Maximus|Quadriceps|Hamstrings,false,115,
 exrx_hips_bodyweight_single_leg_stiff_leg_deadlift,Bodyweight Single Leg Stiff Leg Deadlift,Hips,Accessory,Bodyweight,,Gluteus Maximus|Quadriceps|Hamstrings,false,115,
 single_leg_hip_thrust,Bodyweight Single-Leg Hip Thrust,Hips,Compound,Bodyweight,,Gluteus Maximus|Hamstrings,false,135,glute_bridge
 exrx_hips_bodyweight_split_squat,Bodyweight Split Squat,Hips,Accessory,Bodyweight,,Gluteus Maximus|Quadriceps|Hamstrings,false,115,
-exrx_hips_bodyweight_squat,Bodyweight Squat,Hips,Accessory,Bodyweight,,Gluteus Maximus|Quadriceps|Hamstrings,false,115,
 exrx_hips_bodyweight_step_down,Bodyweight Step-down,Hips,Accessory,Bodyweight,,Gluteus Maximus|Quadriceps|Hamstrings,false,115,
 exrx_hips_bodyweight_step_up,Bodyweight Step-up,Hips,Accessory,Bodyweight,,Gluteus Maximus|Quadriceps|Hamstrings,false,115,
-exrx_hips_bodyweight_vertical_leg_raise_on_parallel_bars,Bodyweight Vertical Leg Raise (on parallel bars),Hips,Accessory,Bodyweight,,Hip Flexors|Rectus Abdominis,false,50,
-exrx_hips_bodyweight_vertical_straight_leg_raise,Bodyweight Vertical Straight Leg Raise,Hips,Accessory,Bodyweight,,Hip Flexors|Rectus Abdominis,false,50,
+exrx_hips_bodyweight_vertical_leg_raise_on_parallel_bars,Vertical Leg Raise (on parallel bars),Hips,Accessory,Bodyweight / Weighted,,Hip Flexors|Rectus Abdominis,false,50,
+exrx_hips_bodyweight_vertical_straight_leg_raise,Vertical Straight Leg Raise,Hips,Accessory,Bodyweight / Weighted,,Hip Flexors|Rectus Abdominis,false,50,
 exrx_hips_cable_bent_over_hip_extension,Cable Bent-over Hip Extension,Hips,Accessory,Cable,Cable Machine,Gluteus Maximus|Hamstrings,false,95,
 exrx_hips_cable_glute_kickback,Cable Glute Kickback,Hips,Accessory,Cable,Cable Machine,Gluteus Maximus|Hamstrings,false,95,
 exrx_hips_cable_hip_abduction,Cable Hip Abduction,Hips,Accessory,Cable,Cable Machine,Hip Abductors|Gluteus Maximus,false,55,
@@ -677,7 +638,6 @@ exrx_hips_cable_standing_hip_extension,Cable Standing Hip Extension,Hips,Accesso
 cable_hip_extension,Cable Standing Hip Extension (Glute Kickback),Hips,Accessory,Cable,Cable Machine,Gluteus Maximus|Hamstrings,false,65,glute_bridge
 exrx_hips_cable_standing_leg_raise,Cable Standing Leg Raise,Hips,Accessory,Cable,Cable Machine,Hip Flexors|Rectus Abdominis,false,55,
 exrx_hips_cable_step_up,Cable Step-up,Hips,Accessory,Cable,Cable Machine,Gluteus Maximus|Hamstrings,false,95,
-exrx_hips_cable_stiff_leg_deadlift,Cable Stiff-leg Deadlift,Hips,Accessory,Cable,Cable Machine,Gluteus Maximus|Hamstrings,false,95,
 exrx_hips_cable_straight_back_stiff_leg_deadlift,Cable Straight-back Stiff-leg Deadlift,Hips,Accessory,Cable,Cable Machine,Gluteus Maximus|Hamstrings,false,95,
 exrx_hips_cable_two_arms_rear_lunge,Cable Two Arms Rear Lunge,Hips,Accessory,Cable,Cable Machine,Gluteus Maximus|Hamstrings,false,95,
 exrx_hips_dumbbell_front_squat,Dumbbell Front Squat,Hips,Compound,Dumbbell,Dumbbell,Gluteus Maximus|Quadriceps|Hamstrings,false,145,
@@ -686,14 +646,12 @@ exrx_hips_dumbbell_lunge,Dumbbell Lunge,Hips,Compound,Dumbbell,Dumbbell,Gluteus 
 exrx_hips_dumbbell_lying_hip_abduction,Dumbbell Lying Hip Abduction,Hips,Accessory,Dumbbell,Dumbbell,Hip Abductors,false,45,
 exrx_hips_dumbbell_rear_lunge,Dumbbell Rear Lunge,Hips,Compound,Dumbbell,Dumbbell,Gluteus Maximus|Quadriceps|Hamstrings,false,145,
 exrx_hips_dumbbell_split_squat,Dumbbell Split Squat,Hips,Compound,Dumbbell,Dumbbell,Gluteus Maximus|Quadriceps|Hamstrings,false,145,
-exrx_hips_dumbbell_squat,Dumbbell Squat,Hips,Compound,Dumbbell,Dumbbell,Gluteus Maximus|Quadriceps|Hamstrings,false,145,
 exrx_hips_dumbbell_step_down,Dumbbell Step-down,Hips,Compound,Dumbbell,Dumbbell,Gluteus Maximus|Quadriceps|Hamstrings,false,145,
 dumbbell_step_up,Dumbbell Step-Up,Hips,Accessory,Dumbbell,Dumbbell|Flat / Incline Bench,Gluteus Maximus|Quadriceps|Hamstrings,false,125,reverse_lunge|split_squat
 exrx_hips_kettlebell_front_squat,Kettlebell Front Squat,Hips,Compound,Kettlebell,Kettlebells,Gluteus Maximus|Quadriceps,false,115,
 kettlebell_swing,Kettlebell Two-Arm Swing,Hips,Compound,Kettlebell,Kettlebells,Gluteus Maximus|Hamstrings|Erector Spinae|Deltoid - Anterior,false,115,barbell_hip_thrust|dumbbell_rdl
 exrx_hips_stretch_kneeling_iliopsoas_stretch,Kneeling Iliopsoas Stretch,Hips,Accessory,Stretch,,Hip Flexors,false,25,
 exrx_hips_lever_plate_loaded_45deg_leg_press,Lever (plate loaded) 45° Leg Press,Hips,Compound,Lever (plate loaded),Lever / Machine|Weight Plates,Gluteus Maximus|Quadriceps|Hamstrings,false,265,
-exrx_hips_lever_plate_loaded_deadlift,Lever (plate loaded) Deadlift,Hips,Compound,Lever (plate loaded),Lever / Machine|Weight Plates,Gluteus Maximus|Quadriceps|Hamstrings,false,265,
 exrx_hips_lever_plate_loaded_front_squat,Lever (plate loaded) Front Squat,Hips,Compound,Lever (plate loaded),Lever / Machine|Weight Plates,Gluteus Maximus|Quadriceps|Hamstrings,false,265,
 exrx_hips_lever_plate_loaded_lying_hip_extension,Lever (plate loaded) Lying Hip Extension,Hips,Compound,Lever (plate loaded),Lever / Machine|Weight Plates,Gluteus Maximus|Quadriceps|Hamstrings,false,265,
 exrx_hips_lever_plate_loaded_lying_leg_press,Lever (plate loaded) Lying Leg Press,Hips,Compound,Lever (plate loaded),Lever / Machine|Weight Plates,Gluteus Maximus|Quadriceps|Hamstrings,false,265,
@@ -704,7 +662,6 @@ exrx_hips_lever_plate_loaded_single_leg_split_squat,Lever (plate loaded) Single 
 exrx_hips_lever_plate_loaded_single_leg_squat,Lever (plate loaded) Single Leg Squat,Hips,Compound,Lever (plate loaded),Lever / Machine|Weight Plates,Gluteus Maximus|Quadriceps|Hamstrings,false,265,
 exrx_hips_lever_plate_loaded_split_squat,Lever (plate loaded) Split Squat,Hips,Compound,Lever (plate loaded),Lever / Machine|Weight Plates,Gluteus Maximus|Quadriceps|Hamstrings,false,265,
 exrx_hips_lever_plate_loaded_squat,Lever (plate loaded) Squat,Hips,Compound,Lever (plate loaded),Lever / Machine|Weight Plates,Gluteus Maximus|Quadriceps|Hamstrings,false,265,
-exrx_hips_lever_plate_loaded_stiff_leg_deadlift,Lever (plate loaded) Stiff-leg Deadlift,Hips,Compound,Lever (plate loaded),Lever / Machine|Weight Plates,Gluteus Maximus|Quadriceps|Hamstrings,false,265,
 exrx_hips_lever_plate_loaded_straight_back_stiff_leg_deadlift,Lever (plate loaded) Straight-back Stiff-leg Deadlift,Hips,Compound,Lever (plate loaded),Lever / Machine|Weight Plates,Gluteus Maximus|Quadriceps|Hamstrings,false,265,
 exrx_hips_lever_selectorized_bent_over_glute_kickback,Lever (selectorized) Bent-over Glute Kickback,Hips,Accessory,Lever (selectorized),Lever / Machine,Gluteus Maximus|Hamstrings,false,145,
 exrx_hips_lever_selectorized_bent_over_hip_extension,Lever (selectorized) Bent-over Hip Extension,Hips,Accessory,Lever (selectorized),Lever / Machine,Gluteus Maximus|Hamstrings,false,145,
@@ -744,11 +701,8 @@ exrx_hips_sled_lying_leg_press,Sled Lying Leg Press,Hips,Compound,Sled,Lever / M
 exrx_hips_sled_seated_leg_press,Sled Seated Leg Press,Hips,Compound,Sled,Lever / Machine,Gluteus Maximus|Quadriceps,false,295,
 exrx_hips_sled_squat,Sled Squat,Hips,Compound,Sled,Lever / Machine,Gluteus Maximus|Quadriceps,false,295,
 exrx_hips_sled_standing_glute_kickback,Sled Standing Glute Kickback,Hips,Compound,Sled,Lever / Machine,Gluteus Maximus|Quadriceps,false,295,
-exrx_hips_smith_bent_knee_good_morning,Smith Bent Knee Good-morning,Hips,Compound,Smith,Lever / Machine,Gluteus Maximus|Quadriceps|Hamstrings,false,225,
-exrx_hips_smith_deadlift,Smith Deadlift,Hips,Compound,Smith,Lever / Machine,Gluteus Maximus|Quadriceps|Hamstrings,false,225,
 exrx_hips_smith_rear_lunge,Smith Rear Lunge,Hips,Compound,Smith,Lever / Machine,Gluteus Maximus|Quadriceps|Hamstrings,false,225,
 exrx_hips_smith_squat,Smith Squat,Hips,Compound,Smith,Lever / Machine,Gluteus Maximus|Quadriceps|Hamstrings,false,225,
-exrx_hips_smith_stiff_leg_deadlift,Smith Stiff-leg Deadlift,Hips,Compound,Smith,Lever / Machine,Gluteus Maximus|Quadriceps|Hamstrings,false,225,
 exrx_hips_smith_straight_back_stiff_leg_deadlift,Smith Straight-back Stiff-leg Deadlift,Hips,Compound,Smith,Lever / Machine,Gluteus Maximus|Quadriceps|Hamstrings,false,225,
 exrx_hips_stretch_squatting_glute_stretch,Squatting Glute Stretch,Hips,Accessory,Stretch,,Gluteus Maximus,false,25,
 exrx_hips_stretch_standing_iliopsoas_stretch,Standing Iliopsoas Stretch,Hips,Accessory,Stretch,,Hip Flexors,false,25,
@@ -761,17 +715,9 @@ exrx_hips_suspended_single_leg_split_squat,Suspended Single Leg Split Squat,Hips
 exrx_hips_suspended_single_leg_squat,Suspended Single Leg Squat,Hips,Accessory,Suspended,Pull-Up Bar,Gluteus Maximus|Hamstrings,false,105,
 exrx_hips_stretch_wall_iliotibial_stretch,Wall Iliotibial Stretch,Hips,Accessory,Stretch,,Hip Abductors,false,25,
 exrx_hips_weighted_decline_sit_up,Weighted Decline Sit-up,Hips,Accessory,Weighted,Weight Plates,Hip Flexors|Rectus Abdominis,false,65,
-exrx_hips_weighted_hanging_leg_raise,Weighted Hanging Leg Raise,Core,Accessory,Weighted,Weight Plates,Hip Flexors|Rectus Abdominis,false,65,
-exrx_hips_weighted_incline_leg_raise,Weighted Incline Leg Raise,Hips,Accessory,Weighted,Weight Plates,Hip Flexors|Rectus Abdominis,false,65,
 exrx_hips_weighted_lying_hip_abduction,Weighted Lying Hip Abduction,Hips,Accessory,Weighted,Weight Plates,Hip Abductors,false,55,
 exrx_hips_weighted_lying_leg_raise,Weighted Lying Leg Raise,Hips,Accessory,Weighted,Weight Plates,Hip Flexors|Rectus Abdominis,false,65,
-exrx_hips_weighted_reverse_hyperextension,Weighted Reverse Hyperextension,Hips,Accessory,Weighted,Weight Plates,Gluteus Maximus|Hamstrings,false,135,
-exrx_hips_weighted_roman_chair_sit_up,Weighted Roman Chair Sit-up,Hips,Accessory,Weighted,Weight Plates,Hip Flexors|Rectus Abdominis,false,65,
-exrx_hips_weighted_seated_leg_raise,Weighted Seated Leg Raise,Hips,Accessory,Weighted,Weight Plates,Hip Flexors|Rectus Abdominis,false,65,
-exrx_hips_weighted_single_leg_squat,Weighted Single Leg Squat,Hips,Accessory,Weighted,Weight Plates,Gluteus Maximus|Hamstrings,false,135,
 exrx_hips_weighted_vertical_leg_raise,Weighted Vertical Leg Raise,Hips,Accessory,Weighted,Weight Plates,Hip Flexors|Rectus Abdominis,false,65,
-exrx_hips_weighted_vertical_leg_raise_on_parallel_bars,Weighted Vertical Leg Raise (on Parallel Bars),Hips,Accessory,Weighted,Weight Plates,Hip Flexors|Rectus Abdominis,false,65,
-exrx_hips_weighted_vertical_straight_leg_raise,Weighted Vertical Straight Leg Raise,Hips,Accessory,Weighted,Weight Plates,Hip Flexors|Rectus Abdominis,false,65,
 barbell_back_squat,Barbell Back Squat,Thighs,Compound,Barbell,Barbell|Squat Rack|Weight Plates,Quadriceps|Gluteus Maximus|Hip Adductors|Hamstrings|Erector Spinae,true,300,front_squat|split_squat|goblet_squat
 exrx_thighs_assisted_machine_inverse_leg_curl,Assisted Machine Inverse Leg Curl,Thighs,Accessory,Assisted Machine,Lever / Machine,Hamstrings,false,115,
 exrx_thighs_assisted_machine_reverse_nordic,Assisted Machine Reverse Nordic,Thighs,Accessory,Assisted Machine,Lever / Machine,Quadriceps|Gluteus Maximus,false,115,
@@ -780,30 +726,22 @@ exrx_thighs_band_assisted_reverse_nordic,Band-Assisted Reverse Nordic,Thighs,Acc
 front_squat,Barbell Front Squat,Thighs,Compound,Barbell,Barbell|Squat Rack|Weight Plates,Quadriceps|Gluteus Maximus|Rectus Abdominis|Erector Spinae,false,225,barbell_back_squat|goblet_squat
 exrx_thighs_barbell_glute_ham_raise,Barbell Glute-Ham Raise,Thighs,Compound,Barbell,Barbell,Hamstrings|Gluteus Maximus|Erector Spinae,false,195,
 barbell_good_morning,Barbell Good Morning,Thighs,Compound,Barbell,Barbell|Weight Plates,Hamstrings|Gluteus Maximus|Erector Spinae,false,155,barbell_rdl
-exrx_thighs_barbell_hyperextension,Barbell Hyperextension,Thighs,Compound,Barbell,Barbell,Hamstrings|Gluteus Maximus|Erector Spinae,false,195,
-exrx_thighs_barbell_hyperextension_45deg,Barbell Hyperextension (45°),Thighs,Compound,Barbell,Barbell,Hamstrings|Gluteus Maximus|Erector Spinae,false,195,
 barbell_jefferson_squat,Barbell Jefferson Squat,Thighs,Compound,Barbell,Barbell|Weight Plates,Quadriceps|Gluteus Maximus|Hip Adductors,false,225,barbell_back_squat
 barbell_lunge,Barbell Lunge,Thighs,Accessory,Barbell,Barbell|Weight Plates,Quadriceps|Gluteus Maximus|Hamstrings,false,165,reverse_lunge
 barbell_hack_squat,Barbell Rear Hack Squat,Thighs,Compound,Barbell,Barbell|Weight Plates,Quadriceps|Gluteus Maximus,false,235,barbell_back_squat
-exrx_thighs_barbell_rear_lunge,Barbell Rear Lunge,Thighs,Compound,Barbell,Barbell,Quadriceps|Gluteus Maximus|Hamstrings,false,225,
 barbell_rdl,Barbell Romanian Deadlift,Thighs,Compound,Barbell,Barbell|Weight Plates,Hamstrings|Gluteus Maximus|Erector Spinae,false,245,landmine_rdl|dumbbell_rdl|barbell_deadlift
-exrx_thighs_barbell_single_leg_split_squat,Barbell Single Leg Split Squat,Thighs,Compound,Barbell,Barbell,Quadriceps|Gluteus Maximus|Hamstrings,false,225,
-exrx_thighs_barbell_single_leg_squat,Barbell Single Leg Squat,Thighs,Compound,Barbell,Barbell,Quadriceps|Gluteus Maximus|Hamstrings,false,225,
 barbell_split_squat,Barbell Split Squat,Thighs,Compound,Barbell,Barbell|Squat Rack|Weight Plates,Quadriceps|Gluteus Maximus|Hamstrings,false,185,split_squat
-exrx_thighs_barbell_squat,Barbell Squat,Thighs,Compound,Barbell,Barbell,Quadriceps|Gluteus Maximus|Hamstrings,false,225,
 barbell_step_up,Barbell Step-Up,Thighs,Accessory,Barbell,Barbell|Flat / Incline Bench|Weight Plates,Quadriceps|Gluteus Maximus,false,155,dumbbell_step_up
 exrx_thighs_barbell_straight_back_straight_leg_deadlift,Barbell Straight-back Straight-leg Deadlift,Thighs,Compound,Barbell,Barbell,Hamstrings|Gluteus Maximus|Erector Spinae,false,195,
 barbell_straight_leg_deadlift,Barbell Straight-Leg Deadlift,Thighs,Compound,Barbell,Barbell|Weight Plates,Hamstrings|Gluteus Maximus|Erector Spinae,false,225,barbell_rdl
 zercher_squat,Barbell Zercher Squat,Thighs,Compound,Barbell,Barbell|Squat Rack|Weight Plates,Quadriceps|Gluteus Maximus|Erector Spinae|Biceps Brachii,false,215,front_squat|barbell_back_squat
-glute_ham_raise,Bodyweight Glute-Ham Raise,Thighs,Accessory,Bodyweight,,Hamstrings|Gluteus Maximus|Gastrocnemius,false,125,nordic_hamstring_curl
+glute_ham_raise,Glute-Ham Raise,Thighs,Accessory,Bodyweight / Weighted,,Hamstrings|Gluteus Maximus|Gastrocnemius,false,125,nordic_hamstring_curl
 exrx_thighs_bodyweight_glute_ham_raise_hands_behind_hips,Bodyweight Glute-Ham Raise (hands behind hips),Thighs,Accessory,Bodyweight,,Hamstrings|Gluteus Maximus,false,110,
 exrx_thighs_bodyweight_hyperextension_45deg_arms_crossed,"Bodyweight Hyperextension (45°, arms crossed)",Thighs,Accessory,Bodyweight,,Hamstrings|Gluteus Maximus,false,110,
 exrx_thighs_bodyweight_hyperextension_45deg_arms_up,"Bodyweight Hyperextension (45°, arms up)",Thighs,Accessory,Bodyweight,,Hamstrings|Gluteus Maximus,false,110,
 exrx_thighs_bodyweight_hyperextension_45deg_hands_behind_neck,"Bodyweight Hyperextension (45°, hands behind neck)",Thighs,Accessory,Bodyweight,,Hamstrings|Gluteus Maximus,false,110,
 exrx_thighs_bodyweight_hyperextension_45deg,Bodyweight Hyperextension (45°),Thighs,Accessory,Bodyweight,,Hamstrings|Gluteus Maximus,false,110,
 nordic_hamstring_curl,Bodyweight Inverse (Nordic) Leg Curl,Thighs,Accessory,Bodyweight,,Hamstrings,false,110,lying_leg_curl|dumbbell_rdl
-exrx_thighs_bodyweight_lunge,Bodyweight Lunge,Thighs,Accessory,Bodyweight,,Quadriceps|Gluteus Maximus,false,115,
-exrx_thighs_bodyweight_rear_lunge,Bodyweight Rear Lunge,Thighs,Accessory,Bodyweight,,Quadriceps|Gluteus Maximus,false,115,
 exrx_thighs_bodyweight_side_lying_hip_adduction,Bodyweight Side-Lying Hip Adduction,Thighs,Accessory,Bodyweight,,Hip Adductors,false,65,
 bodyweight_copenhagen_adduction,Bodyweight Side-Lying Hip Adduction (Copenhagen),Thighs,Accessory,Bodyweight,,Hip Adductors|Obliques,false,75,lever_seated_hip_adduction
 exrx_thighs_bodyweight_single_leg_box_squat,Bodyweight Single Leg Box Squat,Thighs,Accessory,Bodyweight,,Quadriceps|Gluteus Maximus,false,115,
@@ -813,55 +751,38 @@ exrx_thighs_bodyweight_single_leg_squat_pistol,Bodyweight Single Leg Squat (Pist
 pistol_squats,Bodyweight Single-Leg Pistol Squat,Thighs,Accessory,Bodyweight / Dumbbell,,Quadriceps|Gluteus Maximus|Calves,false,95,reverse_lunge|split_squat
 bodyweight_split_squat,Bodyweight Single-Leg Split Squat,Thighs,Compound,Bodyweight,,Quadriceps|Gluteus Maximus|Hamstrings,false,115,split_squat|pistol_squats
 bodyweight_sissy_squat,Bodyweight Sissy Squat,Thighs,Accessory,Bodyweight,,Quadriceps,false,95,leg_extension
-exrx_thighs_bodyweight_split_squat,Bodyweight Split Squat,Thighs,Accessory,Bodyweight,,Quadriceps|Gluteus Maximus,false,115,
 bodyweight_squat,Bodyweight Squat,Thighs,Compound,Bodyweight,,Quadriceps|Gluteus Maximus|Hamstrings,false,135,pistol_squats|goblet_squat
-exrx_thighs_bodyweight_step_down,Bodyweight Step-down,Thighs,Accessory,Bodyweight,,Quadriceps|Gluteus Maximus,false,115,
-exrx_thighs_bodyweight_step_up,Bodyweight Step-up,Thighs,Accessory,Bodyweight,,Quadriceps|Gluteus Maximus,false,115,
 exrx_thighs_bodyweight_straight_hip_leg_curl_on_ball,Bodyweight Straight Hip Leg Curl (on ball),Thighs,Accessory,Bodyweight,,Hamstrings|Gluteus Maximus,false,110,
 bodyweight_lunge,Bodyweight Walking / Forward Lunge,Thighs,Accessory,Bodyweight,,Quadriceps|Gluteus Maximus,false,115,reverse_lunge
 exrx_thighs_cable_hip_adduction,Cable Hip Adduction,Thighs,Accessory,Cable,Cable Machine,Hip Adductors,false,55,
 exrx_thighs_cable_lying_leg_curl,Cable Lying Leg Curl,Thighs,Accessory,Cable,Cable Machine,Hamstrings,false,95,
-exrx_thighs_cable_rear_lunge,Cable Rear Lunge,Thighs,Accessory,Cable,Cable Machine,Quadriceps|Gluteus Maximus,false,115,
 exrx_thighs_cable_split_squat,Cable Split Squat,Thighs,Accessory,Cable,Cable Machine,Quadriceps|Gluteus Maximus,false,115,
-exrx_thighs_cable_squat,Cable Squat,Thighs,Accessory,Cable,Cable Machine,Quadriceps|Gluteus Maximus,false,115,
 cable_hip_adduction,Cable Standing Hip Adduction,Thighs,Accessory,Cable,Cable Machine,Hip Adductors,false,55,lever_seated_hip_adduction
 exrx_thighs_cable_standing_leg_curl,Cable Standing Leg Curl,Thighs,Accessory,Cable,Cable Machine,Hamstrings,false,95,
 exrx_thighs_cable_step_down,Cable Step-down,Thighs,Accessory,Cable,Cable Machine,Quadriceps|Gluteus Maximus,false,115,
-exrx_thighs_cable_step_up,Cable Step-up,Thighs,Accessory,Cable,Cable Machine,Quadriceps|Gluteus Maximus,false,115,
 exrx_thighs_cable_straight_back_straight_leg_deadlift,Cable Straight-back Straight-leg Deadlift,Thighs,Accessory,Cable,Cable Machine,Hamstrings,false,95,
-exrx_thighs_dumbbell_front_squat,Dumbbell Front Squat,Thighs,Compound,Dumbbell,Dumbbell,Quadriceps|Gluteus Maximus,false,145,
 goblet_squat,Dumbbell Goblet Squat,Thighs,Compound,Dumbbell,Dumbbell,Quadriceps|Gluteus Maximus,false,120,front_squat|split_squat
-exrx_thighs_dumbbell_lunge,Dumbbell Lunge,Thighs,Compound,Dumbbell,Dumbbell,Quadriceps|Gluteus Maximus,false,145,
 reverse_lunge,Dumbbell Lunge / Reverse Lunge,Thighs,Accessory,Dumbbell / Barbell,Dumbbell,Quadriceps|Gluteus Maximus|Hamstrings,false,135,split_squat|pistol_squats
-exrx_thighs_dumbbell_rear_lunge,Dumbbell Rear Lunge,Thighs,Compound,Dumbbell,Dumbbell,Quadriceps|Gluteus Maximus,false,145,
 dumbbell_rdl,Dumbbell Romanian Deadlift,Thighs,Compound,Dumbbell,Dumbbell,Hamstrings|Gluteus Maximus|Erector Spinae,false,175,landmine_rdl|barbell_rdl
 dumbbell_side_lunge,Dumbbell Side Lunge,Thighs,Accessory,Dumbbell,Dumbbell,Quadriceps|Hip Adductors|Gluteus Maximus,false,115,reverse_lunge
 split_squat,Dumbbell Single-Leg (Bulgarian) Split Squat,Thighs,Compound,Dumbbell / Barbell,Dumbbell,Quadriceps|Gluteus Maximus|Hamstrings,false,155,reverse_lunge|barbell_back_squat
-exrx_thighs_dumbbell_split_squat,Dumbbell Split Squat,Thighs,Compound,Dumbbell,Dumbbell,Quadriceps|Gluteus Maximus,false,145,
 dumbbell_squat,Dumbbell Squat,Thighs,Compound,Dumbbell,Dumbbell,Quadriceps|Gluteus Maximus,false,150,goblet_squat
-exrx_thighs_dumbbell_step_down,Dumbbell Step-down,Thighs,Compound,Dumbbell,Dumbbell,Quadriceps|Gluteus Maximus,false,145,
-exrx_thighs_dumbbell_step_up,Dumbbell Step-up,Thighs,Compound,Dumbbell,Dumbbell,Quadriceps|Gluteus Maximus,false,145,
 exrx_thighs_dumbbell_straight_back_straight_leg_deadlift,Dumbbell Straight-back Straight-leg Deadlift,Thighs,Compound,Dumbbell,Dumbbell,Hamstrings|Gluteus Maximus,false,165,
 dumbbell_straight_leg_deadlift,Dumbbell Straight-Leg Deadlift,Thighs,Accessory,Dumbbell,Dumbbell,Hamstrings|Gluteus Maximus|Erector Spinae,false,165,dumbbell_rdl
 exrx_thighs_stretch_dynamic_soldier_kick_stretch,Dynamic Soldier Kick Stretch,Thighs,Accessory,Stretch,,Hamstrings,false,25,
 exrx_thighs_stretch_dynamic_walking_quadriceps_stretch,Dynamic Walking Quadriceps Stretch,Thighs,Accessory,Stretch,,Quadriceps,false,25,
-exrx_thighs_kettlebell_front_squat,Kettlebell Front Squat,Thighs,Compound,Kettlebell,Kettlebells,Quadriceps|Gluteus Maximus,false,115,
 kettlebell_goblet_squat,Kettlebell Goblet Squat,Thighs,Compound,Kettlebell,Kettlebells,Quadriceps|Gluteus Maximus,false,105,goblet_squat
 exrx_thighs_stretch_kneeling_adductor_magnus_stretch,Kneeling Adductor Magnus Stretch,Thighs,Accessory,Stretch,,Hip Adductors,false,25,
 exrx_thighs_stretch_kneeling_quadriceps_stretch,Kneeling Quadriceps Stretch,Thighs,Accessory,Stretch,,Quadriceps,false,25,
 landmine_rdl,Landmine Romanian Deadlift,Thighs,Compound,Landmine / Barbell,Landmine|Barbell|Weight Plates,Hamstrings|Gluteus Maximus|Erector Spinae,false,215,barbell_rdl|dumbbell_rdl
-exrx_thighs_lever_plate_loaded_45deg_leg_press,Lever (plate loaded) 45° Leg Press,Thighs,Compound,Lever (plate loaded),Lever / Machine|Weight Plates,Quadriceps|Gluteus Maximus,false,275,
 exrx_thighs_lever_plate_loaded_barbell_machine_squat,Lever (plate loaded) Barbell Machine Squat,Thighs,Compound,Lever (plate loaded),Lever / Machine|Weight Plates,Quadriceps|Gluteus Maximus,false,275,
 exrx_thighs_lever_plate_loaded_kneeling_leg_curl,Lever (plate loaded) Kneeling Leg Curl,Thighs,Accessory,Lever (plate loaded),Lever / Machine|Weight Plates,Hamstrings|Gastrocnemius,false,135,
 exrx_thighs_lever_plate_loaded_leg_extension,Lever (plate loaded) Leg Extension,Thighs,Compound,Lever (plate loaded),Lever / Machine|Weight Plates,Quadriceps|Gluteus Maximus,false,275,
 exrx_thighs_lever_plate_loaded_lying_leg_curl_isolateral,Lever (plate loaded) Lying Leg Curl [Isolateral],Thighs,Accessory,Lever (plate loaded),Lever / Machine|Weight Plates,Hamstrings|Gastrocnemius,false,135,
-exrx_thighs_lever_plate_loaded_lying_leg_press,Lever (plate loaded) Lying Leg Press,Thighs,Compound,Lever (plate loaded),Lever / Machine|Weight Plates,Quadriceps|Gluteus Maximus,false,275,
 exrx_thighs_lever_plate_loaded_seated_hip_adduction,Lever (plate loaded) Seated Hip Adduction,Thighs,Accessory,Lever (plate loaded),Lever / Machine|Weight Plates,Hip Adductors,false,135,
 exrx_thighs_lever_plate_loaded_seated_leg_curl,Lever (plate loaded) Seated Leg Curl,Thighs,Accessory,Lever (plate loaded),Lever / Machine|Weight Plates,Hamstrings|Gastrocnemius,false,135,
 exrx_thighs_lever_plate_loaded_seated_leg_press,Lever (plate loaded) Seated Leg Press,Thighs,Compound,Lever (plate loaded),Lever / Machine|Weight Plates,Quadriceps|Gluteus Maximus,false,275,
 exrx_thighs_lever_plate_loaded_single_leg_squat_plate_loaded,Lever (plate loaded) Single Leg Squat (plate loaded),Thighs,Compound,Lever (plate loaded),Lever / Machine|Weight Plates,Quadriceps|Gluteus Maximus,false,275,
-exrx_thighs_lever_plate_loaded_split_squat,Lever (plate loaded) Split Squat,Thighs,Compound,Lever (plate loaded),Lever / Machine|Weight Plates,Quadriceps|Gluteus Maximus,false,275,
-exrx_thighs_lever_plate_loaded_squat,Lever (plate loaded) Squat,Thighs,Compound,Lever (plate loaded),Lever / Machine|Weight Plates,Quadriceps|Gluteus Maximus,false,275,
 exrx_thighs_lever_plate_loaded_straight_back_straight_leg_deadlift,Lever (plate loaded) Straight-back Straight-leg Deadlift,Thighs,Accessory,Lever (plate loaded),Lever / Machine|Weight Plates,Hamstrings|Gastrocnemius,false,135,
 exrx_thighs_lever_selectorized_bent_over_leg_curl,Lever (selectorized) Bent-over Leg Curl,Thighs,Accessory,Lever (selectorized),Lever / Machine,Hamstrings|Gastrocnemius,false,135,
 exrx_thighs_lever_selectorized_kneeling_leg_curl,Lever (selectorized) Kneeling Leg Curl,Thighs,Accessory,Lever (selectorized),Lever / Machine,Hamstrings|Gastrocnemius,false,135,
@@ -869,11 +790,8 @@ exrx_thighs_lever_selectorized_leg_extension,Lever (selectorized) Leg Extension,
 exrx_thighs_lever_selectorized_lying_leg_curl,Lever (selectorized) Lying Leg Curl,Thighs,Accessory,Lever (selectorized),Lever / Machine,Hamstrings|Gastrocnemius,false,135,
 exrx_thighs_lever_selectorized_seated_hip_adduction,Lever (selectorized) Seated Hip Adduction,Thighs,Accessory,Lever (selectorized),Lever / Machine,Hip Adductors,false,135,
 exrx_thighs_lever_selectorized_seated_leg_curl,Lever (selectorized) Seated Leg Curl,Thighs,Accessory,Lever (selectorized),Lever / Machine,Hamstrings|Gastrocnemius,false,135,
-exrx_thighs_lever_selectorized_seated_leg_press,Lever (selectorized) Seated Leg Press,Thighs,Compound,Lever (selectorized),Lever / Machine,Quadriceps|Gluteus Maximus,false,225,
-exrx_thighs_lever_selectorized_squat,Lever (selectorized) Squat,Thighs,Compound,Lever (selectorized),Lever / Machine,Quadriceps|Gluteus Maximus,false,225,
 exrx_thighs_lever_selectorized_standing_hip_adduction,Lever (selectorized) Standing Hip Adduction,Thighs,Accessory,Lever (selectorized),Lever / Machine,Hip Adductors,false,135,
 exrx_thighs_lever_selectorized_standing_leg_curl,Lever (selectorized) Standing Leg Curl,Thighs,Accessory,Lever (selectorized),Lever / Machine,Hamstrings|Gastrocnemius,false,135,
-exrx_thighs_lever_selectorized_v_squat,Lever (selectorized) V-Squat,Thighs,Compound,Lever (selectorized),Lever / Machine,Quadriceps|Gluteus Maximus,false,225,
 exrx_thighs_stretch_lever_groin_stretch,Lever Groin Stretch,Thighs,Accessory,Stretch,,Hip Adductors,false,25,
 exrx_thighs_stretch_lever_hamstring_stretch,Lever Hamstring Stretch,Thighs,Accessory,Stretch,,Hamstrings,false,25,
 standing_leg_curl,Lever Kneeling / Standing Single-Leg Curl,Thighs,Accessory,Lever / Machine,Lever / Machine,Hamstrings,false,75,lying_leg_curl
@@ -895,33 +813,20 @@ exrx_thighs_stretch_seated_hamstring_stretch,Seated Hamstring Stretch,Thighs,Acc
 exrx_thighs_stretch_seated_single_leg_adductor_magnus_stretch,Seated Single Leg Adductor Magnus Stretch,Thighs,Accessory,Stretch,,Hip Adductors,false,25,
 exrx_thighs_stretch_seated_single_leg_hamstring_stretch_bench,Seated Single Leg Hamstring Stretch (Bench),Thighs,Accessory,Stretch,,Hamstrings,false,25,
 exrx_thighs_self_assisted_inverse_leg_curl,Self-Assisted Inverse Leg Curl,Thighs,Accessory,Self-Assisted,,Hamstrings,false,95,
-exrx_thighs_self_assisted_single_leg_squat_leg_wrapped,Self-Assisted Single Leg Squat (leg wrapped),Thighs,Accessory,Self-Assisted,,Quadriceps|Gluteus Maximus,false,95,
 exrx_thighs_self_assisted_squat,Self-Assisted Squat,Thighs,Accessory,Self-Assisted,,Quadriceps|Gluteus Maximus,false,95,
-exrx_thighs_self_assisted_step_down,Self-Assisted Step-down,Thighs,Accessory,Self-Assisted,,Quadriceps|Gluteus Maximus,false,95,
 exrx_thighs_stretch_side_lunge_groin_stretch,Side Lunge Groin Stretch,Thighs,Accessory,Stretch,,Hip Adductors,false,25,
 sled_leg_press,Sled 45° Leg Press,Thighs,Compound,Lever / Machine,Lever / Machine|Weight Plates,Quadriceps|Gluteus Maximus|Hamstrings,false,405,barbell_back_squat
 sled_hack_squat,Sled Hack Squat,Thighs,Compound,Lever / Machine,Lever / Machine|Weight Plates,Quadriceps|Gluteus Maximus,false,295,front_squat
-exrx_thighs_sled_lying_leg_press,Sled Lying Leg Press,Thighs,Compound,Sled,Lever / Machine,Quadriceps|Gluteus Maximus,false,315,
-exrx_thighs_sled_seated_leg_press,Sled Seated Leg Press,Thighs,Compound,Sled,Lever / Machine,Quadriceps|Gluteus Maximus,false,315,
-exrx_thighs_sled_squat,Sled Squat,Thighs,Compound,Sled,Lever / Machine,Quadriceps|Gluteus Maximus,false,315,
 exrx_thighs_smith_good_morning,Smith Good-morning,Thighs,Compound,Smith,Lever / Machine,Hamstrings|Gluteus Maximus,false,195,
 smith_squat,Smith Machine Squat,Thighs,Compound,Lever / Machine,Lever / Machine,Quadriceps|Gluteus Maximus,false,255,barbell_back_squat
-exrx_thighs_smith_rear_lunge,Smith Rear Lunge,Thighs,Compound,Smith,Lever / Machine,Quadriceps|Gluteus Maximus,false,235,
-exrx_thighs_smith_squat,Smith Squat,Thighs,Compound,Smith,Lever / Machine,Quadriceps|Gluteus Maximus,false,235,
 exrx_thighs_smith_straight_back_straight_leg_deadlift,Smith Straight-back Straight-leg Deadlift,Thighs,Compound,Smith,Lever / Machine,Hamstrings|Gluteus Maximus,false,195,
 exrx_thighs_stretch_standing_hamstring_stretch,Standing Hamstring Stretch,Thighs,Accessory,Stretch,,Hamstrings,false,25,
 exrx_thighs_stretch_standing_quadriceps_stretch,Standing Quadriceps Stretch,Thighs,Accessory,Stretch,,Quadriceps,false,25,
 exrx_thighs_suspended_hanging_leg_curl,Suspended Hanging Leg Curl,Thighs,Accessory,Suspended,Pull-Up Bar,Hamstrings,false,95,
 exrx_thighs_suspended_hanging_straight_hip_leg_curl,Suspended Hanging Straight Hip Leg Curl,Thighs,Accessory,Suspended,Pull-Up Bar,Hamstrings,false,95,
 exrx_thighs_suspended_leg_curl,Suspended Leg Curl,Thighs,Accessory,Suspended,Pull-Up Bar,Hamstrings,false,95,
-exrx_thighs_suspended_single_leg_split_squat,Suspended Single Leg Split Squat,Thighs,Accessory,Suspended,Pull-Up Bar,Quadriceps|Gluteus Maximus,false,105,
-exrx_thighs_suspended_single_leg_squat,Suspended Single Leg Squat,Thighs,Accessory,Suspended,Pull-Up Bar,Quadriceps|Gluteus Maximus,false,105,
 exrx_thighs_suspended_straight_hip_leg_curl,Suspended Straight Hip Leg Curl,Thighs,Accessory,Suspended,Pull-Up Bar,Hamstrings,false,95,
-exrx_thighs_weighted_glute_ham_raise,Weighted Glute-Ham Raise,Thighs,Accessory,Weighted,Weight Plates,Hamstrings|Gluteus Maximus,false,125,
-exrx_thighs_weighted_hyperextension,Weighted Hyperextension,Thighs,Accessory,Weighted,Weight Plates,Hamstrings|Gluteus Maximus,false,125,
-exrx_thighs_weighted_hyperextension_45deg,Weighted Hyperextension (45°),Thighs,Accessory,Weighted,Weight Plates,Hamstrings|Gluteus Maximus,false,125,
 exrx_thighs_weighted_lying_hip_adduction,Weighted Lying Hip Adduction,Thighs,Accessory,Weighted,Weight Plates,Hip Adductors,false,55,
-exrx_thighs_weighted_single_leg_squat,Weighted Single Leg Squat,Thighs,Compound,Weighted,Weight Plates,Quadriceps|Gluteus Maximus,false,145,
 exrx_calves_barbell_safety_bar_reverse_calf_raise,Barbell Safety Bar Reverse Calf Raise,Calves,Accessory,Barbell,Barbell,Tibialis Anterior,false,95,
 seated_calf_raise,Barbell Seated Calf Raise,Calves,Accessory,Barbell / Dumbbell,Barbell|Flat / Incline Bench,Soleus|Gastrocnemius,false,175,standing_calf_raise
 standing_calf_raise,Barbell Standing Calf Raise,Calves,Compound,Barbell / Dumbbell,Barbell,Gastrocnemius|Soleus,false,225,dumbbell_calf_raise|seated_calf_raise
@@ -940,7 +845,7 @@ exrx_calves_dumbbell_reverse_calf_raise,Dumbbell Reverse Calf Raise,Calves,Acces
 dumbbell_seated_calf_raise,Dumbbell Seated Calf Raise,Calves,Accessory,Dumbbell,Dumbbell|Flat / Incline Bench,Soleus|Gastrocnemius,false,145,seated_calf_raise
 exrx_calves_dumbbell_single_leg_reverse_calf_raise,Dumbbell Single Leg Reverse Calf Raise,Calves,Accessory,Dumbbell,Dumbbell,Tibialis Anterior,false,75,
 exrx_calves_dumbbell_single_leg_standing_calf_raise,Dumbbell Single Leg Standing Calf Raise,Calves,Compound,Dumbbell,Dumbbell,Gastrocnemius|Soleus,false,165,
-dumbbell_calf_raise,Dumbbell Single-Leg Calf Raise,Calves,Accessory,Dumbbell / Bodyweight,Dumbbell,Gastrocnemius|Soleus,false,115,standing_calf_raise
+dumbbell_calf_raise,Dumbbell Single-Leg Calf Raise,Calves,Accessory,Dumbbell / Bodyweight / Weighted,Dumbbell,Gastrocnemius|Soleus,false,115,standing_calf_raise
 dumbbell_standing_calf_raise,Dumbbell Standing Calf Raise,Calves,Compound,Dumbbell,Dumbbell,Gastrocnemius|Soleus,false,165,standing_calf_raise
 exrx_calves_stretch_floor_board_calf_stretch,Floor Board Calf Stretch,Calves,Accessory,Stretch,,Gastrocnemius|Soleus,false,25,
 exrx_calves_stretch_floor_board_soleus_stretch,Floor Board Soleus Stretch,Calves,Accessory,Stretch,,Soleus,false,25,
@@ -991,7 +896,6 @@ exrx_calves_stretch_step_soleus_stretch,Step Soleus Stretch,Calves,Accessory,Str
 exrx_calves_suspended_single_leg_forward_angled_calf_raise,Suspended Single Leg Forward Angled Calf Raise,Calves,Accessory,Suspended,Pull-Up Bar,Gastrocnemius|Soleus,false,105,
 exrx_calves_stretch_wall_calf_stretch,Wall Calf Stretch,Calves,Accessory,Stretch,,Gastrocnemius|Soleus,false,25,
 exrx_calves_stretch_wall_soleus_stretch,Wall Soleus Stretch,Calves,Accessory,Stretch,,Soleus,false,25,
-exrx_calves_weighted_single_leg_calf_raise,Weighted Single Leg Calf Raise,Calves,Accessory,Weighted,Weight Plates,Gastrocnemius|Soleus,false,145,
 barbell_thruster,Barbell Thruster,Thighs,Compound,Barbell,Barbell|Weight Plates,Quadriceps|Gluteus Maximus|Rectus Abdominis|Erector Spinae|Deltoid - Anterior|Deltoid - Lateral|Triceps Brachii|Trapezius - Upper|Serratus Anterior,false,155,dumbbell_thruster|front_squat|overhead_press
 dumbbell_thruster,Dumbbell Thruster,Thighs,Compound,Dumbbell,Dumbbell,Quadriceps|Gluteus Maximus|Rectus Abdominis|Erector Spinae|Deltoid - Anterior|Deltoid - Lateral|Triceps Brachii|Trapezius - Upper|Serratus Anterior,false,100,barbell_thruster|front_squat|dumbbell_shoulder_press
 dumbbell_single_leg_rdl,Dumbbell Single-Leg Romanian Deadlift,Thighs,Compound,Dumbbell / Kettlebell,Dumbbell,Hamstrings|Gluteus Maximus|Hip Abductors|Erector Spinae|Obliques,false,75,barbell_single_leg_rdl|dumbbell_rdl|exrx_hips_bodyweight_single_leg_stiff_leg_deadlift

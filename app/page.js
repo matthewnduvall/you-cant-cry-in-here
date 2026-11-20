@@ -594,8 +594,21 @@ export default function App() {
     handleChangeProgramDay,
     handleToggleSetLock,
     handleToggleSetDone,
-    handleChangeGymSelection
+    handleChangeGymSelection,
+    refreshAutoProgramWeek
   } = useWorkoutMutations(mutationArgs);
+
+  // The live session follows its program's automatic week / day as History arrives or changes (a session opened
+  // before History synced, or kept open into a new week, kept "Week 1"); not once a set is done, a week or day was
+  // picked by hand, or the session is synced with a friend
+  const refreshAutoProgramWeekRef = useRef(refreshAutoProgramWeek);
+  useEffect(() => {
+    refreshAutoProgramWeekRef.current = refreshAutoProgramWeek;
+  });
+  const autoWeekSessionId = activeSession?.syncId ? null : activeSession?.id || null;
+  useEffect(() => {
+    if (autoWeekSessionId) refreshAutoProgramWeekRef.current?.();
+  }, [autoWeekSessionId, history, programCycleStart, programSchedules]);
 
   // Each exercise's edits go to the copy for the tab it has open (yours, or the friend's on their tab)
   const mutationsForSlot = slotId => (isPartnerSlot(slotId) ? partnerMutations : null);
@@ -860,6 +873,18 @@ export default function App() {
       'START loads it as your session: their weights are dropped and each set is worked out from YOUR 1RM at its reps and effort.'
     ], `preview_${workout.id}`);
   };
+  // A friend's workout preview reads THEIR History (LAST / NOW / PR, PR badges, the weight pop-up), as it stood that
+  // day, so it shows what they see on their own copy; null otherwise
+  const previewOfFriend = currentView === 'routine_preview' ? previewRoutineDraft?.previewOf : null;
+  const previewFriend =
+    previewOfFriend?.kind === 'friend_workout'
+      ? (friendsList || []).find(f => (previewOfFriend.friendId && f?.id === previewOfFriend.friendId) || f?.username === previewOfFriend.friendName)
+      : null;
+  // (the workout itself carries the preview's id, so LAST is the session before it and PR includes it, as on theirs)
+  const previewFriendHistory =
+    previewOfFriend?.kind === 'friend_workout'
+      ? (previewFriend?.history || []).map(w => (w?.id && w.id === previewOfFriend.workout?.id ? { ...w, id: `preview_${w.id}` } : w))
+      : null;
   const handleLoadFriendWorkout = (workout, friendName) => {
     const load = () =>
       handleDirectLoadRoutine(
@@ -950,6 +975,15 @@ export default function App() {
   const handleStartPost = post => {
     const p = post?.payload || {};
     const friendName = post?.username || 'friend';
+    // Your own post: START / LOAD makes it your session (your logged copy when you have it), at your weights
+    if (user && post?.user_id === user.id) {
+      const own = post.kind === 'workout' ? (history || []).find(w => w?.id === post.ref_id) : null;
+      const slots = own?.slots || p.slots || [];
+      confirmReplaceSession(p.title || own?.title || 'this workout', () =>
+        handleDirectLoadRoutine({ key: `feed_${post.id}`, label: stripDateFromTitle(own?.title || p.title || 'Workout'), slots }, 'session')
+      );
+      return;
+    }
     if (post?.kind === 'workout') {
       const logged = (friendsList || []).find(f => f?.id === post.user_id)?.history?.find(w => w?.id === post.ref_id);
       openFriendWorkoutPreview(
@@ -1316,7 +1350,8 @@ export default function App() {
               selectedGymId={selectedGymId}
               setSelectedGymId={handleChangeGymSelection}
               gyms={gyms}
-              history={history}
+              history={previewFriendHistory || history}
+              onOpenHistoryWorkout={openHistoryWorkout}
               oneRepMaxes={effectiveOneRepMaxes}
               currentIncrementLbs={currentIncrementLbs}
               setHistoricalDraft={setHistoricalDraft}

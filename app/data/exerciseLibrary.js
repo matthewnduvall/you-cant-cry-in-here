@@ -6,6 +6,7 @@
 
 import exercisesCsvText from './exercises.csv';
 import { getExerciseVariation } from './exerciseVariations';
+import { DUPLICATE_EXERCISE_ALIASES, DUPLICATE_EXERCISE_IDS } from './exerciseDuplicates';
 
 export const GYM_EQUIPMENT_OPTIONS = [
   'Barbell',
@@ -241,6 +242,8 @@ export const EXERCISE_NAME_ALIASES = {
   dumbbell_standing_hip_abduction: ['Dumbbell Hip Abduction', 'Dumbbell Hip Abductions Standing', 'DB Standing Hip Abduction', 'DB Hip Abduction'],
   bear_plank_shoulder_tap: ['Bear Plank Shoulder Taps', 'Bear Shoulder Tap', 'Bear Plank Shoulder Tap'],
   dumbbell_floor_press: ['DB Floor Press', 'Dumbbell Floor Presses'],
+  tricep_skullcrusher: ['Skullcrusher', 'Skullcrushers', 'Skull Crusher', 'Skull Crushers', 'EZ Bar Skullcrusher', 'Barbell Skullcrusher'],
+  dumbbell_lying_tricep_extension: ['Dumbbell Skullcrusher', 'Dumbbell Skullcrushers', 'Dumbbell Skull Crusher', 'DB Skullcrusher', 'DB Skull Crusher', 'DB Skullcrushers'],
   plank_shoulder_tap: ['Plank Shoulder Tap', 'Plank Shoulder Taps', 'Shoulder Taps', 'High Plank Shoulder Tap'],
   // A dumbbell RDL that finishes with an upright pull to the chest
   dumbbell_rdl_high_pull: ['Dumbbell RDL High Pull', 'DB RDL High Pull', 'RDL High Pull', 'RDL to High Pull', 'Dumbbell RDL to High Pull', 'DB High Pull', 'High Pull'],
@@ -336,7 +339,7 @@ export const parseExercisesCsv = rawCsv => {
       // Other body parts it trains as much (muscle filters and the stimulus map count them too)
       secondaryMuscleGroups: SECONDARY_MUSCLE_GROUPS[id] || [],
       // Other names it goes by (search + .csv import)
-      aliases: EXERCISE_NAME_ALIASES[id] || [],
+      aliases: [...(EXERCISE_NAME_ALIASES[id] || []), ...(DUPLICATE_EXERCISE_ALIASES[id] || [])],
       specificMuscles,
       isPriority,
       default1RM,
@@ -369,7 +372,9 @@ export const MERGED_EXERCISE_IDS = {
   exrx_back_band_assisted_chin_up: { id: 'chin_ups', equipment: 'Band-Assisted' },
   exrx_back_weighted_parallel_close_grip_pull_up: { id: 'exrx_back_bodyweight_parallel_close_grip_pull_up', equipment: 'Weighted' },
   exrx_back_band_assisted_parallel_grip_pull_up: { id: 'exrx_back_bodyweight_parallel_close_grip_pull_up', equipment: 'Band-Assisted' },
-  exrx_back_band_assisted_archer_pull_up: { id: 'exrx_back_bodyweight_archer_pull_up', equipment: 'Band-Assisted' }
+  exrx_back_band_assisted_archer_pull_up: { id: 'exrx_back_bodyweight_archer_pull_up', equipment: 'Band-Assisted' },
+  // Duplicates merged 2026/11: the same movement under a second body part, or a Weighted copy of a bodyweight one
+  ...DUPLICATE_EXERCISE_IDS
 };
 
 export const EXERCISE_MAP = Object.fromEntries(EXERCISE_LIBRARY.map(ex => [ex.id, ex]));
