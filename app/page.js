@@ -4,7 +4,7 @@ import { FormulaConsole } from './components/FormulaConsole';
 import { getProgram, getWorkoutProgramInfo } from './data/programs';
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { IOS_DARK, KINETIC_CSS } from './styles/kineticTokens';
-import { getIncrementInLbs, getInitial1RMs, asHistoricalWorkout, withAutoSessionName, setEngineBodyweight } from './utils/workoutEngine';
+import { getIncrementInLbs, getInitial1RMs, asHistoricalWorkout, withAutoSessionName, setEngineFatigue, setEngineBodyweight } from './utils/workoutEngine';
 import { fetchAthleteProfileSnapshot, signOutUser } from './utils/supabaseAuth';
 import { AppHeaderAndDrawer, PageTitle } from './components/AppHeaderAndDrawer';
 import {
@@ -188,6 +188,9 @@ export default function App() {
   const [programSchedules, setProgramSchedules] = useState({});
   // Crying's Variety (0 = the fewest different exercises, 10 = none repeats within 20 sessions; 5 = default)
   const [cryingVariety, setCryingVariety] = useState(5);
+  // Fatigue per set: reps of reserve each earlier working set uses up (Configuration → PROGRAM; the engine reads it)
+  const [fatiguePerSet, setFatiguePerSet] = useState(0.5);
+  setEngineFatigue(fatiguePerSet);
   // Configuration → EQUIPMENT → PLATES: the plates the athlete owns ({ [size]: count }) or null = not counted
   const [plateInventory, setPlateInventoryState] = useState(null);
   // Both-sided loads (barbells, plate-loaded machines) use only the athlete's plates, when counted (set every render,
@@ -368,6 +371,8 @@ export default function App() {
     setProgramSchedules,
     cryingVariety,
     setCryingVariety,
+    fatiguePerSet,
+    setFatiguePerSet,
     plateInventory,
     setPlateInventory: setPlateInventoryState,
     sessionMode,
@@ -1549,6 +1554,8 @@ export default function App() {
                 setProgramSchedule: (programId, days) => setProgramSchedules(prev => ({ ...(prev || {}), [programId]: days })),
                 cryingVariety,
                 setCryingVariety,
+                fatiguePerSet,
+                setFatiguePerSet,
                 onRestartCycle: () => setProgramCycleStart(new Date().toISOString())
               }}
             />

@@ -124,7 +124,7 @@ export const describe1RM = (exerciseId, opts = {}) => {
     if (!info.calculated) {
       return `1RM ${name} = ${fmt(info.value)} lb, lifted for 1 rep${day ? ` (${day})` : ''}`;
     }
-    const parts = info.sets.map(st => fmt(Math.round(estimateSet1RM(st))));
+    const parts = info.sets.map((st, i) => fmt(Math.round(estimateSet1RM(st, i))));
     if (info.sets.length === 1) {
       return `1RM ${name} = ${setText(info.sets[0])} = ${fmt(info.value)} lb (best session${day ? `, ${day}` : ''})`;
     }

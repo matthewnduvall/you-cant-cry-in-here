@@ -96,8 +96,12 @@ export function InfoView({
         <P title="Reps in reserve.">
           Every set has an intensity: RIR by default (reps you could still do), or RPE (10 − RIR), or percent of your
           1RM. They convert into each other through the set’s reps. Your Exercise Set Preferences set the effort: a
-          warm-up leaves RIR 3, working sets wave from RIR 2 toward 0 (5 × 8 with two warm-ups is RIR 3, 3, 2, 1, 1),
-          top out RIR 1, burn out RIR 3, a 1 rep max RIR 0.
+          warm-up leaves RIR 3, working sets RIR 2, top out RIR 1, burn out RIR 3, a 1 rep max RIR 0.
+        </P>
+        <P title="Fatigue.">
+          Each working set leaves you a little closer to failure at the same weight, so working sets keep one weight
+          and the RIR shown falls by your fatigue rate (Configuration → Program; 0.5 a set by default: RIR 2, 1.5, 1).
+          Each set’s 1RM adds that fatigue back, so slowing down over an exercise doesn’t count as getting weaker.
         </P>
         <P title="Always true to you.">
           The intensity shown is what the set’s weight and reps really are for you, from your 1RM. Where a plan and your

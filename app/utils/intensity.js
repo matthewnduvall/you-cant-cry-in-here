@@ -16,13 +16,9 @@ export const SET_TYPE_RIR = { Warmup: 3, Working: 2, 'Top Out': 1, 'Burn Out': 3
 // sets (round(2 × (1 − k ÷ n)) for the k-th of n: 3 working sets = 2, 1, 1; 5 = 2, 2, 1, 1, 0); Top Out RIR 1,
 // Burn Out RIR 3, a 1 Rep Max RIR 0. With the default preferences (2 warm-ups, 3 working) a 5-set exercise is
 // 3, 3, 2, 1, 1. `types` = the exercise's normalized set types in order.
-export const plannedRirForSet = (types, idx) => {
-  const type = types[idx];
-  if (type !== 'Working') return SET_TYPE_RIR[type] ?? SET_TYPE_RIR.Working;
-  const working = types.filter(t => t === 'Working').length;
-  const k = types.slice(0, idx).filter(t => t === 'Working').length;
-  return Math.round(2 * (1 - k / Math.max(1, working)));
-};
+// Since the fatigue model (2026/11) this is the FRESH effort by type — every working set is planned at the same weight;
+// the RIR shown then falls by the fatigue allowance per earlier working set (2, 1.5, 1 at 0.5 per set).
+export const plannedRirForSet = (types, idx) => SET_TYPE_RIR[types[idx]] ?? SET_TYPE_RIR.Working;
 // The uniform rep schemes whose sets come from Exercise Set Preferences: these are planned by effort
 export const EFFORT_PLANNED_SCHEMES = ['3x5', '3x8', '3x12', '5x5', '5x6', '5x8', '5x8w', '5x10', '8x8', 'Cluster'];
 // The scale a set's intensity is shown in when nothing else picked one
@@ -124,7 +120,8 @@ export const deriveIntensity = (oneRM, weight, reps, mode = DEFAULT_INTENSITY_MO
   }
   // Below 0 when the set asks more reps than the load allows
   const rir = rtf - n;
-  if (mode === 'rir') return { mode, value: Math.round(rir), auto: true };
+  // Half steps: the fatigue allowance (0.5 a set by default) moves RIR by halves
+  if (mode === 'rir') return { mode, value: Math.round(rir * 2) / 2, auto: true };
   return { mode, value: Math.max(1, Math.round((10 - rir) * 2) / 2), auto: true };
 };
 
@@ -166,7 +163,14 @@ export const repsForIntensity = (oneRM, weight, intensity) => {
  *   intensity not locked → it is worked out from the weight and reps (keeping the set's scale)
  * `step` rounds weights. Completed sets, Timer sets and sets without a 1RM are returned unchanged.
  */
-export const solveSet = (st, oneRM, { step = 2.5, keepIntensity = false } = {}) => {
+// fatigueReps: the fatigue allowance of the working sets before this one — the set is solved as the same set done
+// fresh with that many more reps (its locked RIR is what is left after the fatigue)
+export const solveSet = (st, oneRM, { step = 2.5, keepIntensity = false, fatigueReps = 0 } = {}) => {
+  const f = Math.max(0, Number(fatigueReps) || 0);
+  if (f > 0 && st && st.intensity?.mode !== 'pct') {
+    const fresh = solveSet({ ...st, reps: (Number(st.reps) || 1) + f }, oneRM, { step, keepIntensity });
+    return fresh === st || !fresh ? st : { ...fresh, reps: fresh.reps === (Number(st.reps) || 1) + f ? st.reps : Math.max(1, Math.round(fresh.reps - f)), intensity: fresh.intensity };
+  }
   if (!st || st.completed || !(Number(oneRM) > 0)) return st;
   const hasIntensity = st.intensity && st.intensity.value !== null && st.intensity.value !== undefined && st.intensity.value !== '';
   const label = `set ${st.setNumber ?? ''}`.trim();

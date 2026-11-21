@@ -387,6 +387,20 @@ export const setReportedRir = st => {
 // (Band-Assisted, −35), so the load = bodyweight + weight. Timed sets (planks) are left alone. The bodyweight is the
 // signed-in athlete's (setEngineBodyweight, called by page.js on every render); 0 = not known, loads as stored.
 // ---------------------------------------------------------------------------
+// Fatigue (Configuration → PROGRAM → FATIGUE, settings.fatiguePerSet, set every render in page.js): the reps of
+// reserve each earlier working set of an exercise uses up. A set's 1RM adds them back (it counts like the same set done
+// fresh), so honest, falling RIRs at a fixed weight don't read as lost strength; planning shows the RIR falling by it.
+export const DEFAULT_FATIGUE_PER_SET = 0.5;
+let ENGINE_FATIGUE_PER_SET = DEFAULT_FATIGUE_PER_SET;
+export const setEngineFatigue = v => {
+  const n = Number(v);
+  ENGINE_FATIGUE_PER_SET = Number.isFinite(n) ? Math.min(2, Math.max(0, n)) : DEFAULT_FATIGUE_PER_SET;
+};
+export const getEngineFatigue = () => ENGINE_FATIGUE_PER_SET;
+/** Working (non-warm-up) sets before position idx in a list of sets or set types: the sets fatigue counts. */
+export const priorHardSets = (list = [], idx = 0) =>
+  (list || []).slice(0, idx).filter(x => normalizeSetType(typeof x === 'string' ? x : x?.type) !== 'Warmup').length;
+
 let ENGINE_BODYWEIGHT_LBS = 0;
 export const setEngineBodyweight = lbs => {
   ENGINE_BODYWEIGHT_LBS = Math.max(0, Number(lbs) || 0);
@@ -516,10 +530,12 @@ export const snapSlotToPlates = slot => {
   return sets === slot.sets ? slot : { ...slot, sets };
 };
 
-export const estimateSet1RM = st => {
+// priorHard: working sets done before this one in the exercise; each adds back the fatigue allowance
+export const estimateSet1RM = (st, priorHard = 0) => {
   const w = Number(st?.weight) || 0;
   if (w <= 0) return 0;
-  const effReps = Math.max(1, Number(st?.reps) || 1) + setReportedRir(st);
+  const fatigue = normalizeSetType(st?.type) === 'Warmup' ? 0 : Math.max(0, Number(priorHard) || 0) * ENGINE_FATIGUE_PER_SET;
+  const effReps = Math.max(1, Number(st?.reps) || 1) + setReportedRir(st) + fatigue;
   // The exact inverse of planning (utils/intensity.js: weight = 1RM ÷ (1 + (reps + RIR − 1) ÷ 30)), so a set done as
   // planned gives back the 1RM it was planned from; a single with nothing left is its weight
   return effReps <= 1 ? w : w * (1 + (effReps - 1) / 30);
@@ -536,10 +552,10 @@ export const oneRepMaxLabel = (value, calculated) => `${value}${calculated ? '*'
 export const best1RMInfoOfSets = (sets = []) => {
   let value = 0;
   let calculated = false;
-  (sets || []).forEach(st => {
+  (sets || []).forEach((st, i) => {
     const w = Number(st?.weight) || 0;
     if (w <= 0) return;
-    const est = Math.round(estimateSet1RM(st));
+    const est = Math.round(estimateSet1RM(st, priorHardSets(sets, i)));
     const calc = isCalculated1RMSet(st);
     if (est > value || (est === value && calculated && !calc)) {
       value = est;
@@ -569,7 +585,8 @@ export const exercise1RMInfoOfSets = (sets = []) => {
     return { value: Math.round(Number(top.weight) || 0), calculated: false, setId: top?.id || null, sets: [top] };
   }
   // Otherwise calculated from the whole exercise: the average of its working sets' estimates
-  const value = Math.round(pool.reduce((sum, st) => sum + estimateSet1RM(st), 0) / pool.length);
+  // (each working set counts the fatigue of the working sets before it)
+  const value = Math.round(pool.reduce((sum, st, i) => sum + estimateSet1RM(st, working.length > 0 ? i : 0), 0) / pool.length);
   return { value, calculated: true, setId: null, sets: pool };
 };
 
@@ -609,7 +626,7 @@ export const findIntensityMismatches = workout => {
         st => (Number(st?.weight) || 0) > 0 && normalizeSetType(st?.type) !== 'Warmup' && !st?.timerStr && !st?.durationSeconds
       );
       if (pool.length < 2) return;
-      const ests = pool.map(st => estimateSet1RM(st));
+      const ests = pool.map((st, i) => estimateSet1RM(st, i));
       pool.forEach((st, i) => {
         const others = ests.filter((_, j) => j !== i).sort((a, b) => a - b);
         const mid = Math.floor(others.length / 2);

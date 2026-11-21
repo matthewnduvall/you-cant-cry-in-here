@@ -41,7 +41,7 @@ export function SFSymbol({ name, size = 18, color = 'currentColor' }) {
   }
 }
 
-export function IOSListSection({ header, headerRight, footer, children, style }) {
+export function IOSListSection({ header, headerRight, footer, children, style, topStrip = null }) {
   return (
     <section style={{ marginBottom: '22px', padding: '0 var(--dp-spacing-gutter)', ...style }}>
       {(header || headerRight) && (
@@ -65,6 +65,8 @@ export function IOSListSection({ header, headerRight, footer, children, style })
           overflow: 'hidden'
         }}
       >
+        {/* (an AttachedTabStrip at the tile's top edge, e.g. the leaderboards' boards) */}
+        {topStrip}
         {children}
       </div>
       {footer && (

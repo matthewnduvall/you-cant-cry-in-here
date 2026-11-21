@@ -34,7 +34,7 @@ import {
 import { getInitial1RMs, buildHistoryPRs } from '../utils/workoutEngine';
 import { getEquipmentListForGymSelection, normalizeSlotCategory } from '../data/exerciseLibrary';
 import { normalizePlateInventory } from '../utils/loading';
-import { normalizeShareDefaults, normalizeRoutinePlaylists } from '../utils/storageMigration';
+import { normalizeShareDefaults, normalizeRoutinePlaylists, normalizeFatiguePerSet } from '../utils/storageMigration';
 
 // How often an on-screen app checks whether a friend has logged a new workout (one tiny request)
 const FRIEND_ACTIVITY_POLL_MS = 30000;
@@ -121,6 +121,9 @@ export function useCloudAndStorageSync({
   // Crying's Variety (0–10, default 5) and the session page's SIMPLE / ADVANCED mode
   cryingVariety = 5,
   setCryingVariety,
+  // Fatigue per set (reps of reserve; Configuration → PROGRAM → FATIGUE)
+  fatiguePerSet = 0.5,
+  setFatiguePerSet,
   // Configuration → EQUIPMENT → PLATES ({ [size]: count } | null = not counted)
   plateInventory = null,
   setPlateInventory,
@@ -172,6 +175,7 @@ export function useCloudAndStorageSync({
     setEmailChallenges?.(true);
     setShareDefaults?.(normalizeShareDefaults(null));
     setCryingVariety?.(5);
+    setFatiguePerSet?.(0.5);
     setSessionMode?.('advanced');
     setRoutinePlaylists?.([]);
     setPlateInventory?.(null);
@@ -262,6 +266,7 @@ export function useCloudAndStorageSync({
         setProgramCycleStart?.(hydrated.settings.programCycleStart || null);
         setProgramSchedules?.(hydrated.settings.programSchedules || {});
         setCryingVariety?.(normalizeVariety(hydrated.settings.cryingVariety));
+        setFatiguePerSet?.(normalizeFatiguePerSet(hydrated.settings.fatiguePerSet));
         setPlateInventory?.(normalizePlateInventory(hydrated.settings.plateInventory));
         setSessionMode?.(hydrated.settings.sessionMode === 'easy' ? 'easy' : 'advanced');
         setRoutinePlaylists?.(normalizeRoutinePlaylists(hydrated.settings.routinePlaylists));
@@ -599,6 +604,7 @@ export function useCloudAndStorageSync({
               setProgramSchedules?.(cloud.settings.programSchedules);
             }
             if (cloud.settings.cryingVariety !== undefined) setCryingVariety?.(normalizeVariety(cloud.settings.cryingVariety));
+            if (cloud.settings.fatiguePerSet !== undefined) setFatiguePerSet?.(normalizeFatiguePerSet(cloud.settings.fatiguePerSet));
             if (cloud.settings.plateInventory !== undefined) setPlateInventory?.(normalizePlateInventory(cloud.settings.plateInventory));
             if (cloud.settings.sessionMode === 'easy' || cloud.settings.sessionMode === 'advanced') setSessionMode?.(cloud.settings.sessionMode);
             if (Array.isArray(cloud.settings.routinePlaylists)) setRoutinePlaylists?.(normalizeRoutinePlaylists(cloud.settings.routinePlaylists));
@@ -759,6 +765,7 @@ export function useCloudAndStorageSync({
             programCycleStart: programCycleStart || null,
             programSchedules: programSchedules || {},
             cryingVariety: normalizeVariety(cryingVariety),
+            fatiguePerSet: normalizeFatiguePerSet(fatiguePerSet),
             plateInventory: normalizePlateInventory(plateInventory),
             sessionMode: sessionMode === 'easy' ? 'easy' : 'advanced',
             routinePlaylists: normalizeRoutinePlaylists(routinePlaylists),
@@ -870,6 +877,7 @@ export function useCloudAndStorageSync({
     programCycleStart,
     programSchedules,
     cryingVariety,
+    fatiguePerSet,
     plateInventory,
     sessionMode,
     routinePlaylists,
@@ -941,6 +949,7 @@ export function useCloudAndStorageSync({
           setProgramCycleStart?.(rehydrated.settings.programCycleStart || null);
           setProgramSchedules?.(rehydrated.settings.programSchedules || {});
           setCryingVariety?.(normalizeVariety(rehydrated.settings.cryingVariety));
+          setFatiguePerSet?.(normalizeFatiguePerSet(rehydrated.settings.fatiguePerSet));
           setPlateInventory?.(normalizePlateInventory(rehydrated.settings.plateInventory));
           setSessionMode?.(rehydrated.settings.sessionMode === 'easy' ? 'easy' : 'advanced');
           setRoutinePlaylists?.(normalizeRoutinePlaylists(rehydrated.settings.routinePlaylists));

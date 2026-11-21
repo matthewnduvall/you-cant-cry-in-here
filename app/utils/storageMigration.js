@@ -93,6 +93,8 @@ export const DEFAULT_SETTINGS_V2 = {
   programSchedules: {},
   // Crying's Variety 0–10 (5 = default) and the session page's mode ('easy' | 'advanced')
   cryingVariety: 5,
+  // Fatigue: reps of reserve each earlier working set uses up (Configuration → PROGRAM → FATIGUE)
+  fatiguePerSet: 0.5,
   sessionMode: 'advanced',
   // Routines page -> PLAYLISTS ([{ id, name, routineKeys, nextKey, updatedAt }])
   routinePlaylists: [],
@@ -227,6 +229,7 @@ export const loadHydratedAppState = () => {
       programCycleStart: typeof parsed.settings?.programCycleStart === 'string' ? parsed.settings.programCycleStart : null,
       programSchedules:
         parsed.settings?.programSchedules && typeof parsed.settings.programSchedules === 'object' ? parsed.settings.programSchedules : {},
+      fatiguePerSet: normalizeFatiguePerSet(parsed.settings?.fatiguePerSet),
       cryingVariety: Number.isFinite(Number(parsed.settings?.cryingVariety)) ? Math.min(10, Math.max(0, Math.round(Number(parsed.settings.cryingVariety)))) : 5,
       sessionMode: parsed.settings?.sessionMode === 'easy' ? 'easy' : 'advanced',
       routinePlaylists: normalizeRoutinePlaylists(parsed.settings?.routinePlaylists)
@@ -284,6 +287,10 @@ export const normalizeShareDefaults = value => {
 };
 
 /** Routine playlists as stored (settings.routinePlaylists, local + cloud): bad entries dropped, keys de-duplicated. */
+/** Fatigue per set (reps of reserve), 0–2 in quarter steps; not set = 0.5 */
+export const normalizeFatiguePerSet = v =>
+  v === null || v === undefined || v === '' || !Number.isFinite(Number(v)) ? 0.5 : Math.min(2, Math.max(0, Math.round(Number(v) * 4) / 4));
+
 export function normalizeRoutinePlaylists(value) {
   if (!Array.isArray(value)) return [];
   return value

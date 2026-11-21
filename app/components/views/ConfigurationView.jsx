@@ -40,6 +40,42 @@ const subscribeMinute = cb => {
 const minuteNowIso = () => new Date(Math.floor(Date.now() / 60000) * 60000).toISOString();
 const noNowOnServer = () => null;
 
+// FATIGUE: the reps of reserve each earlier working set of an exercise uses up (settings.fatiguePerSet, every program).
+// Working sets are planned at one weight and the RIR shown falls by it; each set's 1RM adds it back, so honest, falling
+// RIRs don't read as lost strength. Set by hand for now; the app can learn each lifter's rate from History later.
+const FATIGUE_OPTIONS = [0, 0.25, 0.5, 0.75, 1];
+function FatigueSection({ colors, value = 0.5, onChange }) {
+  const current = Number.isFinite(Number(value)) ? Number(value) : 0.5;
+  const example = [0, 1, 2].map(k => 2 - current * k).map(v => (Number.isInteger(v) ? v : v.toFixed(2).replace(/0$/, ''))).join(', ');
+  return (
+    <IOSListSection header="FATIGUE" colors={colors}>
+      <div style={{ padding: '12px 16px' }}>
+        <div style={UI.capsLabel}>RIR USED UP BY EACH WORKING SET</div>
+        <div role="group" aria-label="Fatigue per working set" style={{ display: 'grid', gridTemplateColumns: 'repeat(5, minmax(0, 1fr))', gap: '6px', marginTop: '8px' }}>
+          {FATIGUE_OPTIONS.map(opt => (
+            <button
+              key={opt}
+              type="button"
+              className="kinetic-btn"
+              aria-pressed={current === opt}
+              onClick={() => onChange?.(opt)}
+              style={{ ...UI.pillBtn(current === opt), minHeight: '44px', padding: '6px 2px', letterSpacing: 0 }}
+            >
+              {opt}
+            </button>
+          ))}
+        </div>
+        <div style={{ ...UI.sentence, color: '#BDBDBD', marginTop: '10px' }}>
+          Each working set leaves you a little closer to failure at the same weight. At {current} a set, three working sets
+          are planned at one weight and read RIR {example}. Your 1RM adds the fatigue back, so slowing down over an
+          exercise doesn&apos;t count as getting weaker. Most lifters sit between 0.25 and 1; higher reps and big lifts
+          fatigue more.
+        </div>
+      </div>
+    </IOSListSection>
+  );
+}
+
 function ProgramSection({
   colors,
   trainingProgram = 'crying',
@@ -327,6 +363,7 @@ export function ConfigurationView({
           <ProgramSection colors={colors} {...programProps} />
           <RoutinePreferencesSection colors={colors} {...routinePreferencesProps} />
           <SetPreferencesSection colors={colors} {...setPreferencesProps} />
+          <FatigueSection colors={colors} value={programProps?.fatiguePerSet} onChange={programProps?.setFatiguePerSet} />
         </div>
       )}
 

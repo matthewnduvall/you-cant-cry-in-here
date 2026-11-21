@@ -298,6 +298,8 @@ export function SlotEditor({
   // Live session: a card whose sets are all done mutes, so the remaining work stands out (not in a logged
   // workout, where every set is done)
   muteWhenDone = true,
+  // A strip attached to the card's top edge (a synced session's YOU | @friend), inside its rounded corners
+  topStrip = null,
   // The 1RM box's LAST / PR open the History workout they come from (openHistoryWorkout in page.js); none = not links
   onOpenHistoryWorkout = null
 }) {
@@ -1431,6 +1433,7 @@ export function SlotEditor({
           }}
         />
       )}
+      {topStrip}
       {/* Header: drag handle + exercise picker(s), full width */}
       <div style={{ display: 'grid', gridTemplateColumns: '34px minmax(0, 1fr)', gap: 0, alignItems: 'stretch' }}>
         <DragNumberBadge

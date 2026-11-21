@@ -3,7 +3,7 @@
 import React, { useMemo, useState } from 'react';
 import { ProfileAvatar } from '../ProfileAvatar';
 import { IOSListSection, IOSListRow } from '../Primitives';
-import { Button, NestedTabBar, TabBar } from '../Controls';
+import { Button, AttachedTabStrip } from '../Controls';
 import { buildHistoryPRRanges, buildHistoryPRs, getBestHistory1RMInfo, oneRepMaxLabel, withEngineBodyweight } from '../../utils/workoutEngine';
 import { UI } from '../../styles/kineticTokens';
 import {
@@ -319,15 +319,15 @@ export function LeaderboardView({
     a => a.challengesDone
   );
 
+  // The boards: tabs attached inside the top of the list tile (AttachedTabStrip), not a separate row of pills
+  const boardTabs = (
+    <AttachedTabStrip ariaLabel="Leaderboards" tabs={LEADERBOARD_TABS} value={activeTab} onChange={setActiveTab} fontSize="10px" letterSpacing="0.02em" />
+  );
+
   return (
     <div style={{ paddingTop: embedded ? 0 : '12px' }}>
       <div style={{ padding: '0 var(--dp-spacing-gutter)', marginBottom: '14px' }}>
         {title && <div style={{ ...UI.sectionTitle, marginBottom: '8px' }}>{title}</div>}
-        {!user ? null : embedded ? (
-          <NestedTabBar ariaLabel="Leaderboards" tabs={LEADERBOARD_TABS} value={activeTab} onChange={setActiveTab} />
-        ) : (
-          <TabBar ariaLabel="Leaderboards" scrollable tabs={LEADERBOARD_TABS} value={activeTab} onChange={setActiveTab} />
-        )}
         {user && bwHiddenCount > 0 && activeTab !== 'big3_total' && activeTab !== 'challenges' && (
           <div style={{ ...UI.sentence, marginTop: '10px' }}>
             {bwHiddenCount === 1 ? '1 friend hasn’t' : `${bwHiddenCount} friends haven’t`} saved a bodyweight, so they’re not on this board.
@@ -354,7 +354,7 @@ export function LeaderboardView({
       )}
 
       {user && activeTab === 'big3_total' && (
-      <IOSListSection colors={colors}>
+      <IOSListSection colors={colors} topStrip={boardTabs}>
         {big3TotalEntries.map((entry, idx, arr) => (
           <IOSListRow
             key={`big3_tot_${entry.id}_${idx}`}
@@ -397,7 +397,7 @@ export function LeaderboardView({
       )}
 
       {user && activeTab === 'big3_normalized' && (
-      <IOSListSection colors={colors}>
+      <IOSListSection colors={colors} topStrip={boardTabs}>
         {big3NormalizedEntries.map((entry, idx, arr) => (
           <IOSListRow
             key={`big3_norm_${entry.id}_${idx}`}
@@ -437,7 +437,7 @@ export function LeaderboardView({
       )}
 
       {user && activeTab === 'ohp_normalized' && (
-      <IOSListSection colors={colors}>
+      <IOSListSection colors={colors} topStrip={boardTabs}>
         {ohpNormalizedEntries.map((entry, idx, arr) => (
           <IOSListRow
             key={`ohp_norm_${entry.id}_${idx}`}
@@ -477,7 +477,7 @@ export function LeaderboardView({
       )}
 
       {user && activeTab === 'most_improved' && (
-      <IOSListSection colors={colors}>
+      <IOSListSection colors={colors} topStrip={boardTabs}>
         {mostImprovedEntries.length === 0 ? (
           <IOSListRow isLast={true} colors={colors}>
             <span style={{ fontSize: '12px', fontWeight: 500, color: '#9A9A9A', textTransform: 'uppercase' }}>
@@ -523,7 +523,7 @@ export function LeaderboardView({
       </IOSListSection>
       )}
       {user && activeTab === 'challenges' && (
-        <IOSListSection colors={colors}>
+        <IOSListSection colors={colors} topStrip={boardTabs}>
           {challengeEntries.map((entry, idx, arr) => (
             <IOSListRow
               key={`challenges_${entry.id}_${idx}`}
