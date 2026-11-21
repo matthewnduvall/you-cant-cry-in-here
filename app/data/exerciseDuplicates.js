@@ -265,7 +265,11 @@ export const DUPLICATE_EXERCISE_IDS = {
     "equipment": "Dumbbell"
   },
   "exrx_thighs_barbell_squat": {
-    "id": "exrx_hips_barbell_squat",
+    "id": "barbell_back_squat",
+    "equipment": "Barbell"
+  },
+  "exrx_hips_barbell_squat": {
+    "id": "barbell_back_squat",
     "equipment": "Barbell"
   },
   "exrx_thighs_cable_squat": {
@@ -391,6 +395,9 @@ export const DUPLICATE_EXERCISE_IDS = {
 };
 
 export const DUPLICATE_EXERCISE_ALIASES = {
+  "barbell_back_squat": [
+    "Barbell Squat"
+  ],
   "tricep_skullcrusher": [
     "Barbell Lying Triceps Extension",
     "Barbell Skull Crusher"

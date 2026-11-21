@@ -1093,7 +1093,7 @@ const getLoggedSessionsForExercise = (exerciseId, history = [], excludeWorkoutId
           sets.push(...withEffectiveLoad(exerciseId, slot.sets || [], getSlotEquipmentChoice(slot, 0)));
         }
       });
-      return { workoutId: w.id, isPersonalRecord: w.loadedRoutineTitle === 'PERSONAL RECORD', sets };
+      return { workoutId: w.id, timeMs: workoutTimeMs(w), isPersonalRecord: w.loadedRoutineTitle === 'PERSONAL RECORD', sets };
     })
     .filter(s => s.sets.some(st => st && Number(st.weight) > 0));
 

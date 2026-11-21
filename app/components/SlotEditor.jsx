@@ -1040,7 +1040,13 @@ export function SlotEditor({
     const curType = normalizeSetType(st.type);
     // LAST = what this set weighed in the last logged session of the exercise (completed sets when there were
     // any; the same set number, else that session's last set). Never logged = 0.
-    const lastSessionSets = getLastLoggedSetsForExercise(exId, history, workoutId);
+    const lastSession = getLastLoggedSessionForExercise(exId, history, workoutId);
+    const lastSessionSets = lastSession?.sets || [];
+    // The weight pop-up names it by that session's date: "11/19 SET" (MM/DD)
+    const lastDate = Number.isFinite(lastSession?.timeMs) && lastSession.timeMs > 0 ? new Date(lastSession.timeMs) : null;
+    const lastDateLabel = lastDate
+      ? `${String(lastDate.getMonth() + 1).padStart(2, '0')}/${String(lastDate.getDate()).padStart(2, '0')} SET`
+      : 'LAST SET';
     const lastDoneSets = lastSessionSets.filter(s => s && s.completed && Number(s.weight) > 0);
     const lastPool = lastDoneSets.length > 0 ? lastDoneSets : lastSessionSets;
     const lastSet = lastPool[Math.min(setIdx, lastPool.length - 1)];
@@ -1231,7 +1237,11 @@ export function SlotEditor({
                   exercise: exObj,
                   exerciseId: exObj.id,
                   equipment: pickerState(exIdx).equipment,
-                  lastDisplay: isTimerScheme ? lastTimerDisplay : lastSet ? lastW : '—', // never logged: a dash, like PR
+                  // The equivalent set of the last session: its weight × reps (timers: the time); never logged = —
+                  lastDisplay: isTimerScheme ? lastTimerDisplay : lastSet ? `${lastW} × ${Number(lastSet.reps) || 0}` : '—',
+                  lastLabel: lastDateLabel,
+                  // Tapping it opens that session in History
+                  lastWorkoutId: lastSet ? lastSession?.workoutId || null : null,
                   showOneRepMax: !isTimerScheme,
                   setReps: st.reps,
                   // This exercise's sets in the session, for the pop-up's CURRENT (session) 1RM
