@@ -580,6 +580,7 @@ export default function App() {
     handleApplyPreviewRoutine,
     handleAutoBuildWorkout,
     handleAddAutoSlot,
+    getNextAutoSlotCategory,
     handleSaveCurrentEditor,
     handleConfirmSaveWorkout,
     handleAutoFinishActiveSession,
@@ -1364,6 +1365,7 @@ export default function App() {
               handleApplyPreviewRoutine={handleApplyPreviewRoutine}
               handleAutoBuildWorkout={handleAutoBuildWorkout}
               handleAddAutoSlot={handleAddAutoSlot}
+              getNextAutoSlotCategory={getNextAutoSlotCategory}
               handleSaveCurrentEditor={handleSaveCurrentEditor}
               handleShareCurrentEditor={handleShareCurrentEditor}
               handleResetCurrentEditor={handleResetCurrentEditor}

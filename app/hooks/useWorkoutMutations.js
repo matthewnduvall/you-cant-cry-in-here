@@ -430,7 +430,9 @@ export function useWorkoutMutations({
   };
 
   // addOne: return the existing slots plus just the next guessed slot (+ ADD EXERCISE)
-  const buildGeneratedAutoSlots = (existingSlots = [], { addOne = false, programTarget = null } = {}) => {
+  // peek (with addOne): just the type that slot would be ("on deck": Compound / Accessory / Superset / Cluster), nothing
+  // built. category (with addOne): the type the athlete picked in + ADD EXERCISE's dropdown instead of that.
+  const buildGeneratedAutoSlots = (existingSlots = [], { addOne = false, programTarget = null, peek = false, category = null } = {}) => {
     const cleanExisting = Array.isArray(existingSlots) ? cloneSlots(existingSlots) : [];
     const usedIds = new Set();
     const remainingCategoryCounts = {
@@ -596,6 +598,24 @@ export function useWorkoutMutations({
           userBodyweightLbs
         }), programWorkout);
       }
+      if (pref === 'Cluster') {
+        // Clusters (3 × 18, 15 s rest) on an accessory pick
+        const pick = pickBest('Accessory', 'dumbbell_hammer_curl');
+        return {
+          ...createWorkoutSlot({
+            category: 'Cluster',
+            slotLabel: 'Cluster',
+            exerciseId: pick.id,
+            scheme: CLUSTER_SCHEME,
+            oneRepMaxes,
+            history,
+            incrementLbs: currentIncrementLbs,
+            setPreferences,
+            userBodyweightLbs
+          }),
+          customRestSeconds: CLUSTER_REST_SECONDS
+        };
+      }
       if (pref === 'Superset') {
         const a1 = pickBest('Accessory', 'reverse_lunge');
         const a2 = pickBest('Accessory', 'front_flies');
@@ -706,7 +726,12 @@ export function useWorkoutMutations({
         return programSlot({ ...slot, programRef: { program: program.id, day: day.id, key: spec.key } }, programWorkout);
       };
       if (!addOne) return normalizeSlotLabels([...cleanExisting, ...missing.map(buildDaySlot)]);
-      if (missing.length > 0) return [...cleanExisting, buildDaySlot(missing[0])];
+      if (missing.length > 0) {
+        const dayCategory = normalizeSlotCategory(missing[0].category);
+        if (peek) return dayCategory;
+        // Another type picked by hand: the day's next lift waits, and that type is added instead (below)
+        if (!category || normalizeSlotCategory(category) === dayCategory) return [...cleanExisting, buildDaySlot(missing[0])];
+      }
     }
 
     // A program with its own routine (Society: 2 compounds, 2 supersets, 1 accessory) replaces Routine Preferences
@@ -735,7 +760,8 @@ export function useWorkoutMutations({
         (activePrefs.length > 0
           ? normalizeSlotCategory(activePrefs[cleanExisting.length % activePrefs.length])
           : 'Compound');
-      return [...cleanExisting, createSlotForPref(nextPref)];
+      if (peek) return nextPref;
+      return [...cleanExisting, createSlotForPref(category ? normalizeSlotCategory(category) : nextPref)];
     }
 
     const generatedSlots = prefsToFill.map(pref => createSlotForPref(pref));
@@ -1071,10 +1097,20 @@ export function useWorkoutMutations({
 
   // + ADD EXERCISE: append one auto-guessed exercise (next routine-preference category, not already in the
   // workout, fits the gym selection) that the athlete can then change in the slot editor.
-  const handleAddAutoSlot = () => {
+  // The type + ADD EXERCISE adds next ("on deck"): the program day's next lift, else the next Routine Preference
+  const getNextAutoSlotCategory = () => {
+    try {
+      return buildGeneratedAutoSlots(getCurrentEditorWorkout()?.slots || [], { addOne: true, peek: true });
+    } catch {
+      return 'Compound';
+    }
+  };
+
+  // category: the type picked in + ADD EXERCISE's dropdown (null = the one on deck)
+  const handleAddAutoSlot = (category = null) => {
     const existingSlots = getCurrentEditorWorkout()?.slots || [];
     const withNext = withTrace('ADD EXERCISE', () => {
-      const built = buildGeneratedAutoSlots(existingSlots, { addOne: true });
+      const built = buildGeneratedAutoSlots(existingSlots, { addOne: true, category });
       const added = built[built.length - 1];
       if (added) {
         traceTitle(
@@ -2623,6 +2659,7 @@ export function useWorkoutMutations({
     handleApplyPreviewRoutine,
     handleAutoBuildWorkout,
     handleAddAutoSlot,
+    getNextAutoSlotCategory,
     handleSaveCurrentEditor,
     handleConfirmSaveWorkout,
     handleAutoFinishActiveSession,
