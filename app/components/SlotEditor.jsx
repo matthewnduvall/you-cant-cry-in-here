@@ -52,6 +52,7 @@ import {
 } from '../utils/workoutEngine';
 import { DeleteButton, DragNumberBadge } from './Controls';
 import { usePointerReorder } from '../hooks/usePointerReorder';
+import { useFillDrag } from '../hooks/useFillDrag';
 
 
 // Per-exercise rest choices (seconds) for the REST box in the filter row
@@ -136,7 +137,7 @@ const SEARCH_RESULT_LIMIT = 40;
 const SUPERSET_HALF_CATEGORIES = ['Compound', 'Accessory'];
 
 // Width of the lock button at the left of a set's type / weight / reps cell (6 px gap before the padlock)
-const LOCK_COL_PX = 20;
+const LOCK_COL_PX = 27;
 
 // Four equal set cells (intensity shown) leave the type ~38 px beside its padlock: the cell shows a short form (the
 // dropdown still lists the full names)
@@ -144,7 +145,7 @@ const SET_TYPE_SHORT_LABELS = { Warmup: 'WARM', Working: 'WORK', 'Top Out': 'TOP
 
 // Padlock for the set type / weight / reps lock buttons (closed shackle = locked)
 const LockIcon = ({ locked, color }) => (
-  <svg width="10" height="12" viewBox="0 0 12 14" aria-hidden="true" style={{ flexShrink: 0 }}>
+  <svg width="15" height="18" viewBox="0 0 12 14" aria-hidden="true" style={{ flexShrink: 0 }}>
     <rect x="1" y="6" width="10" height="7.5" fill={color} />
     <path
       d={locked ? 'M3.5 6V4.2a2.5 2.5 0 0 1 5 0V6' : 'M3.5 6V4.2a2.5 2.5 0 0 1 5 0'}
@@ -286,6 +287,8 @@ export function SlotEditor({
   actionTone = 'recalculate',
   footer = null,
   onToggleSetLock,
+  // Drag a weight / reps / timer cell over other rows to give them its value: ({ exIdx, set, field, value })
+  onFillSetValue,
   onChangeSetType,
   showIntensity = false,
   onChangeSetIntensity,
@@ -312,6 +315,34 @@ export function SlotEditor({
     },
     { attribute: 'data-set-reorder', canDrop: (from, to) => from.split(':')[0] === to.split(':')[0], edgeTop: 190 }
   );
+  // Drag to fill (useFillDrag): a padlock locks / unlocks every row it passes; a held weight / reps cell copies its
+  // value. Written on release: locks only where they differ, values to sets not done and not locked for that field.
+  const fillDrag = useFillDrag(({ exIdx, field, kind, from, to, payload }) => {
+    const list = (isSupersetCategory(slot.category) ? slot.supersetSetsByExercise?.[exIdx] : slot.sets) || [];
+    const lockKey = { weight: 'lockWeight', reps: 'lockReps', type: 'lockType', intensity: 'lockIntensity', timer: 'lockReps' }[field];
+    for (let i = Math.min(from, to); i <= Math.max(from, to); i++) {
+      const target = list[i];
+      if (!target) continue;
+      if (kind === 'lock') {
+        if (Boolean(target[lockKey]) !== payload.target) onToggleSetLock?.({ exIdx, set: target, field });
+      } else if (i !== from && !target.completed && !target[lockKey]) {
+        onFillSetValue?.({ exIdx, set: target, field, value: payload.value });
+      }
+    }
+  });
+  // A cell another cell's value is being dragged over: it shows that value, outlined
+  const FILL_OUTLINE = { outline: '2px solid #FFFFFF', outlineOffset: '-2px' };
+  const valueFillPreview = (exIdx, setIdx, field, st) => {
+    const p = fillDrag.preview(exIdx, setIdx, field);
+    if (!p || p.kind !== 'value') return null;
+    const lockKey = field === 'weight' ? 'lockWeight' : 'lockReps';
+    if (!p.isSource && (st.completed || st[lockKey])) return null;
+    return p;
+  };
+  // Props that make a weight / reps / timer cell a fill source (not on done sets; needs the host's onFillSetValue)
+  const valueFillProps = (exIdx, setIdx, field, st, value) =>
+    onFillSetValue ? fillDrag.sourceProps({ exIdx, setIdx, field, kind: 'value', payload: { value }, disabled: st.completed }) : {};
+
   // null = search closed; { half, query } = the search box of that exercise (0 = A / single, 1 = B) is open
   const [search, setSearch] = useState(null);
 
@@ -928,9 +959,15 @@ export function SlotEditor({
   // A set's type, weight or reps cell with its own lock on the LEFT (set.lockType / lockWeight / lockReps).
   // RECALCULATE never changes a locked value; see handleRecalculateSlotWeights. Without onToggleSetLock the cell is
   // just the value.
-  const withSetLock = (exIdx, st, field, cellBg, valueEl) => {
+  const withSetLock = (exIdx, st, field, cellBg, valueEl, setIdx = 0) => {
     if (!onToggleSetLock) return valueEl;
-    const locked = Boolean({ weight: st.lockWeight, reps: st.lockReps, type: st.lockType, intensity: st.lockIntensity }[field]);
+    const ownLocked = Boolean({ weight: st.lockWeight, reps: st.lockReps, type: st.lockType, intensity: st.lockIntensity }[field]);
+    // Dragging from a padlock: the rows it covers show the lock state they will get
+    const lockPreview = fillDrag.preview(exIdx, setIdx, field);
+    const lockFill = lockPreview?.kind === 'lock' ? lockPreview : null;
+    const locked = lockFill ? lockFill.payload.target : ownLocked;
+    const vf = valueFillPreview(exIdx, setIdx, field, st);
+    const valueFill = vf && !vf.isSource ? vf : null;
     const label = field === 'weight' ? 'weight' : field === 'reps' ? 'reps' : field === 'intensity' ? 'intensity' : 'set type';
     // One box (the cell's border and background): the padlock sits inside on the left, the value fills the rest
     const innerValue = React.cloneElement(valueEl, {
@@ -944,7 +981,8 @@ export function SlotEditor({
         width: 'auto',
         minWidth: 0,
         flex: '1 1 auto',
-        paddingLeft: 0
+        paddingLeft: 0,
+        paddingRight: 0
       }
     });
     return (
@@ -956,20 +994,27 @@ export function SlotEditor({
           height: '44px',
           boxSizing: 'border-box',
           backgroundColor: cellBg,
-          ...SHARED_CELL_BORDER
+          ...SHARED_CELL_BORDER,
+          ...(lockFill || valueFill ? FILL_OUTLINE : null)
         }}
       >
         <button
           type="button"
-          aria-pressed={locked}
-          aria-label={`${locked ? 'Unlock' : 'Lock'} ${label} of set ${st.setNumber}`}
-          title={locked ? `${label} locked: RECALCULATE won't change it` : `Lock ${label}`}
-          onClick={() => onToggleSetLock({ exIdx, set: st, field })}
+          aria-pressed={ownLocked}
+          aria-label={`${ownLocked ? 'Unlock' : 'Lock'} ${label} of set ${st.setNumber}. Drag up or down to do the same to other sets`}
+          title={ownLocked ? `${label} locked: RECALCULATE won't change it` : `Lock ${label}`}
+          // Touch / mouse: pressing toggles it on release, dragging carries the same lock state over other rows
+          // (useFillDrag). The click event is only used by the keyboard (detail 0).
+          {...fillDrag.sourceProps({ exIdx, setIdx, field, kind: 'lock', payload: { target: !ownLocked } })}
+          onClick={e => {
+            if (e.detail === 0 && !fillDrag.consumeClick()) onToggleSetLock({ exIdx, set: st, field });
+          }}
           style={{
+            touchAction: 'none',
             flex: `0 0 ${LOCK_COL_PX}px`,
             height: '100%',
             boxSizing: 'border-box',
-            padding: '0 0 0 6px',
+            padding: '0 0 0 5px',
             border: 'none',
             backgroundColor: 'transparent',
             cursor: 'pointer',
@@ -1103,7 +1148,7 @@ export function SlotEditor({
               <span style={cellLabelStyle}>TYPE</span>
               <span
                 style={{
-                  ...cellValueStyle('#FFFFFF', '11px'),
+                  ...cellValueStyle('#FFFFFF', onToggleSetLock ? '10px' : '11px'),
                   maxWidth: '100%',
                   overflow: 'hidden',
                   textOverflow: 'ellipsis',
@@ -1141,7 +1186,7 @@ export function SlotEditor({
                   </option>
                 ))}
               </select>
-            </div>
+            </div>, setIdx
             )}
 
             {isBandSet ? (
@@ -1177,7 +1222,9 @@ export function SlotEditor({
             <button
               type="button"
               aria-label={`Weight ${st.weight} lb${prSetIds.includes(st.id) ? ', the set that made the personal record' : ''}. Tap to change`}
+              {...valueFillProps(exIdx, setIdx, 'weight', st, st.weight)}
               onClick={() =>
+                !fillDrag.consumeClick() &&
                 onEditWeight?.({
                   exIdx,
                   set: st,
@@ -1205,24 +1252,37 @@ export function SlotEditor({
               ) : (
                 <span style={cellLabelStyle}>LB</span>
               )}
-              <span style={cellValueStyle('var(--dp-color-accent)', onToggleSetLock ? '13px' : '15px')}>{st.weight}</span>
-            </button>
+              <span style={cellValueStyle('var(--dp-color-accent)', onToggleSetLock ? '12px' : '15px')}>
+                {valueFillPreview(exIdx, setIdx, 'weight', st)?.payload.value ?? st.weight}
+              </span>
+            </button>, setIdx
             )}
 
             {(() => {
+              const repsField = isTimerScheme ? 'timer' : 'reps';
+              const repsPreview = valueFillPreview(exIdx, setIdx, repsField, st);
               const repsButton = (
                 <button
                   type="button"
                   aria-label={isTimerScheme ? 'Timer' : 'Reps'}
-                  onClick={() => editValue(isTimerScheme ? 'timer' : 'reps', isTimerScheme ? timerMMSS : st.reps)}
-                  style={{ ...setCellStyle(cellBg), color: '#FFFFFF', cursor: 'pointer' }}
+                  {...valueFillProps(exIdx, setIdx, repsField, st, isTimerScheme ? timerMMSS : st.reps)}
+                  onClick={() => !fillDrag.consumeClick() && editValue(isTimerScheme ? 'timer' : 'reps', isTimerScheme ? timerMMSS : st.reps)}
+                  style={{
+                    ...setCellStyle(cellBg),
+                    color: '#FFFFFF',
+                    cursor: 'pointer',
+                    // (a timer has no lock wrapper: the outline goes on the cell itself)
+                    ...(isTimerScheme && repsPreview && !repsPreview.isSource ? FILL_OUTLINE : null)
+                  }}
                 >
                   <span style={cellLabelStyle}>{isTimerScheme ? 'TIMER' : 'REPS'}</span>
-                  <span style={cellValueStyle('#FFFFFF', onToggleSetLock ? '13px' : '15px')}>{isTimerScheme ? timerMMSS : st.reps}</span>
+                  <span style={cellValueStyle('#FFFFFF', onToggleSetLock ? '13px' : '15px')}>
+                    {repsPreview?.payload.value ?? (isTimerScheme ? timerMMSS : st.reps)}
+                  </span>
                 </button>
               );
               // Timers aren't recalculated, so they get no lock
-              return isTimerScheme ? repsButton : withSetLock(exIdx, st, 'reps', cellBg, repsButton);
+              return isTimerScheme ? repsButton : withSetLock(exIdx, st, 'reps', cellBg, repsButton, setIdx);
             })()}
 
             {/* INTENSITY (programs other than Crying): the scale as its label, the value under it; tap = the pop-up
@@ -1244,7 +1304,7 @@ export function SlotEditor({
                   </span>
                 </button>
               );
-              return withSetLock(exIdx, st, 'intensity', cellBg, intensityButton);
+              return withSetLock(exIdx, st, 'intensity', cellBg, intensityButton, setIdx);
             })()}
 
             <button
