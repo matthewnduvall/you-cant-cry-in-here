@@ -378,7 +378,7 @@ export const setReportedRir = st => {
 };
 
 /**
- * A set's estimated 1RM (Epley), counting the reps it had left: weight × (1 + (reps + RIR) ÷ 30); a single with
+ * A set's estimated 1RM, counting the reps it had left: weight × (1 + (reps + RIR − 1) ÷ 30); a single with
  * nothing in reserve is the weight itself. E.g. 200 × 5 at RIR 2 = 200 × (1 + 7 ÷ 30) = 246.7.
  */
 // ---------------------------------------------------------------------------
@@ -520,11 +520,13 @@ export const estimateSet1RM = st => {
   const w = Number(st?.weight) || 0;
   if (w <= 0) return 0;
   const effReps = Math.max(1, Number(st?.reps) || 1) + setReportedRir(st);
-  return effReps <= 1 ? w : w * (1 + effReps / 30);
+  // The exact inverse of planning (utils/intensity.js: weight = 1RM ÷ (1 + (reps + RIR − 1) ÷ 30)), so a set done as
+  // planned gives back the 1RM it was planned from; a single with nothing left is its weight
+  return effReps <= 1 ? w : w * (1 + (effReps - 1) / 30);
 };
 
 // A 1RM is "true" when it was actually lifted for 1 rep with nothing left; one worked out from a multi-rep set or a
-// set with reps in reserve (weight × (1 + (reps + RIR) / 30)), or entered from the 1RM calculator (set.estimated), is
+// set with reps in reserve (weight × (1 + (reps + RIR − 1) / 30)), or entered from the 1RM calculator (set.estimated), is
 // "calculated" and shows with an asterisk (oneRepMaxLabel).
 export const isCalculated1RMSet = set =>
   Math.max(1, Number(set?.reps) || 1) > 1 || Boolean(set?.estimated) || setReportedRir(set) > 0;
@@ -587,7 +589,7 @@ export const loggedExercise1RMInfo = (exerciseId, rawSets, option = null) => {
 export const INTENSITY_MISMATCH_TOLERANCE = 0.12;
 
 /**
- * Sets whose calculated 1RM (weight × (1 + (reps + RIR) ÷ 30)) disagrees with the rest of their exercise by more
+ * Sets whose calculated 1RM (weight × (1 + (reps + RIR − 1) ÷ 30)) disagrees with the rest of their exercise by more
  * than INTENSITY_MISMATCH_TOLERANCE, e.g. a light set of few reps marked RIR 0 says the athlete is much weaker than
  * their other sets do. Checked when a session is saved (completed sets if any are done, else every set; working
  * weighted sets only, 2+ per exercise). [{ slotId, exerciseName, setNumber, weight, reps, intensityText, set1RM,

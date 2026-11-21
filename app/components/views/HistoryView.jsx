@@ -459,7 +459,7 @@ export function HistoryView({
       });
 
       const est1RM =
-        durationSec > 0 ? 0 : repsVal === 1 ? Math.round(weightVal) : Math.round(weightVal * (1 + repsVal / 30));
+        durationSec > 0 ? 0 : repsVal === 1 ? Math.round(weightVal) : Math.round(weightVal * (1 + (repsVal - 1) / 30));
       if (est1RM > (bestImported1RMs[exObj.id] || 0)) {
         bestImported1RMs[exObj.id] = est1RM;
       }

@@ -60,10 +60,11 @@ export function InfoView({
           goals and leaderboards are all measured in it.
         </P>
         <P title="The conversion.">Each set’s weight and reps, plus the reps you had left (RIR):</P>
-        <code style={formula}>1RM = weight × (1 + (reps + RIR) ÷ 30)</code>
+        <code style={formula}>1RM = weight × (1 + (reps + RIR − 1) ÷ 30)</code>
         <P>
-          For example, 225 lb × 5 with 2 reps left = 225 × (1 + 7 ÷ 30) ≈ 278 lb. A single with nothing left is just its
-          weight. A 1RM worked out this way shows with an asterisk (278*); one you actually lifted for 1 rep shows plain.
+          For example, 225 lb × 5 with 2 reps left = 225 × (1 + 6 ÷ 30) = 270 lb. A single with nothing left is just its
+          weight. It is the exact reverse of how weights are suggested, so a set done as suggested keeps your 1RM where
+          it was. A 1RM worked out this way shows with an asterisk (270*); one you actually lifted for 1 rep shows plain.
         </P>
         <P title="An exercise’s 1RM" last>
           in a session is the average of its working sets (warm-ups left out), so changing any one set’s weight, reps or

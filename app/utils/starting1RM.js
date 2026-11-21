@@ -119,7 +119,7 @@ export const describe1RM = (exerciseId, opts = {}) => {
     const setText = st => {
       const reps = Math.max(1, Number(st.reps) || 1);
       const rir = setReportedRir(st);
-      return rir ? `${fmt(st.weight)} × (1 + (${reps} + ${fmt(rir)} RIR) ÷ 30)` : `${fmt(st.weight)} × (1 + ${reps} ÷ 30)`;
+      return rir ? `${fmt(st.weight)} × (1 + (${reps} + ${fmt(rir)} RIR − 1) ÷ 30)` : `${fmt(st.weight)} × (1 + (${reps} − 1) ÷ 30)`;
     };
     if (!info.calculated) {
       return `1RM ${name} = ${fmt(info.value)} lb, lifted for 1 rep${day ? ` (${day})` : ''}`;
@@ -128,7 +128,7 @@ export const describe1RM = (exerciseId, opts = {}) => {
     if (info.sets.length === 1) {
       return `1RM ${name} = ${setText(info.sets[0])} = ${fmt(info.value)} lb (best session${day ? `, ${day}` : ''})`;
     }
-    return `1RM ${name} = average of ${info.sets.length} working sets (${parts.join(', ')}) = ${fmt(info.value)} lb (best session${day ? `, ${day}` : ''}; each set = weight × (1 + (reps + RIR) ÷ 30))`;
+    return `1RM ${name} = average of ${info.sets.length} working sets (${parts.join(', ')}) = ${fmt(info.value)} lb (best session${day ? `, ${day}` : ''}; each set = weight × (1 + (reps + RIR − 1) ÷ 30))`;
   }
   const info = getStarting1RMInfo(exerciseId, opts);
   const cls = getStartingClass(opts.targetStandardClass || 'Novice');

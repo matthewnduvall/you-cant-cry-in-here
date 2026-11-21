@@ -119,7 +119,7 @@ const bottomBtnStyle = (bg, color) => ({
 
 const equipmentOf = ex => ex?.equipment || 'Bodyweight';
 
-// Calculated 1RM of a list of sets: the best weight × (1 + reps / 30) (1 rep = the weight), the estimate History
+// Calculated 1RM of a list of sets: weight × (1 + (reps + RIR − 1) / 30) (1 rep = the weight), the estimate History
 // uses for Personal Records and the weight pop-up uses for its 1RM box; 0 = no weights
 // ({ value, calculated }: calculated = from a multi-rep set, shown with *)
 // The exercise's calculated 1RM: the average over its working sets (each with its own reps and intensity)
