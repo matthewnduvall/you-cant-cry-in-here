@@ -679,6 +679,9 @@ export default function App() {
   // The open logged workout has unsaved edits
   const historyEditorDirty =
     currentView === 'history_editor' && Boolean(expandedHistoryWorkoutId) && historyEditDraft?.id === expandedHistoryWorkoutId;
+  // A logged workout opened to look at (e.g. from a session's LAST): going back is the next step, so ← BACK is the
+  // header's one red and SAVE is grey; once it has edits, SAVE takes the red back
+  const historyBackIsNext = currentView === 'history_editor' && !historyEditorDirty;
   const handleFinishSession = () => {
     // A friend's workout preview: START loads it as your session (at your weights)
     if (currentView === 'routine_preview' && currentEditorWorkout?.previewOf) {
@@ -1210,6 +1213,7 @@ export default function App() {
         }}
       >
         <AppHeaderAndDrawer
+          backIsNext={historyBackIsNext}
           trainingProgram={trainingProgram}
           programCycleStart={programCycleStart}
           programSchedules={programSchedules}

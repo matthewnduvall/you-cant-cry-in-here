@@ -163,8 +163,8 @@ export const applyProgramToSlot = (slot, ctx, opts = {}) => {
       pct = pctFor(reps, plan.rir);
       intensity = { mode: 'rir', value: plan.rir };
     }
-    // Warm-ups are weighed by percentage, not effort: their intensity is left blank ("—"), as RIR means little there
-    if (!lockedIntensity && normalizeSetType(type) === 'Warmup') intensity = null;
+    // Warm-ups are weighed by percentage, not effort: their intensity is shown as that %1RM (RIR means little there)
+    if (!lockedIntensity && normalizeSetType(type) === 'Warmup') intensity = { mode: 'pct', value: nearestPct(pct) };
     const weight = prev?.lockWeight ? prev.weight : isBw ? st.weight : roundTo((target1RM * pct) / 100);
     if (isTracing() && !prev?.lockWeight && !isBw) {
       const why = lockedIntensity
