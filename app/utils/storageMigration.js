@@ -94,6 +94,8 @@ export const DEFAULT_SETTINGS_V2 = {
   // Crying's Variety 0–10 (5 = default) and the session page's mode ('easy' | 'advanced')
   cryingVariety: 5,
   sessionMode: 'advanced',
+  // Routines page -> PLAYLISTS ([{ id, name, routineKeys, nextKey, updatedAt }])
+  routinePlaylists: [],
   // shareBodyweightWithFriends: off unless the athlete turns it on (also for accounts saved before it existed)
   social: { shareStatsWithFriends: true, shareRoutinesWithFriends: true, profileIsPublic: true, shareBodyweightWithFriends: false, emailFriendRequests: true, autoPostPRs: true, emailChallenges: true, shareDefaults: null },
   selectedGymId: '',
@@ -226,7 +228,8 @@ export const loadHydratedAppState = () => {
       programSchedules:
         parsed.settings?.programSchedules && typeof parsed.settings.programSchedules === 'object' ? parsed.settings.programSchedules : {},
       cryingVariety: Number.isFinite(Number(parsed.settings?.cryingVariety)) ? Math.min(10, Math.max(0, Math.round(Number(parsed.settings.cryingVariety)))) : 5,
-      sessionMode: parsed.settings?.sessionMode === 'easy' ? 'easy' : 'advanced'
+      sessionMode: parsed.settings?.sessionMode === 'easy' ? 'easy' : 'advanced',
+      routinePlaylists: normalizeRoutinePlaylists(parsed.settings?.routinePlaylists)
     };
 
     const hydratedHistory = Array.isArray(parsed.history)
@@ -279,3 +282,17 @@ export const normalizeShareDefaults = value => {
     Object.entries(DEFAULT_SHARE_DEFAULTS).map(([k, d]) => [k, typeof v[k] === 'boolean' ? v[k] : d])
   );
 };
+
+/** Routine playlists as stored (settings.routinePlaylists, local + cloud): bad entries dropped, keys de-duplicated. */
+export function normalizeRoutinePlaylists(value) {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter(p => p && typeof p === 'object' && typeof p.id === 'string')
+    .map(p => ({
+      id: p.id,
+      name: typeof p.name === 'string' ? p.name.slice(0, 60) : 'Playlist',
+      routineKeys: [...new Set((Array.isArray(p.routineKeys) ? p.routineKeys : []).filter(k => typeof k === 'string'))],
+      nextKey: typeof p.nextKey === 'string' ? p.nextKey : null,
+      updatedAt: typeof p.updatedAt === 'string' ? p.updatedAt : null
+    }));
+}

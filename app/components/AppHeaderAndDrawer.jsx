@@ -12,6 +12,8 @@ import { UI } from '../styles/kineticTokens';
 // centre is the app title, a link to Home from every page
 export const PAGE_TITLES = {
   history: 'PERFORMANCE',
+  // The logged sessions (menu TRACK → History)
+  history_log: 'HISTORY',
   stimulus_map: 'STIMULUS',
   social: 'FRIENDS',
   leaderboards: 'LEADERBOARDS',
@@ -480,7 +482,15 @@ export function AppHeaderAndDrawer({
                       { id: 'routines', label: 'Routines' }
                     ]
                   },
-                  { title: 'TRACK', rows: [{ id: 'history', label: 'Performance' }, { id: 'stimulus_map', label: 'Stimulus' }] },
+                  {
+                    title: 'TRACK',
+                    rows: [
+                      { id: 'history', label: 'Performance' },
+                      // Every logged session (the HISTORY page; a workout opens as its own editor page)
+                      { id: 'history_log', label: 'History' },
+                      { id: 'stimulus_map', label: 'Stimulus' }
+                    ]
+                  },
                   {
                     title: 'SOCIAL',
                     rows: [

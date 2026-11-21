@@ -37,7 +37,8 @@ export const PROGRAMS = [
       'Automatically selects exercises based on muscle stimulus needs, and pushes you to your max every time, because you’re not a baby. Offers flexibility on goals, sets and reps. Is not bound by a weekly schedule, work out as much as you can and it will plan the exercise you need based on your history and goals.',
     comingSoon: false,
     usesWeeks: false,
-    usesIntensity: false,
+    // The INTENSITY column (RIR by default): each set's effort, planned from its type and kept true to you
+    usesIntensity: true,
     variables: [
       ['Based on', 'Original: driven by muscle stimulus'],
       ['Frequency', 'As often as you like'],
@@ -45,8 +46,8 @@ export const PROGRAMS = [
       ['Routine', 'Your Routine Preferences (default 2 compound lifts, 2 supersets, abs), picked by muscle stimulus'],
       ['Sets', 'Your training goal’s scheme (Balanced 5 × 8), with your Exercise Set Preferences'],
       ['Reps', 'From the scheme: 5 (Strength), 8 (Balanced, Maintain), 10 (Hypertrophy)'],
-      ['Intensity', 'Your last session or your stored 1RM, whichever is lower, plus the increment'],
-      ['Progression', 'Your goal increment added every session'],
+      ['Intensity', 'By set type: warm-ups RIR 3, working sets waving from RIR 2 toward 0 (5 × 8 = RIR 3, 3, 2, 1, 1); weights from last session’s 1RM plus your increment'],
+      ['Progression', 'Each session assumes you can do last session’s 1RM plus your goal increment'],
       ['Trigger', 'None'],
       ['Cycle', 'None'],
       ['Week name', 'None'],

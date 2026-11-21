@@ -361,9 +361,11 @@ export const normalizeSetType = rawType => {
  * it is; RPE → 10 − RPE). An intensity worked out from the set's own weight (`auto`) says nothing new, and %1RM is a
  * load, not an effort, so both count as 0.
  */
+// Every intensity counts, worked-out (`auto`) ones too: the one shown is the effort the athlete is expected to have,
+// so a set done as shown keeps the 1RM where it was, and changing the intensity (how it really felt) moves it.
 export const setReportedRir = st => {
   const i = st?.intensity;
-  if (!i || i.auto) return 0;
+  if (!i) return 0;
   const v = Number(i.value);
   if (!Number.isFinite(v)) return 0;
   // %1RM: the RIR that share of the 1RM leaves for these reps (%1RM = 100 / (1 + (reps + RIR - 1) / 30))

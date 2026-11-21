@@ -23,11 +23,14 @@ import {
   getWorkoutExerciseIds,
   getWorkoutSetsForExercise
 } from '../HistoryExerciseFilter';
+import { RoutinePlaylists } from '../RoutinePlaylists';
 
 // The routine lists, one per tab (in this order)
 const ROUTINE_LISTS = [
   { id: 'saved', tab: 'SAVED', title: 'SAVED ROUTINES', none: 'No saved routines yet. Turn on ROUTINE when you finish a session to save one.', deleteType: 'saved_routine' },
   // Everything you shared: public to friends (@all) and copies sent to chosen friends
+  // Named, ordered groups of saved routines that keep your place (RoutinePlaylists; the filters don't apply)
+  { id: 'playlists', tab: 'PLAYLISTS', title: 'PLAYLISTS' },
   { id: 'shared', tab: 'SHARED', title: 'SHARED ROUTINES', none: 'Nothing shared yet. Use SHARE when you finish or save, or SEND on a saved routine.', deleteType: 'shared_routine' },
   { id: 'friends', tab: 'FRIENDS', title: "FRIENDS' ROUTINES", none: 'Your friends haven’t shared any routines yet.' },
   // Routines friends sent you (public.routine_shares, pending): SAVE / LOAD / ✕ dismiss
@@ -73,7 +76,10 @@ export function RoutinesView({
   onDismissReceived,
   // Opens on this tab (Home's INBOX tile: 'received'); onInitialTabUsed lets the page reset it
   initialTab = null,
-  onInitialTabUsed
+  onInitialTabUsed,
+  // PLAYLISTS tab (settings.routinePlaylists): shown when 'playlists' is in sections
+  playlists = [],
+  setPlaylists
 }) {
   const [tabChoice, setTabChoice] = useState(initialTab);
   useEffect(() => {
@@ -154,6 +160,7 @@ export function RoutinesView({
       })()
     ]),
     friends: split((friendsList || []).flatMap(f => (f.sharedRoutines || []).map(r => ({ ...r, friendName: f.username })))),
+    playlists: { fits: playlists || [], needsMore: [] },
     received: split(
       (received || []).map(share => ({
         key: `received_${share.id}`,
@@ -181,14 +188,15 @@ export function RoutinesView({
     saved: (savedRoutines || []).length,
     shared: (sharedRoutines || []).length + (sent || []).length,
     friends: (friendsList || []).reduce((n, f) => n + (f.sharedRoutines || []).length, 0),
-    received: (received || []).length
+    received: (received || []).length,
+    playlists: (playlists || []).length
   };
   // Until a tab is picked: the first list that has routines (fitting first, then any), else the first list
   // (anything received comes first: that's what the count on Home / the menu points to)
   const defaultList =
     lists.find(l => l.id === 'received' && rawCount.received > 0) ||
-    lists.find(l => byList[l.id].fits.length > 0) ||
-    lists.find(l => byList[l.id].needsMore.length > 0) ||
+    lists.find(l => l.id !== 'playlists' && byList[l.id].fits.length > 0) ||
+    lists.find(l => l.id !== 'playlists' && byList[l.id].needsMore.length > 0) ||
     lists[0];
   const activeList = lists.find(l => l.id === tabChoice) || defaultList;
 
@@ -404,6 +412,19 @@ export function RoutinesView({
     });
 
   const renderList = list => {
+    if (list.id === 'playlists')
+      return (
+        <RoutinePlaylists
+          key="playlists"
+          colors={colors}
+          playlists={playlists}
+          setPlaylists={setPlaylists}
+          savedRoutines={savedRoutines}
+          onLoad={(r, onLoaded) => handleDirectLoadRoutine(r, routineSelectReturnView || 'session', onLoaded)}
+          setDeleteConfirmTarget={setDeleteConfirmTarget}
+          readOnly={readOnly}
+        />
+      );
     const routines = routinesByList[list.id];
     const needsMore = byList[list.id].needsMore;
     return (
@@ -499,7 +520,8 @@ export function RoutinesView({
       )}
 
       {/* SEARCH / TYPE / MUSCLE / EQUIPMENT / EXERCISE: the History tab's filter, over the routines' exercises */}
-      {allRoutines.length > 0 && (
+      {/* (not on PLAYLISTS: it doesn't filter playlists) */}
+      {allRoutines.length > 0 && activeList?.id !== 'playlists' && (
         <div style={{ padding: '0 var(--dp-spacing-gutter)', marginBottom: '12px' }}>
           {/* Collapsed: one row (FILTER BY EXERCISE + SHOW). Open (or a filter set): the filter, without its own
               EQUIPMENT dropdown, since FILTER BY EQUIPMENT above already decides what fits */}

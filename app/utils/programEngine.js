@@ -10,9 +10,9 @@
 // the single at 100 %. Completed sets, and locked types / weights / reps / intensities, are kept; a locked intensity
 // sets its set's weight instead of the week's plan.
 
-import { EXERCISE_MAP, isBodyweightExercise, isSupersetCategory, normalizeSlotCategory } from '../data/exerciseLibrary';
-import { generateSetsForScheme, getBestHistory1RM, normalizeSetType, DEFAULT_SET_PREFERENCES } from './workoutEngine';
-import { INTENSITY_OPTIONS, intensityToRir, solveSet, deriveIntensity, weightForIntensity, convertIntensity } from './intensity';
+import { EXERCISE_MAP, isBodyweightExercise, isSupersetCategory, normalizeSlotCategory, getSlotEquipmentChoice } from '../data/exerciseLibrary';
+import { generateSetsForScheme, getBestHistory1RM, normalizeSetType, DEFAULT_SET_PREFERENCES, setLoadLbs, countsBodyweight, getEngineBodyweight } from './workoutEngine';
+import { INTENSITY_OPTIONS, intensityToRir, solveSet, deriveIntensity, weightForIntensity, convertIntensity, repsForIntensity, formatIntensity } from './intensity';
 import { getStarting1RM, describe1RM } from './starting1RM';
 import { traceLine, isTracing, fmt } from './calcTrace';
 
@@ -57,6 +57,33 @@ export const isProgrammedSlot = (slot, ctx) => {
       !(slot.programOff && slot.scheme === 'Timer') &&
       (ctx.program.appliesTo || []).includes(normalizeSlotCategory(slot.category))
   );
+};
+
+// One bodyweight-exercise set with a locked intensity, worked out on its real load (setLoadLbs): the reps that
+// load allows at that intensity, or (Weighted, weight unlocked) the added weight for the set's reps
+export const solveBodyweightSet = (st, orig, oneRM, exId, option, step = 2.5) => {
+  const intensity = orig.intensity;
+  const bw = getEngineBodyweight();
+  const weighted = /weighted/i.test(String(option || ''));
+  const label = `set ${st.setNumber ?? ''}`.trim();
+  // The weight comes back as the total load; toAddedWeights (after RECALCULATE) stores what is added
+  let load = setLoadLbs(exId, { ...st, weight: Number(orig.lockWeight ? orig.weight : st.weight) || 0 }, option);
+  if (weighted && !orig.lockWeight) {
+    const target = weightForIntensity(oneRM, st.reps, intensity);
+    if (target !== null && target >= bw) {
+      const total = bw + Math.max(0, Math.round((target - bw) / step) * step);
+      if (isTracing()) traceLine(`${label}: ${formatIntensity(intensity.mode, intensity.value)} locked × ${st.reps} reps → load ${fmt(target)} lb = bodyweight ${fmt(bw)} + ${fmt(total - bw)} lb added`);
+      return { ...st, intensity, lockIntensity: true, weight: total };
+    }
+    // Lighter than bodyweight: nothing added, and the reps follow instead
+    load = bw;
+    st = { ...st, weight: bw };
+  }
+  if (orig.lockReps) return { ...st, intensity, lockIntensity: true };
+  const reps = repsForIntensity(oneRM, load, intensity);
+  if (reps === null) return { ...st, intensity, lockIntensity: true };
+  if (isTracing()) traceLine(`${label}: ${formatIntensity(intensity.mode, intensity.value)} locked at a load of ${fmt(load)} lb (1RM ${fmt(oneRM)}) → ${reps} reps`);
+  return { ...st, intensity, lockIntensity: true, reps };
 };
 
 /**
@@ -164,7 +191,13 @@ export const applyProgramToSlot = (slot, ctx, opts = {}) => {
         ? { lockType: prev.lockType, lockWeight: prev.lockWeight, lockReps: prev.lockReps, lockIntensity: prev.lockIntensity }
         : {})
     };
-    if (isBw) return planned;
+    if (isBw) {
+      // Bodyweight: a locked intensity sets the reps for the real load (or, on Weighted, the added weight)
+      if (lockedIntensity && countsBodyweight(exId) && target1RM > 0) {
+        return solveBodyweightSet(planned, prev, target1RM, exId, getSlotEquipmentChoice(slot, 0));
+      }
+      return planned;
+    }
     // Locked weight: the unlocked value follows it — with a locked intensity, the reps; otherwise the intensity
     // (worked out from the weight and reps, in the planned scale)
     if (prev?.lockWeight && lockedIntensity && !prev?.lockReps) return solveSet(planned, target1RM);
@@ -463,7 +496,13 @@ export const applyDayProgramToSlot = (slot, ctx, opts = {}) => {
       ...(prev ? { lockType: prev.lockType, lockWeight: prev.lockWeight, lockReps: prev.lockReps, lockIntensity: prev.lockIntensity } : {})
     };
     if (isTracing()) traceLine(`set ${idx + 1} ${normalizeSetType(type)} × ${reps} @ ${fmt(weight)} lb${prev?.lockWeight ? ' (locked)' : ''}`);
-    if (isBodyweightExercise(exId)) return out;
+    if (isBodyweightExercise(exId)) {
+      // Bodyweight: a locked intensity sets the reps for the real load (or, on Weighted, the added weight)
+      if (prev?.lockIntensity && prev.intensity && countsBodyweight(exId) && planned.est1RM > 0) {
+        return solveBodyweightSet(out, prev, planned.est1RM, exId, getSlotEquipmentChoice(slot, 0));
+      }
+      return out;
+    }
     if (prev?.lockIntensity && prev.intensity) out = solveSet({ ...out, intensity: prev.intensity }, planned.est1RM);
     else if (prev?.lockWeight) {
       const derived = deriveIntensity(planned.est1RM, out.weight, out.reps, out.intensity?.mode || 'rir');
