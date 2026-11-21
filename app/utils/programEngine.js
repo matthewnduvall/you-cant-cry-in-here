@@ -34,12 +34,10 @@ export const getCycleTarget1RM = ({
   startOpts = {}
 }) => {
   const pool = (history || []).filter(w => w && w.id !== excludeWorkoutId);
-  const before = Number.isFinite(cycleStartMs)
-    ? pool.filter(w => new Date(w.startedAt || 0).getTime() < cycleStartMs)
-    : pool;
+  // The latest logged session's 1RM (not the PR, and not frozen at the cycle's start: a 1RM that climbs during the
+  // cycle moves the weights with it, so each week's planned RIR stays true). cycleStartMs is kept for callers.
+  void cycleStartMs;
   const base =
-    // last session's 1RM before the cycle began (not the PR), else the latest session
-    getLastSession1RM(exerciseId, before) ||
     getLastSession1RM(exerciseId, pool) ||
     getStarting1RM(exerciseId, { ...startOpts, history: pool }) ||
     EXERCISE_MAP[exerciseId]?.default1RM ||
@@ -165,6 +163,8 @@ export const applyProgramToSlot = (slot, ctx, opts = {}) => {
       pct = pctFor(reps, plan.rir);
       intensity = { mode: 'rir', value: plan.rir };
     }
+    // Warm-ups are weighed by percentage, not effort: their intensity is left blank ("—"), as RIR means little there
+    if (!lockedIntensity && normalizeSetType(type) === 'Warmup') intensity = null;
     const weight = prev?.lockWeight ? prev.weight : isBw ? st.weight : roundTo((target1RM * pct) / 100);
     if (isTracing() && !prev?.lockWeight && !isBw) {
       const why = lockedIntensity

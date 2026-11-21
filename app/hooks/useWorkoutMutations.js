@@ -230,13 +230,12 @@ export function useWorkoutMutations({
   // the reps follow instead (reps to failure − RIR); Weighted bodyweight exercises get the added weight. Locked
   // intensities are left to solveSet; locked reps / weights stay. Programs' own plans (programSlot) replace this for
   // the exercises they cover. `onlySetId`: just that set (a set type change). Slots store added weights.
-  // The 1RM sets are planned and judged against. Crying assumes you can do what you did last time plus your goal
-  // increment: last session's 1RM of the exercise (loggedExercise1RMInfo, the workout being edited left out) + the
-  // increment; never logged = the starting estimate as it is. Other programs: the calculated 1RM.
-  const isCryingWorkout = workout => getProgram(workout?.program || trainingProgram).id === 'crying';
+  // The 1RM sets are planned and judged against, in every program: you're assumed capable of what you did last time
+  // plus your goal increment — last session's 1RM of the exercise (loggedExercise1RMInfo, the workout being edited
+  // left out) + the increment; never logged = the starting estimate as it is. Programs plan from the same number
+  // (getCycleTarget1RM), so their planned RIR reads true.
   const effort1RM = (exId, option, workout) => {
     const calc = getHistoricalCalculated1RM(exId);
-    if (!isCryingWorkout(workout)) return calc;
     const last = getLastLoggedSessionForExercise(exId, history, workout?.id || null);
     const prev = last ? loggedExercise1RMInfo(exId, last.sets, option).value : 0;
     if (!(prev > 0)) return calc;
@@ -310,12 +309,16 @@ export function useWorkoutMutations({
     const isSup = Array.isArray(slot.supersetSetsByExercise) && slot.supersetSetsByExercise.length > 1;
     const ids = slot.supersetExerciseIds || [slot.exerciseId, slot.secondaryExerciseId];
     const schemes = isSup ? getSupersetSchemes(slot) : [slot.scheme];
+    // Exercises a program plans (Society's compounds, day programs): their warm-ups are percentages of the target
+    const pctWarmups = isProgrammedSlot(slot, programContextFor(workout));
     const fit = (list, exId, half) => {
       if (schemes[half] === 'Timer') return list || [];
       // Bodyweight exercises need your bodyweight to know the load
       if (isBodyweightExercise(exId) && !countsBodyweight(exId)) return list || [];
       const option = getSlotEquipmentChoice(slot, half);
       const name = EXERCISE_MAP[exId]?.name || exId;
+      // A program's warm-ups are weighed by percentage, not effort: no intensity ("—")
+      const blankWarmups = pctWarmups;
       // Never logged: the weights are a first guess, so the intensity isn't known yet ("—" until it is logged)
       if (!(getBestHistory1RM(exId, history) > 0)) {
         if (isTracing()) traceLine(`${name}: not logged yet, so its intensity isn't known (—)`);
@@ -326,6 +329,7 @@ export function useWorkoutMutations({
       const oneRM = effort1RM(exId, option, workout);
       return (list || []).map((st, idx) => {
         if (!st || st.completed || st.lockIntensity || st.durationSeconds) return st;
+        if (blankWarmups && normalizeSetType(st.type) === 'Warmup') return st.intensity ? { ...st, intensity: null } : st;
         const load = setLoadLbs(exId, st, option);
         const rtf = repsToFailure(oneRM, load);
         if (rtf === null) return st;
