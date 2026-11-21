@@ -566,6 +566,9 @@ export function RoutineEditorView({
                     onInsertSet={position => slotHandler('handleInsertSetAtPosition')(slot.id, position)}
                     actionLabel="RECALCULATE"
                     onAction={() => slotHandler('handleRecalculateSlotWeights')(slot.id)}
+                    onFillSetValue={({ exIdx, set, field, value }) =>
+                      slotHandler('handleUpdateSetField')?.(slot.id, exIdx, set.id, field, value)
+                    }
                     onToggleSetLock={
                       handleToggleSetLock && !easyMode
                         ? ({ exIdx, set, field }) => slotHandler('handleToggleSetLock')(slot.id, exIdx, set.id, field)
