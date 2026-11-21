@@ -124,6 +124,8 @@ export function AppHeaderAndDrawer({
   setAuthMode,
   // ← next to the page title: back to the previous page (page.js keeps the history)
   onBack,
+  // ← BACK is the next step (a logged workout opened with no edits): BACK is red and SAVE grey
+  backIsNext = false,
   // Routines friends sent you, still waiting (ROUTINES row's count)
   receivedRoutineCount = 0,
   // The session page's SIMPLE / ADVANCED mode (SIMPLE hides the PROGRAM / WEEK / DAY row)
@@ -191,7 +193,7 @@ export function AppHeaderAndDrawer({
                   width: '40px',
                   height: '40px',
                   flexShrink: 0,
-                  backgroundColor: '#1C1C1C',
+                  backgroundColor: backIsNext ? 'var(--cr-red)' : '#1C1C1C',
                   border: 'none',
                   borderRadius: '10px',
                   color: '#FFFFFF',
@@ -277,6 +279,7 @@ export function AppHeaderAndDrawer({
             sync={currentView === 'session' ? sessionSync : null}
             saveLabel={currentView === 'session' ? 'FINISH' : currentView === 'routine_preview' ? 'START' : 'SAVE'}
             resetLabel={resetLabel}
+            saveQuiet={backIsNext}
             dateValue={
               currentView === 'session' && currentEditorWorkout.startedAt
                 ? formatDateYMD(currentEditorWorkout.startedAt)

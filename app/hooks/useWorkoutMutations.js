@@ -317,8 +317,7 @@ export function useWorkoutMutations({
       if (isBodyweightExercise(exId) && !countsBodyweight(exId)) return list || [];
       const option = getSlotEquipmentChoice(slot, half);
       const name = EXERCISE_MAP[exId]?.name || exId;
-      // A program's warm-ups are weighed by percentage, not effort: no intensity ("—")
-      const blankWarmups = pctWarmups;
+      // A program's warm-ups are weighed by percentage, not effort: their intensity is shown as %1RM (≈ 55–60 %)
       // Never logged: the weights are a first guess, so the intensity isn't known yet ("—" until it is logged)
       if (!(getBestHistory1RM(exId, history) > 0)) {
         if (isTracing()) traceLine(`${name}: not logged yet, so its intensity isn't known (—)`);
@@ -329,13 +328,13 @@ export function useWorkoutMutations({
       const oneRM = effort1RM(exId, option, workout);
       return (list || []).map((st, idx) => {
         if (!st || st.completed || st.lockIntensity || st.durationSeconds) return st;
-        if (blankWarmups && normalizeSetType(st.type) === 'Warmup') return st.intensity ? { ...st, intensity: null } : st;
         const load = setLoadLbs(exId, st, option);
         const rtf = repsToFailure(oneRM, load);
         if (rtf === null) return st;
         // More reps than the load allows reads as RIR below 0 (the reps are left as planned or typed)
         const next = st;
-        const derived = deriveIntensity(oneRM, load, next.reps, st.intensity?.mode || DEFAULT_INTENSITY_MODE);
+        const mode = pctWarmups && normalizeSetType(st.type) === 'Warmup' ? 'pct' : st.intensity?.mode || DEFAULT_INTENSITY_MODE;
+        const derived = deriveIntensity(oneRM, load, next.reps, mode);
         if (!derived) return next;
         const same = st.intensity && st.intensity.mode === derived.mode && Number(st.intensity.value) === Number(derived.value);
         if (!same && isTracing()) {

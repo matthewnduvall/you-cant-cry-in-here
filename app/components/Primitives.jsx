@@ -174,6 +174,8 @@ export function SessionTitleBar({
   saveLabel = 'SAVE',
   // The second action's label (RESET; a logged workout's editor: DISCARD / CLOSE)
   resetLabel = 'RESET',
+  // SAVE as a grey button, not red (a logged workout opened with no edits: ← BACK is the header's one red instead)
+  saveQuiet = false,
   // Live session: the session's date (YYYY/MM/DD, from startedAt), shown on the name cell's label line and edited in
   // the name pop-up (it no longer has a box of its own, so the name gets the room); a new date moves the session
   dateValue = null,
@@ -313,7 +315,7 @@ export function SessionTitleBar({
             type="button"
             className="kinetic-btn"
             onClick={onSave}
-            style={{ ...actionStyle('var(--cr-red)', '#FFFFFF'), fontWeight: 600 }}
+            style={saveQuiet ? actionStyle('#2A2A2A', '#FFFFFF') : { ...actionStyle('var(--cr-red)', '#FFFFFF'), fontWeight: 600 }}
           >
             {saveLabel}
           </button>
