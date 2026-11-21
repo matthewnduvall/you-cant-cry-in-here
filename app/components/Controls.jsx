@@ -55,6 +55,52 @@ export function Button({ variant = 'primary', active = false, style, className =
  * Segmented-control option sitting in a hairline grid inside a graphite group. Selected = white fill, black text
  * (`activeColor` 'accent' and 'ink' are both white in the Crying style). Override height/padding/fontSize through `style`.
  */
+/**
+ * Tabs attached inside the top edge of a tile (a synced exercise's YOU | @friend, the leaderboards' boards), like the
+ * Performance page's lift rows: equal cells divided by hairlines, the selected one a white fill with black text, the
+ * others graphite with grey text. Render it as the tile's first child so the tile's rounded corners clip it.
+ * tabs = [{ id, label }]
+ */
+export function AttachedTabStrip({ tabs = [], value, onChange, ariaLabel, fontSize = '12px', letterSpacing = '0.06em' }) {
+  return (
+    <div role="tablist" aria-label={ariaLabel} style={{ display: 'grid', gridTemplateColumns: `repeat(${tabs.length || 1}, minmax(0, 1fr))` }}>
+      {tabs.map((tab, i) => {
+        const active = tab.id === value;
+        return (
+          <button
+            key={tab.id}
+            type="button"
+            role="tab"
+            aria-selected={active}
+            className="kinetic-btn"
+            onClick={() => onChange?.(tab.id)}
+            style={{
+              minHeight: '44px',
+              padding: '4px 1px',
+              border: 'none',
+              borderBottom: '1px solid var(--dp-color-rule)',
+              borderRight: i < tabs.length - 1 ? '1px solid var(--dp-color-rule)' : 'none',
+              backgroundColor: active ? '#FFFFFF' : '#1C1C1C',
+              color: active ? '#000000' : '#9A9A9A',
+              fontSize,
+              letterSpacing,
+              fontWeight: 500,
+              lineHeight: 1.15,
+              textTransform: 'uppercase',
+              // Words stay whole (a long label goes to two lines between words, never mid-word)
+              overflowWrap: 'normal',
+              overflow: 'hidden',
+              cursor: 'pointer'
+            }}
+          >
+            {tab.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 export function SegmentButton({
   active = false,
   activeColor = 'accent',

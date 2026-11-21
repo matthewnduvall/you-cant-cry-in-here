@@ -17,7 +17,7 @@ import {
   getBestHistory1RMInfo,
   historyAsOf
 } from '../../utils/workoutEngine';
-import { Button, TabBar } from '../Controls';
+import { Button, TabBar, AttachedTabStrip } from '../Controls';
 import { downloadRoutineCsv } from '../../utils/routineCsv';
 import { SlotEditor } from '../SlotEditor';
 
@@ -467,50 +467,22 @@ export function RoutineEditorView({
                     ...slotDragStyle(sIdx)
                   }}
                 >
-                  {slotTabs && (
-                    <div style={{ marginBottom: '6px' }}>
-                      <div
-                        role="tablist"
-                        aria-label="Whose numbers"
-                        style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}
-                      >
-                        {[
-                          { id: 'me', label: 'YOU' },
-                          { id: 'partner', label: `@${slotTabs.partnerName || 'FRIEND'}`.toUpperCase() }
-                        ].map(tab => {
-                          const active = (tab.id === 'partner') === onPartnerTab;
-                          return (
-                            <button
-                              key={tab.id}
-                              type="button"
-                              role="tab"
-                              aria-selected={active}
-                              className="kinetic-btn"
-                              onClick={() => slotTabs.onChange(ownSlot.id, tab.id)}
-                              style={{
-                                // Pills: the selected one is a white fill with black text, the other outlined
-                                minHeight: '44px',
-                                padding: '4px 6px',
-                                borderRadius: '999px',
-                                border: `1px solid ${active ? '#FFFFFF' : 'var(--cr-outline)'}`,
-                                backgroundColor: active ? '#FFFFFF' : 'transparent',
-                                color: active ? '#000000' : '#FFFFFF',
-                                fontSize: '12px',
-                                letterSpacing: '0.06em',
-                                fontWeight: 500,
-                                textTransform: 'uppercase',
-                                overflowWrap: 'anywhere',
-                                cursor: 'pointer'
-                              }}
-                            >
-                              {tab.label}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
                   <SlotEditor
+                    // Synced session: YOU | @friend, a strip attached to the top of the exercise card (like the
+                    // Performance page's lift rows), not a separate row of pills
+                    topStrip={
+                      slotTabs ? (
+                        <AttachedTabStrip
+                          ariaLabel="Whose numbers"
+                          tabs={[
+                            { id: 'me', label: 'YOU' },
+                            { id: 'partner', label: `@${slotTabs.partnerName || 'FRIEND'}`.toUpperCase() }
+                          ]}
+                          value={onPartnerTab ? 'partner' : 'me'}
+                          onChange={id => slotTabs.onChange(ownSlot.id, id)}
+                        />
+                      ) : null
+                    }
                     muteWhenDone={currentView === 'session'}
                     slot={slot}
                     number={sIdx + 1}

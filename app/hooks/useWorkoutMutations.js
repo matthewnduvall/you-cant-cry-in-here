@@ -64,6 +64,8 @@ import {
   setLoadLbs,
   getEngineBodyweight,
   snapSlotToPlates,
+  getEngineFatigue,
+  priorHardSets,
   getLastLoggedSessionForExercise,
   loggedExercise1RMInfo
 } from '../utils/workoutEngine';
@@ -334,7 +336,10 @@ export function useWorkoutMutations({
         // More reps than the load allows reads as RIR below 0 (the reps are left as planned or typed)
         const next = st;
         const mode = pctWarmups && normalizeSetType(st.type) === 'Warmup' ? 'pct' : st.intensity?.mode || DEFAULT_INTENSITY_MODE;
-        const derived = deriveIntensity(oneRM, load, next.reps, mode);
+        // Fatigue: the working sets before this one leave less in reserve at the same weight and reps (shown RIR falls
+        // by the allowance per set; the 1RM adds it back, so a set done as shown keeps the 1RM)
+        const fatigueReps = normalizeSetType(st.type) === 'Warmup' ? 0 : getEngineFatigue() * priorHardSets(list, idx);
+        const derived = deriveIntensity(oneRM, load, (Number(next.reps) || 1) + fatigueReps, mode);
         if (!derived) return next;
         const same = st.intensity && st.intensity.mode === derived.mode && Number(st.intensity.value) === Number(derived.value);
         if (!same && isTracing()) {
@@ -885,7 +890,8 @@ export function useWorkoutMutations({
           let intensity = st.intensity;
           const w = Number(weight) || 0;
           if (!isTimedRoutineSet(st, scheme) && oneRM > 0 && w > 0 && (!hasIntensityValue(st) || st.intensity.auto)) {
-            intensity = deriveIntensity(oneRM, w, st.reps, st.intensity?.mode || 'rir') || st.intensity;
+            const fatigueReps = normalizeSetType(st.type) === 'Warmup' ? 0 : getEngineFatigue() * priorHardSets(list, idx);
+            intensity = deriveIntensity(oneRM, w, (Number(st.reps) || 1) + fatigueReps, st.intensity?.mode || 'rir') || st.intensity;
             if (isTracing() && intensity) {
               traceLine(`${name} set ${idx + 1}: ${fmt(w)} lb × ${st.reps} against your 1RM ${fmt(oneRM)} → reps to failure 1 + 30 × (${fmt(oneRM)} ÷ ${fmt(w)} − 1) = ${fmt(1 + 30 * (oneRM / Math.min(w, oneRM) - 1))} → ${formatIntensity(intensity.mode, intensity.value)} kept; weight removed`);
             }
@@ -925,7 +931,10 @@ export function useWorkoutMutations({
           } else {
             const own = hasIntensityValue(st);
             const intensity = own ? st.intensity : { mode: 'rir', value: SET_TYPE_RIR[type] ?? 2 };
-            load = weightForIntensity(oneRM, reps, intensity) || 0;
+            // A stored RIR is after fatigue: the working sets before it add the allowance back (fresh-equivalent);
+            // a routine's own type effort (no intensity) is already fresh
+            const fatigueReps = own && intensity.mode !== 'pct' && type !== 'Warmup' ? getEngineFatigue() * priorHardSets(list, idx) : 0;
+            load = weightForIntensity(oneRM, reps + fatigueReps, intensity) || 0;
             const label = formatIntensity(intensity.mode, intensity.value);
             const source = own ? 'the routine\'s intensity' : `${type}'s effort`;
             how =
@@ -2400,8 +2409,9 @@ export function useWorkoutMutations({
           return solveBodyweightSet(st, orig, calc1RM, exId, getSlotEquipmentChoice(slot, isSup ? half : 0), step);
         }
         if (!orig || orig.completed || isBw || isTimer || !(calc1RM > 0)) return st;
-        if (orig.lockIntensity) return solveSet({ ...st, intensity: orig.intensity, lockIntensity: true }, calc1RM, { step });
-        return showIntensity ? solveSet({ ...st, lockIntensity: false }, calc1RM, { step }) : st;
+        const fatigueReps = normalizeSetType(st.type) === 'Warmup' ? 0 : getEngineFatigue() * priorHardSets(withTypes, idx);
+        if (orig.lockIntensity) return solveSet({ ...st, intensity: orig.intensity, lockIntensity: true }, calc1RM, { step, fatigueReps });
+        return showIntensity ? solveSet({ ...st, lockIntensity: false }, calc1RM, { step, fatigueReps }) : st;
       });
       return withIntensity.map((st, idx) => ({ ...st, setNumber: idx + 1 }));
     };
