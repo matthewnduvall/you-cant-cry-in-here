@@ -24,7 +24,8 @@ import {
   CORE_PR_EXERCISE_IDS,
   isExerciseAvailableWithEquipment,
   findEquivalentExerciseForEquipment,
-  getSlotEquipmentChoice
+  getSlotEquipmentChoice,
+  isBandEquipment
 } from '../data/exerciseLibrary';
 import {
   getBestHistory1RM,
@@ -60,7 +61,10 @@ import {
   workoutTimeMs,
   countsBodyweight,
   setLoadLbs,
-  getEngineBodyweight
+  getEngineBodyweight,
+  snapSlotToPlates,
+  getLastLoggedSessionForExercise,
+  loggedExercise1RMInfo
 } from '../utils/workoutEngine';
 import { deleteCloudRoutineByKey, deleteCloudWorkoutsByIds, postSyncHistoryUpdate } from '../utils/supabaseAuth';
 import {
@@ -74,8 +78,8 @@ import {
   BIG3_IDS,
   isBig3Variant
 } from '../data/programs';
-import { applyProgramToSlot, isProgrammedSlot, fitsProgramEquipment } from '../utils/programEngine';
-import { SET_TYPE_RIR, solveSet, deriveIntensity, weightForIntensity, repsForIntensity, intensityToRir, formatIntensity } from '../utils/intensity';
+import { applyProgramToSlot, isProgrammedSlot, fitsProgramEquipment, solveBodyweightSet } from '../utils/programEngine';
+import { SET_TYPE_RIR, solveSet, deriveIntensity, weightForIntensity, repsForIntensity, intensityToRir, formatIntensity, repsToFailure, DEFAULT_INTENSITY_MODE, plannedRirForSet, EFFORT_PLANNED_SCHEMES } from '../utils/intensity';
 import { getStarting1RM, describe1RM, getLiftFamilyParent } from '../utils/starting1RM';
 import { withTrace, traceLine, traceTitle, isTracing, fmt, logOperation } from '../utils/calcTrace';
 import { buildHistoryUpdate, findAddedSlots, getWorkoutSyncInfo, withSyncInfo } from '../utils/syncedHistory';
@@ -202,32 +206,142 @@ export function useWorkoutMutations({
       }
     });
     return fillIntensities(
-      // Bodyweight-type exercises store what is added (0 / the plate), not the total load
-      toAddedWeights(createWorkoutSlotRaw({ ...args, base1RMOverrides: { ...starts, ...(args.base1RMOverrides || {}) } })),
+      planEffort(
+        // Bodyweight-type exercises store what is added (0 / the plate), not the total load
+        toAddedWeights(createWorkoutSlotRaw({ ...args, base1RMOverrides: { ...starts, ...(args.base1RMOverrides || {}) } }))
+      ),
       getCurrentEditorWorkout()
     );
   };
 
-  // Programs that use intensity: every set shows one. A set without one (or with one worked out before, `auto`) gets
-  // it from its weight and reps and the exercise's calculated 1RM (utils/intensity.js deriveIntensity); intensities
-  // set by hand, by the set type or by the program, and locked ones, stay.
+  // Programs that use intensity: every set shows one, and it is always TRUE TO YOU. An unlocked intensity is worked
+  // out from the set's real load (setLoadLbs: bodyweight counted, + the added weight, − a band) and reps against your
+  // calculated 1RM — so a program's "8 reps at RIR 6" that is easier or harder for you shows the RIR you'd really
+  // have left (it can go past 10). A set asking more reps than the load allows drops to the most it allows (RIR 0),
+  // unless its reps are locked. Locked intensities are targets (an intensity applied by hand locks): they set the
+  // weight / reps instead and are left alone here; so are completed and timed sets. Run after every planning step
+  // (new exercises, programs, RECALCULATE, set type / count / reps changes, weight / reps edits).
   const intensityOn = workout => getProgram(workout?.program || trainingProgram).usesIntensity;
-  function fillIntensities(slot, workout) {
-    if (!slot || !intensityOn(workout)) return slot;
+
+  // Planning by effort (Exercise Set Preferences → set types → RIR, plannedRirForSet in utils/intensity.js): on the
+  // uniform rep schemes (EFFORT_PLANNED_SCHEMES) every set not done is planned at its type's effort from the calculated
+  // 1RM — weight = 1RM ÷ (1 + (reps + RIR − 1) ÷ 30). Where the load can't move (bodyweight, a band, a locked weight)
+  // the reps follow instead (reps to failure − RIR); Weighted bodyweight exercises get the added weight. Locked
+  // intensities are left to solveSet; locked reps / weights stay. Programs' own plans (programSlot) replace this for
+  // the exercises they cover. `onlySetId`: just that set (a set type change). Slots store added weights.
+  // The 1RM sets are planned and judged against. Crying assumes you can do what you did last time plus your goal
+  // increment: last session's 1RM of the exercise (loggedExercise1RMInfo, the workout being edited left out) + the
+  // increment; never logged = the starting estimate as it is. Other programs: the calculated 1RM.
+  const isCryingWorkout = workout => getProgram(workout?.program || trainingProgram).id === 'crying';
+  const effort1RM = (exId, option, workout) => {
+    const calc = getHistoricalCalculated1RM(exId);
+    if (!isCryingWorkout(workout)) return calc;
+    const last = getLastLoggedSessionForExercise(exId, history, workout?.id || null);
+    const prev = last ? loggedExercise1RMInfo(exId, last.sets, option).value : 0;
+    if (!(prev > 0)) return calc;
+    const inc = getEffectiveIncrementForExercise(exId, currentIncrementLbs);
+    if (isTracing()) traceLine(`${EXERCISE_MAP[exId]?.name || exId}: last session 1RM ${fmt(prev)} + goal increment ${fmt(inc)} = ${fmt(prev + inc)} lb (what you're planned to be capable of)`);
+    return prev + inc;
+  };
+
+  function planEffort(slot, onlySetId = null, workoutArg = null) {
+    if (!slot) return slot;
+    const workout = workoutArg || getCurrentEditorWorkout();
+    const isSup = Array.isArray(slot.supersetSetsByExercise) && slot.supersetSetsByExercise.length > 1;
     const ids = slot.supersetExerciseIds || [slot.exerciseId, slot.secondaryExerciseId];
-    const fill = (list, exId) =>
-      (list || []).map(st => {
-        if (!st || st.lockIntensity || (st.intensity && !st.intensity.auto) || st.durationSeconds || isBodyweightExercise(exId)) {
-          return st;
+    const schemes = isSup ? getSupersetSchemes(slot) : [slot.scheme];
+    const plan = (list, exId, half) => {
+      const sets = Array.isArray(list) ? list : [];
+      if (!EFFORT_PLANNED_SCHEMES.includes(schemes[half])) return sets;
+      if (isBodyweightExercise(exId) && !countsBodyweight(exId)) return sets;
+      const option = getSlotEquipmentChoice(slot, half);
+      const oneRM = effort1RM(exId, option, workout);
+      if (!(oneRM > 0)) return sets;
+      const bw = countsBodyweight(exId) ? getEngineBodyweight() : 0;
+      const weighted = bw > 0 && /weighted/i.test(String(option || ''));
+      const fixedLoad = (bw > 0 && !weighted) || isBandEquipment(option);
+      const effInc = getEffectiveIncrementForExercise(exId, currentIncrementLbs);
+      const step = effInc > 0 ? Math.min(2.5, effInc) : 2.5;
+      const types = sets.map(st => normalizeSetType(st?.type));
+      const name = EXERCISE_MAP[exId]?.name || exId;
+      return sets.map((st, idx) => {
+        if (!st || st.completed || st.lockIntensity || st.durationSeconds) return st;
+        if (onlySetId && st.id !== onlySetId) return st;
+        const rir = plannedRirForSet(types, idx);
+        const effort = { mode: 'rir', value: rir };
+        if (types[idx] === '1 Rep Max') {
+          return st.lockWeight || fixedLoad ? { ...st, reps: st.lockReps ? st.reps : 1 } : { ...st, reps: st.lockReps ? st.reps : 1, weight: Math.max(0, Math.round((oneRM - bw) / step) * step) };
         }
-        // solveSet works out the intensity from the weight and reps (and writes its formula line while tracing)
-        return solveSet({ ...st, lockIntensity: false }, getHistoricalCalculated1RM(exId));
+        if (fixedLoad || (st.lockWeight && !st.lockReps)) {
+          if (st.lockReps) return st;
+          const load = setLoadLbs(exId, st, option);
+          const reps = repsForIntensity(oneRM, load, effort);
+          if (reps === null) return st;
+          if (isTracing()) traceLine(`${name} set ${idx + 1} ${types[idx]} · RIR ${rir}: load ${fmt(load)} lb → reps to failure ${fmt(repsToFailure(oneRM, load))} − ${rir} = ${reps}`);
+          return { ...st, reps };
+        }
+        if (st.lockWeight) return st;
+        const target = weightForIntensity(oneRM, st.reps, effort);
+        if (target === null) return st;
+        const weight = Math.max(0, Math.round((target - bw) / step) * step);
+        if (isTracing()) traceLine(`${name} set ${idx + 1} ${types[idx]} · RIR ${rir} × ${st.reps}: ${fmt(oneRM)} ÷ (1 + (${st.reps} + ${rir} − 1) ÷ 30) = ${fmt(target)}${bw ? ` − bodyweight ${fmt(bw)}` : ''} → ${fmt(weight)} lb`);
+        if (weighted && target < bw) {
+          // Lighter than bodyweight: nothing added, and the reps follow instead
+          const reps = st.lockReps ? st.reps : repsForIntensity(oneRM, bw, effort) ?? st.reps;
+          return { ...st, weight: 0, reps };
+        }
+        return { ...st, weight };
       });
-    if (Array.isArray(slot.supersetSetsByExercise) && slot.supersetSetsByExercise.length > 1) {
-      const matrix = slot.supersetSetsByExercise.map((list, i) => fill(list, ids[i] || slot.exerciseId));
+    };
+    if (isSup) {
+      const matrix = slot.supersetSetsByExercise.map((list, i) => plan(list, ids[i] || slot.exerciseId, i));
       return { ...slot, supersetSetsByExercise: matrix, sets: matrix[0] || [], secondarySets: matrix[1] || [] };
     }
-    const sets = fill(slot.sets, slot.exerciseId);
+    const sets = plan(slot.sets, slot.exerciseId, 0);
+    return { ...slot, sets, supersetSetsByExercise: [sets] };
+  }
+
+  function fillIntensities(rawSlot, workout) {
+    if (!rawSlot || !intensityOn(workout)) return rawSlot;
+    // Weights snapped to what can be loaded first (plates, dumbbell sizes), so the intensity is the one for the
+    // weight actually lifted
+    const slot = snapSlotToPlates(rawSlot);
+    const isSup = Array.isArray(slot.supersetSetsByExercise) && slot.supersetSetsByExercise.length > 1;
+    const ids = slot.supersetExerciseIds || [slot.exerciseId, slot.secondaryExerciseId];
+    const schemes = isSup ? getSupersetSchemes(slot) : [slot.scheme];
+    const fit = (list, exId, half) => {
+      if (schemes[half] === 'Timer') return list || [];
+      // Bodyweight exercises need your bodyweight to know the load
+      if (isBodyweightExercise(exId) && !countsBodyweight(exId)) return list || [];
+      const option = getSlotEquipmentChoice(slot, half);
+      const oneRM = effort1RM(exId, option, workout);
+      const name = EXERCISE_MAP[exId]?.name || exId;
+      return (list || []).map((st, idx) => {
+        if (!st || st.completed || st.lockIntensity || st.durationSeconds) return st;
+        const load = setLoadLbs(exId, st, option);
+        const rtf = repsToFailure(oneRM, load);
+        if (rtf === null) return st;
+        let next = st;
+        const reps = Math.max(1, Number(st.reps) || 1);
+        if (reps > rtf + 0.5 && !st.lockReps) {
+          const most = Math.max(1, Math.floor(rtf + 0.5));
+          if (isTracing()) traceLine(`${name} set ${idx + 1}: ${reps} reps at ${fmt(load)} lb is more than 1RM ${fmt(oneRM)} allows (${fmt(rtf)} to failure) → ${most} reps`);
+          next = { ...st, reps: most };
+        }
+        const derived = deriveIntensity(oneRM, load, next.reps, st.intensity?.mode || DEFAULT_INTENSITY_MODE);
+        if (!derived) return next;
+        const same = st.intensity && st.intensity.mode === derived.mode && Number(st.intensity.value) === Number(derived.value);
+        if (!same && isTracing()) {
+          traceLine(`${name} set ${idx + 1}: ${fmt(load)} lb × ${next.reps} against 1RM ${fmt(oneRM)} → reps to failure ${fmt(rtf)} → ${formatIntensity(derived.mode, derived.value)}${st.intensity ? ` (was ${formatIntensity(st.intensity.mode, st.intensity.value)})` : ''}`);
+        }
+        return { ...next, intensity: derived };
+      });
+    };
+    if (isSup) {
+      const matrix = slot.supersetSetsByExercise.map((list, i) => fit(list, ids[i] || slot.exerciseId, i));
+      return { ...slot, supersetSetsByExercise: matrix, sets: matrix[0] || [], secondarySets: matrix[1] || [] };
+    }
+    const sets = fit(slot.sets, slot.exerciseId, 0);
     return { ...slot, sets, supersetSetsByExercise: [sets] };
   }
   const defaultScheme = getDefaultSchemeForGoal(goalType);
@@ -235,7 +349,7 @@ export function useWorkoutMutations({
   const programContextFor = workout => getProgramContext(trainingProgram, programCycleStart, workout, history, programSchedules);
   // A slot with the workout's program week applied (unchanged when the program doesn't cover it)
   // Bodyweight-type exercises store what is added (0 / the plate), not the total load
-  const programSlot = (slot, workout) => toAddedWeights(programSlotLoads(slot, workout));
+  const programSlot = (slot, workout) => fillIntensities(toAddedWeights(programSlotLoads(slot, workout)), workout);
   const programSlotLoads = (slot, workout) =>
     applyProgramToSlot(slot, programContextFor(workout), {
       history,
@@ -1139,7 +1253,8 @@ export function useWorkoutMutations({
       };
       setHistory(prev => [entry, ...prev]);
       setHistoricalDraft(null);
-      setCurrentView('history');
+      // Back to the History page, where the past workout was started
+      setCurrentView('history_log');
       return;
     }
 
@@ -1639,7 +1754,7 @@ export function useWorkoutMutations({
         // REST box in the filter row: this exercise's own rest (null = the session's rest bar setting)
         if (changes.customRestSeconds !== undefined) return { ...slot, customRestSeconds: changes.customRestSeconds || null };
         // SETS / REPS boxes of the scheme row
-        if (changes.setCount !== undefined || changes.targetReps !== undefined) return reshapeSlot(slot, changes);
+        if (changes.setCount !== undefined || changes.targetReps !== undefined) return fillIntensities(reshapeSlot(slot, changes), prev);
         if (isSupersetCategory(slot.category) && changes.endSuperset !== undefined) {
           const single = endSuperset(slot, changes.endSuperset);
           const wanted = changes.category ? normalizeSlotCategory(changes.category) : null;
@@ -1879,7 +1994,12 @@ export function useWorkoutMutations({
           // Band exercises: the load is a band colour, not a weight
           if (field === 'bandColor') return { ...st, bandColor: rawVal };
           // Programs other than Crying: the set's intensity ({ mode: 'pct' | 'rir' | 'rpe', value })
-          if (field === 'intensity') return { ...st, intensity: rawVal };
+          // An intensity applied by hand is a target, like a typed weight: it locks, so RECALCULATE (and the
+          // program) works the weight / reps out from it instead of putting the plan back; CLEAR unlocks it
+          if (field === 'intensity') {
+            const hasValue = rawVal && rawVal.value !== null && rawVal.value !== undefined && rawVal.value !== '';
+            return { ...st, intensity: hasValue ? rawVal : null, lockIntensity: Boolean(hasValue) };
+          }
           const calc1RM = getHistoricalCalculated1RM(exId, history, oneRepMaxes);
           const lastW =
             st.lastWeight !== undefined
@@ -2039,7 +2159,9 @@ export function useWorkoutMutations({
         const nextSets = retypeList(slot.sets || [], slot.exerciseId, slot.scheme, slot.targetReps);
         return { ...slot, sets: nextSets, supersetSetsByExercise: [nextSets] };
       });
-      return { ...prev, slots: nextSlots };
+      // The new type's weight / reps, with the intensity that is true to you
+      // (the changed set planned at its new type's effort)
+      return { ...prev, slots: nextSlots.map(sl => (sl.id === slotId ? fillIntensities(planEffort(sl, setId, prev), prev) : sl)) };
     });
   };
 
@@ -2128,34 +2250,8 @@ export function useWorkoutMutations({
   // last) is kept. Type-locked sets then follow their type's rule (setTypeTarget). Timer sets keep their times; band
   // sets keep their colour.
   // Bodyweight-type exercises store what is added (0 / the plate), not the total load
-  // One bodyweight-exercise set with a locked intensity, worked out on its real load (setLoadLbs): the reps that
-  // load allows at that intensity, or (Weighted, weight unlocked) the added weight for the set's reps
-  const solveBodyweightSet = (st, orig, oneRM, exId, option, step) => {
-    const intensity = orig.intensity;
-    const bw = getEngineBodyweight();
-    const weighted = /weighted/i.test(String(option || ''));
-    const label = `set ${st.setNumber ?? ''}`.trim();
-    // The weight comes back as the total load; toAddedWeights (after RECALCULATE) stores what is added
-    let load = setLoadLbs(exId, { ...st, weight: Number(orig.lockWeight ? orig.weight : st.weight) || 0 }, option);
-    if (weighted && !orig.lockWeight) {
-      const target = weightForIntensity(oneRM, st.reps, intensity);
-      if (target !== null && target >= bw) {
-        const total = bw + Math.max(0, Math.round((target - bw) / step) * step);
-        if (isTracing()) traceLine(`${label}: ${formatIntensity(intensity.mode, intensity.value)} locked × ${st.reps} reps → load ${fmt(target)} lb = bodyweight ${fmt(bw)} + ${fmt(total - bw)} lb added`);
-        return { ...st, intensity, lockIntensity: true, weight: total };
-      }
-      // Lighter than bodyweight: nothing added, and the reps follow instead
-      load = bw;
-      st = { ...st, weight: bw };
-    }
-    if (orig.lockReps) return { ...st, intensity, lockIntensity: true };
-    const reps = repsForIntensity(oneRM, load, intensity);
-    if (reps === null) return { ...st, intensity, lockIntensity: true };
-    if (isTracing()) traceLine(`${label}: ${formatIntensity(intensity.mode, intensity.value)} locked at a load of ${fmt(load)} lb (1RM ${fmt(oneRM)}) → ${reps} reps`);
-    return { ...st, intensity, lockIntensity: true, reps };
-  };
-
-  const recalculateSlot = (slot, workoutId) => toAddedWeights(recalculateSlotLoads(slot, workoutId));
+  const recalculateSlot = (slot, workoutId) =>
+    fillIntensities(planEffort(toAddedWeights(recalculateSlotLoads(slot, workoutId))), getCurrentEditorWorkout());
   const recalculateSlotLoads = (slot, workoutId) => {
     const isSup = isSupersetCategory(slot.category) && Array.isArray(slot.supersetSetsByExercise);
     const schemes = isSup ? getSupersetSchemes(slot) : [slot.scheme || defaultScheme];

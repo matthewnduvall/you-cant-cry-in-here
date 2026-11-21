@@ -195,6 +195,8 @@ export default function App() {
   setPlateInventory(plateInventory);
   // The session page's SIMPLE / ADVANCED tabs (easy hides the program row, 1RM box, filters, types, intensity, locks…)
   const [sessionMode, setSessionMode] = useState('advanced');
+  // Routines page -> PLAYLISTS: named, ordered groups of saved routines ([{ id, name, routineKeys, nextKey }])
+  const [routinePlaylists, setRoutinePlaylists] = useState([]);
   // Picking a different program starts its cycle today (week 1)
   const selectTrainingProgram = id => {
     if (id === trainingProgram) return;
@@ -370,6 +372,8 @@ export default function App() {
     setPlateInventory: setPlateInventoryState,
     sessionMode,
     setSessionMode,
+    routinePlaylists,
+    setRoutinePlaylists,
     shareStatsWithFriends,
     setShareStatsWithFriends,
     shareRoutinesWithFriends,
@@ -1300,8 +1304,7 @@ export default function App() {
                 setConfirmedHistoryEditWorkoutId(null);
                 setExpandedHistoryWorkoutId(null);
                 setHistoryDateRange(historyDateRangeFor('week'));
-                setProgressTabChoice('history');
-                setCurrentView('history');
+                setCurrentView('history_log');
               }}
               goalToGoLbs={homeGoalToGo}
               rank={homeRank}
@@ -1415,18 +1418,25 @@ export default function App() {
               gyms={gyms}
               routineSelectReturnView={routineSelectReturnView}
               handleOpenPreviewRoutine={handleOpenPreviewRoutine}
+              // onLoaded (playlists): runs once the routine is loaded, so UP NEXT only moves on a real load
               handleDirectLoadRoutine={
                 routinesAsPage
-                  ? (routine, view) =>
-                      confirmReplaceSession(stripDateFromTitle(routine?.label) || 'this routine', () =>
-                        handleDirectLoadRoutine(routine, view)
-                      )
-                  : handleDirectLoadRoutine
+                  ? (routine, view, onLoaded) =>
+                      confirmReplaceSession(stripDateFromTitle(routine?.label) || 'this routine', () => {
+                        handleDirectLoadRoutine(routine, view);
+                        onLoaded?.();
+                      })
+                  : (routine, view, onLoaded) => {
+                      handleDirectLoadRoutine(routine, view);
+                      onLoaded?.();
+                    }
               }
               handleCancelRoutineSelection={handleCancelRoutineSelection}
               showCancel={!routinesAsPage}
               // Routines friends send you arrive in the Social page's INBOX (SAVE moves them to SAVED here)
-              sections={['saved', 'shared']}
+              sections={['saved', 'playlists', 'shared']}
+              playlists={routinePlaylists}
+              setPlaylists={setRoutinePlaylists}
               onNewRoutine={routinesAsPage ? handleNewRoutine : undefined}
               onEditRoutine={routinesAsPage ? handleEditRoutine : undefined}
               received={routineShares.incoming}
@@ -1444,8 +1454,10 @@ export default function App() {
             />
           )}
 
-          {/* PROGRESS page (view id 'history'): see renderProgressPage */}
-          {currentView === 'history' && renderProgressPage()}
+          {/* PERFORMANCE page (view id 'history'): the chart. HISTORY page (view 'history_log', menu TRACK → History):
+              the logged sessions. Each is one tab of renderProgressPage, without the tab row (the menu names both) */}
+          {currentView === 'history' && renderProgressPage({ hideTabs: true, tab: 'progress' })}
+          {currentView === 'history_log' && renderProgressPage({ hideTabs: true, tab: 'history' })}
 
           {currentView === 'gym_editor' && gymDraft && (
             <GymEditorView

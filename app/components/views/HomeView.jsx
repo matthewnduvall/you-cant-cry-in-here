@@ -433,7 +433,7 @@ export function HomeView({
       value: lastAgoDays === null ? '—' : lastAgoDays === 0 ? 'TODAY' : String(lastAgoDays),
       unit: lastAgoDays > 0 ? 'D AGO' : '',
       sub: lastMs ? formatDateYMD(new Date(lastMs)) : 'NOTHING LOGGED YET',
-      view: 'history',
+      view: 'history_log',
       onClick: lastWorkoutId && onOpenWorkout ? () => onOpenWorkout(lastWorkoutId) : null
     },
     {
@@ -442,7 +442,7 @@ export function HomeView({
       value: thisWeek === null ? '—' : String(thisWeek),
       unit: thisWeek === 1 ? 'SESSION' : 'SESSIONS',
       sub: 'LAST 7 DAYS',
-      view: 'history',
+      view: 'history_log',
       onClick: onOpenThisWeek || null
     },
     {

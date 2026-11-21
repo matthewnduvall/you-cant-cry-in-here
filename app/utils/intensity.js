@@ -9,7 +9,22 @@ import { traceLine, isTracing, fmt } from './calcTrace';
 
 // A set type's intensity in RIR (the default scale), set when the type is picked: Warm-up RIR 5, Working RIR 2,
 // Top Out RIR 1, Burn Out RIR 3, 1 Rep Max RIR 0 (= RPE 5 / 8 / 9 / 7 / 10)
-export const SET_TYPE_RIR = { Warmup: 5, Working: 2, 'Top Out': 1, 'Burn Out': 3, '1 Rep Max': 0 };
+export const SET_TYPE_RIR = { Warmup: 3, Working: 2, 'Top Out': 1, 'Burn Out': 3, '1 Rep Max': 0 };
+
+// The effort each set is planned at, from its type (Exercise Set Preferences decide the types, so they decide the
+// effort everywhere): a warm-up leaves RIR 3; working sets wave down from RIR 2 toward 0 across the exercise's working
+// sets (round(2 × (1 − k ÷ n)) for the k-th of n: 3 working sets = 2, 1, 1; 5 = 2, 2, 1, 1, 0); Top Out RIR 1,
+// Burn Out RIR 3, a 1 Rep Max RIR 0. With the default preferences (2 warm-ups, 3 working) a 5-set exercise is
+// 3, 3, 2, 1, 1. `types` = the exercise's normalized set types in order.
+export const plannedRirForSet = (types, idx) => {
+  const type = types[idx];
+  if (type !== 'Working') return SET_TYPE_RIR[type] ?? SET_TYPE_RIR.Working;
+  const working = types.filter(t => t === 'Working').length;
+  const k = types.slice(0, idx).filter(t => t === 'Working').length;
+  return Math.round(2 * (1 - k / Math.max(1, working)));
+};
+// The uniform rep schemes whose sets come from Exercise Set Preferences: these are planned by effort
+export const EFFORT_PLANNED_SCHEMES = ['3x5', '3x8', '3x12', '5x5', '5x6', '5x8', '5x8w', '5x10', '8x8', 'Cluster'];
 // The scale a set's intensity is shown in when nothing else picked one
 export const DEFAULT_INTENSITY_MODE = 'rir';
 
@@ -93,7 +108,8 @@ export const repsToFailure = (oneRM, weight) => {
 
 /**
  * The intensity of a set from its weight and reps (`auto: true` = worked out, not set by hand), in `mode` (the set's
- * own scale if it has one, else RPE); null when the 1RM or weight is unknown.
+ * own scale if it has one, else RIR); null when the 1RM or weight is unknown. Not held to the pop-up's options, so it
+ * stays true: RIR can go past 10 (an easy set), %1RM below 40 (in 2.5 steps).
  */
 export const deriveIntensity = (oneRM, weight, reps, mode = DEFAULT_INTENSITY_MODE) => {
   const rtf = repsToFailure(oneRM, weight);
@@ -101,10 +117,11 @@ export const deriveIntensity = (oneRM, weight, reps, mode = DEFAULT_INTENSITY_MO
   const n = Math.max(1, Number(reps) || 1);
   if (mode === 'pct') {
     const pct = (Number(weight) / Number(oneRM)) * 100;
-    const value = INTENSITY_OPTIONS.pct.reduce((b, o) => (Math.abs(o - pct) < Math.abs(b - pct) ? o : b), 100);
+    const value = Math.min(100, Math.max(2.5, Math.round(pct / 2.5) * 2.5));
     return { mode: 'pct', value, auto: true };
   }
   const rir = Math.max(0, rtf - n);
+  if (mode === 'rir') return { mode, value: Math.round(rir), auto: true };
   return { mode, value: convertIntensity({ mode: 'rir', value: rir }, mode, n), auto: true };
 };
 

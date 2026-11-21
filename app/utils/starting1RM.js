@@ -44,13 +44,25 @@ const loggedExerciseIds = history => {
   return ids;
 };
 
+// A never-logged bodyweight exercise's starting 1RM assumes this many reps to failure at bodyweight
+export const BODYWEIGHT_START_REPS = 12;
+
 /**
- * { value, source: 'history' | 'related' | 'standard' | 'default', fromId } for an exercise.
+ * { value, source: 'history' | 'related' | 'standard' | 'bodyweight' | 'default', fromId } for an exercise.
  * opts = { history, targetStandardClass, bodyweightLbs, heightInches }
  */
 export const getStarting1RMInfo = (exerciseId, { history = [], targetStandardClass = 'Novice', bodyweightLbs = 220, heightInches = 70 } = {}) => {
   const own = getBestHistory1RM(exerciseId, history);
   if (own > 0) return { value: own, source: 'history', fromId: exerciseId };
+  if (EXERCISE_MAP[exerciseId] && isBodyweightExercise(exerciseId) && Number(bodyweightLbs) > 0) {
+    // Bodyweight exercises count your bodyweight as the load, so a 1RM below it would mean one rep at most. Never
+    // logged: start at about BODYWEIGHT_START_REPS reps to failure at bodyweight (the library default if higher)
+    const fromBodyweight = Math.round((Number(bodyweightLbs) * (1 + (BODYWEIGHT_START_REPS - 1) / 30)) / 5) * 5;
+    const libraryDefault = EXERCISE_MAP[exerciseId]?.default1RM ?? 0;
+    return libraryDefault >= fromBodyweight
+      ? { value: libraryDefault, source: 'default', fromId: null }
+      : { value: fromBodyweight, source: 'bodyweight', fromId: null };
+  }
   if (!EXERCISE_MAP[exerciseId] || isBodyweightExercise(exerciseId)) {
     return { value: EXERCISE_MAP[exerciseId]?.default1RM ?? 135, source: 'default', fromId: null };
   }
@@ -127,6 +139,9 @@ export const describe1RM = (exerciseId, opts = {}) => {
   }
   if (info.source === 'standard') {
     return `1RM ${name} (never logged) = ${cls} standard (one class below your ${opts.targetStandardClass || 'Novice'} goal) at ${fmt(opts.bodyweightLbs || 220)} lb bodyweight = ${fmt(info.value)} lb`;
+  }
+  if (info.source === 'bodyweight') {
+    return `1RM ${name} (never logged) = bodyweight ${fmt(opts.bodyweightLbs || 220)} × (1 + (${BODYWEIGHT_START_REPS} reps to failure − 1) ÷ 30) = ${fmt(info.value)} lb`;
   }
   return `1RM ${name} = library default ${fmt(info.value)} lb`;
 };

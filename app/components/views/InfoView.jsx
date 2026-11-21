@@ -93,12 +93,19 @@ export function InfoView({
 
       <Section header="INTENSITY" colors={colors}>
         <P title="Reps in reserve.">
-          Under a program, each set has an intensity: RIR by default (reps you could still do), or RPE (10 − RIR), or
-          percent of your 1RM. They convert into each other through the set’s reps, and a set type sets one for you
-          (warm-up RIR 5, working RIR 2, top out RIR 1, burn out RIR 3, 1 rep max RIR 0).
+          Every set has an intensity: RIR by default (reps you could still do), or RPE (10 − RIR), or percent of your
+          1RM. They convert into each other through the set’s reps. Your Exercise Set Preferences set the effort: a
+          warm-up leaves RIR 3, working sets wave from RIR 2 toward 0 (5 × 8 with two warm-ups is RIR 3, 3, 2, 1, 1),
+          top out RIR 1, burn out RIR 3, a 1 rep max RIR 0.
+        </P>
+        <P title="Always true to you.">
+          The intensity shown is what the set’s weight and reps really are for you, from your 1RM. Where a plan and your
+          numbers disagree (a bodyweight set you can do more of, a weight the plates can’t make exactly) the intensity
+          says so. If a set felt easier or harder, change its intensity: that moves your 1RM and everything after it.
         </P>
         <P title="Locks.">
-          Lock any of a set’s weight, reps or intensity and RECALCULATE works out the rest around them.
+          Lock any of a set’s weight, reps or intensity and RECALCULATE works out the rest around them. An intensity
+          you pick locks itself.
         </P>
         <P title="Checking before saving." last>
           When you finish, sets whose 1RM is far from the rest of their exercise are listed, e.g. a light set marked RIR
