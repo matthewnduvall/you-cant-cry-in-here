@@ -57,12 +57,13 @@ export const intensityToRir = (intensity, reps) => {
   const v = Number(intensity.value);
   if (!Number.isFinite(v)) return null;
   const n = Math.max(1, Number(reps) || 1);
-  if (intensity.mode === 'rir') return Math.max(0, v);
-  if (intensity.mode === 'rpe') return Math.max(0, 10 - v);
+  // RIR can be below 0: more reps than the load allows (RPE above 10, %1RM above 100)
+  if (intensity.mode === 'rir') return v;
+  if (intensity.mode === 'rpe') return 10 - v;
   // %1RM → the reps that weight allows to failure, minus the set's reps
-  const pct = clamp(v, 1, 100);
+  const pct = clamp(v, 1, 200);
   const repsToFailure = 1 + 30 * (100 / pct - 1);
-  return Math.max(0, repsToFailure - n);
+  return repsToFailure - n;
 };
 
 /** The same intensity in another scale (rounded to that scale's options); null when unknown. */
@@ -103,7 +104,8 @@ export const repsToFailure = (oneRM, weight) => {
   const m = Number(oneRM);
   const w = Number(weight);
   if (!(m > 0) || !(w > 0)) return null;
-  return 1 + 30 * (m / Math.min(w, m) - 1);
+  // Above the 1RM this goes below 1 (and the RIR below 0)
+  return 1 + 30 * (m / w - 1);
 };
 
 /**
@@ -117,12 +119,13 @@ export const deriveIntensity = (oneRM, weight, reps, mode = DEFAULT_INTENSITY_MO
   const n = Math.max(1, Number(reps) || 1);
   if (mode === 'pct') {
     const pct = (Number(weight) / Number(oneRM)) * 100;
-    const value = Math.min(100, Math.max(2.5, Math.round(pct / 2.5) * 2.5));
+    const value = Math.max(2.5, Math.round(pct / 2.5) * 2.5);
     return { mode: 'pct', value, auto: true };
   }
-  const rir = Math.max(0, rtf - n);
+  // Below 0 when the set asks more reps than the load allows
+  const rir = rtf - n;
   if (mode === 'rir') return { mode, value: Math.round(rir), auto: true };
-  return { mode, value: convertIntensity({ mode: 'rir', value: rir }, mode, n), auto: true };
+  return { mode, value: Math.max(1, Math.round((10 - rir) * 2) / 2), auto: true };
 };
 
 /** The weight for `reps` at an intensity (null when unknown). */

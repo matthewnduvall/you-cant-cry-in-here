@@ -11,7 +11,7 @@
 // sets its set's weight instead of the week's plan.
 
 import { EXERCISE_MAP, isBodyweightExercise, isSupersetCategory, normalizeSlotCategory, getSlotEquipmentChoice } from '../data/exerciseLibrary';
-import { generateSetsForScheme, getBestHistory1RM, normalizeSetType, DEFAULT_SET_PREFERENCES, setLoadLbs, countsBodyweight, getEngineBodyweight } from './workoutEngine';
+import { generateSetsForScheme, getBestHistory1RM, getLastSession1RM, normalizeSetType, DEFAULT_SET_PREFERENCES, setLoadLbs, countsBodyweight, getEngineBodyweight } from './workoutEngine';
 import { INTENSITY_OPTIONS, intensityToRir, solveSet, deriveIntensity, weightForIntensity, convertIntensity, repsForIntensity, formatIntensity } from './intensity';
 import { getStarting1RM, describe1RM } from './starting1RM';
 import { traceLine, isTracing, fmt } from './calcTrace';
@@ -38,8 +38,9 @@ export const getCycleTarget1RM = ({
     ? pool.filter(w => new Date(w.startedAt || 0).getTime() < cycleStartMs)
     : pool;
   const base =
-    getBestHistory1RM(exerciseId, before) ||
-    getBestHistory1RM(exerciseId, pool) ||
+    // last session's 1RM before the cycle began (not the PR), else the latest session
+    getLastSession1RM(exerciseId, before) ||
+    getLastSession1RM(exerciseId, pool) ||
     getStarting1RM(exerciseId, { ...startOpts, history: pool }) ||
     EXERCISE_MAP[exerciseId]?.default1RM ||
     135;
@@ -280,7 +281,7 @@ const planDaySlot = (spec, exerciseId, o) => {
   const { history, workoutId, programId, week, cycleStartMs } = o;
   const isBw = isBodyweightExercise(exerciseId);
   const bw = Math.max(0, Number(o.userBodyweightLbs) || 220);
-  const est1RM = getBestHistory1RM(exerciseId, history) || getStarting1RM(exerciseId, { ...o.startOpts, history });
+  const est1RM = getLastSession1RM(exerciseId, history) || getStarting1RM(exerciseId, { ...o.startOpts, history });
   const inc = Number(spec.inc) || 5;
   const base = { program: programId, week, key: spec.key, rule: spec.rule, role: spec.role || null };
 

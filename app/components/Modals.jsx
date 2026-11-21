@@ -578,8 +578,9 @@ export function SetValueEditorModal({
                 ))}
               </div>
             ) : (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '6px', marginBottom: '12px' }}>
-                {(presets || (isAbs ? [15, 30, 45, 60, 90, 120] : [1, 2, 3, 4, 5, 6, 8, 10, 12, 15])).map(r => (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, minmax(0, 1fr))', gap: '6px', marginBottom: '12px' }}>
+                {/* 18 = a Cluster's reps; two full rows of six */}
+                {(presets || (isAbs ? [15, 30, 45, 60, 90, 120] : [1, 2, 3, 4, 5, 6, 8, 10, 12, 15, 18, 20])).map(r => (
                   <button
                     key={r}
                     type="button"

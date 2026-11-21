@@ -616,7 +616,9 @@ side_lying_hip_abduction,Bodyweight Side-Lying Hip Abduction,Hips,Accessory,Body
 exrx_hips_bodyweight_single_leg_box_squat_pistol,Bodyweight Single Leg Box Squat (Pistol),Hips,Accessory,Bodyweight,,Gluteus Maximus|Quadriceps|Hamstrings,false,115,
 exrx_hips_bodyweight_single_leg_squat,Single Leg Squat,Hips,Accessory,Bodyweight / Weighted,,Gluteus Maximus|Quadriceps|Hamstrings,false,115,
 exrx_hips_bodyweight_single_leg_stiff_leg_deadlift,Bodyweight Single Leg Stiff Leg Deadlift,Hips,Accessory,Bodyweight,,Gluteus Maximus|Quadriceps|Hamstrings,false,115,
-single_leg_hip_thrust,Bodyweight Single-Leg Hip Thrust,Hips,Compound,Bodyweight,,Gluteus Maximus|Hamstrings,false,135,glute_bridge
+single_leg_hip_thrust,Bodyweight Single-Leg Hip Thrust,Hips,Compound,Bodyweight,,Gluteus Maximus|Hamstrings,false,135,glute_bridge|barbell_single_leg_hip_thrust|dumbbell_single_leg_hip_thrust
+barbell_single_leg_hip_thrust,Barbell Single-Leg Hip Thrust,Hips,Compound,Barbell,Barbell|Flat / Incline Bench|Weight Plates,Gluteus Maximus|Hamstrings,false,155,single_leg_hip_thrust|barbell_hip_thrust
+dumbbell_single_leg_hip_thrust,Dumbbell Single-Leg Hip Thrust,Hips,Compound,Dumbbell,Dumbbell|Flat / Incline Bench,Gluteus Maximus|Hamstrings,false,95,single_leg_hip_thrust|dumbbell_hip_thrust
 exrx_hips_bodyweight_split_squat,Bodyweight Split Squat,Hips,Accessory,Bodyweight,,Gluteus Maximus|Quadriceps|Hamstrings,false,115,
 exrx_hips_bodyweight_step_down,Bodyweight Step-down,Hips,Accessory,Bodyweight,,Gluteus Maximus|Quadriceps|Hamstrings,false,115,
 exrx_hips_bodyweight_step_up,Bodyweight Step-up,Hips,Accessory,Bodyweight,,Gluteus Maximus|Quadriceps|Hamstrings,false,115,

@@ -13,7 +13,8 @@ import { SegmentButton } from './Controls';
 import { SCHEME_OPTIONS, isClusterScheme, getSchemeUniformReps, PYRAMID_SCHEMES } from '../utils/workoutEngine';
 
 const SET_CHOICES = [1, 2, 3, 4, 5, 6, 7, 8, 10, 12];
-const REP_CHOICES = [1, 2, 3, 4, 5, 6, 8, 10, 12, 15, 20, 25];
+// 18 = a Cluster's reps
+const REP_CHOICES = [1, 2, 3, 4, 5, 6, 8, 10, 12, 15, 18, 20];
 
 /** Sets a scheme starts with ("5x8" → 5; Cluster → 3; supersets always 3); null = the scheme sets it. */
 export const schemeDefaultSets = (scheme, isSuperset = false) => {
@@ -73,14 +74,19 @@ export function SchemeEditorModal({ halves = [], isSuperset = false, programNote
     onApply?.(changes);
   };
 
-  const pillGrid = (values, current, onPick, cols, format = v => v) => (
-    <div style={{ display: 'grid', gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`, ...SHARED_GROUP_OUTER }}>
+  // Off (a scheme that sets them itself): still shown, dimmed and not tappable, so the pop-up never changes size
+  const pillGrid = (values, current, onPick, cols, format = v => v, off = false) => (
+    <div
+      aria-disabled={off || undefined}
+      style={{ display: 'grid', gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`, ...SHARED_GROUP_OUTER, opacity: off ? 0.4 : 1 }}
+    >
       {values.map(v => (
         <SegmentButton
           key={v}
-          active={String(current) === String(v)}
+          active={!off && String(current) === String(v)}
+          disabled={off}
           onClick={() => onPick(v)}
-          style={{ height: '44px', padding: 0, letterSpacing: 0 }}
+          style={{ height: '44px', padding: 0, letterSpacing: 0, cursor: off ? 'default' : 'pointer' }}
         >
           {format(v)}
         </SegmentButton>
@@ -120,21 +126,23 @@ export function SchemeEditorModal({ halves = [], isSuperset = false, programNote
         <div style={{ ...UI.capsLabel, margin: '0 0 6px 4px' }}>SCHEME</div>
         {pillGrid(options, draft.scheme, pickScheme, 3, v => String(v).toUpperCase())}
 
-        {showsSets(draft.scheme) && (
-          <>
-            <div style={{ ...UI.capsLabel, margin: '14px 0 6px 4px' }}>
-              SETS{isSuperset ? ' (BOTH EXERCISES)' : ''}
-            </div>
-            {pillGrid(SET_CHOICES, draft.sets, v => setDrafts(prev => prev.map((d, i) => (i === half || isSuperset ? { ...d, sets: v } : d))), 5)}
-          </>
+        {/* SETS and REPS are always there (dimmed when the scheme sets them), so picking a scheme never resizes it */}
+        <div style={{ ...UI.capsLabel, margin: '14px 0 6px 4px' }}>
+          SETS{isSuperset ? ' (BOTH EXERCISES)' : ''}{showsSets(draft.scheme) ? '' : ' · SET BY THE SCHEME'}
+        </div>
+        {pillGrid(
+          SET_CHOICES,
+          draft.sets,
+          v => setDrafts(prev => prev.map((d, i) => (i === half || isSuperset ? { ...d, sets: v } : d))),
+          5,
+          undefined,
+          !showsSets(draft.scheme)
         )}
 
-        {showsReps(draft.scheme) && (
-          <>
-            <div style={{ ...UI.capsLabel, margin: '14px 0 6px 4px' }}>REPS</div>
-            {pillGrid(REP_CHOICES, draft.reps, v => update({ reps: v }), 6)}
-          </>
-        )}
+        <div style={{ ...UI.capsLabel, margin: '14px 0 6px 4px' }}>
+          REPS{showsReps(draft.scheme) ? '' : draft.scheme === 'Timer' ? ' · TIMED' : ' · SET BY THE SCHEME'}
+        </div>
+        {pillGrid(REP_CHOICES, draft.reps, v => update({ reps: v }), 6, undefined, !showsReps(draft.scheme))}
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginTop: '16px' }}>
           <button type="button" className="kinetic-btn" onClick={onClose} style={UI.secondaryBtnCenter}>
