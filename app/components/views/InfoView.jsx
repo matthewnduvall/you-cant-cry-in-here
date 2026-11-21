@@ -73,9 +73,9 @@ export function InfoView({
 
       <Section header="WHAT THE 1RM DRIVES" colors={colors}>
         <P title="Suggested weights.">
-          The app turns your 1RM back into a weight for each set’s reps, set type and number of sets. It takes the lower of
-          last session’s weight + your increment, and your best 1RM + your increment, so the weights climb steadily
-          without jumping ahead of you. RECALCULATE redoes this for an exercise.
+          The app turns your 1RM back into a weight for each set’s reps, set type and number of sets. It works from the
+          1RM of the last session you logged of that exercise (not your record) plus your increment, so the weights
+          follow where you are now. RECALCULATE redoes this for an exercise.
         </P>
         <P title="Exercises you haven’t logged">
           start from a related lift you have (an RDL from your deadlift, an incline press from your bench), else from the
@@ -101,7 +101,9 @@ export function InfoView({
         <P title="Always true to you.">
           The intensity shown is what the set’s weight and reps really are for you, from your 1RM. Where a plan and your
           numbers disagree (a bodyweight set you can do more of, a weight the plates can’t make exactly) the intensity
-          says so. If a set felt easier or harder, change its intensity: that moves your 1RM and everything after it.
+          says so, below RIR 0 when a set asks more than you should manage. An exercise you have never logged shows —
+          until it has a session. If a set felt easier or harder, change its intensity: that moves your 1RM and
+          everything after it.
         </P>
         <P title="Locks.">
           Lock any of a set’s weight, reps or intensity and RECALCULATE works out the rest around them. An intensity

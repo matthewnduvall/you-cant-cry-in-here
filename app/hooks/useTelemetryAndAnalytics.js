@@ -218,7 +218,11 @@ export function useTelemetryAndAnalytics({
                 : [slot.exerciseId, slot.secondaryExerciseId].filter(Boolean);
             ids.forEach(id => {
               const ex = EXERCISE_MAP[id];
-              if (ex && doesExerciseInteractWithMuscleGroup(ex, g)) {
+              // Every muscle the exercise lists counts (a pull-up trains the biceps too), not just its body part
+              const trained = ex && (ex.stimulusMuscleGroups || [ex.muscleGroup]).some(mg =>
+                doesExerciseInteractWithMuscleGroup({ muscleGroup: mg }, g)
+              );
+              if (trained) {
                 if (daysAgo < minDays) minDays = daysAgo;
                 if (Number.isFinite(wMs) && wMs > lastMs) lastMs = wMs;
               }

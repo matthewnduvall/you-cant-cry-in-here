@@ -211,6 +211,9 @@ export const getGymSelectionLabel = (gymSelectionId, customGyms = []) => {
 // Exercises that train a second body part as much as their main one (a thruster = front squat + overhead press)
 // Other names an exercise goes by: exercise search and the History .csv import both match them
 export const EXERCISE_NAME_ALIASES = {
+  single_leg_hip_thrust: ['Single Leg Hip Thrust', 'Single-Leg Hip Thrust', 'One Leg Hip Thrust'],
+  barbell_single_leg_hip_thrust: ['BB Single Leg Hip Thrust', 'Barbell Single Leg Hip Thrust'],
+  dumbbell_single_leg_hip_thrust: ['DB Single Leg Hip Thrust', 'Dumbbell Single Leg Hip Thrust'],
   barbell_rdl: ['RDL', 'RDLs', 'Romanian Deadlift'],
   barbell_power_clean: ['Power Clean', 'Power Cleans', 'Clean', 'Cleans', 'Barbell Clean'],
   sit_up: ['Situp', 'Situps', 'Sit-Up', 'Sit-Ups'],
@@ -263,6 +266,54 @@ const SECONDARY_MUSCLE_GROUPS = {
   // Floor to overhead in one pull: hips, legs and shoulders
   dumbbell_snatch: ['Thighs', 'Shoulders'],
   dumbbell_thruster: ['Shoulders']
+};
+
+// The body part each specific muscle belongs to (ExRx's groups, Waist = Core). The stimulus map counts every muscle
+// an exercise lists, not just its body part, so a pull-up (Back) also marks the biceps (Upper Arms) as trained.
+const SPECIFIC_MUSCLE_GROUP = {
+  'Biceps Brachii': 'Upper Arms',
+  Brachialis: 'Upper Arms',
+  'Triceps Brachii': 'Upper Arms',
+  Brachioradialis: 'Forearms',
+  Forearms: 'Forearms',
+  Pronators: 'Forearms',
+  Supinators: 'Forearms',
+  'Wrist Extensors': 'Forearms',
+  'Wrist Flexors': 'Forearms',
+  'Deltoid - Anterior': 'Shoulders',
+  'Deltoid - Lateral': 'Shoulders',
+  'Deltoid - Posterior': 'Shoulders',
+  Supraspinatus: 'Shoulders',
+  'General Back': 'Back',
+  'Latissimus Dorsi': 'Back',
+  Rhomboids: 'Back',
+  'Teres Major': 'Back',
+  'Infraspinatus & Teres Minor': 'Back',
+  Subscapularis: 'Back',
+  'Trapezius - Lower': 'Back',
+  'Trapezius - Middle': 'Back',
+  'Trapezius - Upper': 'Back',
+  'Erector Spinae': 'Back',
+  'Pectoralis Major - Clavicular': 'Chest',
+  'Pectoralis Major - Sternal': 'Chest',
+  'Pectoralis Minor': 'Chest',
+  'Serratus Anterior': 'Chest',
+  'Rectus Abdominis': 'Core',
+  Obliques: 'Core',
+  'Quadratus Lumborum': 'Core',
+  'Transverse Abdominis': 'Core',
+  'Gluteus Maximus': 'Hips',
+  'Hip Flexors': 'Hips',
+  'Hip Abductors': 'Hips',
+  'Hip Adductors': 'Thighs',
+  Quadriceps: 'Thighs',
+  Hamstrings: 'Thighs',
+  Gastrocnemius: 'Calves',
+  Soleus: 'Calves',
+  'Tibialis Anterior': 'Calves',
+  Calves: 'Calves',
+  Splenius: 'Neck',
+  Sternocleidomastoid: 'Neck'
 };
 
 const parseCsvLine = line => {
@@ -338,6 +389,14 @@ export const parseExercisesCsv = rawCsv => {
       muscleGroup,
       // Other body parts it trains as much (muscle filters and the stimulus map count them too)
       secondaryMuscleGroups: SECONDARY_MUSCLE_GROUPS[id] || [],
+      // Every body part it trains, for the stimulus map: its own, the secondary ones and each specific muscle's
+      stimulusMuscleGroups: [
+        ...new Set([
+          muscleGroup,
+          ...(SECONDARY_MUSCLE_GROUPS[id] || []),
+          ...specificMuscles.map(m => SPECIFIC_MUSCLE_GROUP[m]).filter(Boolean)
+        ])
+      ],
       // Other names it goes by (search + .csv import)
       aliases: [...(EXERCISE_NAME_ALIASES[id] || []), ...(DUPLICATE_EXERCISE_ALIASES[id] || [])],
       specificMuscles,

@@ -47,7 +47,8 @@ export const VARIATION_FAMILIES = [
     match: /triceps? (extension|pushdown|kickback)|skull ?crusher|overhead (triceps )?extension/i,
     base: /\btriceps?\b/gi
   },
-  { id: 'plank', name: 'Plank', match: /\bplanks?\b/i, base: /\bplanks?\b/gi }
+  { id: 'plank', name: 'Plank', match: /\bplanks?\b/i, base: /\bplanks?\b/gi },
+  { id: 'hip_thrust', name: 'Hip thrust', match: /\bhip thrusts?\b/i, base: /\bhip thrusts?\b/gi }
 ];
 
 // One exercise at a time: { [exerciseId]: { family, variation } | null }

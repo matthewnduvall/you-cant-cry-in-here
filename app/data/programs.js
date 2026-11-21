@@ -95,7 +95,7 @@ export const PROGRAMS = [
       }
     ],
     description:
-      'A 4 week program, each week is a routine of 2x compound lifts, 2x supersets and an accessory. It starts mellow by determining a baseline with 6 RIR (reps in reserve) and ramps up to a new personal record 1RM (1 rep max) on week 4. Varies in scheme from 5x8 to Pyramid. Driven by muscle stimulus needs, but offers more variety in lifts than Crying.',
+      'A 4 week program, each week is a routine of 2x compound lifts, 2x supersets and an accessory. It starts mellow by determining a baseline with 6 RIR (reps in reserve) and ramps up to a new personal record 1RM (1 rep max) on week 4. Compound lifts are 5x6 in weeks 1 and 2, 5x5 in week 3 and a 1RM Pyramid in week 4. Driven by muscle stimulus needs, but offers more variety in lifts than Crying.',
     // The session's exercise types (AUTO SESSION / + ADD EXERCISE use this instead of Routine Preferences)
     routine: ['Compound', 'Compound', 'Superset', 'Superset', 'Accessory'],
     // Compound picks: the first is one of the Big 3, every other one a Big 3 variant (still by muscle stimulus)
@@ -105,12 +105,11 @@ export const PROGRAMS = [
     usesIntensity: true,
     appliesTo: ['Compound'],
     sets: 5,
-    // The 8-week plan compressed into 4 (same days, same order): week 1: 5×8 at RIR 6; weeks 2–3: Pyramid at RIR 3,
-    // then 0; week 4: 1RM Pyramid. Starts and ends as before (RIR 6 → RIR 0 → a new 1RM), 3 RIR less each week.
+    // Compound lifts: weeks 1–2: 5×6 (RIR 6, then 3); week 3: 5×5 at RIR 0; week 4: 1RM Pyramid (a new 1RM).
     weekPlan: week =>
       week >= 4
         ? { scheme: 'Pyramid 1RM', maxOut: true }
-        : { scheme: week >= 2 ? 'Pyramid' : '5x8', rir: Math.max(0, 9 - 3 * week) },
+        : { scheme: week >= 3 ? '5x5' : '5x6', rir: Math.max(0, 9 - 3 * week) },
     increment: 'cycle',
     trigger: null,
     cycleWeeks: 4,
@@ -123,7 +122,7 @@ export const PROGRAMS = [
       ['Schedule', 'Monday & Tuesday: the same session · Wednesday & Thursday: the same session · Friday & Saturday: the same session · Sunday: leg pump or arm pump (alternating weeks)'],
       ['Routine', 'Monday to Saturday: 2 compound lifts (one of the Big 3, then Big 3 variants), 2 supersets, 1 accessory, picked by muscle stimulus; the second day of each pair repeats the first · Leg pump: quads, hamstrings, glutes, calves · Arm pump: biceps, triceps, side delts, forearms'],
       ['Sets', '5 on compound lifts; accessories and supersets keep the defaults; pump days 3–4 per exercise'],
-      ['Reps', '8 in week 1, Pyramid in weeks 2–3, 1RM Pyramid in week 4; pump days 12–20'],
+      ['Reps', '5 × 6 in weeks 1–2, 5 × 5 in week 3, 1RM Pyramid in week 4; pump days 12–20'],
       ['Intensity', 'RIR 6 in week 1, 3 in week 2, 0 in week 3, 1RM in week 4; pump days RIR 2'],
       ['Progression', 'Your goal increment added to your 1RM once per cycle'],
       ['Trigger', 'None'],

@@ -135,7 +135,8 @@ export function ApplyToLaterToggle({ laterSets = [], on = false, onToggle, style
         width: '100%',
         minHeight: '44px',
         borderRadius: '22px',
-        border: on ? 'none' : '1px solid #3A3A3A',
+        // Same 1 px border on and off, so turning it on doesn't resize the pop-up
+        border: `1px solid ${on ? '#FFFFFF' : '#3A3A3A'}`,
         backgroundColor: on ? '#FFFFFF' : 'transparent',
         color: on ? '#000000' : '#BDBDBD',
         fontFamily: 'inherit',

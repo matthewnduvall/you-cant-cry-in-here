@@ -748,7 +748,16 @@ export const getPersonalRecord1RM = (exerciseId, history = []) => {
   return getBestHistory1RM(exerciseId, history);
 };
 
-export const getHistoricalCalculated1RM = (exerciseId, history = [], oneRepMaxes = {}) => {
+// The 1RM suggestions are worked out from: the exercise's 1RM in its most recent logged session (completed sets,
+// loggedExercise1RMInfo), not the personal record, so weights, reps and intensities follow where you are now.
+export const getLastSession1RM = (exerciseId, history = [], excludeWorkoutId = null) => {
+  const last = getLastLoggedSessionForExercise(exerciseId, history, excludeWorkoutId);
+  return last ? Number(loggedExercise1RMInfo(exerciseId, last.sets).value) || 0 : 0;
+};
+
+export const getHistoricalCalculated1RM = (exerciseId, history = [], oneRepMaxes = {}, excludeWorkoutId = null) => {
+  const last = getLastSession1RM(exerciseId, history, excludeWorkoutId);
+  if (last > 0) return last;
   const best = getPersonalRecord1RM(exerciseId, history, oneRepMaxes);
   return best > 0 ? best : EXERCISE_MAP[exerciseId]?.default1RM ?? 135;
 };
@@ -1094,12 +1103,9 @@ export const getLastLoggedSetsForExercise = (exerciseId, history = [], excludeWo
 export const getLastLoggedSessionForExercise = (exerciseId, history = [], excludeWorkoutId = null) =>
   getLoggedSessionsForExercise(exerciseId, history, excludeWorkoutId).find(s => !s.isPersonalRecord) || null;
 
-/** Stored 1RM: the highest calculated 1RM over all logged sessions (PR entries included) or a saved 1RM. */
+/** Stored 1RM: last session's 1RM of the exercise (getLastSession1RM, not the PR), else a saved 1RM. */
 export const getStored1RM = (exerciseId, history = [], oneRepMaxes = {}, excludeWorkoutId = null) =>
-  Math.max(
-    Number(oneRepMaxes?.[exerciseId]) || 0,
-    ...getLoggedSessionsForExercise(exerciseId, history, excludeWorkoutId).map(s => getExerciseCalculated1RM(s.sets))
-  );
+  getLastSession1RM(exerciseId, history, excludeWorkoutId) || Number(oneRepMaxes?.[exerciseId]) || 0;
 
 /**
  * Applies goal progress to an exercise's sets. `lockedIndexes` (completed sets, weights the athlete typed) and

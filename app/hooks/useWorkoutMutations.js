@@ -25,7 +25,8 @@ import {
   isExerciseAvailableWithEquipment,
   findEquivalentExerciseForEquipment,
   getSlotEquipmentChoice,
-  isBandEquipment
+  isBandEquipment,
+  doesExerciseInteractWithMuscleGroup
 } from '../data/exerciseLibrary';
 import {
   getBestHistory1RM,
@@ -193,7 +194,7 @@ export function useWorkoutMutations({
   // class below the goal) — never the bare library default
   const startOpts = { history, targetStandardClass, bodyweightLbs: userBodyweightLbs, heightInches };
   const getHistoricalCalculated1RM = (id, hist = history, orms = oneRepMaxes) =>
-    getBestHistory1RM(id, hist) > 0 ? getHistoricalCalculated1RMRaw(id, hist, orms) : getStarting1RM(id, { ...startOpts, history: hist });
+    getBestHistory1RM(id, hist) > 0 ? getHistoricalCalculated1RMRaw(id, hist, orms, getCurrentEditorWorkout()?.id || null) : getStarting1RM(id, { ...startOpts, history: hist });
   // New exercises start from the same 1RM (createWorkoutSlot uses base1RMOverrides only when there is no History)
   const createWorkoutSlot = args => {
     const ids = (args.supersetExerciseIds || [args.exerciseId, args.secondaryExerciseId]).filter(Boolean);
@@ -314,20 +315,22 @@ export function useWorkoutMutations({
       // Bodyweight exercises need your bodyweight to know the load
       if (isBodyweightExercise(exId) && !countsBodyweight(exId)) return list || [];
       const option = getSlotEquipmentChoice(slot, half);
-      const oneRM = effort1RM(exId, option, workout);
       const name = EXERCISE_MAP[exId]?.name || exId;
+      // Never logged: the weights are a first guess, so the intensity isn't known yet ("—" until it is logged)
+      if (!(getBestHistory1RM(exId, history) > 0)) {
+        if (isTracing()) traceLine(`${name}: not logged yet, so its intensity isn't known (—)`);
+        return (list || []).map(st =>
+          !st || st.completed || st.lockIntensity || st.durationSeconds || !st.intensity ? st : { ...st, intensity: null }
+        );
+      }
+      const oneRM = effort1RM(exId, option, workout);
       return (list || []).map((st, idx) => {
         if (!st || st.completed || st.lockIntensity || st.durationSeconds) return st;
         const load = setLoadLbs(exId, st, option);
         const rtf = repsToFailure(oneRM, load);
         if (rtf === null) return st;
-        let next = st;
-        const reps = Math.max(1, Number(st.reps) || 1);
-        if (reps > rtf + 0.5 && !st.lockReps) {
-          const most = Math.max(1, Math.floor(rtf + 0.5));
-          if (isTracing()) traceLine(`${name} set ${idx + 1}: ${reps} reps at ${fmt(load)} lb is more than 1RM ${fmt(oneRM)} allows (${fmt(rtf)} to failure) → ${most} reps`);
-          next = { ...st, reps: most };
-        }
+        // More reps than the load allows reads as RIR below 0 (the reps are left as planned or typed)
+        const next = st;
         const derived = deriveIntensity(oneRM, load, next.reps, st.intensity?.mode || DEFAULT_INTENSITY_MODE);
         if (!derived) return next;
         const same = st.intensity && st.intensity.mode === derived.mode && Number(st.intensity.value) === Number(derived.value);
@@ -1759,36 +1762,8 @@ export function useWorkoutMutations({
           const single = endSuperset(slot, changes.endSuperset);
           const wanted = changes.category ? normalizeSlotCategory(changes.category) : null;
           if (!wanted || isSupersetCategory(wanted) || wanted === single.category) return single;
-          // Ended by picking another type: keep the exercise if it is that type, else that type's best default
-          const keptEx = EXERCISE_MAP[single.exerciseId];
-          if (keptEx && normalizeSlotCategory(keptEx.category) === wanted) return { ...single, category: wanted, slotLabel: wanted };
-          const muscle = single.muscleGroupFilter || keptEx?.muscleGroup || 'All Muscles';
-          const typePool = preferAvailable(
-            getFilteredExercisesForSlotInline({ category: wanted, muscleGroupFilter: muscle }, '', [])
-          );
-          const pool = typePool.length > 0
-            ? typePool
-            : preferAvailable(getFilteredExercisesForSlotInline({ category: wanted, muscleGroupFilter: 'All Muscles' }, '', []));
-          const nextEx = pool[0];
-          if (!nextEx) return { ...single, category: wanted, slotLabel: wanted };
-          const rebuilt = createWorkoutSlot({
-            category: wanted,
-            slotLabel: wanted,
-            exerciseId: nextEx.id,
-            scheme: single.scheme,
-            oneRepMaxes,
-            history,
-            incrementLbs: currentIncrementLbs,
-            setPreferences,
-            restSeconds: single.restSeconds || 90,
-            userBodyweightLbs
-          });
-          return {
-            ...rebuilt,
-            id: slot.id,
-            familyMuscleGroup: slot.familyMuscleGroup,
-            muscleGroupFilter: typePool.length > 0 ? muscle : nextEx.muscleGroup || 'All Muscles'
-          };
+          // Ended by picking another type: the exercise stays (whatever type the library files it under), sets kept
+          return { ...single, category: wanted, slotLabel: wanted };
         }
         if (isSupersetCategory(slot.category) && changes.supersetHalf !== undefined) {
           return applySupersetHalfChange(slot, changes);
@@ -1884,16 +1859,31 @@ export function useWorkoutMutations({
           };
         }
 
+        // A type change alone (Compound / Accessory / Cluster / Superset) keeps the exercise picked
+        const keepForType =
+          Boolean(changes.category) && changes.muscleGroupFilter === undefined && Boolean(EXERCISE_MAP[slot.exerciseId]);
         if ((changes.category || changes.muscleGroupFilter !== undefined) && !changes.exerciseId) {
           if (isSupersetCategory(nextCategory)) {
-            const exA = candidatePool.some(e => e.id === nextSupersetIds[0])
-              ? nextSupersetIds[0]
-              : (candidatePool[0] || currentEx).id;
+            // Into a superset: A = the exercise picked, B = a partner for it
+            const exA =
+              keepForType && !isSupersetCategory(slot.category)
+                ? slot.exerciseId
+                : candidatePool.some(e => e.id === nextSupersetIds[0])
+                  ? nextSupersetIds[0]
+                  : (candidatePool[0] || currentEx).id;
             const exB = candidatePool.some(e => e.id === nextSupersetIds[1] && e.id !== exA)
               ? nextSupersetIds[1]
               : (candidatePool.find(e => e.id !== exA) || candidatePool[0] || EXERCISE_MAP.front_flies).id;
             nextExId = exA;
             nextSupersetIds = [exA, exB];
+          } else if (keepForType) {
+            nextExId = slot.exerciseId;
+            const exMuscle = EXERCISE_MAP[nextExId]?.muscleGroup;
+            if (exMuscle && !doesExerciseInteractWithMuscleGroup(EXERCISE_MAP[nextExId], slot.muscleGroupFilter)) {
+              nextMuscleFilter = exMuscle;
+            } else {
+              nextMuscleFilter = slot.muscleGroupFilter || exMuscle || 'All Muscles';
+            }
           } else {
             if (!candidatePool.some(e => e.id === nextExId)) {
               nextExId = (candidatePool[0] || currentEx).id;
