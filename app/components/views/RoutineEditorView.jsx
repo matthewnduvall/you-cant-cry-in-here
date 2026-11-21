@@ -5,6 +5,7 @@ import { usePointerReorder } from '../../hooks/usePointerReorder';
 import { SHARED_CELL_BORDER, SHARED_GROUP_OUTER, UI } from '../../styles/kineticTokens';
 import {
   normalizeSlotCategory,
+  SLOT_CATEGORIES,
   isSupersetCategory,
   EXERCISE_LIBRARY,
   EXERCISE_MAP,
@@ -85,6 +86,8 @@ export function RoutineEditorView({
   isCurrentEditorShared,
   updateCurrentWorkoutState,
   handleAddAutoSlot,
+  // The type + ADD EXERCISE adds next (Compound / Accessory / Superset / Cluster), shown in its ON DECK dropdown
+  getNextAutoSlotCategory,
   handleShareCurrentEditor,
   handleUpdateSlotCategoryOrExercise,
   handleInsertSetAtPosition,
@@ -111,6 +114,8 @@ export function RoutineEditorView({
 }) {
   // Drag an exercise's numbered grippy handle to reorder (pointer events: works with touch). The page scrolls when
   // the finger rests below the sticky session header (~146 px) or near the bottom edge.
+  // + ADD EXERCISE's dropdown: a type picked for the next add (null = the one on deck); cleared once added
+  const [nextTypePick, setNextTypePick] = React.useState(null);
   const { handleProps: slotHandleProps, rowDragStyle: slotDragStyle } = usePointerReorder((from, to) => handleReorderExercises?.(from, to), { attribute: 'data-slot-reorder', edgeTop: 190 });
 
   if (!currentEditorWorkout) return null;
@@ -582,25 +587,83 @@ export function RoutineEditorView({
         </div>
       </section>
 
-      {/* + ADD EXERCISE: appends an auto-guessed exercise the athlete can then edit.
-          A blank live session also offers LOAD ROUTINE (opens the routine browser, which loads back here). */}
+      {/* + ADD EXERCISE: appends an auto-guessed exercise the athlete can then edit. Its ON DECK dropdown shows the
+          type it adds next (the program day's next lift, else the next Routine Preference) and lets the athlete pick
+          another type for this one add. A blank live session also offers LOAD ROUTINE (opens the routine browser,
+          which loads back here). */}
       <div style={{ padding: sideGutter }}>
         {(() => {
           const showLoadRoutine =
             !hasExercises && currentView === 'session' && !isEmbeddedHistorySession && setCurrentView && setRoutineSelectReturnView;
           // Add / empty slot: transparent with a dashed outline and a grey caps label
           const bottomButtonStyle = { minHeight: '52px', whiteSpace: 'nowrap', boxSizing: 'border-box' };
+          // (SIMPLE hides the ON DECK dropdown: + ADD EXERCISE just adds the type on deck)
+          const onDeck = easyMode ? null : getNextAutoSlotCategory?.() || null;
+          const nextType = nextTypePick || onDeck;
           return (
-            <div style={{ display: 'grid', gridTemplateColumns: showLoadRoutine ? 'minmax(0, 1fr) minmax(0, 1fr)' : 'minmax(0, 1fr)', gap: '8px', width: '100%' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: '8px', width: '100%' }}>
               {/* A blank live session: + ADD EXERCISE is the page's one red (FINISH only appears once there are
                   exercises); otherwise it's the dashed "add" button */}
-              <Button
-                variant={showLoadRoutine ? 'primary' : 'dashed'}
-                onClick={() => handleAddAutoSlot?.()}
-                style={bottomButtonStyle}
-              >
-                + ADD EXERCISE
-              </Button>
+              <div style={{ display: 'grid', gridTemplateColumns: onDeck ? 'minmax(0, 1fr) 132px' : 'minmax(0, 1fr)', gap: '8px' }}>
+                <Button
+                  variant={showLoadRoutine ? 'primary' : 'dashed'}
+                  onClick={() => {
+                    handleAddAutoSlot?.(nextTypePick || null);
+                    setNextTypePick(null);
+                  }}
+                  style={bottomButtonStyle}
+                >
+                  + ADD EXERCISE
+                </Button>
+                {onDeck && (
+                  // ON DECK: a caps label over the type with a caret; the invisible dropdown covers the whole tile
+                  <div
+                    style={{
+                      position: 'relative',
+                      minHeight: '52px',
+                      borderRadius: '12px',
+                      backgroundColor: nextTypePick ? '#FFFFFF' : '#1C1C1C',
+                      color: nextTypePick ? '#000000' : '#FFFFFF',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '2px'
+                    }}
+                  >
+                    <span style={{ ...UI.capsLabel, color: nextTypePick ? '#000000' : '#9A9A9A', fontSize: '10px' }}>
+                      {nextTypePick ? 'NEXT (PICKED)' : 'ON DECK'}
+                    </span>
+                    <span style={{ fontSize: '13px', fontWeight: 500, letterSpacing: '0.06em' }}>
+                      {String(nextType).toUpperCase()} ▾
+                    </span>
+                    <select
+                      aria-label={`Type of the next exercise: ${nextType}${nextTypePick ? ' (picked)' : ' (on deck)'}`}
+                      value={nextType}
+                      onChange={e => setNextTypePick(e.target.value === onDeck ? null : e.target.value)}
+                      style={{
+                        position: 'absolute',
+                        inset: 0,
+                        width: '100%',
+                        height: '100%',
+                        opacity: 0,
+                        cursor: 'pointer',
+                        fontSize: '16px',
+                        border: 'none',
+                        appearance: 'none',
+                        WebkitAppearance: 'none'
+                      }}
+                    >
+                      {SLOT_CATEGORIES.map(cat => (
+                        <option key={cat} value={cat}>
+                          {cat.toUpperCase()}
+                          {cat === onDeck ? ' (ON DECK)' : ''}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+              </div>
               {showLoadRoutine && (
                 <Button
                   variant="dashed"
