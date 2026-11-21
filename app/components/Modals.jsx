@@ -220,44 +220,65 @@ export function PlateCalculatorModal({
             <div
               style={{
                 backgroundColor: '#000000', border: 'none', borderRadius: '10px',
-                display: 'grid', gridTemplateColumns: '64px minmax(0, 1fr) 72px', alignItems: 'stretch',
+                display: 'grid', gridTemplateColumns: '76px minmax(0, 1fr) 88px', alignItems: 'stretch',
                 marginBottom: '12px'
               }}
             >
-              <div
+              {/* The equivalent set (same set number) of the last session: "11/19 SET" over "215 × 5"; tapping it opens
+                  that session in History */}
+              <button
+                type="button"
+                aria-label={plateCalcTarget.lastWorkoutId ? 'Last set: open that session in History' : 'Last set (not logged yet)'}
+                disabled={!hasLast || !plateCalcTarget.lastWorkoutId}
+                onClick={() => {
+                  const id = plateCalcTarget.lastWorkoutId;
+                  setPlateCalcTarget(null);
+                  onOpenHistoryWorkout?.(id);
+                }}
                 style={{
                   display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-                  borderRight: '1px solid var(--dp-color-rule)', padding: '8px 2px'
+                  backgroundColor: 'transparent', border: 'none', borderRight: '1px solid var(--dp-color-rule)',
+                  padding: '8px 2px', cursor: plateCalcTarget.lastWorkoutId ? 'pointer' : 'default', color: '#BDBDBD', opacity: 1
                 }}
               >
                 {hasLast && (
                   <>
-                    <span style={sideLabel}>LAST</span>
-                    <span style={sideValue('#BDBDBD')}>{plateCalcTarget.lastDisplay}</span>
+                    <span style={{ ...sideLabel, whiteSpace: 'nowrap' }}>{plateCalcTarget.lastLabel || 'LAST SET'}</span>
+                    <span style={{ ...sideValue('#BDBDBD'), fontSize: '14px', whiteSpace: 'nowrap' }}>{plateCalcTarget.lastDisplay}</span>
                   </>
                 )}
-              </div>
+              </button>
               <div style={{ padding: '12px 4px' }}>{totalBlock}</div>
               {hasOneRepMax ? (
-                <button
-                  type="button"
-                  aria-label={prWorkoutId ? '1RM: open the Personal Record in History' : '1RM (no Personal Record logged yet)'}
-                  disabled={!prWorkoutId}
-                  onClick={() => {
-                    setPlateCalcTarget(null);
-                    onOpenHistoryWorkout?.(prWorkoutId);
-                  }}
+                <div
                   style={{
-                    display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-                    backgroundColor: 'transparent', border: 'none', borderLeft: '1px solid var(--dp-color-rule)',
-                    padding: '8px 2px', cursor: prWorkoutId ? 'pointer' : 'default', color: '#BDBDBD', opacity: 1
+                    display: 'flex', flexDirection: 'column', alignItems: 'stretch', justifyContent: 'center',
+                    borderLeft: '1px solid var(--dp-color-rule)', padding: '4px 2px'
                   }}
                 >
-                  <span style={oneRepMaxLabel('var(--dp-color-accent)')}>{prWorkoutId ? 'PR ↗' : 'PR'}</span>
-                  <span style={oneRepMaxValue}>{prValue > 0 ? oneRepMaxText(prValue, prCalculated) : '—'}</span>
-                  <span style={{ ...oneRepMaxLabel('#9A9A9A'), marginTop: '6px' }}>CURRENT</span>
-                  <span style={oneRepMaxValue}>{current1RM > 0 ? oneRepMaxText(current1RM, currentCalculated) : '—'}</span>
-                </button>
+                  {/* 1RM PR: tapping it opens the History workout it came from */}
+                  <button
+                    type="button"
+                    aria-label={prWorkoutId ? '1RM PR: open it in History' : '1RM PR (none logged yet)'}
+                    disabled={!prWorkoutId}
+                    onClick={() => {
+                      setPlateCalcTarget(null);
+                      onOpenHistoryWorkout?.(prWorkoutId);
+                    }}
+                    style={{
+                      display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                      backgroundColor: 'transparent', border: 'none', padding: '4px 0', minHeight: '40px',
+                      cursor: prWorkoutId ? 'pointer' : 'default', color: '#BDBDBD', opacity: 1
+                    }}
+                  >
+                    <span style={oneRepMaxLabel('var(--dp-color-accent)')}>1RM PR</span>
+                    <span style={oneRepMaxValue}>{prValue > 0 ? oneRepMaxText(prValue, prCalculated) : '—'}</span>
+                  </button>
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '2px 0 4px' }}>
+                    <span style={oneRepMaxLabel('#9A9A9A')}>1RM* CURRENT</span>
+                    <span style={oneRepMaxValue}>{current1RM > 0 ? oneRepMaxText(current1RM, currentCalculated) : '—'}</span>
+                  </div>
+                </div>
               ) : (
                 <div style={{ borderLeft: '1px solid var(--dp-color-rule)' }} />
               )}

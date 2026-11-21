@@ -342,8 +342,11 @@ export function DragNumberBadge({
       style={{
         position: 'relative',
         width: '34px',
-        height,
-        minHeight: minHeight || height,
+        // height="100%" (a grid row's handle): stretch to the row instead. A percentage height / min-height on a grid
+        // item made iPhone Safari size the row from the badge, leaving a blank band under the exercise header.
+        ...(height === '100%'
+          ? { height: 'auto', minHeight: minHeight || 0, alignSelf: 'stretch' }
+          : { height, minHeight: minHeight || height }),
         boxSizing: 'border-box',
         backgroundColor: bg,
         ...SHARED_CELL_BORDER,

@@ -596,7 +596,6 @@ exrx_hips_barbell_rear_lunge,Barbell Rear Lunge,Hips,Compound,Barbell,Barbell,Gl
 exrx_hips_barbell_safety_squat,Barbell Safety Squat,Hips,Compound,Barbell,Barbell,Gluteus Maximus|Hamstrings|Quadriceps,false,225,
 exrx_hips_barbell_single_leg_split_squat,Barbell Single Leg Split Squat,Hips,Compound,Barbell,Barbell,Gluteus Maximus|Hamstrings|Quadriceps,false,225,
 exrx_hips_barbell_single_leg_squat,Barbell Single Leg Squat,Hips,Compound,Barbell,Barbell,Gluteus Maximus|Hamstrings|Quadriceps,false,225,
-exrx_hips_barbell_squat,Barbell Squat,Hips,Compound,Barbell,Barbell,Gluteus Maximus|Hamstrings|Quadriceps,false,225,
 exrx_hips_barbell_straight_back_stiff_leg_deadlift,Barbell Straight-back Stiff-leg Deadlift,Hips,Compound,Barbell,Barbell,Gluteus Maximus|Hamstrings|Quadriceps,false,225,
 barbell_sumo_deadlift,Barbell Sumo Deadlift,Hips,Compound,Barbell,Barbell|Weight Plates,Gluteus Maximus|Hip Adductors|Quadriceps|Hamstrings|Erector Spinae,false,345,barbell_deadlift|barbell_hip_thrust
 exrx_hips_stretch_bentover_lunging_iliopsoas_stretch,Bentover Lunging Iliopsoas Stretch,Hips,Accessory,Stretch,,Hip Flexors,false,25,

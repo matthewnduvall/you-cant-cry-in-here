@@ -58,10 +58,13 @@ export function usePlateCalculator({
       exerciseName,
       onApplyCustom,
       lastDisplay: setInfo.lastDisplay,
+      lastLabel: setInfo.lastLabel,
+      lastWorkoutId: setInfo.lastWorkoutId || null,
       showOneRepMax: setInfo.showOneRepMax,
       setReps: setInfo.setReps,
       sessionSets: setInfo.sessionSets,
       prValue: setInfo.prValue,
+      prCalculated: setInfo.prCalculated,
       prWorkoutId: setInfo.prWorkoutId,
       // The exercise's later sets the ALSO SETS toggle may write the weight to
       laterSets: (setInfo.laterSets || []).map(l => ({ id: l.id, number: l.number })),
