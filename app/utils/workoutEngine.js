@@ -1224,6 +1224,9 @@ const typesFromSetPreferences = (count, setPreferences) => {
   return Array.from({ length: count }, (_, i) => (SET_PREFERENCE_TYPES.includes(prefs[i]) ? prefs[i] : 'Working'));
 };
 
+// A CONSOLE line's exercise prefix ("Barbell Bench Press "), so the console can group a superset's lines by exercise
+const traceName = id => (id ? `${EXERCISE_MAP[id]?.name || id} ` : '');
+
 export const generateSetsForScheme = (
   scheme,
   oneRepMax,
@@ -1256,15 +1259,15 @@ export const generateSetsForScheme = (
           ? roundTo5(base1RM)
           : roundToIncrement(lastW + setInc);
       if (isTracing() && s.lastWeight === undefined) {
-        if (isBw) traceLine(`set ${idx + 1}: bodyweight ${fmt(bwDefault)} lb`);
-        else if (normType === '1 Rep Max') traceLine(`set ${idx + 1} 1 Rep Max: 1RM ${fmt(base1RM)} → ${fmt(targetW)} lb`);
+        if (isBw) traceLine(`${traceName(exerciseId)}set ${idx + 1}: bodyweight ${fmt(bwDefault)} lb`);
+        else if (normType === '1 Rep Max') traceLine(`${traceName(exerciseId)}set ${idx + 1} 1 Rep Max: 1RM ${fmt(base1RM)} → ${fmt(targetW)} lb`);
         else if (scheme !== 'Timer') {
           const reps = Math.max(1, Number(s.reps) || 8);
           const repPct = 1 / (1 + Math.max(0, reps - 1) / 30);
           const typeM = SET_TYPE_MULTIPLIER_MAP[normType] ?? 0.98;
           const fatigue = 1 / (1 + Math.max(0, totalCount - 1) * 0.035);
           traceLine(
-            `set ${idx + 1} ${normType} × ${reps}: 1RM ${fmt(base1RM)} × reps ${fmt(repPct)} [1 ÷ (1 + (${reps} − 1) ÷ 30)] × type ${fmt(typeM)} × fatigue ${fmt(fatigue)} [${totalCount} sets] = ${fmt(lastW)} lb${setInc ? ` + increment ${fmt(setInc)}` : ''} → ${fmt(targetW)} lb`
+            `${traceName(exerciseId)}set ${idx + 1} ${normType} × ${reps}: 1RM ${fmt(base1RM)} × reps ${fmt(repPct)} [1 ÷ (1 + (${reps} − 1) ÷ 30)] × type ${fmt(typeM)} × fatigue ${fmt(fatigue)} [${totalCount} sets] = ${fmt(lastW)} lb${setInc ? ` + increment ${fmt(setInc)}` : ''} → ${fmt(targetW)} lb`
           );
         }
       }
@@ -1546,7 +1549,7 @@ export const applyGoalProgressToSets = (
     const result = Math.max(0, roundToStep(Math.min(...options), step));
     if (isTracing()) {
       traceLine(
-        `set ${idx + 1} ${normalizeSetType(st.type)} × ${st.reps}: ${parts.length > 1 ? `lower of ${parts.join(' and ')}` : parts[0]} → ${fmt(result)} lb`
+        `${traceName(exerciseId)}set ${idx + 1} ${normalizeSetType(st.type)} × ${st.reps}: ${parts.length > 1 ? `lower of ${parts.join(' and ')}` : parts[0]} → ${fmt(result)} lb`
       );
     }
     return result;
@@ -1577,7 +1580,7 @@ export const applyGoalProgressToSets = (
     const w = Math.max(0, roundToStep(implied1RM * getSetOneRepMaxFactor(st, total), step));
     if (isTracing()) {
       traceLine(
-        `set ${idx + 1} Warm-up × ${st.reps}: 1RM implied by set ${firstWorking + 1} (${fmt(targets[firstWorking])} ÷ ${fmt(getSetOneRepMaxFactor(list[firstWorking], total))} = ${fmt(implied1RM)}) × ${fmt(getSetOneRepMaxFactor(st, total))} → ${fmt(w)} lb`
+        `${traceName(exerciseId)}set ${idx + 1} Warm-up × ${st.reps}: 1RM implied by set ${firstWorking + 1} (${fmt(targets[firstWorking])} ÷ ${fmt(getSetOneRepMaxFactor(list[firstWorking], total))} = ${fmt(implied1RM)}) × ${fmt(getSetOneRepMaxFactor(st, total))} → ${fmt(w)} lb`
       );
     }
     return withIncrement(st, w);
