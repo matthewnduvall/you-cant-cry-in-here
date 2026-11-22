@@ -228,21 +228,7 @@ export const KINETIC_CSS = `
     background-color: #2A2A2A !important;
   }
 
-  @keyframes kinetic-marquee {
-    0% { transform: translateX(0%); }
-    100% { transform: translateX(-50%); }
-  }
 
-  .kinetic-marquee-track {
-    display: flex;
-    width: max-content;
-    white-space: nowrap;
-    animation: kinetic-marquee var(--dp-marquee-duration, 28s) var(--dp-motion-marquee-easing) infinite;
-  }
-
-  .kinetic-marquee-paused .kinetic-marquee-track {
-    animation-play-state: paused !important;
-  }
 `;
 
 // Zero-gap shared borders: the outer group draws top/left, each cell draws right/bottom.

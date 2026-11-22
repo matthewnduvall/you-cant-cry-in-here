@@ -20,6 +20,7 @@ import {
 import { Button, TabBar, AttachedTabStrip } from '../Controls';
 import { downloadRoutineCsv } from '../../utils/routineCsv';
 import { SlotEditor } from '../SlotEditor';
+import { EffortPromptModal } from '../EffortPromptModal';
 
 // A YYYY/MM/DD date box that only hands back a complete, real date (on blur or Enter); otherwise it shows the
 // saved date again. Remounted (key) whenever the saved date changes.
@@ -118,6 +119,8 @@ export function RoutineEditorView({
   // the finger rests below the sticky session header (~146 px) or near the bottom edge.
   // + ADD EXERCISE's dropdown: a type picked for the next add (null = the one on deck); cleared once added
   const [nextTypePick, setNextTypePick] = React.useState(null);
+  // SIMPLE mode's effort question after a working set is ticked: { save(rir), setLabel, exerciseName, reps, weightText }
+  const [effortAsk, setEffortAsk] = React.useState(null);
   const { handleProps: slotHandleProps, rowDragStyle: slotDragStyle } = usePointerReorder((from, to) => handleReorderExercises?.(from, to), { attribute: 'data-slot-reorder', edgeTop: 190 });
 
   if (!currentEditorWorkout) return null;
@@ -183,6 +186,19 @@ export function RoutineEditorView({
 
   return (
     <div style={{ paddingTop: isEmbeddedHistorySession ? '8px' : '14px' }}>
+      {effortAsk && (
+        <EffortPromptModal
+          setLabel={effortAsk.setLabel}
+          exerciseName={effortAsk.exerciseName}
+          reps={effortAsk.reps}
+          weightText={effortAsk.weightText}
+          onAnswer={rir => {
+            effortAsk.save(rir);
+            setEffortAsk(null);
+          }}
+          onSkip={() => setEffortAsk(null)}
+        />
+      )}
       {/* Synced with a friend: one line explains the YOU / @FRIEND pills on each exercise (so they don't each need a note) */}
       {slotTabs && !slotTabs.partnerAppOutdated && !isEmbeddedHistorySession && (currentEditorWorkout.slots || []).length > 0 && (
         <div style={{ padding: '0 var(--dp-spacing-gutter)', marginBottom: '12px', fontSize: '13px', fontWeight: 400, color: PARTNER_TAB_COLOR, lineHeight: 1.4 }}>
@@ -534,7 +550,23 @@ export function RoutineEditorView({
                     onEditWeight={({ exIdx, set, exercise, ...setInfo }) =>
                       openPlateCalculatorForSet(slot.id, exIdx, set, exercise.name, null, setInfo)
                     }
-                    onToggleDone={({ exIdx, set }) => slotHandler('handleToggleSetDone')(slot, exIdx, set)}
+                    onToggleDone={({ exIdx, set }) => {
+                      slotHandler('handleToggleSetDone')(slot, exIdx, set);
+                      // SIMPLE hides the INTENSITY cell, so ask how the set felt: the answer is its RIR (reps in
+                      // reserve), which the 1RM, live adjustment and the learned models read. Working sets only, not
+                      // timed ones, and only when ticking (not unticking)
+                      if (easyMode && !set.completed && !/warm/i.test(String(set.type || '')) && !(Number(set.durationSeconds) > 0)) {
+                        const update = slotHandler('handleUpdateSetField');
+                        const exId = supIds[exIdx] || slot.exerciseId;
+                        setEffortAsk({
+                          setLabel: set.setNumber ?? '',
+                          exerciseName: EXERCISE_MAP[exId]?.name || '',
+                          reps: set.reps,
+                          weightText: Number(set.weight) > 0 ? `${set.weight} lb` : '',
+                          save: rir => update?.(slot.id, exIdx, set.id, 'intensity', { mode: 'rir', value: rir })
+                        });
+                      }
+                    }}
                     onDeleteSet={({ exIdx, set, exercise }) =>
                       setDeleteConfirmTarget({
                         type: 'set',
