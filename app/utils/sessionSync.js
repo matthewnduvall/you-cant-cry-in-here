@@ -178,6 +178,9 @@ const VALUE_FIELDS = [
 ];
 // On/off fields: missing counts as false
 const FLAG_FIELDS = ['completed', 'lockWeight', 'lockReps', 'lockType'];
+// Locked by default (not set = locked): sent as null when not set, so the default travels as the default
+const DEFAULT_ON_FLAGS = ['lockReps', 'lockType'];
+const flagOf = (field, v) => (DEFAULT_ON_FLAGS.includes(field) ? v ?? true : Boolean(v));
 
 const pickValues = st => {
   const out = {};
@@ -185,7 +188,7 @@ const pickValues = st => {
     out[field] = st?.[field] === undefined ? null : st[field];
   });
   FLAG_FIELDS.forEach(field => {
-    out[field] = Boolean(st?.[field]);
+    out[field] = DEFAULT_ON_FLAGS.includes(field) && (st?.[field] === undefined || st?.[field] === null) ? null : Boolean(st?.[field]);
   });
   return out;
 };
@@ -205,7 +208,7 @@ export const collectSetValues = session => {
 /** True when two value records (or a record and a set) hold the same numbers */
 export const sameSetValues = (a, b) =>
   VALUE_FIELDS.every(field =>
-    FLAG_FIELDS.includes(field) ? Boolean(a?.[field]) === Boolean(b?.[field]) : (a?.[field] ?? null) === (b?.[field] ?? null)
+    FLAG_FIELDS.includes(field) ? flagOf(field, a?.[field]) === flagOf(field, b?.[field]) : (a?.[field] ?? null) === (b?.[field] ?? null)
   );
 
 /** Merge two { setId: entry } maps; the entry with the newer `at` wins */
@@ -226,7 +229,7 @@ const applyEntry = (st, entry) => {
     else next[field] = entry[field];
   });
   FLAG_FIELDS.forEach(field => {
-    next[field] = Boolean(entry[field]);
+    next[field] = DEFAULT_ON_FLAGS.includes(field) && (entry[field] === undefined || entry[field] === null) ? undefined : Boolean(entry[field]);
   });
   return next;
 };

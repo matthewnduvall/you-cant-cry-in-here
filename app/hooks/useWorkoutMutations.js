@@ -902,7 +902,7 @@ export function useWorkoutMutations({
     const reset = list =>
       Array.isArray(list)
         ? list.map(st =>
-            st ? { ...st, completed: false, ...(unlock ? { lockType: false, lockWeight: false, lockReps: false } : {}) } : st
+            st ? { ...st, completed: false, ...(unlock ? { lockType: undefined, lockWeight: false, lockReps: undefined } : {}) } : st
           )
         : list;
     const { historyLocked: _locked, syncedWith: _synced, programInfo: _program, ...rest } = slot;
@@ -2140,7 +2140,10 @@ export function useWorkoutMutations({
     const idx = list.findIndex(st => st?.id === setId);
     const st = list[idx];
     if (!st || st.completed || st.durationSeconds || !st.lockIntensity || !st.intensity) return slot;
-    if (st.lockWeight && st.lockReps) return slot;
+    // Reps are locked by default (not set = locked)
+    const repsLocked = st.lockReps ?? true;
+    if (st.lockWeight && repsLocked) return slot;
+    const eff = { ...st, lockReps: repsLocked };
     const option = getSlotEquipmentChoice(slot, half);
     const oneRM = effort1RM(exId, option, workout);
     if (!(oneRM > 0)) return slot;
@@ -2149,12 +2152,13 @@ export function useWorkoutMutations({
     let solved;
     if (isBodyweightExercise(exId)) {
       if (!countsBodyweight(exId)) return slot;
-      solved = solveBodyweightSet(st, st, oneRM, exId, option, step);
+      solved = solveBodyweightSet(eff, eff, oneRM, exId, option, step);
     } else {
       const fatigueReps = normalizeSetType(st.type) === 'Warmup' ? 0 : fatigueRateFor(exId) * priorHardSets(list, idx);
-      solved = solveSet(st, oneRM, { step, fatigueReps });
+      solved = solveSet(eff, oneRM, { step, fatigueReps });
     }
-    if (!solved || solved === st) return slot;
+    if (!solved || solved === eff) return slot;
+    solved = { ...solved, lockReps: st.lockReps };
     const nextList = list.map((x, i) => (i === idx ? solved : x));
     if (isSup) {
       const matrix = slot.supersetSetsByExercise.map((l, i) => (i === half ? nextList : l));
@@ -2180,7 +2184,8 @@ export function useWorkoutMutations({
             const unlock = (list, current) => {
               const doneById = new Map((current || []).filter(st => st?.completed).map(st => [st.id, st]));
               return (list || []).map(st =>
-                !st ? st : doneById.get(st.id) || { ...st, lockType: false, lockWeight: false, lockReps: false, lockIntensity: false }
+                // Back to the default locks: type and reps locked (not set), weight and intensity open
+                !st ? st : doneById.get(st.id) || { ...st, lockType: undefined, lockWeight: false, lockReps: undefined, lockIntensity: false }
               );
             };
             const isSup = Array.isArray(snap.supersetSetsByExercise) && snap.supersetSetsByExercise.length > 1;
@@ -2767,8 +2772,8 @@ export function useWorkoutMutations({
           type: ref.type === '1 Rep Max' ? 'Working' : ref.type,
           completed: false,
           lockWeight: false,
-          lockReps: false,
-          lockType: false,
+          lockReps: undefined,
+          lockType: undefined,
           lastEditedField: undefined
         }));
         return [...list, ...extra];
@@ -2811,7 +2816,10 @@ export function useWorkoutMutations({
     // Weight, reps and intensity: an unlocked one follows the locked ones; all three locked = a record of the set
     // as it went (nothing is worked out). Unlocking lets that value follow again (an unlocked intensity is re-worked
     // at once by fillIntensities).
-    const toggle = list => (list || []).map(st => (st.id === setId ? { ...st, [key]: !st[key] } : st));
+    // Type and reps are locked by default (not set = locked), so the first tap on theirs opens them
+    const isDefaultLocked = key === 'lockType' || key === 'lockReps';
+    const toggle = list =>
+      (list || []).map(st => (st.id === setId ? { ...st, [key]: !(isDefaultLocked ? st[key] ?? true : st[key]) } : st));
     updateCurrentWorkoutState(prev => {
       if (!prev) return prev;
       return {
