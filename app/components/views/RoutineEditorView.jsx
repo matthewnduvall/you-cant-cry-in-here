@@ -94,6 +94,7 @@ export function RoutineEditorView({
   handleUpdateSetField,
   handleUpdateSetType,
   handleRecalculateSlotWeights,
+  handleSkipDeload,
   handleToggleSetLock,
   handleToggleSetDone,
   handleReorderExercises,
@@ -424,6 +425,7 @@ export function RoutineEditorView({
                 handleUpdateSetType,
                 handleInsertSetAtPosition,
                 handleRecalculateSlotWeights,
+                handleSkipDeload,
                 handleToggleSetLock,
                 handleToggleSetDone,
                 handleReorderSets
@@ -523,6 +525,7 @@ export function RoutineEditorView({
                     }
                     showIntensity={showIntensity && !easyMode}
                     simple={easyMode}
+                    sessionRestSeconds={currentEditorWorkout.defaultRestSeconds || 90}
                     onChangeSetIntensity={({ exIdx, set, intensity }) =>
                       slotHandler('handleUpdateSetField')?.(slot.id, exIdx, set.id, 'intensity', intensity)
                     }
@@ -543,6 +546,7 @@ export function RoutineEditorView({
                     onInsertSet={position => slotHandler('handleInsertSetAtPosition')(slot.id, position)}
                     actionLabel="RECALCULATE"
                     onAction={() => slotHandler('handleRecalculateSlotWeights')(slot.id)}
+                    onSkipDeload={slotHandler('handleSkipDeload') ? () => slotHandler('handleSkipDeload')(slot.id) : undefined}
                     onFillSetValue={({ exIdx, set, field, value }) =>
                       slotHandler('handleUpdateSetField')?.(slot.id, exIdx, set.id, field, value)
                     }

@@ -606,6 +606,7 @@ export default function App() {
     handleUpdateSetType,
     handleInsertSetAtPosition,
     handleRecalculateSlotWeights,
+    handleSkipDeload,
     handleChangeProgramWeek,
     handleChangeSessionProgram,
     handleChangeProgramDay,
@@ -1391,6 +1392,7 @@ export default function App() {
               handleUpdateSetType={handleUpdateSetType}
               handleInsertSetAtPosition={handleInsertSetAtPosition}
               handleRecalculateSlotWeights={handleRecalculateSlotWeights}
+              handleSkipDeload={handleSkipDeload}
               handleToggleSetLock={handleToggleSetLock}
               handleToggleSetDone={handleToggleSetDone}
               handleReorderExercises={handleReorderExercises}

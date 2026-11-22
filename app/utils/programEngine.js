@@ -137,7 +137,7 @@ export const applyProgramToSlot = (slot, ctx, opts = {}) => {
   const total = fresh.length;
   // The working sets' %1RM at the week's RIR (warm-ups are a step below the first working set)
   const firstWorkingReps = Number(fresh.find(st => normalizeSetType(st.type) !== 'Warmup')?.reps) || 8;
-  // Warm-ups ramp up to the first working set (warmupRamp: 50 → 80 % of its weight, fewer reps)
+  // Warm-ups ramp up to the first working set (warmupRamp: 50 → 80 % of its weight, at its reps)
   const warmIdxs = fresh.map((st, i) => (normalizeSetType(st.type) === 'Warmup' ? i : -1)).filter(i => i >= 0);
   const ramp = warmupRamp(warmIdxs.length, firstWorkingReps);
 

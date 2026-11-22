@@ -13,7 +13,7 @@ import { IntensityEditorModal } from './IntensityEditorModal';
 import { SchemeEditorModal, schemeButtonLabel } from './SchemeEditorModal';
 import { getProgram } from '../data/programs';
 import React, { useState } from 'react';
-import { SHARED_CELL_BORDER } from '../styles/kineticTokens';
+import { SHARED_CELL_BORDER, UI } from '../styles/kineticTokens';
 import {
   EXERCISE_LIBRARY,
   EXERCISE_MAP,
@@ -301,6 +301,10 @@ export function SlotEditor({
   onToggleSetLock,
   // Drag a weight / reps / timer cell over other rows to give them its value: ({ exIdx, set, field, value })
   onFillSetValue,
+  // SKIP on the DELOAD note (plan this exercise at full strength today)
+  onSkipDeload,
+  // The session's rest (rest bar), shown in the REST box when this exercise has none of its own
+  sessionRestSeconds = 90,
   onChangeSetType,
   showIntensity = false,
   onChangeSetIntensity,
@@ -945,22 +949,41 @@ export function SlotEditor({
           ))}
         </select>
 
-        {/* REST: this exercise's rest after a set (slot.customRestSeconds); REST = the session's rest bar setting */}
-        <select
-          aria-label={`Rest after each set of this exercise: ${slot.customRestSeconds ? formatRest(slot.customRestSeconds) : 'the session rest'}`}
-          value={slot.customRestSeconds || ''}
-          onChange={e => onHeaderChange?.({ customRestSeconds: Number(e.target.value) || null })}
-          // No caret: the narrow box needs its width for REST / 2:30
-          className="kinetic-filter-select no-caret"
-          style={{ ...headerSelectStyle, gridColumn: '11 / 13', gridRow: 2 }}
+        {/* REST: this exercise's rest after a set (slot.customRestSeconds; empty = the session's rest bar setting,
+            sessionRestSeconds). A readout — caps REST over the time it will actually rest — with the select invisible
+            on top, so the number is always in view */}
+        <div
+          style={{
+            ...headerSelectStyle,
+            gridColumn: '11 / 13',
+            gridRow: 2,
+            position: 'relative',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '1px',
+            padding: '0 2px'
+          }}
         >
-          <option value="">REST</option>
-          {EXERCISE_REST_OPTIONS.map(sec => (
-            <option key={sec} value={sec}>
-              {formatRest(sec)}
-            </option>
-          ))}
-        </select>
+          <span style={{ fontSize: '9px', fontWeight: 500, letterSpacing: '0.1em', color: '#9A9A9A', lineHeight: 1 }}>REST</span>
+          <span style={{ fontSize: '15px', fontWeight: 500, color: '#FFFFFF', fontFamily: 'var(--cr-face-display)', lineHeight: 1.1 }}>
+            {formatRest(slot.customRestSeconds || sessionRestSeconds || 90)}
+          </span>
+          <select
+            aria-label={`Rest after each set of this exercise: ${slot.customRestSeconds ? formatRest(slot.customRestSeconds) : `the session rest, ${formatRest(sessionRestSeconds || 90)}`}`}
+            value={slot.customRestSeconds || ''}
+            onChange={e => onHeaderChange?.({ customRestSeconds: Number(e.target.value) || null })}
+            style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', opacity: 0, cursor: 'pointer', fontSize: '16px' }}
+          >
+            <option value="">{`SESSION (${formatRest(sessionRestSeconds || 90)})`}</option>
+            {EXERCISE_REST_OPTIONS.map(sec => (
+              <option key={sec} value={sec}>
+                {formatRest(sec)}
+              </option>
+            ))}
+          </select>
+        </div>
         </>
         )}
 
@@ -1460,16 +1483,31 @@ export function SlotEditor({
         <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>{halves.map(renderHeaderBlock)}</div>
       </div>
 
-      {/* Deload (no new 1RM in 3 sessions): this session is planned 10 % lighter */}
+      {/* Deload (no new 1RM in 30 days): this session is planned 10 % lighter; SKIP plans it at full strength */}
       {slot.deload && (
         <div
           style={{
             ...UI_SENTENCE_STRIP,
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: '12px',
             borderTop: '1px solid var(--dp-color-rule)'
           }}
         >
-          <span style={{ fontSize: '10px', fontWeight: 500, letterSpacing: '0.1em', color: '#FFFFFF' }}>DELOAD</span>
-          <span>No new 1RM in your last 3 sessions, so today is 10% lighter at the same reps. Back to normal next time.</span>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', flex: 1, minWidth: 0 }}>
+            <span style={{ fontSize: '10px', fontWeight: 500, letterSpacing: '0.1em', color: '#FFFFFF' }}>DELOAD</span>
+            <span>No new 1RM in 30 days, so today is 10% lighter at the same reps. Back to normal next time.</span>
+          </div>
+          {onSkipDeload && (
+            <button
+              type="button"
+              className="kinetic-btn"
+              onClick={onSkipDeload}
+              style={{ ...UI.secondaryBtnCenter, width: 'auto', flex: '0 0 auto', minHeight: '44px', minWidth: '64px', padding: '0 14px' }}
+            >
+              SKIP
+            </button>
+          )}
         </div>
       )}
       {/* Sets */}

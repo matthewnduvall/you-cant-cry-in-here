@@ -91,8 +91,8 @@ export function InfoView({
           a first set that felt easier makes the rest heavier, harder makes them lighter.
         </P>
         <P title="Stalls.">
-          With no new 1RM on an exercise in three sessions, the next one is a deload: 10 % lighter at the same reps.
-          It says so on the exercise, and the count starts again after it.
+          With no new 1RM on an exercise in 30 days, the next session is a deload: 10 % lighter at the same reps. It
+          says so on the exercise, with SKIP to train at full strength instead; either way the 30 days start again.
         </P>
         <P title="Exercises you haven’t logged">
           start from a related lift you have (an RDL from your deadlift, an incline press from your bench), else from the
@@ -114,11 +114,11 @@ export function InfoView({
           Every set has an intensity: RIR by default (reps you could still do), or RPE (10 − RIR), or percent of your
           1RM. They convert into each other through the set’s reps. Your Exercise Set Preferences set the effort: a
           working set leaves RIR 2, top out RIR 1, burn out RIR 3, a 1 rep max RIR 0. Warm-ups aren’t an effort: they
-          ramp from 50 % to 80 % of your first working weight with fewer reps as they climb, and show as %1RM.
+          ramp from 50 % to 80 % of your first working weight at the same reps, and show as %1RM.
         </P>
         <P title="Fatigue.">
           Each working set leaves you a little closer to failure at the same weight, so working sets keep one weight
-          and the RIR shown falls by your fatigue rate (Configuration → Program; 0.5 a set by default: RIR 2, 1.5, 1).
+          and the RIR shown falls by your fatigue rate (Configuration → Program; 0.5 a set by default), shown in whole reps rounded up: RIR 2, 2, 1.
           Each set’s 1RM adds that fatigue back, so slowing down over an exercise doesn’t count as getting weaker. Once
           you log RIRs by hand, the app learns your own rate for each exercise.
         </P>
