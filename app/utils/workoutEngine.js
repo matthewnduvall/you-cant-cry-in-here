@@ -387,6 +387,17 @@ export const setReportedRir = st => {
 // (Band-Assisted, −35), so the load = bodyweight + weight. Timed sets (planks) are left alone. The bodyweight is the
 // signed-in athlete's (setEngineBodyweight, called by page.js on every render); 0 = not known, loads as stored.
 // ---------------------------------------------------------------------------
+/**
+ * Warm-ups ramp up to the first working weight, well short of failure: n warm-ups from 50 % to 80 % of that weight,
+ * with fewer reps as the weight climbs (the working reps on the first, half of them by the last; at least 2).
+ * 1 warm-up = 65 % × ¾ of the reps; 2 = 50 % × reps, 80 % × ½; 3 = 50 %, 65 %, 80 %. Every program uses it.
+ */
+export const warmupRamp = (n, workReps = 8) =>
+  Array.from({ length: Math.max(0, n) }, (_, i) => {
+    const t = n <= 1 ? 0.5 : i / (n - 1);
+    return { share: 0.5 + 0.3 * t, reps: Math.max(2, Math.round(Math.max(1, Number(workReps) || 8) * (1 - 0.5 * t))) };
+  });
+
 // Fatigue (Configuration → PROGRAM → FATIGUE, settings.fatiguePerSet, set every render in page.js): the reps of
 // reserve each earlier working set of an exercise uses up. A set's 1RM adds them back (it counts like the same set done
 // fresh), so honest, falling RIRs at a fixed weight don't read as lost strength; planning shows the RIR falling by it.
@@ -397,6 +408,56 @@ export const setEngineFatigue = v => {
   ENGINE_FATIGUE_PER_SET = Number.isFinite(n) ? Math.min(2, Math.max(0, n)) : DEFAULT_FATIGUE_PER_SET;
 };
 export const getEngineFatigue = () => ENGINE_FATIGUE_PER_SET;
+// Learned per exercise (learnFatigueRates, set every render in page.js from your History): { [exerciseId]: rate }
+let ENGINE_FATIGUE_BY_EXERCISE = {};
+export const setEngineFatigueByExercise = map => {
+  ENGINE_FATIGUE_BY_EXERCISE = map && typeof map === 'object' ? map : {};
+};
+/** The fatigue rate for an exercise: learned from your History when there is enough, else the FATIGUE setting. */
+export const fatigueRateFor = exerciseId =>
+  exerciseId && Number.isFinite(ENGINE_FATIGUE_BY_EXERCISE[exerciseId]) ? ENGINE_FATIGUE_BY_EXERCISE[exerciseId] : ENGINE_FATIGUE_PER_SET;
+/**
+ * Each lifter's fatigue rate per exercise, learned from the RIRs they log BY HAND (worked-out intensities only echo
+ * the plan): in each of the last 12 sessions of an exercise, every pair of back-to-back completed working sets at the
+ * same weight and reps gives a drop (RIR of the first − RIR of the second). The rate is the average drop, shrunk
+ * toward the FATIGUE setting (as if it had 4 more pairs at that rate) and kept between 0 and 2. Exercises with fewer
+ * than 2 pairs keep the setting. Returns { [exerciseId]: rate }.
+ */
+export const learnFatigueRates = (history = [], baseRate = DEFAULT_FATIGUE_PER_SET) => {
+  const base = Number.isFinite(Number(baseRate)) ? Number(baseRate) : DEFAULT_FATIGUE_PER_SET;
+  const drops = {};
+  const sorted = [...(history || [])].sort((a, b) => workoutTimeMs(b) - workoutTimeMs(a));
+  const seen = {};
+  sorted.forEach(w => {
+    (w?.slots || []).forEach(slot => {
+      const lists = Array.isArray(slot.supersetSetsByExercise) && isSupersetCategory(slot.category)
+        ? slot.supersetSetsByExercise.map((sets, i) => [(slot.supersetExerciseIds || [])[i], sets])
+        : [[slot.exerciseId, slot.sets]];
+      lists.forEach(([exId, sets]) => {
+        if (!exId) return;
+        seen[exId] = (seen[exId] || 0) + 1;
+        if (seen[exId] > 12) return;
+        const work = (sets || []).filter(st => st?.completed && normalizeSetType(st.type) !== 'Warmup');
+        for (let i = 1; i < work.length; i++) {
+          const a = work[i - 1];
+          const b = work[i];
+          const byHand = x => x?.intensity && !x.intensity.auto && x.intensity.mode !== 'pct' && x.intensity.value !== '' && x.intensity.value !== null;
+          if (!byHand(a) || !byHand(b)) continue;
+          if (Number(a.weight) !== Number(b.weight) || Number(a.reps) !== Number(b.reps)) continue;
+          (drops[exId] = drops[exId] || []).push(setReportedRir(a) - setReportedRir(b));
+        }
+      });
+    });
+  });
+  const rates = {};
+  Object.entries(drops).forEach(([exId, list]) => {
+    if (list.length < 2) return;
+    const sum = list.reduce((s, d) => s + Math.min(3, Math.max(-1, d)), 0);
+    const rate = (sum + 4 * base) / (list.length + 4);
+    rates[exId] = Math.round(Math.min(2, Math.max(0, rate)) * 20) / 20;
+  });
+  return rates;
+};
 /** Working (non-warm-up) sets before position idx in a list of sets or set types: the sets fatigue counts. */
 export const priorHardSets = (list = [], idx = 0) =>
   (list || []).slice(0, idx).filter(x => normalizeSetType(typeof x === 'string' ? x : x?.type) !== 'Warmup').length;
@@ -418,6 +479,38 @@ export const withEngineBodyweight = (lbs, fn) => {
   }
 };
 const isTimedSet = st => Number(st?.durationSeconds) > 0 || (typeof st?.timerStr === 'string' && st.timerStr.includes(':'));
+/**
+ * The share of bodyweight a bodyweight exercise actually moves (force-plate studies): a push-up ≈ 64 % (knees 49 %,
+ * incline 41 %, decline 74 %), a dip ≈ 95 % (bench dip ≈ 55 %), a pull-up / chin-up ≈ 100 %, an inverted row ≈ 60 %,
+ * squats / lunges / step-ups ≈ 88 % (the feet and shins stay put), hip thrusts / bridges ≈ 55 %, sit-ups, crunches and
+ * leg raises ≈ 40 %; anything else 100 %. Found by name; cached per exercise.
+ */
+const BODYWEIGHT_SHARE_CACHE = {};
+export const getBodyweightShare = exerciseId => {
+  if (BODYWEIGHT_SHARE_CACHE[exerciseId] !== undefined) return BODYWEIGHT_SHARE_CACHE[exerciseId];
+  const name = `${EXERCISE_MAP[exerciseId]?.name || ''} ${exerciseId || ''}`.toLowerCase().replace(/[_-]/g, ' ');
+  let share = 1;
+  if (/push ?up/.test(name)) {
+    share = /handstand/.test(name) ? 0.95 : /pike/.test(name) ? 0.7 : /decline/.test(name) ? 0.74 : /incline/.test(name) ? 0.41 : /knee/.test(name) ? 0.49 : 0.64;
+  } else if (/dips?/.test(name)) {
+    share = /bench/.test(name) ? 0.55 : 0.95;
+  } else if (/pull ?up|chin ?up|chinup|muscle ?up/.test(name)) {
+    share = 1;
+  } else if (/inverted row|australian/.test(name)) {
+    share = 0.6;
+  } else if (/squat|lunge|step ?up|pistol/.test(name)) {
+    share = 0.88;
+  } else if (/hip thrust|glute bridge|bridge/.test(name)) {
+    share = 0.55;
+  } else if (/sit ?up|crunch|leg raise|knee raise|v ?up|toes to bar/.test(name)) {
+    share = 0.4;
+  }
+  BODYWEIGHT_SHARE_CACHE[exerciseId] = share;
+  return share;
+};
+/** The bodyweight an exercise moves (bodyweight × its share; 0 when no bodyweight is known). */
+export const getExerciseBodyweightLoad = exerciseId => ENGINE_BODYWEIGHT_LBS * getBodyweightShare(exerciseId);
+
 /** Does this exercise's 1RM count bodyweight? */
 export const countsBodyweight = exerciseId => ENGINE_BODYWEIGHT_LBS > 0 && isBodyweightExercise(exerciseId);
 /**
@@ -428,9 +521,11 @@ export const countsBodyweight = exerciseId => ENGINE_BODYWEIGHT_LBS > 0 && isBod
 export const setLoadLbs = (exerciseId, st, option = null) => {
   const w = Number(st?.weight) || 0;
   if (!st || isTimedSet(st) || !countsBodyweight(exerciseId)) return w;
-  if (isBandEquipment(option) || (!option && st.bandColor)) return Math.max(0, ENGINE_BODYWEIGHT_LBS - getBandWeightLbs(getSetBandColor(st)));
-  if (/weighted/i.test(String(option || ''))) return Math.max(0, ENGINE_BODYWEIGHT_LBS + Math.max(0, w));
-  return ENGINE_BODYWEIGHT_LBS;
+  // (the share of bodyweight this exercise moves, getBodyweightShare: a push-up ≈ 64 %)
+  const body = getExerciseBodyweightLoad(exerciseId);
+  if (isBandEquipment(option) || (!option && st.bandColor)) return Math.max(0, body - getBandWeightLbs(getSetBandColor(st)));
+  if (/weighted/i.test(String(option || ''))) return Math.max(0, body + Math.max(0, w));
+  return body;
 };
 /** The sets with `weight` = their load (see setLoadLbs), for the 1RM scanners. Other exercises come back as they are. */
 export const withEffectiveLoad = (exerciseId, sets = [], option = null) =>
@@ -453,7 +548,7 @@ export const toAddedWeights = slot => {
     return (sets || []).map(st => {
       if (!st || st.completed || st.lockWeight || isTimedSet(st)) return st;
       const w = Number(st.weight) || 0;
-      const added = weighted ? Math.max(0, Math.round((w - ENGINE_BODYWEIGHT_LBS) / 2.5) * 2.5) : 0;
+      const added = weighted ? Math.max(0, Math.round((w - getExerciseBodyweightLoad(exId)) / 2.5) * 2.5) : 0;
       return added === w ? st : { ...st, weight: added };
     });
   };
@@ -531,10 +626,10 @@ export const snapSlotToPlates = slot => {
 };
 
 // priorHard: working sets done before this one in the exercise; each adds back the fatigue allowance
-export const estimateSet1RM = (st, priorHard = 0) => {
+export const estimateSet1RM = (st, priorHard = 0, exerciseId = null) => {
   const w = Number(st?.weight) || 0;
   if (w <= 0) return 0;
-  const fatigue = normalizeSetType(st?.type) === 'Warmup' ? 0 : Math.max(0, Number(priorHard) || 0) * ENGINE_FATIGUE_PER_SET;
+  const fatigue = normalizeSetType(st?.type) === 'Warmup' ? 0 : Math.max(0, Number(priorHard) || 0) * fatigueRateFor(exerciseId);
   const effReps = Math.max(1, Number(st?.reps) || 1) + setReportedRir(st) + fatigue;
   // The exact inverse of planning (utils/intensity.js: weight = 1RM ÷ (1 + (reps + RIR − 1) ÷ 30)), so a set done as
   // planned gives back the 1RM it was planned from; a single with nothing left is its weight
@@ -573,21 +668,41 @@ export const best1RMInfoOfSets = (sets = []) => {
  * such single, `calculated: false`). { value, calculated, setId (the single, else null), sets (the sets used) }.
  * History scanners use it per session through loggedExercise1RMInfo.
  */
-export const exercise1RMInfoOfSets = (sets = []) => {
+// Rep-based 1RM estimates lose accuracy past about 12–15 reps: sets of HIGH_REP_LIMIT reps or more are left out of an
+// exercise's 1RM when it has lower-rep working sets (an exercise of only high-rep sets still uses them, flagged).
+export const HIGH_REP_LIMIT = 15;
+// Sets nearer failure are trusted more (people misjudge reps in reserve most when far from failure): each working
+// set's estimate counts 1 ÷ (1 + 0.25 × its reported RIR) in the average (RIR 0 = 1, RIR 2 ≈ 0.67, RIR 4 = 0.5).
+const failureTrust = st => 1 / (1 + 0.25 * Math.max(0, setReportedRir(st)));
+
+export const exercise1RMInfoOfSets = (sets = [], exerciseId = null) => {
   const weighted = (sets || []).filter(st => (Number(st?.weight) || 0) > 0);
-  const working = weighted.filter(st => normalizeSetType(st?.type) !== 'Warmup');
+  const allWorking = weighted.filter(st => normalizeSetType(st?.type) !== 'Warmup');
+  const lowRep = allWorking.filter(st => (Number(st?.reps) || 0) < HIGH_REP_LIMIT);
+  // (high-rep sets out when there are others; their fatigue order is kept from the full list below)
+  const working = lowRep.length > 0 ? lowRep : allWorking;
+  const highRepExcluded = allWorking.length - working.length;
+  const highRepOnly = lowRep.length === 0 && allWorking.length > 0;
   const pool = working.length > 0 ? working : weighted;
-  if (pool.length === 0) return { value: 0, calculated: false, setId: null, sets: [] };
+  if (pool.length === 0) return { value: 0, calculated: false, setId: null, sets: [], highRepExcluded: 0, highRepOnly: false };
   // A real 1RM (a working set lifted for 1 rep, nothing in reserve): that set alone is the exercise's 1RM
   const singles = working.filter(st => !isCalculated1RMSet(st));
   if (singles.length > 0) {
     const top = singles.reduce((a, b) => ((Number(b.weight) || 0) > (Number(a.weight) || 0) ? b : a));
-    return { value: Math.round(Number(top.weight) || 0), calculated: false, setId: top?.id || null, sets: [top] };
+    return { value: Math.round(Number(top.weight) || 0), calculated: false, setId: top?.id || null, sets: [top], highRepExcluded, highRepOnly: false };
   }
-  // Otherwise calculated from the whole exercise: the average of its working sets' estimates
-  // (each working set counts the fatigue of the working sets before it)
-  const value = Math.round(pool.reduce((sum, st, i) => sum + estimateSet1RM(st, working.length > 0 ? i : 0), 0) / pool.length);
-  return { value, calculated: true, setId: null, sets: pool };
+  // Otherwise calculated from the whole exercise: the average of its working sets' estimates, sets nearer failure
+  // counting more (failureTrust); each counts the fatigue of the working sets done before it (high-rep ones included)
+  let sum = 0;
+  let total = 0;
+  pool.forEach(st => {
+    const prior = working.length > 0 ? allWorking.indexOf(st) : 0;
+    const trust = failureTrust(st);
+    sum += estimateSet1RM(st, prior, exerciseId) * trust;
+    total += trust;
+  });
+  const value = total > 0 ? Math.round(sum / total) : 0;
+  return { value, calculated: true, setId: null, sets: pool, highRepExcluded, highRepOnly };
 };
 
 /**
@@ -599,7 +714,7 @@ export const exercise1RMInfoOfSets = (sets = []) => {
 export const loggedExercise1RMInfo = (exerciseId, rawSets, option = null) => {
   const arr = withEffectiveLoad(exerciseId, rawSets || [], option);
   const hasCompleted = arr.some(s => s && s.completed && Number(s.weight) > 0);
-  return exercise1RMInfoOfSets(hasCompleted ? arr.filter(s => s?.completed) : arr);
+  return exercise1RMInfoOfSets(hasCompleted ? arr.filter(s => s?.completed) : arr, exerciseId);
 };
 
 // How far (share) a set's calculated 1RM may sit from the rest of its exercise before saving asks to check it
@@ -626,7 +741,7 @@ export const findIntensityMismatches = workout => {
         st => (Number(st?.weight) || 0) > 0 && normalizeSetType(st?.type) !== 'Warmup' && !st?.timerStr && !st?.durationSeconds
       );
       if (pool.length < 2) return;
-      const ests = pool.map((st, i) => estimateSet1RM(st, i));
+      const ests = pool.map((st, i) => estimateSet1RM(st, i, exId));
       pool.forEach((st, i) => {
         const others = ests.filter((_, j) => j !== i).sort((a, b) => a - b);
         const mid = Math.floor(others.length / 2);
@@ -767,11 +882,49 @@ export const getPersonalRecord1RM = (exerciseId, history = []) => {
   return getBestHistory1RM(exerciseId, history);
 };
 
-// The 1RM suggestions are worked out from: the exercise's 1RM in its most recent logged session (completed sets,
-// loggedExercise1RMInfo), not the personal record, so weights, reps and intensities follow where you are now.
+// One logged session's 1RM of the exercise (its sets already carry their real load: getLoggedSessionsForExercise)
+const session1RMOf = (sets, exerciseId = null) => {
+  const list = sets || [];
+  const done = list.filter(st => st && st.completed && Number(st.weight) > 0);
+  return Number(exercise1RMInfoOfSets(done.length > 0 ? done : list, exerciseId).value) || 0;
+};
+// Smoothing: day-to-day strength swings ±5–10 % (sleep, stress, food), so suggestions follow a weighted average of the
+// last three sessions (newest 60 %, then 25 %, 15 %) instead of the last one alone.
+const SMOOTHING_WEIGHTS = [0.6, 0.25, 0.15];
+const recentSession1RMs = (exerciseId, history = [], excludeWorkoutId = null) =>
+  getLoggedSessionsForExercise(exerciseId, history, excludeWorkoutId)
+    .filter(s => !s.isPersonalRecord)
+    .map(s => ({ ...s, value: session1RMOf(s.sets, exerciseId) }))
+    .filter(s => s.value > 0);
+
+// The 1RM suggestions are worked out from: the SMOOTHED 1RM of the exercise's recent sessions (not the personal
+// record), so weights, reps and intensities follow where you are now without chasing one good or bad day.
 export const getLastSession1RM = (exerciseId, history = [], excludeWorkoutId = null) => {
-  const last = getLastLoggedSessionForExercise(exerciseId, history, excludeWorkoutId);
-  return last ? Number(loggedExercise1RMInfo(exerciseId, last.sets).value) || 0 : 0;
+  const recent = recentSession1RMs(exerciseId, history, excludeWorkoutId).slice(0, SMOOTHING_WEIGHTS.length);
+  let sum = 0;
+  let total = 0;
+  recent.forEach((s, i) => {
+    sum += s.value * SMOOTHING_WEIGHTS[i];
+    total += SMOOTHING_WEIGHTS[i];
+  });
+  return total > 0 ? sum / total : 0;
+};
+
+/**
+ * Stall: no new 1RM for the exercise in its last STALL_SESSIONS sessions (each at or below the best before them), none
+ * of them a deload. { stalled, sessions, peak }. The planner then makes the next session a deload (10 % lighter, at
+ * the same reps: easier RIR), which resets the count.
+ */
+export const STALL_SESSIONS = 3;
+export const DELOAD_SHARE = 0.9;
+export const detectStall = (exerciseId, history = [], excludeWorkoutId = null) => {
+  const recent = recentSession1RMs(exerciseId, history, excludeWorkoutId);
+  if (recent.length < STALL_SESSIONS + 1) return { stalled: false, sessions: 0, peak: 0 };
+  const last = recent.slice(0, STALL_SESSIONS);
+  if (last.some(s => s.deload)) return { stalled: false, sessions: 0, peak: 0 };
+  const peak = Math.max(...recent.slice(STALL_SESSIONS).map(s => s.value));
+  const stalled = last.every(s => s.value <= peak);
+  return { stalled, sessions: stalled ? STALL_SESSIONS : 0, peak };
 };
 
 export const getHistoricalCalculated1RM = (exerciseId, history = [], oneRepMaxes = {}, excludeWorkoutId = null) => {
@@ -854,9 +1007,16 @@ export const getIncrementInLbs = (goalIncrement = 1.25, goalUnit = 'lb', goalTyp
 };
 
 // The progression increment is added once to the total weight lifted (not per side of a barbell)
-export const getEffectiveIncrementForExercise = (exerciseId, baseIncrementLbs = 0) => {
+// The goal increment is for a 200 lb lift: with the exercise's 1RM it scales to the lift (× 1RM ÷ 200, between a
+// quarter and double; to 0.25 lb), so a curl moves a little and a deadlift more. Without a 1RM: as set.
+export const INCREMENT_REFERENCE_1RM = 200;
+export const getEffectiveIncrementForExercise = (exerciseId, baseIncrementLbs = 0, oneRM = 0) => {
   const inc = Number(baseIncrementLbs) || 0;
-  return inc > 0 ? roundToIncrement(inc) : 0;
+  if (!(inc > 0)) return 0;
+  const m = Number(oneRM) || 0;
+  if (!(m > 0)) return roundToIncrement(inc);
+  const scaled = inc * Math.min(2, Math.max(0.25, m / INCREMENT_REFERENCE_1RM));
+  return Math.max(0.25, Math.round(scaled * 4) / 4);
 };
 
 // Exercise Set Preferences (Configuration → ROUTINES): the type of each set, by position, for new exercises on the
@@ -1110,7 +1270,11 @@ const getLoggedSessionsForExercise = (exerciseId, history = [], excludeWorkoutId
           sets.push(...withEffectiveLoad(exerciseId, slot.sets || [], getSlotEquipmentChoice(slot, 0)));
         }
       });
-      return { workoutId: w.id, timeMs: workoutTimeMs(w), isPersonalRecord: w.loadedRoutineTitle === 'PERSONAL RECORD', sets };
+      // deload: a session the planner made lighter after a stall (detectStall restarts its count from it)
+      const deload = (w.slots || []).some(
+        slot => slot?.deload && (slot.exerciseId === exerciseId || (slot.supersetExerciseIds || []).includes(exerciseId))
+      );
+      return { workoutId: w.id, timeMs: workoutTimeMs(w), isPersonalRecord: w.loadedRoutineTitle === 'PERSONAL RECORD', deload, sets };
     })
     .filter(s => s.sets.some(st => st && Number(st.weight) > 0));
 

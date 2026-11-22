@@ -389,7 +389,8 @@ export const parseExercisesCsv = rawCsv => {
       muscleGroup,
       // Other body parts it trains as much (muscle filters and the stimulus map count them too)
       secondaryMuscleGroups: SECONDARY_MUSCLE_GROUPS[id] || [],
-      // Every body part it trains, for the stimulus map: its own, the secondary ones and each specific muscle's
+      // Every body part it trains, for the stimulus map: its own (primary) then the secondary ones and each specific
+      // muscle's group (secondary: half credit, stimulusSecondaryGroups)
       stimulusMuscleGroups: [
         ...new Set([
           muscleGroup,
@@ -397,6 +398,12 @@ export const parseExercisesCsv = rawCsv => {
           ...specificMuscles.map(m => SPECIFIC_MUSCLE_GROUP[m]).filter(Boolean)
         ])
       ],
+      stimulusSecondaryGroups: [
+        ...new Set([
+          ...(SECONDARY_MUSCLE_GROUPS[id] || []),
+          ...specificMuscles.map(m => SPECIFIC_MUSCLE_GROUP[m]).filter(Boolean)
+        ])
+      ].filter(g => g !== muscleGroup),
       // Other names it goes by (search + .csv import)
       aliases: [...(EXERCISE_NAME_ALIASES[id] || []), ...(DUPLICATE_EXERCISE_ALIASES[id] || [])],
       specificMuscles,

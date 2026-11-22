@@ -53,7 +53,7 @@ export function InfoView({
 }) {
   return (
     <div style={UI.pagePad}>
-      <Section header="THE IDEA: EVERYTHING IS A 1 REP MAX" colors={colors}>
+      <Section header="THE IDEA: NORMALIZE EVERYTHING" colors={colors}>
         <P>
           A set of 3, a set of 12 and a pyramid can’t be compared as they are. So every set you log is converted to
           the same unit: an estimated 1 rep max (1RM), the most you could lift once. Progress, records, suggested weights,
@@ -66,17 +66,33 @@ export function InfoView({
           weight. It is the exact reverse of how weights are suggested, so a set done as suggested keeps your 1RM where
           it was. A 1RM worked out this way shows with an asterisk (270*); one you actually lifted for 1 rep shows plain.
         </P>
-        <P title="An exercise’s 1RM" last>
+        <P title="An exercise’s 1RM">
           in a session is the average of its working sets (warm-ups left out), so changing any one set’s weight, reps or
-          intensity moves it. Your personal record is the best single set you have ever logged.
+          intensity moves it. Sets nearer failure count more (reps in reserve are easiest to misjudge far from failure),
+          and sets of 15 reps or more are left out when there are lower-rep sets, since rep formulas lose accuracy past
+          about 12 to 15 reps (a ! on 1RM* CURRENT explains it). Your personal record is the best session you have
+          logged.
+        </P>
+        <P title="Bodyweight exercises" last>
+          count the share of your bodyweight they actually move: a push-up about 64 %, a dip about 95 %, a pull-up all of
+          it, a bodyweight squat about 88 %.
         </P>
       </Section>
 
       <Section header="WHAT THE 1RM DRIVES" colors={colors}>
         <P title="Suggested weights.">
-          The app turns your 1RM back into a weight for each set’s reps, set type and number of sets. It works from the
-          1RM of the last session you logged of that exercise (not your record) plus your increment, so the weights
-          follow where you are now. RECALCULATE redoes this for an exercise.
+          The app turns your 1RM back into a weight for each set’s reps, set type and number of sets. It works from a
+          smoothed 1RM of your last three sessions of that exercise (the newest counting most, not your record) plus
+          your increment, scaled to the lift (your Goals increment is for a 200 lb lift, so a curl moves less than a
+          deadlift). RECALCULATE redoes this for an exercise.
+        </P>
+        <P title="Live adjustment.">
+          As you finish working sets, what they say (weight, reps and the RIR you report) re-plans the sets still to do:
+          a first set that felt easier makes the rest heavier, harder makes them lighter.
+        </P>
+        <P title="Stalls.">
+          With no new 1RM on an exercise in three sessions, the next one is a deload: 10 % lighter at the same reps.
+          It says so on the exercise, and the count starts again after it.
         </P>
         <P title="Exercises you haven’t logged">
           start from a related lift you have (an RDL from your deadlift, an incline press from your bench), else from the
@@ -87,8 +103,9 @@ export function InfoView({
           choose another in Configuration → Goals) and your records for every exercise.
         </P>
         <P title="Leaderboards" last>
-          rank friends by Big 3 total, by Big 3 and overhead press divided by bodyweight, and by most improved. The
-          ratios use each athlete’s bodyweight, but the bodyweight itself is never shown.
+          rank friends by Big 3 total and by DOTS, the score powerlifting federations use to compare lifters of
+          different bodyweights (Big 3, overhead press and most improved). DOTS uses each athlete’s bodyweight and sex
+          (Configuration → Body metrics), but neither is ever shown.
         </P>
       </Section>
 
@@ -96,12 +113,14 @@ export function InfoView({
         <P title="Reps in reserve.">
           Every set has an intensity: RIR by default (reps you could still do), or RPE (10 − RIR), or percent of your
           1RM. They convert into each other through the set’s reps. Your Exercise Set Preferences set the effort: a
-          warm-up leaves RIR 3, working sets RIR 2, top out RIR 1, burn out RIR 3, a 1 rep max RIR 0.
+          working set leaves RIR 2, top out RIR 1, burn out RIR 3, a 1 rep max RIR 0. Warm-ups aren’t an effort: they
+          ramp from 50 % to 80 % of your first working weight with fewer reps as they climb, and show as %1RM.
         </P>
         <P title="Fatigue.">
           Each working set leaves you a little closer to failure at the same weight, so working sets keep one weight
           and the RIR shown falls by your fatigue rate (Configuration → Program; 0.5 a set by default: RIR 2, 1.5, 1).
-          Each set’s 1RM adds that fatigue back, so slowing down over an exercise doesn’t count as getting weaker.
+          Each set’s 1RM adds that fatigue back, so slowing down over an exercise doesn’t count as getting weaker. Once
+          you log RIRs by hand, the app learns your own rate for each exercise.
         </P>
         <P title="Always true to you.">
           The intensity shown is what the set’s weight and reps really are for you, from your 1RM. Where a plan and your
@@ -131,8 +150,10 @@ export function InfoView({
           band-assisted.
         </P>
         <P title="Stimulus." last>
-          Each logged set marks its muscles as trained. The Stimulus page shows each muscle group as recovering,
-          recovered or overdue, from the day thresholds you set.
+          Each working set counts 1 for the exercise’s main muscle group and ½ for each secondary one (bench: chest 1,
+          shoulders and arms ½), so secondary work adds up. A group counts as trained on a day once it reaches 1; the
+          Stimulus page shows recovering, recovered or overdue from the day thresholds you set, and the sets in the last
+          7 days.
         </P>
       </Section>
 

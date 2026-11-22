@@ -1305,6 +1305,8 @@ function buildAthleteFromProfileRow(
     // For the BW leaderboards' ratios only (BIG 3 / BW, OHP / BW, MOST IMPROVED), whether or not they share it:
     // the boards show the ratio, never the bodyweight itself
     rankingBodyweightLbs: Number(row?.settings?.bodyMetrics?.bodyweightLbs) || null,
+    // Sex, for DOTS scoring on the leaderboards only ('male' | 'female' | null)
+    rankingSex: row?.settings?.bodyMetrics?.sex === 'female' ? 'female' : row?.settings?.bodyMetrics?.sex === 'male' ? 'male' : null,
     // Their training goal (type, increment) and set preferences: the friend's session tab works out
     // suggested weights from these, their history and their PRs
     goals: row?.settings?.goals && typeof row.settings.goals === 'object' ? row.settings.goals : null,

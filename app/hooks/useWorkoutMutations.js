@@ -62,12 +62,16 @@ import {
   workoutTimeMs,
   countsBodyweight,
   setLoadLbs,
-  getEngineBodyweight,
   snapSlotToPlates,
-  getEngineFatigue,
+  fatigueRateFor,
+  exercise1RMInfoOfSets,
+  withEffectiveLoad,
+  getExerciseBodyweightLoad,
   priorHardSets,
-  getLastLoggedSessionForExercise,
-  loggedExercise1RMInfo
+  warmupRamp,
+  getLastSession1RM,
+  detectStall,
+  DELOAD_SHARE
 } from '../utils/workoutEngine';
 import { deleteCloudRoutineByKey, deleteCloudWorkoutsByIds, postSyncHistoryUpdate } from '../utils/supabaseAuth';
 import {
@@ -236,39 +240,65 @@ export function useWorkoutMutations({
   // plus your goal increment — last session's 1RM of the exercise (loggedExercise1RMInfo, the workout being edited
   // left out) + the increment; never logged = the starting estimate as it is. Programs plan from the same number
   // (getCycleTarget1RM), so their planned RIR reads true.
+  // (smoothed over the last three sessions, getLastSession1RM; the increment scaled to the lift)
   const effort1RM = (exId, option, workout) => {
     const calc = getHistoricalCalculated1RM(exId);
-    const last = getLastLoggedSessionForExercise(exId, history, workout?.id || null);
-    const prev = last ? loggedExercise1RMInfo(exId, last.sets, option).value : 0;
+    const prev = getLastSession1RM(exId, history, workout?.id || null);
     if (!(prev > 0)) return calc;
-    const inc = getEffectiveIncrementForExercise(exId, currentIncrementLbs);
-    if (isTracing()) traceLine(`${EXERCISE_MAP[exId]?.name || exId}: last session 1RM ${fmt(prev)} + goal increment ${fmt(inc)} = ${fmt(prev + inc)} lb (what you're planned to be capable of)`);
+    const inc = getEffectiveIncrementForExercise(exId, currentIncrementLbs, prev);
+    if (isTracing()) traceLine(`${EXERCISE_MAP[exId]?.name || exId}: recent sessions' 1RM ${fmt(prev)} (smoothed) + goal increment ${fmt(inc)} (scaled to the lift) = ${fmt(prev + inc)} lb (what you're planned to be capable of)`);
     return prev + inc;
   };
 
-  function planEffort(slot, onlySetId = null, workoutArg = null) {
+  // override1RMs: { [half]: 1RM } — plan from this instead (live adjustment: what the sets done so far say)
+  function planEffort(slot, onlySetId = null, workoutArg = null, override1RMs = null) {
     if (!slot) return slot;
     const workout = workoutArg || getCurrentEditorWorkout();
     const isSup = Array.isArray(slot.supersetSetsByExercise) && slot.supersetSetsByExercise.length > 1;
     const ids = slot.supersetExerciseIds || [slot.exerciseId, slot.secondaryExerciseId];
     const schemes = isSup ? getSupersetSchemes(slot) : [slot.scheme];
+    const deloadHalves = new Set();
     const plan = (list, exId, half) => {
       const sets = Array.isArray(list) ? list : [];
       if (!EFFORT_PLANNED_SCHEMES.includes(schemes[half])) return sets;
       if (isBodyweightExercise(exId) && !countsBodyweight(exId)) return sets;
       const option = getSlotEquipmentChoice(slot, half);
-      const oneRM = effort1RM(exId, option, workout);
-      if (!(oneRM > 0)) return sets;
-      const bw = countsBodyweight(exId) ? getEngineBodyweight() : 0;
+      const override = Number(override1RMs?.[half]) || 0;
+      const true1RM = override > 0 ? override : effort1RM(exId, option, workout);
+      if (!(true1RM > 0)) return sets;
+      // Stall (no new 1RM in the last 3 sessions, detectStall): this session is a deload — planned 10 % lighter at the
+      // same reps (the intensity, judged against the real 1RM, reads easier); logging it restarts the count
+      const stall = override > 0 ? { stalled: false } : detectStall(exId, history, workout?.id || null);
+      if (stall.stalled) {
+        deloadHalves.add(half);
+        if (isTracing()) traceLine(`${EXERCISE_MAP[exId]?.name || exId}: no new 1RM in ${stall.sessions} sessions (best ${fmt(stall.peak)} lb) → deload: planned from ${Math.round(DELOAD_SHARE * 100)}% of ${fmt(true1RM)} lb`);
+      }
+      const oneRM = stall.stalled ? true1RM * DELOAD_SHARE : true1RM;
+      const bw = countsBodyweight(exId) ? getExerciseBodyweightLoad(exId) : 0;
       const weighted = bw > 0 && /weighted/i.test(String(option || ''));
       const fixedLoad = (bw > 0 && !weighted) || isBandEquipment(option);
       const effInc = getEffectiveIncrementForExercise(exId, currentIncrementLbs);
       const step = effInc > 0 ? Math.min(2.5, effInc) : 2.5;
       const types = sets.map(st => normalizeSetType(st?.type));
       const name = EXERCISE_MAP[exId]?.name || exId;
+      // Warm-ups ramp up to the first working set (warmupRamp: 50 → 80 % of its weight, fewer reps as it climbs)
+      const firstWorkIdx = types.findIndex(t => t !== 'Warmup');
+      const firstWork = firstWorkIdx >= 0 ? sets[firstWorkIdx] : null;
+      const workReps = Math.max(1, Number(firstWork?.reps) || 8);
+      const workLoad = firstWork ? weightForIntensity(oneRM, workReps, { mode: 'rir', value: plannedRirForSet(types, firstWorkIdx) }) : null;
+      const warmIdxs = types.map((t, i) => (t === 'Warmup' ? i : -1)).filter(i => i >= 0);
+      const ramp = warmupRamp(warmIdxs.length, workReps);
       return sets.map((st, idx) => {
         if (!st || st.completed || st.lockIntensity || st.durationSeconds) return st;
         if (onlySetId && st.id !== onlySetId) return st;
+        if (types[idx] === 'Warmup' && workLoad > 0) {
+          const r = ramp[warmIdxs.indexOf(idx)] || { share: 0.65, reps: workReps };
+          const reps = st.lockReps ? st.reps : r.reps;
+          if (fixedLoad) return { ...st, reps };
+          const weight = st.lockWeight ? st.weight : Math.max(0, Math.round((workLoad * r.share - bw) / step) * step);
+          if (isTracing()) traceLine(`${name} set ${idx + 1} Warmup: ${Math.round(r.share * 100)}% of the first working weight ${fmt(workLoad)} → ${fmt(weight)} lb × ${reps}`);
+          return { ...st, weight, reps };
+        }
         const rir = plannedRirForSet(types, idx);
         const effort = { mode: 'rir', value: rir };
         if (types[idx] === '1 Rep Max') {
@@ -297,13 +327,14 @@ export function useWorkoutMutations({
     };
     if (isSup) {
       const matrix = slot.supersetSetsByExercise.map((list, i) => plan(list, ids[i] || slot.exerciseId, i));
-      return { ...slot, supersetSetsByExercise: matrix, sets: matrix[0] || [], secondarySets: matrix[1] || [] };
+      return { ...slot, supersetSetsByExercise: matrix, sets: matrix[0] || [], secondarySets: matrix[1] || [], deload: onlySetId ? slot.deload : deloadHalves.size > 0 };
     }
     const sets = plan(slot.sets, slot.exerciseId, 0);
-    return { ...slot, sets, supersetSetsByExercise: [sets] };
+    // deload: shown on the exercise card and kept with the logged session (detectStall restarts from it)
+    return { ...slot, sets, supersetSetsByExercise: [sets], deload: onlySetId ? slot.deload : deloadHalves.size > 0 };
   }
 
-  function fillIntensities(rawSlot, workout) {
+  function fillIntensities(rawSlot, workout, override1RMs = null) {
     if (!rawSlot || !intensityOn(workout)) return rawSlot;
     // Weights snapped to what can be loaded first (plates, dumbbell sizes), so the intensity is the one for the
     // weight actually lifted
@@ -311,8 +342,6 @@ export function useWorkoutMutations({
     const isSup = Array.isArray(slot.supersetSetsByExercise) && slot.supersetSetsByExercise.length > 1;
     const ids = slot.supersetExerciseIds || [slot.exerciseId, slot.secondaryExerciseId];
     const schemes = isSup ? getSupersetSchemes(slot) : [slot.scheme];
-    // Exercises a program plans (Society's compounds, day programs): their warm-ups are percentages of the target
-    const pctWarmups = isProgrammedSlot(slot, programContextFor(workout));
     const fit = (list, exId, half) => {
       if (schemes[half] === 'Timer') return list || [];
       // Bodyweight exercises need your bodyweight to know the load
@@ -320,14 +349,16 @@ export function useWorkoutMutations({
       const option = getSlotEquipmentChoice(slot, half);
       const name = EXERCISE_MAP[exId]?.name || exId;
       // A program's warm-ups are weighed by percentage, not effort: their intensity is shown as %1RM (≈ 55–60 %)
-      // Never logged: the weights are a first guess, so the intensity isn't known yet ("—" until it is logged)
-      if (!(getBestHistory1RM(exId, history) > 0)) {
+      const override = Number(override1RMs?.[half]) || 0;
+      // Never logged: the weights are a first guess, so the intensity isn't known yet ("—" until it is logged, or
+      // until sets done today say what it is: live adjustment)
+      if (!(override > 0) && !(getBestHistory1RM(exId, history) > 0)) {
         if (isTracing()) traceLine(`${name}: not logged yet, so its intensity isn't known (—)`);
         return (list || []).map(st =>
           !st || st.completed || st.lockIntensity || st.durationSeconds || !st.intensity ? st : { ...st, intensity: null }
         );
       }
-      const oneRM = effort1RM(exId, option, workout);
+      const oneRM = override > 0 ? override : effort1RM(exId, option, workout);
       return (list || []).map((st, idx) => {
         if (!st || st.completed || st.lockIntensity || st.durationSeconds) return st;
         const load = setLoadLbs(exId, st, option);
@@ -335,10 +366,11 @@ export function useWorkoutMutations({
         if (rtf === null) return st;
         // More reps than the load allows reads as RIR below 0 (the reps are left as planned or typed)
         const next = st;
-        const mode = pctWarmups && normalizeSetType(st.type) === 'Warmup' ? 'pct' : st.intensity?.mode || DEFAULT_INTENSITY_MODE;
+        // Warm-ups are a share of the working weight: their intensity is a %1RM (RIR means little that far from failure)
+        const mode = normalizeSetType(st.type) === 'Warmup' ? 'pct' : st.intensity?.mode || DEFAULT_INTENSITY_MODE;
         // Fatigue: the working sets before this one leave less in reserve at the same weight and reps (shown RIR falls
         // by the allowance per set; the 1RM adds it back, so a set done as shown keeps the 1RM)
-        const fatigueReps = normalizeSetType(st.type) === 'Warmup' ? 0 : getEngineFatigue() * priorHardSets(list, idx);
+        const fatigueReps = normalizeSetType(st.type) === 'Warmup' ? 0 : fatigueRateFor(exId) * priorHardSets(list, idx);
         const derived = deriveIntensity(oneRM, load, (Number(next.reps) || 1) + fatigueReps, mode);
         if (!derived) return next;
         const same = st.intensity && st.intensity.mode === derived.mode && Number(st.intensity.value) === Number(derived.value);
@@ -890,7 +922,7 @@ export function useWorkoutMutations({
           let intensity = st.intensity;
           const w = Number(weight) || 0;
           if (!isTimedRoutineSet(st, scheme) && oneRM > 0 && w > 0 && (!hasIntensityValue(st) || st.intensity.auto)) {
-            const fatigueReps = normalizeSetType(st.type) === 'Warmup' ? 0 : getEngineFatigue() * priorHardSets(list, idx);
+            const fatigueReps = normalizeSetType(st.type) === 'Warmup' ? 0 : fatigueRateFor(exId) * priorHardSets(list, idx);
             intensity = deriveIntensity(oneRM, w, (Number(st.reps) || 1) + fatigueReps, st.intensity?.mode || 'rir') || st.intensity;
             if (isTracing() && intensity) {
               traceLine(`${name} set ${idx + 1}: ${fmt(w)} lb × ${st.reps} against your 1RM ${fmt(oneRM)} → reps to failure 1 + 30 × (${fmt(oneRM)} ÷ ${fmt(w)} − 1) = ${fmt(1 + 30 * (oneRM / Math.min(w, oneRM) - 1))} → ${formatIntensity(intensity.mode, intensity.value)} kept; weight removed`);
@@ -933,7 +965,7 @@ export function useWorkoutMutations({
             const intensity = own ? st.intensity : { mode: 'rir', value: SET_TYPE_RIR[type] ?? 2 };
             // A stored RIR is after fatigue: the working sets before it add the allowance back (fresh-equivalent);
             // a routine's own type effort (no intensity) is already fresh
-            const fatigueReps = own && intensity.mode !== 'pct' && type !== 'Warmup' ? getEngineFatigue() * priorHardSets(list, idx) : 0;
+            const fatigueReps = own && intensity.mode !== 'pct' && type !== 'Warmup' ? fatigueRateFor(exId) * priorHardSets(list, idx) : 0;
             load = weightForIntensity(oneRM, reps + fatigueReps, intensity) || 0;
             const label = formatIntensity(intensity.mode, intensity.value);
             const source = own ? 'the routine\'s intensity' : `${type}'s effort`;
@@ -2021,6 +2053,41 @@ export function useWorkoutMutations({
       return { ...prev, slots: nextSlots };
   };
 
+  /**
+   * Live adjustment (live session, exercises planned by effort, not a program's): once working sets are done, what
+   * they say (their 1RM, from the weight, reps and the RIR you report) replaces the plan's 1RM for the sets still to
+   * do when the two differ by 2 % or more — a first set that felt easier than planned makes the rest heavier, harder
+   * makes them lighter. Locked values and done sets stay.
+   */
+  const LIVE_ADJUST_MIN_SHARE = 0.02;
+  const autoregulateSlot = (slot, workout, exIndex) => {
+    if (!slot || currentView !== 'session' || isProgrammedSlot(slot, programContextFor(workout))) return slot;
+    const isSup = Array.isArray(slot.supersetSetsByExercise) && slot.supersetSetsByExercise.length > 1;
+    const half = isSup ? exIndex : 0;
+    const schemes = isSup ? getSupersetSchemes(slot) : [slot.scheme];
+    if (!EFFORT_PLANNED_SCHEMES.includes(schemes[half])) return slot;
+    const ids = slot.supersetExerciseIds || [slot.exerciseId, slot.secondaryExerciseId];
+    const exId = isSup ? ids[half] : slot.exerciseId;
+    const list = (isSup ? slot.supersetSetsByExercise[half] : slot.sets) || [];
+    const option = getSlotEquipmentChoice(slot, half);
+    const done = list.filter(st => st?.completed && normalizeSetType(st.type) !== 'Warmup' && !st.durationSeconds);
+    if (done.length === 0 || !list.some(st => st && !st.completed)) return slot;
+    const observed = exercise1RMInfoOfSets(withEffectiveLoad(exId, done, option), exId).value;
+    const planned = getBestHistory1RM(exId, history) > 0 ? effort1RM(exId, option, workout) : 0;
+    if (!(observed > 0) || (planned > 0 && Math.abs(observed - planned) / planned < LIVE_ADJUST_MIN_SHARE)) return slot;
+    return withTrace(
+      'LIVE ADJUST',
+      () => {
+        if (isTracing()) {
+          traceLine(`${EXERCISE_MAP[exId]?.name || exId}: the sets done so far say 1RM ${fmt(observed)} lb${planned > 0 ? ` (planned ${fmt(planned)})` : ''} → the sets still to do re-planned from it`);
+        }
+        const overrides = { [half]: observed };
+        return fillIntensities(planEffort(slot, null, workout, overrides), workout, overrides);
+      },
+      `live:${slot.id}`
+    );
+  };
+
   const handleUpdateSetField = (slotId, exIndex, setId, field, rawVal) => {
     updateCurrentWorkoutState(prev => {
       if (!prev) return prev;
@@ -2106,8 +2173,21 @@ export function useWorkoutMutations({
         const nextSets = (slot.sets || []).map((st, sIdx) => applyFieldChange(st, slot.exerciseId, totalLen, sIdx));
         return { ...slot, sets: nextSets };
       });
-      // A new weight or reps: worked-out intensities follow (hand-set ones wait for RECALCULATE)
-      return { ...prev, slots: nextSlots.map(slot => (slot.id === slotId && field !== 'intensity' ? fillIntensities(slot, prev) : slot)) };
+      // A new weight or reps: worked-out intensities follow (hand-set ones wait for RECALCULATE). A done set's
+      // weight, reps or intensity (how it really went) re-plans the sets still to do (autoregulateSlot)
+      const editedDone = ['weight', 'reps', 'intensity'].includes(field) && (() => {
+        const sl = nextSlots.find(x => x.id === slotId);
+        const lst = (Array.isArray(sl?.supersetSetsByExercise) && sl.supersetSetsByExercise.length > 1 ? sl.supersetSetsByExercise[exIndex] : sl?.sets) || [];
+        return Boolean(lst.find(st => st?.id === setId)?.completed);
+      })();
+      return {
+        ...prev,
+        slots: nextSlots.map(slot => {
+          if (slot.id !== slotId) return slot;
+          const filled = field !== 'intensity' ? fillIntensities(slot, prev) : slot;
+          return editedDone ? autoregulateSlot(filled, prev, exIndex) : filled;
+        })
+      };
     });
   };
 
@@ -2409,7 +2489,7 @@ export function useWorkoutMutations({
           return solveBodyweightSet(st, orig, calc1RM, exId, getSlotEquipmentChoice(slot, isSup ? half : 0), step);
         }
         if (!orig || orig.completed || isBw || isTimer || !(calc1RM > 0)) return st;
-        const fatigueReps = normalizeSetType(st.type) === 'Warmup' ? 0 : getEngineFatigue() * priorHardSets(withTypes, idx);
+        const fatigueReps = normalizeSetType(st.type) === 'Warmup' ? 0 : fatigueRateFor(exId) * priorHardSets(withTypes, idx);
         if (orig.lockIntensity) return solveSet({ ...st, intensity: orig.intensity, lockIntensity: true }, calc1RM, { step, fatigueReps });
         return showIntensity ? solveSet({ ...st, lockIntensity: false }, calc1RM, { step, fatigueReps }) : st;
       });
@@ -2653,7 +2733,8 @@ export function useWorkoutMutations({
           sets: (s.sets || []).map(st => (st.id === setItem.id ? { ...st, completed: markingDone } : st))
         };
       });
-      return { ...prev, slots: nextSlots };
+      // Marking a set done: what the sets done so far say re-plans the ones still to do (autoregulateSlot)
+      return { ...prev, slots: markingDone ? nextSlots.map(s => (s.id === slot.id ? autoregulateSlot(s, prev, exIndex) : s)) : nextSlots };
     });
   };
 

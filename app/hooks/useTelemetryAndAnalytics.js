@@ -10,7 +10,7 @@ import {
   formatDateYMD,
   parseYMDToISO
 } from '../data/exerciseLibrary';
-import { getPersonalRecord1RM, loggedExercise1RMInfo,
+import { getPersonalRecord1RM, loggedExercise1RMInfo, normalizeSetType,
   withEffectiveLoad
 } from '../utils/workoutEngine';
 import { getSlotEquipmentChoice } from '../data/exerciseLibrary';
@@ -202,32 +202,50 @@ export function useTelemetryAndAnalytics({
     const groups = MUSCLE_GROUP_OPTIONS.filter(g => g !== 'All Muscles');
     const result = {};
 
+    // Hard-set credit per muscle group: every working (non-warm-up) set counts 1 for the exercise's own muscle group
+    // and ½ for each secondary one (bench: chest 1, shoulders and arms ½), so secondary work adds up — two sets that
+    // hit the biceps secondarily equal one curl set. A group is TRAINED on a day once its credit reaches 1.
+    const creditOf = (ex, g) =>
+      doesExerciseInteractWithMuscleGroup({ muscleGroup: ex.muscleGroup }, g)
+        ? 1
+        : (ex.stimulusSecondaryGroups || []).some(mg => doesExerciseInteractWithMuscleGroup({ muscleGroup: mg }, g))
+          ? 0.5
+          : 0;
+    const hardSets = list => {
+      const sets = (list || []).filter(st => st && normalizeSetType(st.type) !== 'Warmup');
+      const done = sets.filter(st => st.completed);
+      return (done.length > 0 ? done : sets).length;
+    };
+
     groups.forEach(g => {
       let minDays = 99;
       // The latest time it was trained (for the colour's smooth blend: fractional days)
       let lastMs = 0;
+      // Hard sets in the last 7 days (today and the 6 before)
+      let weeklySets = 0;
       if (stimulusNowMs !== null) {
         history.forEach(w => {
           const daysAgo = calendarDaysAgo(w.startedAt, stimulusNowMs);
           if (daysAgo === null) return;
           const wMs = typeof w.startedAt === 'number' ? w.startedAt : Date.parse(w.startedAt || '');
+          let credit = 0;
           (w.slots || []).forEach(slot => {
-            const ids =
-              isSupersetCategory(slot.category) && slot.supersetExerciseIds
-                ? slot.supersetExerciseIds
-                : [slot.exerciseId, slot.secondaryExerciseId].filter(Boolean);
-            ids.forEach(id => {
+            const isSup = isSupersetCategory(slot.category) && slot.supersetExerciseIds;
+            const ids = isSup ? slot.supersetExerciseIds : [slot.exerciseId].filter(Boolean);
+            ids.forEach((id, half) => {
               const ex = EXERCISE_MAP[id];
-              // Every muscle the exercise lists counts (a pull-up trains the biceps too), not just its body part
-              const trained = ex && (ex.stimulusMuscleGroups || [ex.muscleGroup]).some(mg =>
-                doesExerciseInteractWithMuscleGroup({ muscleGroup: mg }, g)
-              );
-              if (trained) {
-                if (daysAgo < minDays) minDays = daysAgo;
-                if (Number.isFinite(wMs) && wMs > lastMs) lastMs = wMs;
-              }
+              if (!ex) return;
+              const c = creditOf(ex, g);
+              if (!c) return;
+              const list = isSup ? slot.supersetSetsByExercise?.[half] || slot.sets : slot.sets;
+              credit += c * Math.max(1, hardSets(list));
             });
           });
+          if (daysAgo >= 0 && daysAgo < 7) weeklySets += credit;
+          if (credit >= 1) {
+            if (daysAgo < minDays) minDays = daysAgo;
+            if (Number.isFinite(wMs) && wMs > lastMs) lastMs = wMs;
+          }
         });
       }
 
@@ -248,7 +266,7 @@ export function useTelemetryAndAnalytics({
         statusLabel = 'UNLOGGED';
       }
 
-      result[g] = { daysAgo: minDays, color: statusColor, label: statusLabel };
+      result[g] = { daysAgo: minDays, color: statusColor, label: statusLabel, weeklySets: Math.round(weeklySets * 2) / 2 };
     });
 
     return result;
