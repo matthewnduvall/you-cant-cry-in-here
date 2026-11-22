@@ -200,7 +200,7 @@ export function StimulusSettingsSection({
         </div>
       </IOSListRow>
 
-      <IOSListRow isLast={true} colors={colors}>
+      <IOSListRow colors={colors}>
         <span style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', fontWeight: 500, color: '#FF4A3D' }}>
           <svg width="14" height="14" aria-hidden="true"><rect width="14" height="14" fill="#FF4A3D" /><rect width="14" height="14" fill="url(#stim-stripes)" /></svg>
           OVERDUE
@@ -208,6 +208,15 @@ export function StimulusSettingsSection({
         <span style={{ fontSize: '13px', fontWeight: 500, color: '#9A9A9A' }}>
           {Number(stimulusYellowDays) + 1}+ DAYS (AUTO)
         </span>
+      </IOSListRow>
+
+      {/* UNLOGGED (not editable): what the map's grey means (the legend that said so was removed) */}
+      <IOSListRow isLast={true} colors={colors}>
+        <span style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', fontWeight: 500, color: '#9A9A9A' }}>
+          <svg width="14" height="14" aria-hidden="true"><rect width="14" height="14" fill="#3A3A3A" /></svg>
+          UNLOGGED
+        </span>
+        <span style={{ fontSize: '13px', fontWeight: 500, color: '#9A9A9A' }}>NOT LOGGED YET</span>
       </IOSListRow>
     </IOSListSection>
   );
