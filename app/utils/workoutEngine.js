@@ -3,6 +3,7 @@
 // ============================================================================
 
 import { traceLine, isTracing, fmt } from './calcTrace';
+import { repCurveFor } from './intensity';
 import { getLoadSetup, isSnappedLoad, snapToLoadableWeight } from './loading';
 import { DEFAULT_PROGRAM_ID, getProgram, getProgramDay, hasProgramDays, weekdayOf, WEEKDAY_NAMES } from '../data/programs';
 import {
@@ -363,7 +364,7 @@ export const normalizeSetType = rawType => {
  */
 // Every intensity counts, worked-out (`auto`) ones too: the one shown is the effort the athlete is expected to have,
 // so a set done as shown keeps the 1RM where it was, and changing the intensity (how it really felt) moves it.
-export const setReportedRir = st => {
+export const setReportedRir = (st, exerciseId = null) => {
   const i = st?.intensity;
   if (!i) return 0;
   // A worked-out intensity: its exact RIR (the shown one is rounded up to whole reps). On a set not done yet it may be
@@ -378,7 +379,7 @@ export const setReportedRir = st => {
   if (i.mode === 'pct') {
     if (v <= 0 || v >= 100) return 0;
     const reps = Math.max(1, Number(st?.reps) || 1);
-    return Math.max(0, Math.round((30 * (100 / v - 1) + 1 - reps) * 10) / 10);
+    return Math.max(0, Math.round((repCurveFor(exerciseId) * (100 / v - 1) + 1 - reps) * 10) / 10);
   }
   return i.mode === 'rir' ? Math.max(0, v) : Math.max(0, 10 - v);
 };
@@ -465,6 +466,29 @@ export const learnFatigueRates = (history = [], baseRate = DEFAULT_FATIGUE_PER_S
   });
   return rates;
 };
+// ---- Rest length. The fatigue a set carries from the working sets before it depends on how long you rested:
+// restFatigueFactor(rest) = (REST_REFERENCE_SECONDS ÷ rest) ^ exponent, between 0.5 and 2.5 — 1 at 1:30, more after a
+// short rest (45 s ≈ 1.4 at the default exponent), less after a long one (3:00 ≈ 0.7). A done set uses the rest it
+// really had (set.restSec, stamped when it is ticked in a live session); a planned set uses the exercise's REST, else
+// the session's. The exponent is learned from your History (learnRestEffect in utils/modelLearning.js) once there is
+// enough, else DEFAULT_REST_EXPONENT. Unknown rest = 1.
+export const REST_REFERENCE_SECONDS = 90;
+export const DEFAULT_REST_EXPONENT = 0.5;
+let ENGINE_REST_EXPONENT = DEFAULT_REST_EXPONENT;
+export const setEngineRestExponent = v => {
+  const n = Number(v);
+  ENGINE_REST_EXPONENT = Number.isFinite(n) ? Math.min(1.5, Math.max(0, n)) : DEFAULT_REST_EXPONENT;
+};
+export const getEngineRestExponent = () => ENGINE_REST_EXPONENT;
+export const restFatigueFactor = (restSec, exponent = ENGINE_REST_EXPONENT) => {
+  const r = Number(restSec);
+  if (!(r > 0)) return 1;
+  return Math.min(2.5, Math.max(0.5, Math.pow(REST_REFERENCE_SECONDS / Math.max(15, r), exponent)));
+};
+/** A planned set's rest: the exercise's REST, else the session's rest bar, else 1:30. */
+export const plannedRestSeconds = (slot, workout) =>
+  Number(slot?.customRestSeconds) || Number(workout?.defaultRestSeconds) || Number(slot?.restSeconds) || REST_REFERENCE_SECONDS;
+
 /** Working (non-warm-up) sets before position idx in a list of sets or set types: the sets fatigue counts. */
 export const priorHardSets = (list = [], idx = 0) =>
   (list || []).slice(0, idx).filter(x => normalizeSetType(typeof x === 'string' ? x : x?.type) !== 'Warmup').length;
@@ -636,11 +660,16 @@ export const snapSlotToPlates = slot => {
 export const estimateSet1RM = (st, priorHard = 0, exerciseId = null) => {
   const w = Number(st?.weight) || 0;
   if (w <= 0) return 0;
-  const fatigue = normalizeSetType(st?.type) === 'Warmup' ? 0 : Math.max(0, Number(priorHard) || 0) * fatigueRateFor(exerciseId);
-  const effReps = Math.max(1, Number(st?.reps) || 1) + setReportedRir(st) + fatigue;
-  // The exact inverse of planning (utils/intensity.js: weight = 1RM ÷ (1 + (reps + RIR − 1) ÷ 30)), so a set done as
-  // planned gives back the 1RM it was planned from; a single with nothing left is its weight
-  return effReps <= 1 ? w : w * (1 + (effReps - 1) / 30);
+  // Fatigue from the working sets before it, scaled by the rest it had (restFatigueFactor; unknown rest = 1)
+  const fatigue =
+    normalizeSetType(st?.type) === 'Warmup'
+      ? 0
+      : Math.max(0, Number(priorHard) || 0) * fatigueRateFor(exerciseId) * restFatigueFactor(st?.restSec);
+  const effReps = Math.max(1, Number(st?.reps) || 1) + setReportedRir(st, exerciseId) + fatigue;
+  // The exact inverse of planning (utils/intensity.js: weight = 1RM ÷ (1 + (reps + RIR − 1) ÷ k), k = this lift's
+  // rep curve, 30 by default), so a set done as planned gives back the 1RM it was planned from; a single with nothing
+  // left is its weight
+  return effReps <= 1 ? w : w * (1 + (effReps - 1) / repCurveFor(exerciseId));
 };
 
 // A 1RM is "true" when it was actually lifted for 1 rep with nothing left; one worked out from a multi-rep set or a
@@ -904,18 +933,87 @@ const recentSession1RMs = (exerciseId, history = [], excludeWorkoutId = null) =>
     .map(s => ({ ...s, value: session1RMOf(s.sets, exerciseId) }))
     .filter(s => s.value > 0);
 
-// The 1RM suggestions are worked out from: the SMOOTHED 1RM of the exercise's recent sessions (not the personal
-// record), so weights, reps and intensities follow where you are now without chasing one good or bad day.
-export const getLastSession1RM = (exerciseId, history = [], excludeWorkoutId = null) => {
-  const recent = recentSession1RMs(exerciseId, history, excludeWorkoutId).slice(0, SMOOTHING_WEIGHTS.length);
+/** Every logged session's 1RM of an exercise, newest first: [{ workoutId, timeMs, value, deload, sets, … }]. */
+export const exerciseSession1RMs = (exerciseId, history = [], excludeWorkoutId = null) =>
+  recentSession1RMs(exerciseId, history, excludeWorkoutId);
+
+// ---- Estimating "where you are now" from the sessions so far. Three estimators; the prediction replay
+// (utils/modelLearning.js backtestPredictions) scores each on your History and page.js picks the one that forecasts
+// your next session best (setEngineEstimator), the smoothed one until there are enough forecasts to tell.
+//   last   — the last session's 1RM
+//   smooth — newest 60 %, then 25 %, 15 % of the last three sessions
+//   kalman — a two-state Kalman filter (level + trend per day): each session moves the level by how much it is
+//            trusted against the day-to-day noise (±5 %), a gap between sessions lets the level drift (so after a
+//            layoff a new session counts more), and the trend keeps a steadily rising lift from lagging. A few
+//            multiplications per session: nothing for a phone.
+export const ESTIMATORS = ['last', 'smooth', 'kalman'];
+let ENGINE_ESTIMATOR = 'smooth';
+export const setEngineEstimator = v => {
+  ENGINE_ESTIMATOR = ESTIMATORS.includes(v) ? v : 'smooth';
+};
+export const getEngineEstimator = () => ENGINE_ESTIMATOR;
+const KALMAN_NOISE = 0.05; // a session's 1RM vs your real strength: ±5 % (sd)
+const KALMAN_LEVEL_DRIFT = 0.004; // level drift per √day, share of the 1RM
+const KALMAN_TREND_DRIFT = 0.0002; // trend drift per √day, share of the 1RM per day
+const DAY_MS = 86400000;
+/**
+ * The Kalman estimate over sessions given OLDEST FIRST ([{ value, timeMs }]): { value (level at the last session),
+ * sd, trendPerDay }. One pass; to forecast after session i, pass the first i + 1.
+ */
+export const kalman1RM = (sessions = []) => {
+  const list = (sessions || []).filter(s => Number(s?.value) > 0);
+  if (list.length === 0) return { value: 0, sd: 0, trendPerDay: 0 };
+  const v0 = Number(list[0].value);
+  // State [level, trend]; covariance [[a, b], [b, c]]
+  let L = v0;
+  let T = 0;
+  let a = (KALMAN_NOISE * v0) ** 2;
+  let b = 0;
+  let c = (0.002 * v0) ** 2;
+  let t = Number(list[0].timeMs) || 0;
+  for (let i = 1; i < list.length; i++) {
+    const s = list[i];
+    const dt = Math.max(0, ((Number(s.timeMs) || t) - t) / DAY_MS);
+    t = Number(s.timeMs) || t;
+    // Predict: level += trend × dt; covariance through F = [[1, dt], [0, 1]] plus drift
+    L += T * dt;
+    const a2 = a + 2 * dt * b + dt * dt * c + (KALMAN_LEVEL_DRIFT * L) ** 2 * dt;
+    const b2 = b + dt * c;
+    const c2 = c + (KALMAN_TREND_DRIFT * L) ** 2 * dt;
+    // Update with the session's 1RM
+    const R = (KALMAN_NOISE * L) ** 2;
+    const S = a2 + R;
+    const kL = a2 / S;
+    const kT = b2 / S;
+    const resid = Number(s.value) - L;
+    L += kL * resid;
+    T += kT * resid;
+    a = (1 - kL) * a2;
+    b = (1 - kL) * b2;
+    c = c2 - kT * b2;
+  }
+  return { value: L, sd: Math.sqrt(Math.max(0, a)), trendPerDay: T };
+};
+/** "Where you are now" from sessions NEWEST FIRST ([{ value, timeMs }]) by an estimator. */
+export const estimateFromSessions = (sessionsNewestFirst = [], method = ENGINE_ESTIMATOR) => {
+  const recent = (sessionsNewestFirst || []).filter(s => Number(s?.value) > 0);
+  if (recent.length === 0) return 0;
+  if (method === 'last') return Number(recent[0].value);
+  if (method === 'kalman') return kalman1RM([...recent].reverse()).value;
   let sum = 0;
   let total = 0;
-  recent.forEach((s, i) => {
+  recent.slice(0, SMOOTHING_WEIGHTS.length).forEach((s, i) => {
     sum += s.value * SMOOTHING_WEIGHTS[i];
     total += SMOOTHING_WEIGHTS[i];
   });
   return total > 0 ? sum / total : 0;
 };
+
+// The 1RM suggestions are worked out from: your recent sessions' 1RM by the estimator in use (smoothed by default,
+// Kalman when the replay shows it forecasts you better) — not the personal record — so weights, reps and intensities
+// follow where you are now without chasing one good or bad day.
+export const getLastSession1RM = (exerciseId, history = [], excludeWorkoutId = null) =>
+  estimateFromSessions(recentSession1RMs(exerciseId, history, excludeWorkoutId));
 
 /**
  * Stall: no new 1RM for the exercise in the last STALL_WINDOW_DAYS days (it was logged in that window and never above
