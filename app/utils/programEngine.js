@@ -12,7 +12,7 @@
 
 import { EXERCISE_MAP, isBodyweightExercise, isSupersetCategory, normalizeSlotCategory, getSlotEquipmentChoice } from '../data/exerciseLibrary';
 import { generateSetsForScheme, getBestHistory1RM, getLastSession1RM, normalizeSetType, DEFAULT_SET_PREFERENCES, setLoadLbs, countsBodyweight, getExerciseBodyweightLoad, warmupRamp, getEffectiveIncrementForExercise, progressionIncrement } from './workoutEngine';
-import { INTENSITY_OPTIONS, intensityToRir, solveSet, deriveIntensity, weightForIntensity, convertIntensity, repsForIntensity, formatIntensity } from './intensity';
+import { INTENSITY_OPTIONS, intensityToRir, solveSet, deriveIntensity, weightForIntensity, convertIntensity, repsForIntensity, formatIntensity, repCurveFor } from './intensity';
 import { getStarting1RM, describe1RM } from './starting1RM';
 import { traceLine, isTracing, fmt } from './calcTrace';
 
@@ -183,7 +183,7 @@ export const applyProgramToSlot = (slot, ctx, opts = {}) => {
           : normalizeSetType(type) === 'Warmup'
             ? `warm-up ${fmt(WARMUP_SHARE)} × the first working set's ${fmt(pctFor(firstWorkingReps, plan.rir))}%`
             : `100 ÷ (1 + (${reps} + RIR ${plan.rir} − 1) ÷ 30) = ${fmt(pct)}%`;
-      traceLine(`set ${idx + 1} ${normalizeSetType(type)} × ${reps}: ${fmt(target1RM)} × ${why} → ${fmt(weight)} lb`);
+      traceLine(`${EXERCISE_MAP[exId]?.name || exId} set ${idx + 1} ${normalizeSetType(type)} × ${reps}: ${fmt(target1RM)} × ${why} → ${fmt(weight)} lb`);
     }
     const planned = {
       ...st,
@@ -300,7 +300,7 @@ const planDaySlot = (spec, exerciseId, o) => {
     else if (past.length === 0) {
       // First session: a weight with about 3 reps in reserve
       weight = roundTo(weightForIntensity(est1RM, spec.reps, { mode: 'rir', value: 3 }, exerciseId) || est1RM * 0.7);
-      traceLine(`linear · first session: ${fmt(est1RM)} ÷ (1 + (${spec.reps} + RIR 3 − 1) ÷ 30) → ${fmt(weight)} lb`);
+      traceLine(`linear · first session: ${fmt(est1RM)} ÷ (1 + (${spec.reps} + RIR 3 − 1) ÷ ${fmt(repCurveFor(exerciseId))}) → ${fmt(weight)} lb`);
     } else {
       const last = past[0].slot;
       const lastWeight = Number(last.programmed?.base) || topWeight(last);
@@ -390,7 +390,7 @@ const planDaySlot = (spec, exerciseId, o) => {
     const volume = roundTo(fiveRM * 0.9);
     traceLine(
       past.length === 0
-        ? `5-rep max = ${fmt(est1RM)} ÷ (1 + (5 + RIR 1 − 1) ÷ 30) → ${fmt(fiveRM)} lb · volume 90 % = ${fmt(volume)} lb`
+        ? `5-rep max = ${fmt(est1RM)} ÷ (1 + (5 + RIR 1 − 1) ÷ ${fmt(repCurveFor(exerciseId))}) → ${fmt(fiveRM)} lb · volume 90 % = ${fmt(volume)} lb`
         : `5-rep max = last intensity day ${fmt(Number(past[0].slot.programmed?.base) || topWeight(past[0].slot))} lb${fiveRM > (Number(past[0].slot.programmed?.base) || topWeight(past[0].slot)) ? ` + ${fmt(inc)}` : ' (missed: repeated)'} = ${fmt(fiveRM)} lb · volume 90 % = ${fmt(volume)} lb`
     );
     const programmed = { ...base, base: fiveRM };
@@ -441,7 +441,7 @@ const planDaySlot = (spec, exerciseId, o) => {
     past.length === 0
       ? isBw
         ? `double · ${lo}–${hi} reps, bodyweight: start at ${reps} reps`
-        : `double · first time on this plan: ${fmt(est1RM)} ÷ (1 + (${lo} + RIR ${rir} − 1) ÷ 30) → ${fmt(weight)} lb × ${lo}`
+        : `double · first time on this plan: ${fmt(est1RM)} ÷ (1 + (${lo} + RIR ${rir} − 1) ÷ ${fmt(repCurveFor(exerciseId))}) → ${fmt(weight)} lb × ${lo}`
       : `double · last ${fmt(topWeight(past[0].slot))} lb: ${reps === lo && weight > topWeight(past[0].slot) ? `every set at ${hi} → + ${fmt(inc)} = ${fmt(weight)} lb × ${lo}` : `top of ${lo}–${hi} not reached → ${fmt(weight)} lb × ${reps}`}`
   );
   return {
@@ -503,7 +503,7 @@ export const applyDayProgramToSlot = (slot, ctx, opts = {}) => {
       ...(intensity ? { intensity } : {}),
       ...(prev ? { lockType: prev.lockType, lockWeight: prev.lockWeight, lockReps: prev.lockReps, lockIntensity: prev.lockIntensity } : {})
     };
-    if (isTracing()) traceLine(`set ${idx + 1} ${normalizeSetType(type)} × ${reps} @ ${fmt(weight)} lb${prev?.lockWeight ? ' (locked)' : ''}`);
+    if (isTracing()) traceLine(`${EXERCISE_MAP[exId]?.name || exId} set ${idx + 1} ${normalizeSetType(type)} × ${reps} @ ${fmt(weight)} lb${prev?.lockWeight ? ' (locked)' : ''}`);
     if (isBodyweightExercise(exId)) {
       // Bodyweight: a locked intensity sets the reps for the real load (or, on Weighted, the added weight)
       if (prev?.lockIntensity && prev.intensity && countsBodyweight(exId) && planned.est1RM > 0) {

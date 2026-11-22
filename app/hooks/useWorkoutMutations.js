@@ -361,7 +361,7 @@ export function useWorkoutMutations({
         const target = weightForIntensity(oneRM, st.reps, effort, exId);
         if (target === null) return st;
         const weight = Math.max(0, Math.round((target - bw) / step) * step);
-        if (isTracing()) traceLine(`${name} set ${idx + 1} ${types[idx]} · RIR ${rir} × ${st.reps}: ${fmt(oneRM)} ÷ (1 + (${st.reps} + ${rir} − 1) ÷ 30) = ${fmt(target)}${bw ? ` − bodyweight ${fmt(bw)}` : ''} → ${fmt(weight)} lb`);
+        if (isTracing()) traceLine(`${name} set ${idx + 1} ${types[idx]} · RIR ${rir} × ${st.reps}: ${fmt(oneRM)} ÷ (1 + (${st.reps} + ${rir} − 1) ÷ ${fmt(repCurveFor(exId))}) = ${fmt(target)}${bw ? ` − bodyweight ${fmt(bw)}` : ''} → ${fmt(weight)} lb`);
         if (weighted && target < bw) {
           // Lighter than bodyweight: nothing added, and the reps follow instead
           const reps = st.lockReps ? st.reps : repsForIntensity(oneRM, bw, effort, exId) ?? st.reps;
@@ -2630,7 +2630,7 @@ export function useWorkoutMutations({
                 ? calculateEquivalentRepsForWeight(calc1RM, weight, next, total, category, effInc)
                 : next.reps;
           if (isTracing() && !orig.lockIntensity) {
-            traceLine(`set ${idx + 1}: weight ${fmt(weight)} lb locked → reps it allows at this set's effort from 1RM ${fmt(calc1RM)} = ${next.reps}`);
+            traceLine(`${EXERCISE_MAP[exId]?.name || exId} set ${idx + 1}: weight ${fmt(weight)} lb locked → reps it allows at this set's effort from 1RM ${fmt(calc1RM)} = ${next.reps}`);
           }
         } else if (!orig.lockWeight && (orig.lockReps || (orig.lockType && orig.type !== f.type))) {
           if (normalizeSetType(next.type) === '1 Rep Max' && !orig.lockReps) next.reps = 1;
@@ -2665,7 +2665,7 @@ export function useWorkoutMutations({
         );
         if (!ref) return st;
         const [w, r] = setTypeTarget(type, Number(ref.weight), Math.max(1, Number(ref.reps) || 1));
-        if (isTracing()) traceLine(`set ${idx + 1}: ${type} locked → from the working set ${fmt(ref.weight)} × ${ref.reps}: ${fmt(w)} lb × ${orig.lockReps ? st.reps : r}`);
+        if (isTracing()) traceLine(`${EXERCISE_MAP[exId]?.name || exId} set ${idx + 1}: ${type} locked → from the working set ${fmt(ref.weight)} × ${ref.reps}: ${fmt(w)} lb × ${orig.lockReps ? st.reps : r}`);
         return { ...st, weight: Math.max(0, Math.round(w / step) * step), reps: orig.lockReps ? st.reps : r };
       });
       // 6. Weight, reps and intensity through the calculated 1RM (utils/intensity.js solveSet): a locked intensity
