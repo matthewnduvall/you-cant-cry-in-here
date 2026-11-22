@@ -4,7 +4,9 @@ import { FormulaConsole } from './components/FormulaConsole';
 import { getProgram, getWorkoutProgramInfo } from './data/programs';
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { IOS_DARK, KINETIC_CSS } from './styles/kineticTokens';
-import { getIncrementInLbs, getInitial1RMs, asHistoricalWorkout, withAutoSessionName, setEngineFatigue, setEngineFatigueByExercise, learnFatigueRates, setEngineProgression, learnProgressionRates, setEngineBodyweight } from './utils/workoutEngine';
+import { getIncrementInLbs, getInitial1RMs, asHistoricalWorkout, withAutoSessionName, setEngineFatigue, setEngineFatigueByExercise, learnFatigueRates, setEngineProgression, learnProgressionRates, setEngineBodyweight, setEngineRestExponent, DEFAULT_REST_EXPONENT, setEngineEstimator } from './utils/workoutEngine';
+import { learnRepCurves, learnRestEffect, backtestPredictions, planFollowThrough } from './utils/modelLearning';
+import { setRepCurves } from './utils/intensity';
 import { fetchAthleteProfileSnapshot, signOutUser } from './utils/supabaseAuth';
 import { AppHeaderAndDrawer, PageTitle } from './components/AppHeaderAndDrawer';
 import {
@@ -196,9 +198,22 @@ export default function App() {
   // Each exercise's fatigue rate learned from the RIRs you log by hand (the setting until there is enough)
   const learnedFatigue = useMemo(() => learnFatigueRates(history, fatiguePerSet), [history, fatiguePerSet]);
   setEngineFatigueByExercise(learnedFatigue);
+  // How much rest length changes fatigue, and each lift's rep curve (k in weight × (1 + (reps + RIR − 1) ÷ k)),
+  // learned from the sets you rate by hand (utils/modelLearning.js); the defaults until there is enough
+  const learnedRest = useMemo(() => learnRestEffect(history), [history, learnedFatigue]); // eslint-disable-line react-hooks/exhaustive-deps
+  setEngineRestExponent(learnedRest?.exponent ?? DEFAULT_REST_EXPONENT);
+  const learnedRepCurves = useMemo(() => learnRepCurves(history), [history, learnedFatigue, learnedRest]); // eslint-disable-line react-hooks/exhaustive-deps
+  setRepCurves(learnedRepCurves);
   // Each lift's learned rate of progress (lb per session), which the increment leans toward once there is enough
   const learnedProgression = useMemo(() => learnProgressionRates(history), [history]);
   setEngineProgression(learnedProgression);
+  // The prediction replay: how well each estimator forecasts your next session (and the rep curves your sets); the
+  // engine uses the estimator that forecasts you best once there are enough forecasts (Performance → ACCURACY)
+  const predictionReport = useMemo(
+    () => ({ ...backtestPredictions(history, learnedRepCurves), follow: planFollowThrough(history), repCurves: learnedRepCurves, rest: learnedRest }),
+    [history, learnedRepCurves, learnedRest]
+  );
+  setEngineEstimator(predictionReport.best || 'smooth');
   // Configuration → EQUIPMENT → PLATES: the plates the athlete owns ({ [size]: count }) or null = not counted
   const [plateInventory, setPlateInventoryState] = useState(null);
   // Both-sided loads (barbells, plate-loaded machines) use only the athlete's plates, when counted (set every render,
@@ -1139,6 +1154,8 @@ export default function App() {
           userBodyweightLbs={goalSettings?.bodyweightLbs || userBodyweightLbs}
           totalHeightInches={totalHeightInches}
           customGoalWeights={goalSettings ? goalSettings.customGoalWeights || {} : customGoalWeights}
+          // Your own chart: how well the engine predicts you, and your rep curves (not on a friend's profile)
+          predictionReport={readOnly ? null : predictionReport}
         />
       )}
       {tab === 'history' && (

@@ -35,6 +35,8 @@ import {
   calculateLastEquivalentWeightForSet,
   calculateEquivalentRepsForWeight,
   getEffectiveIncrementForExercise,
+  restFatigueFactor,
+  plannedRestSeconds,
   progressionIncrement,
   lastSessionEffortGap,
   setReportedRir,
@@ -90,7 +92,7 @@ import {
   isBig3Variant
 } from '../data/programs';
 import { applyProgramToSlot, isProgrammedSlot, fitsProgramEquipment, solveBodyweightSet } from '../utils/programEngine';
-import { SET_TYPE_RIR, solveSet, deriveIntensity, weightForIntensity, repsForIntensity, intensityToRir, formatIntensity, repsToFailure, DEFAULT_INTENSITY_MODE, plannedRirForSet, EFFORT_PLANNED_SCHEMES } from '../utils/intensity';
+import { SET_TYPE_RIR, solveSet, deriveIntensity, weightForIntensity, repsForIntensity, intensityToRir, formatIntensity, repsToFailure, repCurveFor, DEFAULT_INTENSITY_MODE, plannedRirForSet, EFFORT_PLANNED_SCHEMES } from '../utils/intensity';
 import { getStarting1RM, describe1RM, getLiftFamilyParent } from '../utils/starting1RM';
 import { withTrace, traceLine, traceTitle, isTracing, fmt, logOperation } from '../utils/calcTrace';
 import { buildHistoryUpdate, findAddedSlots, getWorkoutSyncInfo, withSyncInfo } from '../utils/syncedHistory';
@@ -328,7 +330,7 @@ export function useWorkoutMutations({
       const firstWorkIdx = types.findIndex(t => t !== 'Warmup');
       const firstWork = firstWorkIdx >= 0 ? sets[firstWorkIdx] : null;
       const workReps = Math.max(1, Number(firstWork?.reps) || 8);
-      const workLoad = firstWork ? weightForIntensity(oneRM, workReps, { mode: 'rir', value: plannedRirForSet(types, firstWorkIdx) }) : null;
+      const workLoad = firstWork ? weightForIntensity(oneRM, workReps, { mode: 'rir', value: plannedRirForSet(types, firstWorkIdx) }, exId) : null;
       const warmIdxs = types.map((t, i) => (t === 'Warmup' ? i : -1)).filter(i => i >= 0);
       const ramp = warmupRamp(warmIdxs.length, workReps);
       return sets.map((st, idx) => {
@@ -350,19 +352,19 @@ export function useWorkoutMutations({
         if (fixedLoad || (st.lockWeight && !st.lockReps)) {
           if (st.lockReps) return st;
           const load = setLoadLbs(exId, st, option);
-          const reps = repsForIntensity(oneRM, load, effort);
+          const reps = repsForIntensity(oneRM, load, effort, exId);
           if (reps === null) return st;
-          if (isTracing()) traceLine(`${name} set ${idx + 1} ${types[idx]} · RIR ${rir}: load ${fmt(load)} lb → reps to failure ${fmt(repsToFailure(oneRM, load))} − ${rir} = ${reps}`);
+          if (isTracing()) traceLine(`${name} set ${idx + 1} ${types[idx]} · RIR ${rir}: load ${fmt(load)} lb → reps to failure ${fmt(repsToFailure(oneRM, load, exId))} − ${rir} = ${reps}`);
           return { ...st, reps };
         }
         if (st.lockWeight) return st;
-        const target = weightForIntensity(oneRM, st.reps, effort);
+        const target = weightForIntensity(oneRM, st.reps, effort, exId);
         if (target === null) return st;
         const weight = Math.max(0, Math.round((target - bw) / step) * step);
         if (isTracing()) traceLine(`${name} set ${idx + 1} ${types[idx]} · RIR ${rir} × ${st.reps}: ${fmt(oneRM)} ÷ (1 + (${st.reps} + ${rir} − 1) ÷ 30) = ${fmt(target)}${bw ? ` − bodyweight ${fmt(bw)}` : ''} → ${fmt(weight)} lb`);
         if (weighted && target < bw) {
           // Lighter than bodyweight: nothing added, and the reps follow instead
-          const reps = st.lockReps ? st.reps : repsForIntensity(oneRM, bw, effort) ?? st.reps;
+          const reps = st.lockReps ? st.reps : repsForIntensity(oneRM, bw, effort, exId) ?? st.reps;
           return { ...st, weight: 0, reps };
         }
         return { ...st, weight };
@@ -405,7 +407,7 @@ export function useWorkoutMutations({
       return (list || []).map((st, idx) => {
         if (!st || st.completed || st.lockIntensity || st.durationSeconds) return st;
         const load = setLoadLbs(exId, st, option);
-        const rtf = repsToFailure(oneRM, load);
+        const rtf = repsToFailure(oneRM, load, exId);
         if (rtf === null) return st;
         // More reps than the load allows reads as RIR below 0 (the reps are left as planned or typed)
         const next = st;
@@ -413,8 +415,10 @@ export function useWorkoutMutations({
         const mode = normalizeSetType(st.type) === 'Warmup' ? 'pct' : st.intensity?.mode || DEFAULT_INTENSITY_MODE;
         // Fatigue: the working sets before this one leave less in reserve at the same weight and reps (shown RIR falls
         // by the allowance per set; the 1RM adds it back, so a set done as shown keeps the 1RM)
-        const fatigueReps = normalizeSetType(st.type) === 'Warmup' ? 0 : fatigueRateFor(exId) * priorHardSets(list, idx);
-        const derived = deriveIntensity(oneRM, load, (Number(next.reps) || 1) + fatigueReps, mode);
+        // (scaled by the rest planned before it: restFatigueFactor)
+        const fatigueReps =
+          normalizeSetType(st.type) === 'Warmup' ? 0 : fatigueRateFor(exId) * priorHardSets(list, idx) * restFatigueFactor(plannedRestSeconds(slot, workout));
+        const derived = deriveIntensity(oneRM, load, (Number(next.reps) || 1) + fatigueReps, mode, exId);
         if (!derived) return next;
         const same = st.intensity && st.intensity.mode === derived.mode && Number(st.intensity.value) === Number(derived.value);
         if (!same && isTracing()) {
@@ -987,7 +991,7 @@ export function useWorkoutMutations({
           const w = Number(weight) || 0;
           if (!isTimedRoutineSet(st, scheme) && oneRM > 0 && w > 0 && (!hasIntensityValue(st) || st.intensity.auto)) {
             const fatigueReps = normalizeSetType(st.type) === 'Warmup' ? 0 : fatigueRateFor(exId) * priorHardSets(list, idx);
-            intensity = deriveIntensity(oneRM, w, (Number(st.reps) || 1) + fatigueReps, st.intensity?.mode || 'rir') || st.intensity;
+            intensity = deriveIntensity(oneRM, w, (Number(st.reps) || 1) + fatigueReps, st.intensity?.mode || 'rir', exId) || st.intensity;
             if (isTracing() && intensity) {
               traceLine(`${name} set ${idx + 1}: ${fmt(w)} lb × ${st.reps} against your 1RM ${fmt(oneRM)} → reps to failure 1 + 30 × (${fmt(oneRM)} ÷ ${fmt(w)} − 1) = ${fmt(1 + 30 * (oneRM / Math.min(w, oneRM) - 1))} → ${formatIntensity(intensity.mode, intensity.value)} kept; weight removed`);
             }
@@ -1030,13 +1034,13 @@ export function useWorkoutMutations({
             // A stored RIR is after fatigue: the working sets before it add the allowance back (fresh-equivalent);
             // a routine's own type effort (no intensity) is already fresh
             const fatigueReps = own && intensity.mode !== 'pct' && type !== 'Warmup' ? fatigueRateFor(exId) * priorHardSets(list, idx) : 0;
-            load = weightForIntensity(oneRM, reps + fatigueReps, intensity) || 0;
+            load = weightForIntensity(oneRM, reps + fatigueReps, intensity, exId) || 0;
             const label = formatIntensity(intensity.mode, intensity.value);
             const source = own ? 'the routine\'s intensity' : `${type}'s effort`;
             how =
               intensity.mode === 'pct'
                 ? `${fmt(oneRM)} × ${intensity.value}% (${source})`
-                : `${fmt(oneRM)} ÷ (1 + (${reps} reps + ${fmt(intensityToRir(intensity, reps))} RIR − 1) ÷ 30) (${label}, ${source})`;
+                : `${fmt(oneRM)} ÷ (1 + (${reps} reps + ${fmt(intensityToRir(intensity, reps, exId))} RIR − 1) ÷ ${fmt(repCurveFor(exId))}) (${label}, ${source})`;
           }
           const weight = Math.max(0, Math.round(load / 2.5) * 2.5);
           if (isTracing()) traceLine(`${name} set ${idx + 1}: ${type} × ${reps} → ${how} = ${fmt(weight)} lb`);
@@ -2199,8 +2203,9 @@ export function useWorkoutMutations({
       if (!countsBodyweight(exId)) return slot;
       solved = solveBodyweightSet(eff, eff, oneRM, exId, option, step);
     } else {
-      const fatigueReps = normalizeSetType(st.type) === 'Warmup' ? 0 : fatigueRateFor(exId) * priorHardSets(list, idx);
-      solved = solveSet(eff, oneRM, { step, fatigueReps });
+      const fatigueReps =
+        normalizeSetType(st.type) === 'Warmup' ? 0 : fatigueRateFor(exId) * priorHardSets(list, idx) * restFatigueFactor(plannedRestSeconds(slot, workout));
+      solved = solveSet(eff, oneRM, { step, fatigueReps, exerciseId: exId });
     }
     if (!solved || solved === eff) return slot;
     solved = { ...solved, lockReps: st.lockReps };
@@ -2251,14 +2256,24 @@ export function useWorkoutMutations({
     });
   };
 
+  // The prediction log: a set keeps what the app planned for it (weight, reps, RIR) the first time you change it or
+  // tick it, so History can show how often you did what was planned (utils/modelLearning.js planFollowThrough)
+  const withPlan = st => {
+    if (!st || st.plan || st.completed || st.durationSeconds || !(Number(st.weight) > 0)) return st;
+    const rir = st.intensity ? Math.round(setReportedRir(st) * 10) / 10 : null;
+    return { ...st, plan: { weight: Number(st.weight), reps: Number(st.reps) || 0, rir } };
+  };
+
   const handleUpdateSetField = (slotId, exIndex, setId, field, rawVal) => {
     updateCurrentWorkoutState(prev => {
       if (!prev) return prev;
       const nextSlots = prev.slots.map(slot => {
         if (slot.id !== slotId) return slot;
 
-        const applyFieldChange = (st, exId, totalCount, sIdx, listScheme = slot.scheme) => {
-          if (st.id !== setId) return st;
+        const applyFieldChange = (rawSt, exId, totalCount, sIdx, listScheme = slot.scheme) => {
+          if (rawSt.id !== setId) return rawSt;
+          // The app's plan for the set, kept the first time it is changed (the prediction log)
+          const st = withPlan(rawSt);
           // Band exercises: the load is a band colour, not a weight
           if (field === 'bandColor') return { ...st, bandColor: rawVal };
           // Programs other than Crying: the set's intensity ({ mode: 'pct' | 'rir' | 'rpe', value })
@@ -2666,9 +2681,12 @@ export function useWorkoutMutations({
           return solveBodyweightSet(st, orig, calc1RM, exId, getSlotEquipmentChoice(slot, isSup ? half : 0), step);
         }
         if (!orig || orig.completed || isBw || isTimer || !(calc1RM > 0)) return st;
-        const fatigueReps = normalizeSetType(st.type) === 'Warmup' ? 0 : fatigueRateFor(exId) * priorHardSets(withTypes, idx);
-        if (orig.lockIntensity) return solveSet({ ...st, intensity: orig.intensity, lockIntensity: true }, calc1RM, { step, fatigueReps });
-        return showIntensity ? solveSet({ ...st, lockIntensity: false }, calc1RM, { step, fatigueReps }) : st;
+        const fatigueReps =
+          normalizeSetType(st.type) === 'Warmup'
+            ? 0
+            : fatigueRateFor(exId) * priorHardSets(withTypes, idx) * restFatigueFactor(plannedRestSeconds(slot, getCurrentEditorWorkout()));
+        if (orig.lockIntensity) return solveSet({ ...st, intensity: orig.intensity, lockIntensity: true }, calc1RM, { step, fatigueReps, exerciseId: exId });
+        return showIntensity ? solveSet({ ...st, lockIntensity: false }, calc1RM, { step, fatigueReps, exerciseId: exId }) : st;
       });
       return withIntensity.map((st, idx) => ({ ...st, setNumber: idx + 1 }));
     };
@@ -2904,6 +2922,26 @@ export function useWorkoutMutations({
 
   const handleToggleSetDone = (slot, exIndex, setItem) => {
     const markingDone = !setItem.completed;
+    // Live session only: when it was ticked and the rest before it (since the last set ticked in the session, less
+    // ~3 s a rep for the set itself) — the rest-length model (restFatigueFactor) reads it
+    const live = currentView === 'session';
+    const nowMs = Date.now();
+    const stampDone = (st, workout) => {
+      if (!markingDone) {
+        const { completedAt: _c, restSec: _r, ...rest } = st;
+        return { ...rest, completed: false };
+      }
+      const out = { ...withPlan(st), completed: true };
+      if (!live) return out;
+      let lastAt = 0;
+      (workout?.slots || []).forEach(sl =>
+        (isSupersetCategory(sl.category) && Array.isArray(sl.supersetSetsByExercise) ? sl.supersetSetsByExercise.flat() : sl.sets || []).forEach(x => {
+          if (x?.completed && x.id !== st.id && Number(x.completedAt) > lastAt) lastAt = Number(x.completedAt);
+        })
+      );
+      const rest = lastAt > 0 ? Math.round((nowMs - lastAt) / 1000 - 3 * Math.max(1, Number(st.reps) || 1)) : null;
+      return { ...out, completedAt: nowMs, ...(rest !== null && rest >= 10 && rest <= 600 ? { restSec: rest } : {}) };
+    };
     // No rest timer while editing a logged workout or looking at a preview
     if (markingDone && isRoutineEditorView && currentView !== 'history_editor' && currentView !== 'routine_preview') {
       setTimerTrigger({
@@ -2922,7 +2960,7 @@ export function useWorkoutMutations({
         if (isSupersetCategory(s.category) && Array.isArray(s.supersetSetsByExercise)) {
           const nextMatrix = s.supersetSetsByExercise.map((list, idx) =>
             idx === exIndex
-              ? list.map(st => (st.id === setItem.id ? { ...st, completed: markingDone } : st))
+              ? list.map(st => (st.id === setItem.id ? stampDone(st, prev) : st))
               : list
           );
           return {
@@ -2934,7 +2972,7 @@ export function useWorkoutMutations({
         }
         return {
           ...s,
-          sets: (s.sets || []).map(st => (st.id === setItem.id ? { ...st, completed: markingDone } : st))
+          sets: (s.sets || []).map(st => (st.id === setItem.id ? stampDone(st, prev) : st))
         };
       });
       // Marking a set done: what the sets done so far say re-plans the ones still to do (autoregulateSlot)

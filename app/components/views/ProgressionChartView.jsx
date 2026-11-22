@@ -6,6 +6,7 @@ import { SHARED_CELL_BORDER, SHARED_GROUP_OUTER, SHARED_PICKER_GROUP, UI } from 
 import { Button, SegmentButton } from '../Controls';
 import { oneRepMaxLabel } from '../../utils/workoutEngine';
 import { ExercisePicker } from '../ExercisePicker';
+import { PredictionAccuracy } from '../PredictionAccuracy';
 import {
   CORE_LIFT_IDS,
   CalculatedOneRepMaxKey,
@@ -179,6 +180,8 @@ export function ProgressionChartView({
   userBodyweightLbs,
   totalHeightInches,
   customGoalWeights,
+  // Your own chart: the prediction replay and rep curves (page.js predictionReport); null on a friend's profile
+  predictionReport = null,
   // STRENGTH CLASS GOAL picker at the top (own Progress page) and GOAL ✎ on each lift (Plate Calculator, goal mode)
   setTargetStandardClass,
   openPlateCalculatorForGoal,
@@ -904,6 +907,9 @@ export function ProgressionChartView({
         {legendLiftIds.some(id => (seriesByLift[id] || []).some(pt => pt?.calculated)) && (
           <CalculatedOneRepMaxKey style={{ marginTop: '8px' }} />
         )}
+
+        {/* How well the engine predicts you, and your rep curves (the selected lift's when it has one) */}
+        <PredictionAccuracy report={predictionReport} highlightId={highlightId} />
 
         {/* Shortcut to Configuration → GOALS (training goal, increment, custom goals) */}
         {onOpenGoals && (

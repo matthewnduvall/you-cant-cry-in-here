@@ -71,7 +71,7 @@ export const solveBodyweightSet = (st, orig, oneRM, exId, option, step = 2.5) =>
   // The weight comes back as the total load; toAddedWeights (after RECALCULATE) stores what is added
   let load = setLoadLbs(exId, { ...st, weight: Number(orig.lockWeight ? orig.weight : st.weight) || 0 }, option);
   if (weighted && !orig.lockWeight) {
-    const target = weightForIntensity(oneRM, st.reps, intensity);
+    const target = weightForIntensity(oneRM, st.reps, intensity, exId);
     if (target !== null && target >= bw) {
       const total = bw + Math.max(0, Math.round((target - bw) / step) * step);
       if (isTracing()) traceLine(`${label}: ${formatIntensity(intensity.mode, intensity.value)} locked × ${st.reps} reps → load ${fmt(target)} lb = bodyweight ${fmt(bw)} + ${fmt(total - bw)} lb added`);
@@ -82,7 +82,7 @@ export const solveBodyweightSet = (st, orig, oneRM, exId, option, step = 2.5) =>
     st = { ...st, weight: bw };
   }
   if (orig.lockReps) return { ...st, intensity, lockIntensity: true };
-  const reps = repsForIntensity(oneRM, load, intensity);
+  const reps = repsForIntensity(oneRM, load, intensity, exId);
   if (reps === null) return { ...st, intensity, lockIntensity: true };
   if (isTracing()) traceLine(`${label}: ${formatIntensity(intensity.mode, intensity.value)} locked at a load of ${fmt(load)} lb (1RM ${fmt(oneRM)}) → ${reps} reps`);
   return { ...st, intensity, lockIntensity: true, reps };
@@ -151,7 +151,7 @@ export const applyProgramToSlot = (slot, ctx, opts = {}) => {
     let pct;
     let intensity;
     const lockedIntensity = prev?.lockIntensity ? prev.intensity : null;
-    const lockedRir = lockedIntensity ? intensityToRir(lockedIntensity, reps) : null;
+    const lockedRir = lockedIntensity ? intensityToRir(lockedIntensity, reps, exId) : null;
     if (lockedIntensity && lockedRir !== null) {
       // Locked intensity: kept, and the weight follows it
       intensity = lockedIntensity;
@@ -162,10 +162,10 @@ export const applyProgramToSlot = (slot, ctx, opts = {}) => {
     } else if (plan.maxOut) {
       // The weights follow the %1RM ramp; the intensity is shown as RIR (the default scale) for the set's reps
       pct = idx === total - 1 ? 100 : 50 + (35 * idx) / Math.max(1, total - 2);
-      intensity = { mode: 'rir', value: convertIntensity({ mode: 'pct', value: nearestPct(pct) }, 'rir', reps) ?? 0 };
+      intensity = { mode: 'rir', value: convertIntensity({ mode: 'pct', value: nearestPct(pct) }, 'rir', reps, exId) ?? 0 };
     } else if (normalizeSetType(type) === 'Warmup') {
       pct = pctFor(firstWorkingReps, plan.rir) * (rampStep ? rampStep.share : WARMUP_SHARE);
-      intensity = { mode: 'rir', value: convertIntensity({ mode: 'pct', value: nearestPct(pct) }, 'rir', reps) ?? 0 };
+      intensity = { mode: 'rir', value: convertIntensity({ mode: 'pct', value: nearestPct(pct) }, 'rir', reps, exId) ?? 0 };
     } else {
       pct = pctFor(reps, plan.rir);
       intensity = { mode: 'rir', value: plan.rir };
@@ -208,9 +208,9 @@ export const applyProgramToSlot = (slot, ctx, opts = {}) => {
     }
     // Locked weight: the unlocked value follows it — with a locked intensity, the reps; otherwise the intensity
     // (worked out from the weight and reps, in the planned scale)
-    if (prev?.lockWeight && lockedIntensity && !prev?.lockReps) return solveSet(planned, target1RM);
+    if (prev?.lockWeight && lockedIntensity && !prev?.lockReps) return solveSet(planned, target1RM, { exerciseId: exId });
     if (prev?.lockWeight && !lockedIntensity) {
-      const derived = deriveIntensity(target1RM, planned.weight, planned.reps, intensity?.mode || 'rir');
+      const derived = deriveIntensity(target1RM, planned.weight, planned.reps, intensity?.mode || 'rir', exId);
       return derived ? { ...planned, intensity: derived } : planned;
     }
     return planned;
@@ -299,7 +299,7 @@ const planDaySlot = (spec, exerciseId, o) => {
     if (isBw) weight = bw;
     else if (past.length === 0) {
       // First session: a weight with about 3 reps in reserve
-      weight = roundTo(weightForIntensity(est1RM, spec.reps, { mode: 'rir', value: 3 }) || est1RM * 0.7);
+      weight = roundTo(weightForIntensity(est1RM, spec.reps, { mode: 'rir', value: 3 }, exerciseId) || est1RM * 0.7);
       traceLine(`linear · first session: ${fmt(est1RM)} ÷ (1 + (${spec.reps} + RIR 3 − 1) ÷ 30) → ${fmt(weight)} lb`);
     } else {
       const last = past[0].slot;
@@ -381,7 +381,7 @@ const planDaySlot = (spec, exerciseId, o) => {
       excludeWorkoutId: workoutId
     });
     let fiveRM;
-    if (past.length === 0) fiveRM = roundTo(weightForIntensity(est1RM, 5, { mode: 'rir', value: 1 }) || est1RM * 0.82);
+    if (past.length === 0) fiveRM = roundTo(weightForIntensity(est1RM, 5, { mode: 'rir', value: 1 }, exerciseId) || est1RM * 0.82);
     else {
       const last = past[0].slot;
       const lastFive = Number(last.programmed?.base) || topWeight(last);
@@ -424,7 +424,7 @@ const planDaySlot = (spec, exerciseId, o) => {
     const done = past[0] ? doneWorkingSets(past[0].slot) : [];
     if (done.length) reps = Math.min(hi, Math.max(lo, Math.min(...done.map(st => Number(st.reps) || lo)) + 1));
   } else if (past.length === 0) {
-    weight = roundTo(weightForIntensity(est1RM, lo, { mode: 'rir', value: rir }) || est1RM * 0.7);
+    weight = roundTo(weightForIntensity(est1RM, lo, { mode: 'rir', value: rir }, exerciseId) || est1RM * 0.7);
   } else {
     const done = doneWorkingSets(past[0].slot);
     const lastWeight = topWeight(past[0].slot);
@@ -490,7 +490,7 @@ export const applyDayProgramToSlot = (slot, ctx, opts = {}) => {
     // Percentage programs (5/3/1, Boring But Big) show %1RM; the rest RIR
     const mode = spec.rule === '531' || spec.rule === 'bbb' ? 'pct' : 'rir';
     const intensity =
-      p.intensity || (isBodyweightExercise(exId) ? null : deriveIntensity(planned.est1RM, weight, reps, mode)) || null;
+      p.intensity || (isBodyweightExercise(exId) ? null : deriveIntensity(planned.est1RM, weight, reps, mode, exId)) || null;
     let out = {
       id: prev?.id || `set_${ts}_${idx}_${Math.random().toString(36).slice(2, 5)}`,
       setNumber: idx + 1,
@@ -511,9 +511,9 @@ export const applyDayProgramToSlot = (slot, ctx, opts = {}) => {
       }
       return out;
     }
-    if (prev?.lockIntensity && prev.intensity) out = solveSet({ ...out, intensity: prev.intensity }, planned.est1RM);
+    if (prev?.lockIntensity && prev.intensity) out = solveSet({ ...out, intensity: prev.intensity }, planned.est1RM, { exerciseId: exId });
     else if (prev?.lockWeight) {
-      const derived = deriveIntensity(planned.est1RM, out.weight, out.reps, out.intensity?.mode || 'rir');
+      const derived = deriveIntensity(planned.est1RM, out.weight, out.reps, out.intensity?.mode || 'rir', exId);
       if (derived) out = { ...out, intensity: derived };
     }
     return out;

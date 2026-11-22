@@ -7,6 +7,21 @@
 
 import { traceLine, isTracing, fmt } from './calcTrace';
 
+// ---- The rep curve: how many reps a share of your 1RM allows. 1RM = weight × (1 + (reps + RIR − 1) ÷ k), and the
+// standard k is 30 (Epley's). Lifters differ — some do 12 reps at 75 %, others 7 — so each lift's k is learned from
+// your History (learnRepCurves in workoutEngine.js, set every render in page.js) and used both ways: estimating a
+// set's 1RM and planning a set's weight, so a set done as planned gives back the 1RM it was planned from.
+export const DEFAULT_REP_CURVE = 30;
+let REP_CURVES = {};
+export const setRepCurves = map => {
+  REP_CURVES = map && typeof map === 'object' ? map : {};
+};
+/** The rep curve constant k for an exercise (learned, else 30). */
+export const repCurveFor = exerciseId => {
+  const k = exerciseId ? Number(REP_CURVES[exerciseId]?.k ?? REP_CURVES[exerciseId]) : NaN;
+  return Number.isFinite(k) && k > 0 ? k : DEFAULT_REP_CURVE;
+};
+
 // A set type's intensity in RIR (the default scale), set when the type is picked: Warm-up RIR 5, Working RIR 2,
 // Top Out RIR 1, Burn Out RIR 3, 1 Rep Max RIR 0 (= RPE 5 / 8 / 9 / 7 / 10)
 export const SET_TYPE_RIR = { Warmup: 3, Working: 2, 'Top Out': 1, 'Burn Out': 3, '1 Rep Max': 0 };
@@ -49,7 +64,7 @@ const nearest = (mode, v) =>
   INTENSITY_OPTIONS[mode].reduce((best, opt) => (Math.abs(opt - v) < Math.abs(best - v) ? opt : best), INTENSITY_OPTIONS[mode][0]);
 
 /** Reps in reserve for an intensity on a set of `reps` reps (unrounded; null = unknown). */
-export const intensityToRir = (intensity, reps) => {
+export const intensityToRir = (intensity, reps, exerciseId = null) => {
   if (!intensity || intensity.value === null || intensity.value === undefined || intensity.value === '') return null;
   const v = Number(intensity.value);
   if (!Number.isFinite(v)) return null;
@@ -59,18 +74,18 @@ export const intensityToRir = (intensity, reps) => {
   if (intensity.mode === 'rpe') return 10 - v;
   // %1RM → the reps that weight allows to failure, minus the set's reps
   const pct = clamp(v, 1, 200);
-  const repsToFailure = 1 + 30 * (100 / pct - 1);
+  const repsToFailure = 1 + repCurveFor(exerciseId) * (100 / pct - 1);
   return repsToFailure - n;
 };
 
 /** The same intensity in another scale (rounded to that scale's options); null when unknown. */
-export const convertIntensity = (intensity, toMode, reps) => {
-  const rir = intensityToRir(intensity, reps);
+export const convertIntensity = (intensity, toMode, reps, exerciseId = null) => {
+  const rir = intensityToRir(intensity, reps, exerciseId);
   if (rir === null) return null;
   const n = Math.max(1, Number(reps) || 1);
   if (toMode === 'rir') return nearest('rir', rir);
   if (toMode === 'rpe') return nearest('rpe', clamp(10 - rir, 1, 10));
-  return nearest('pct', 100 / (1 + (n + rir - 1) / 30));
+  return nearest('pct', 100 / (1 + (n + rir - 1) / repCurveFor(exerciseId)));
 };
 
 /** Display: "80%", "RIR 2", "RPE 8". */
@@ -81,10 +96,10 @@ export const formatIntensity = (mode, value) => {
 };
 
 /** The other two scales for a set's intensity, e.g. "≈ RIR 2 · RPE 8" (empty when unknown). */
-export const intensityEquivalents = (intensity, reps) => {
-  if (!intensity || intensityToRir(intensity, reps) === null) return '';
+export const intensityEquivalents = (intensity, reps, exerciseId = null) => {
+  if (!intensity || intensityToRir(intensity, reps, exerciseId) === null) return '';
   return INTENSITY_MODES.filter(m => m.id !== intensity.mode)
-    .map(m => formatIntensity(m.id, convertIntensity(intensity, m.id, reps)))
+    .map(m => formatIntensity(m.id, convertIntensity(intensity, m.id, reps, exerciseId)))
     .join(' · ');
 };
 
@@ -97,12 +112,12 @@ export const intensityEquivalents = (intensity, reps) => {
 // ---------------------------------------------------------------------------------------------------------------
 
 /** Reps a weight allows to failure for a 1RM (unrounded; null when unknown). */
-export const repsToFailure = (oneRM, weight) => {
+export const repsToFailure = (oneRM, weight, exerciseId = null) => {
   const m = Number(oneRM);
   const w = Number(weight);
   if (!(m > 0) || !(w > 0)) return null;
   // Above the 1RM this goes below 1 (and the RIR below 0)
-  return 1 + 30 * (m / w - 1);
+  return 1 + repCurveFor(exerciseId) * (m / w - 1);
 };
 
 /**
@@ -110,8 +125,8 @@ export const repsToFailure = (oneRM, weight) => {
  * own scale if it has one, else RIR); null when the 1RM or weight is unknown. Not held to the pop-up's options, so it
  * stays true: RIR can go past 10 (an easy set), %1RM below 40 (in 2.5 steps).
  */
-export const deriveIntensity = (oneRM, weight, reps, mode = DEFAULT_INTENSITY_MODE) => {
-  const rtf = repsToFailure(oneRM, weight);
+export const deriveIntensity = (oneRM, weight, reps, mode = DEFAULT_INTENSITY_MODE, exerciseId = null) => {
+  const rtf = repsToFailure(oneRM, weight, exerciseId);
   if (rtf === null) return null;
   const n = Math.max(1, Number(reps) || 1);
   if (mode === 'pct') {
@@ -129,16 +144,16 @@ export const deriveIntensity = (oneRM, weight, reps, mode = DEFAULT_INTENSITY_MO
 };
 
 /** The weight for `reps` at an intensity (null when unknown). */
-export const weightForIntensity = (oneRM, reps, intensity) => {
+export const weightForIntensity = (oneRM, reps, intensity, exerciseId = null) => {
   const m = Number(oneRM);
   if (!(m > 0) || !intensity) return null;
   if (intensity.mode === 'pct') {
     const pct = Number(intensity.value);
     return pct > 0 ? (m * pct) / 100 : null;
   }
-  const rir = intensityToRir(intensity, reps);
+  const rir = intensityToRir(intensity, reps, exerciseId);
   if (rir === null) return null;
-  return m / (1 + (Math.max(1, Number(reps) || 1) + rir - 1) / 30);
+  return m / (1 + (Math.max(1, Number(reps) || 1) + rir - 1) / repCurveFor(exerciseId));
 };
 
 /**
@@ -147,15 +162,15 @@ export const weightForIntensity = (oneRM, reps, intensity) => {
  *   %1RM with the weight locked → that share of the reps to failure (100 % = to failure, 80 % = 80 % of them): the
  *   weight is fixed, so the percentage is read as how hard the set is
  */
-export const repsForIntensity = (oneRM, weight, intensity) => {
+export const repsForIntensity = (oneRM, weight, intensity, exerciseId = null) => {
   if (!intensity) return null;
-  const rtf = repsToFailure(oneRM, weight);
+  const rtf = repsToFailure(oneRM, weight, exerciseId);
   if (rtf === null) return null;
   if (intensity.mode === 'pct') {
     const pct = Number(intensity.value);
     return pct > 0 ? Math.max(1, Math.round((rtf * Math.min(100, pct)) / 100)) : null;
   }
-  const rir = intensityToRir(intensity, 1);
+  const rir = intensityToRir(intensity, 1, exerciseId);
   if (rir === null) return null;
   return Math.max(1, Math.round(rtf - rir));
 };
@@ -168,10 +183,11 @@ export const repsForIntensity = (oneRM, weight, intensity) => {
  */
 // fatigueReps: the fatigue allowance of the working sets before this one — the set is solved as the same set done
 // fresh with that many more reps (its locked RIR is what is left after the fatigue)
-export const solveSet = (st, oneRM, { step = 2.5, keepIntensity = false, fatigueReps = 0 } = {}) => {
+export const solveSet = (st, oneRM, { step = 2.5, keepIntensity = false, fatigueReps = 0, exerciseId = null } = {}) => {
   const f = Math.max(0, Number(fatigueReps) || 0);
+  const k = repCurveFor(exerciseId);
   if (f > 0 && st && st.intensity?.mode !== 'pct') {
-    const fresh = solveSet({ ...st, reps: (Number(st.reps) || 1) + f }, oneRM, { step, keepIntensity });
+    const fresh = solveSet({ ...st, reps: (Number(st.reps) || 1) + f }, oneRM, { step, keepIntensity, exerciseId });
     return fresh === st || !fresh ? st : { ...fresh, reps: fresh.reps === (Number(st.reps) || 1) + f ? st.reps : Math.max(1, Math.round(fresh.reps - f)), intensity: fresh.intensity };
   }
   if (!st || st.completed || !(Number(oneRM) > 0)) return st;
@@ -181,30 +197,30 @@ export const solveSet = (st, oneRM, { step = 2.5, keepIntensity = false, fatigue
   const tag = formatIntensity(st.intensity?.mode, st.intensity?.value);
   if (st.lockIntensity && hasIntensity) {
     if (!st.lockWeight) {
-      const w = weightForIntensity(oneRM, st.reps, st.intensity);
+      const w = weightForIntensity(oneRM, st.reps, st.intensity, exerciseId);
       if (w === null) return st;
       const weight = Math.max(0, Math.round(w / step) * step);
       if (isTracing()) {
-        const rir = intensityToRir(st.intensity, st.reps);
+        const rir = intensityToRir(st.intensity, st.reps, exerciseId);
         traceLine(
           st.intensity.mode === 'pct'
             ? `${label}: ${tag} locked → weight = 1RM ${fmt(m)} × ${fmt(st.intensity.value)}% = ${fmt(w)} → ${fmt(weight)} lb`
-            : `${label}: ${tag} locked (RIR ${fmt(rir)}) × ${st.reps} reps → weight = ${fmt(m)} ÷ (1 + (${st.reps} + ${fmt(rir)} − 1) ÷ 30) = ${fmt(w)} → ${fmt(weight)} lb`
+            : `${label}: ${tag} locked (RIR ${fmt(rir)}) × ${st.reps} reps → weight = ${fmt(m)} ÷ (1 + (${st.reps} + ${fmt(rir)} − 1) ÷ ${fmt(k)}) = ${fmt(w)} → ${fmt(weight)} lb`
         );
       }
       return { ...st, weight };
     }
     if (!st.lockReps) {
-      const r = repsForIntensity(oneRM, st.weight, st.intensity);
+      const r = repsForIntensity(oneRM, st.weight, st.intensity, exerciseId);
       if (r === null) return st;
       if (isTracing()) {
-        const rtf = repsToFailure(oneRM, st.weight);
+        const rtf = repsToFailure(oneRM, st.weight, exerciseId);
         const how =
           st.intensity.mode === 'pct'
             ? `× ${fmt(st.intensity.value)}% effort`
-            : `− RIR ${fmt(intensityToRir(st.intensity, 1))}`;
+            : `− RIR ${fmt(intensityToRir(st.intensity, 1, exerciseId))}`;
         traceLine(
-          `${label}: ${fmt(st.weight)} lb and ${tag} locked → reps to failure = 1 + 30 × (${fmt(m)} ÷ ${fmt(st.weight)} − 1) = ${fmt(rtf)}; ${how} → ${r} reps`
+          `${label}: ${fmt(st.weight)} lb and ${tag} locked → reps to failure = 1 + ${fmt(k)} × (${fmt(m)} ÷ ${fmt(st.weight)} − 1) = ${fmt(rtf)}; ${how} → ${r} reps`
         );
       }
       return { ...st, reps: r };
@@ -215,13 +231,13 @@ export const solveSet = (st, oneRM, { step = 2.5, keepIntensity = false, fatigue
   // keepIntensity: a planned intensity (a program's week) that set the weight stays as it is
   if (keepIntensity && hasIntensity) return st;
   const mode = st.intensity?.mode || DEFAULT_INTENSITY_MODE;
-  const derived = deriveIntensity(oneRM, st.weight, st.reps, mode);
+  const derived = deriveIntensity(oneRM, st.weight, st.reps, mode, exerciseId);
   if (derived && isTracing()) {
-    const rtf = repsToFailure(oneRM, st.weight);
+    const rtf = repsToFailure(oneRM, st.weight, exerciseId);
     traceLine(
       mode === 'pct'
         ? `${label}: intensity = ${fmt(st.weight)} ÷ ${fmt(m)} = ${fmt((Number(st.weight) / m) * 100)}% → ${formatIntensity(derived.mode, derived.value)}`
-        : `${label}: intensity from ${fmt(st.weight)} × ${st.reps}: reps to failure = 1 + 30 × (${fmt(m)} ÷ ${fmt(st.weight)} − 1) = ${fmt(rtf)}; RIR = ${fmt(rtf)} − ${st.reps} = ${fmt(Math.max(0, rtf - st.reps))} → ${formatIntensity(derived.mode, derived.value)}`
+        : `${label}: intensity from ${fmt(st.weight)} × ${st.reps}: reps to failure = 1 + ${fmt(k)} × (${fmt(m)} ÷ ${fmt(st.weight)} − 1) = ${fmt(rtf)}; RIR = ${fmt(rtf)} − ${st.reps} = ${fmt(Math.max(0, rtf - st.reps))} → ${formatIntensity(derived.mode, derived.value)}`
     );
   }
   return derived ? { ...st, intensity: derived } : st;
