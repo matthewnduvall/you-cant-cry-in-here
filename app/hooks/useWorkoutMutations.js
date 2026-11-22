@@ -506,8 +506,8 @@ export function useWorkoutMutations({
   // addOne: return the existing slots plus just the next guessed slot (+ ADD EXERCISE)
   // peek (with addOne): just the type that slot would be ("on deck": Compound / Accessory / Superset / Cluster), nothing
   // built. category (with addOne): the type the athlete picked in + ADD EXERCISE's dropdown instead of that.
-  // suggestFor (with suggestCategory): just the exercise the picker would choose next for that muscle group (Stimulus
-  // page), by the same rules as + ADD EXERCISE; null when nothing in the library trains it
+  // suggestFor (with suggestCategory): just the exercise of that type the picker would choose for that muscle group
+  // (Stimulus page), by the same rules as + ADD EXERCISE; null when nothing of that type trains it
   const buildGeneratedAutoSlots = (existingSlots = [], { addOne = false, programTarget = null, peek = false, category = null, suggestFor = null, suggestCategory = 'Accessory' } = {}) => {
     const cleanExisting = Array.isArray(existingSlots) ? cloneSlots(existingSlots) : [];
     const usedIds = new Set();
@@ -659,11 +659,10 @@ export function useWorkoutMutations({
     };
 
     if (suggestFor) {
-      const inGroup = ex => ex.muscleGroup === suggestFor;
-      const first = pickBest(suggestCategory, null, inGroup);
-      if (first && inGroup(first)) return first;
-      const other = pickBest(suggestCategory === 'Compound' ? 'Accessory' : 'Compound', null, inGroup);
-      return other && inGroup(other) ? other : null;
+      // Only that type: pickBest falls back to other types or groups when nothing fits, which isn't a suggestion
+      const fits = ex => ex.muscleGroup === suggestFor && ex.category === suggestCategory;
+      const pick = pickBest(suggestCategory, null, fits);
+      return pick && fits(pick) ? pick : null;
     }
 
     const createSlotForPref = rawPref => {
@@ -1194,16 +1193,19 @@ export function useWorkoutMutations({
     }
   };
 
-  // Stimulus page: the exercise + ADD EXERCISE would pick next for a muscle group, as the type on deck (a Superset or
-  // Cluster on deck picks an accessory, as they do). Uses the open session's exercises (none = a new session).
+  // Stimulus page: one compound and one accessory for a muscle group ({ compound, accessory }, either null when the
+  // library has none), each the one + ADD EXERCISE's picker would choose for that type (stimulus, equipment, variety,
+  // the program's rules), leaving out exercises already in the open session
   const suggestExerciseForMuscleGroup = group => {
-    try {
-      const slots = activeSession?.slots || [];
-      const onDeck = normalizeSlotCategory(buildGeneratedAutoSlots(slots, { addOne: true, peek: true }) || 'Compound');
-      return buildGeneratedAutoSlots(slots, { suggestFor: group, suggestCategory: onDeck === 'Compound' ? 'Compound' : 'Accessory' });
-    } catch {
-      return null;
-    }
+    const slots = activeSession?.slots || [];
+    const one = category => {
+      try {
+        return buildGeneratedAutoSlots(slots, { suggestFor: group, suggestCategory: category });
+      } catch {
+        return null;
+      }
+    };
+    return { compound: one('Compound'), accessory: one('Accessory') };
   };
 
   // category: the type picked in + ADD EXERCISE's dropdown (null = the one on deck)

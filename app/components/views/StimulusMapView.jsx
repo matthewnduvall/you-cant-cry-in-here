@@ -17,8 +17,8 @@ const HIT_PAD = 6;
 const mirror = d => d.replace(/(-?\d+(?:\.\d+)?) (-?\d+(?:\.\d+)?)/g, (_, x, y) => `${120 - Number(x)} ${y}`);
 
 // One body part on the map: an organic outline (path), not a box. Tapping (or Enter / Space) selects its muscle
-// group: the readout under the map names it, says when it was last trained, lists its muscles and suggests an
-// exercise; every part of that group gets a white outline.
+// group: the readout under the map names it, says when it was last trained, lists its muscles and suggests a
+// compound and an accessory; every part of that group fills solid white.
 function MusclePart({ group, statusMap, selected, onSelect, d }) {
   const status = statusMap?.[group];
   const pattern = statusPattern(status?.label);
@@ -39,14 +39,9 @@ function MusclePart({ group, statusMap, selected, onSelect, d }) {
     >
       {/* A bigger, invisible tap area around the part (small parts like the neck are hard to hit) */}
       <path d={d} fill="transparent" stroke="transparent" strokeWidth={HIT_PAD * 2} strokeLinejoin="round" />
-      <path
-        d={d}
-        fill={status?.color || '#3A3A3A'}
-        stroke={selected ? '#FFFFFF' : '#000000'}
-        strokeWidth={selected ? 2.5 : 1.5}
-        strokeLinejoin="round"
-      />
-      {pattern && <path d={d} fill={pattern} stroke="none" pointerEvents="none" />}
+      {/* Selected: the whole group fills solid white (no pattern); otherwise its status colour + pattern */}
+      <path d={d} fill={selected ? '#FFFFFF' : status?.color || '#3A3A3A'} stroke="#000000" strokeWidth={1.5} strokeLinejoin="round" />
+      {pattern && !selected && <path d={d} fill={pattern} stroke="none" pointerEvents="none" />}
     </g>
   );
 }
@@ -179,8 +174,22 @@ export function StimulusMapView({
   });
   const selectedStatus = selectedGroup ? muscleStimulusStatus?.[selectedGroup] : null;
   const muscles = selectedGroup ? musclesOf(selectedGroup) : [];
-  const suggested = selectedGroup ? suggestExerciseForMuscleGroup?.(selectedGroup) : null;
   const capsLabel = { fontSize: '10px', fontWeight: 500, letterSpacing: '0.1em', color: '#9A9A9A' };
+  // { compound, accessory } for the selected group (the + ADD EXERCISE picker's choice of each type)
+  const suggested = selectedGroup ? suggestExerciseForMuscleGroup?.(selectedGroup) : null;
+  const suggestionRow = (label, ex) => (
+    <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
+      <span style={{ ...capsLabel, width: '84px', flexShrink: 0 }}>{label}</span>
+      {ex ? (
+        <span style={{ fontSize: '15px', fontWeight: 500, color: '#FFFFFF', minWidth: 0 }}>
+          {ex.name}
+          {ex.equipment ? <span style={{ color: '#9A9A9A', fontWeight: 400 }}> · {ex.equipment}</span> : null}
+        </span>
+      ) : (
+        <span style={{ fontSize: '13px', color: '#9A9A9A' }}>None in the library</span>
+      )}
+    </div>
+  );
   return (
     <div style={{ paddingTop: '14px' }}>
       <StimulusPatternDefs />
@@ -220,24 +229,15 @@ export function StimulusMapView({
                     <span style={{ fontSize: '13px', color: '#BDBDBD', lineHeight: 1.4 }}>{muscles.join(', ')}</span>
                   </div>
                 )}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
-                  <span style={capsLabel}>SUGGESTED EXERCISE</span>
-                  {suggested ? (
-                    <span style={{ fontSize: '15px', fontWeight: 500, color: '#FFFFFF' }}>
-                      {suggested.name}
-                      {suggested.equipment ? <span style={{ color: '#9A9A9A', fontWeight: 400 }}> · {suggested.equipment}</span> : null}
-                    </span>
-                  ) : (
-                    <span style={{ fontSize: '13px', color: '#9A9A9A' }}>No exercise in the library trains this group yet.</span>
-                  )}
-                  <span style={{ fontSize: '12px', color: '#8A8A8A', lineHeight: 1.4 }}>
-                    What + ADD EXERCISE would pick next for this group.
-                  </span>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  <span style={capsLabel}>SUGGESTED</span>
+                  {suggestionRow('COMPOUND', suggested?.compound)}
+                  {suggestionRow('ACCESSORY', suggested?.accessory)}
                 </div>
               </>
             ) : (
               <span style={{ fontSize: '12px', fontWeight: 500, color: '#9A9A9A' }}>
-                Tap a muscle group to see when you last trained it, its muscles and an exercise for it.
+                Tap a muscle group to see when you last trained it, its muscles and exercises for it.
               </span>
             )}
           </div>
