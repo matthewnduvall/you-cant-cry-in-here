@@ -124,6 +124,33 @@ const MUSCLE_GROUP_WEIGHT = {
 };
 const NON_TRAINING_EQUIPMENT = ['stretch', 'isometric'];
 
+// RESET snapshot: each exercise remembers how it was when it was loaded (added, picked, or swapped to another
+// exercise, or re-planned for another program week / day), as slot.resetSnapshot = { key, slot }. Taken from the state just before the first change to it, or from
+// the new slot when it is new or its exercise changed. Never saved to History or routines.
+// The key: the exercise(s) and the session's program / week / day (a change of either re-plans it: a new start)
+const resetKeyOf = (slot, workout) =>
+  [(slot?.supersetExerciseIds || [slot?.exerciseId]).filter(Boolean).join('+'), workout?.program || '', workout?.programWeek || '', workout?.programDay || ''].join('|');
+export const withoutResetSnapshot = slot => {
+  if (!slot || !slot.resetSnapshot) return slot;
+  const { resetSnapshot: _rs, ...rest } = slot;
+  return rest;
+};
+const withResetSnapshots = (prevWorkout, nextWorkout) => {
+  if (!nextWorkout || !Array.isArray(nextWorkout.slots)) return nextWorkout;
+  const prevById = new Map((prevWorkout?.slots || []).filter(Boolean).map(sl => [sl.id, sl]));
+  let changed = false;
+  const slots = nextWorkout.slots.map(sl => {
+    if (!sl) return sl;
+    const key = resetKeyOf(sl, nextWorkout);
+    if (sl.resetSnapshot?.key === key) return sl;
+    const before = prevById.get(sl.id);
+    const base = before && resetKeyOf(before, prevWorkout) === key ? before : sl;
+    changed = true;
+    return { ...sl, resetSnapshot: { key, slot: withoutResetSnapshot(base) } };
+  });
+  return changed ? { ...nextWorkout, slots } : nextWorkout;
+};
+
 export function useWorkoutMutations({
   currentView,
   setCurrentView,
@@ -427,7 +454,9 @@ export function useWorkoutMutations({
     return activeSession;
   };
 
-  const updateCurrentWorkoutState = updater => {
+  const updateCurrentWorkoutState = rawUpdater => {
+    // Every change keeps each exercise's RESET snapshot: how it was when it was loaded (withResetSnapshots)
+    const updater = prev => withResetSnapshots(prev, rawUpdater(prev));
     setIsCurrentEditorShared(false);
     // An open History workout: edits go to a draft (historyEditDraft); History changes only on SAVE
     if (currentView === 'history_editor' && expandedHistoryWorkoutId) {
@@ -917,8 +946,8 @@ export function useWorkoutMutations({
    * effort at their own weight.
    */
   const routineSlotsForStorage = slots =>
-    (slots || []).map(slot =>
-      mapSlotLists(slot, (list, exId, scheme) => {
+    (slots || []).map(rawSlot =>
+      mapSlotLists(withoutResetSnapshot(rawSlot), (list, exId, scheme) => {
         const oneRM = exId && !isBodyweightExercise(exId) ? getHistoricalCalculated1RM(exId, history, oneRepMaxes) : 0;
         const name = EXERCISE_MAP[exId]?.name || exId;
         return (list || []).map((st, idx) => {
@@ -2093,6 +2122,85 @@ export function useWorkoutMutations({
     );
   };
 
+  /**
+   * One set after a hand edit: weight, reps and intensity are tied by the 1RM, so the open one follows the locked
+   * ones. A locked intensity is a target: the weight follows it (or, weight locked, the reps). With weight and reps
+   * both locked it is a report of how the set went, and nothing moves (its 1RM does). An unlocked intensity is
+   * worked out afterwards by fillIntensities. Done and Timer sets aren't solved.
+   */
+  const solveEditedSet = (slot, exIndex, setId, workout) => {
+    if (!slot) return slot;
+    const isSup = Array.isArray(slot.supersetSetsByExercise) && slot.supersetSetsByExercise.length > 1;
+    const half = isSup ? exIndex : 0;
+    const scheme = (isSup ? getSupersetSchemes(slot) : [slot.scheme])[half];
+    if (scheme === 'Timer') return slot;
+    const ids = slot.supersetExerciseIds || [slot.exerciseId, slot.secondaryExerciseId];
+    const exId = isSup ? ids[half] : slot.exerciseId;
+    const list = (isSup ? slot.supersetSetsByExercise[half] : slot.sets) || [];
+    const idx = list.findIndex(st => st?.id === setId);
+    const st = list[idx];
+    if (!st || st.completed || st.durationSeconds || !st.lockIntensity || !st.intensity) return slot;
+    if (st.lockWeight && st.lockReps) return slot;
+    const option = getSlotEquipmentChoice(slot, half);
+    const oneRM = effort1RM(exId, option, workout);
+    if (!(oneRM > 0)) return slot;
+    const effInc = getEffectiveIncrementForExercise(exId, currentIncrementLbs, oneRM);
+    const step = effInc > 0 ? Math.min(2.5, effInc) : 2.5;
+    let solved;
+    if (isBodyweightExercise(exId)) {
+      if (!countsBodyweight(exId)) return slot;
+      solved = solveBodyweightSet(st, st, oneRM, exId, option, step);
+    } else {
+      const fatigueReps = normalizeSetType(st.type) === 'Warmup' ? 0 : fatigueRateFor(exId) * priorHardSets(list, idx);
+      solved = solveSet(st, oneRM, { step, fatigueReps });
+    }
+    if (!solved || solved === st) return slot;
+    const nextList = list.map((x, i) => (i === idx ? solved : x));
+    if (isSup) {
+      const matrix = slot.supersetSetsByExercise.map((l, i) => (i === half ? nextList : l));
+      return { ...slot, supersetSetsByExercise: matrix, sets: matrix[0] || [], secondarySets: matrix[1] || [] };
+    }
+    return { ...slot, sets: nextList, supersetSetsByExercise: [nextList] };
+  };
+
+  /**
+   * RESET (the exercise card's bottom row): every box unlocked and the exercise put back as it was when it was
+   * loaded (slot.resetSnapshot: its scheme, sets and plan). Sets marked done stay as they are.
+   */
+  const handleResetSlot = slotId => {
+    updateCurrentWorkoutState(prev => {
+      if (!prev) return prev;
+      return withTrace(
+        'RESET',
+        () => ({
+          ...prev,
+          slots: prev.slots.map(slot => {
+            if (slot.id !== slotId) return slot;
+            const snap = slot.resetSnapshot?.slot || slot;
+            const unlock = (list, current) => {
+              const doneById = new Map((current || []).filter(st => st?.completed).map(st => [st.id, st]));
+              return (list || []).map(st =>
+                !st ? st : doneById.get(st.id) || { ...st, lockType: false, lockWeight: false, lockReps: false, lockIntensity: false }
+              );
+            };
+            const isSup = Array.isArray(snap.supersetSetsByExercise) && snap.supersetSetsByExercise.length > 1;
+            let restored;
+            if (isSup) {
+              const matrix = snap.supersetSetsByExercise.map((l, i) => unlock(l, (slot.supersetSetsByExercise || [])[i]));
+              restored = { ...slot, ...snap, supersetSetsByExercise: matrix, sets: matrix[0] || [], secondarySets: matrix[1] || [] };
+            } else {
+              const sets = unlock(snap.sets, slot.sets);
+              restored = { ...slot, ...snap, sets, supersetSetsByExercise: [sets] };
+            }
+            if (isTracing()) traceLine(`${EXERCISE_MAP[slot.exerciseId]?.name || slot.exerciseId}: back to how it was loaded, every box unlocked`);
+            return fillIntensities({ ...restored, resetSnapshot: slot.resetSnapshot }, prev);
+          })
+        }),
+        `reset:${slotId}`
+      );
+    });
+  };
+
   const handleUpdateSetField = (slotId, exIndex, setId, field, rawVal) => {
     updateCurrentWorkoutState(prev => {
       if (!prev) return prev;
@@ -2129,7 +2237,8 @@ export function useWorkoutMutations({
               ...st,
               increment: cleanStr.endsWith('.') ? cleanStr : safeInc,
               weight: nextWeight,
-              lastEditedField: 'weight'
+              lastEditedField: 'weight',
+              lockWeight: true
             };
           }
 
@@ -2141,20 +2250,20 @@ export function useWorkoutMutations({
               reps: sec,
               durationSeconds: sec,
               timerStr: mmss,
-              lastEditedField: 'timer'
+              lastEditedField: 'timer',
+              lockReps: true
             };
           }
 
           const val = Math.max(0, Number(rawVal) || 0);
-          // A weight or reps typed by hand is what you'll lift: a locked (target) intensity gives way and follows it,
-          // the same as when nothing is locked (the latest edit wins)
+          // A weight or reps entered by hand locks (solveEditedSet then works out whichever of the three is open)
           if (field === 'weight') {
             const nextInc = Math.round((val - lastW) * 100) / 100;
-            return { ...st, weight: val, increment: nextInc, lastEditedField: 'weight', lockIntensity: false };
+            return { ...st, weight: val, increment: nextInc, lastEditedField: 'weight', lockWeight: true };
           }
 
           if (field === 'reps') {
-            return { ...st, reps: Math.max(1, val), lastEditedField: 'reps', lockIntensity: false };
+            return { ...st, reps: Math.max(1, val), lastEditedField: 'reps', lockReps: true };
           }
 
           return { ...st, [field]: val };
@@ -2191,7 +2300,9 @@ export function useWorkoutMutations({
         ...prev,
         slots: nextSlots.map(slot => {
           if (slot.id !== slotId) return slot;
-          const filled = field !== 'intensity' ? fillIntensities(slot, prev) : slot;
+          // The open one of weight / reps / intensity follows the locked ones (solveEditedSet), then every unlocked
+          // intensity is re-worked (fillIntensities)
+          const filled = fillIntensities(solveEditedSet(slot, exIndex, setId, prev), prev);
           return editedDone ? autoregulateSlot(filled, prev, exIndex) : filled;
         })
       };
@@ -2697,18 +2808,10 @@ export function useWorkoutMutations({
   const handleToggleSetLock = (slotId, exIdx, setId, field) => {
     const key = { weight: 'lockWeight', reps: 'lockReps', type: 'lockType', intensity: 'lockIntensity' }[field] || null;
     if (!key) return;
-    // Weight, reps and intensity: any two decide the third, so at most two stay locked. Locking weight + reps
-    // releases a locked intensity (it then follows them); locking an intensity on top of both releases the reps.
-    const toggle = list =>
-      (list || []).map(st => {
-        if (st.id !== setId) return st;
-        const next = { ...st, [key]: !st[key] };
-        if (next.lockWeight && next.lockReps && next.lockIntensity) {
-          if (key === 'lockIntensity') next.lockReps = false;
-          else next.lockIntensity = false;
-        }
-        return next;
-      });
+    // Weight, reps and intensity: an unlocked one follows the locked ones; all three locked = a record of the set
+    // as it went (nothing is worked out). Unlocking lets that value follow again (an unlocked intensity is re-worked
+    // at once by fillIntensities).
+    const toggle = list => (list || []).map(st => (st.id === setId ? { ...st, [key]: !st[key] } : st));
     updateCurrentWorkoutState(prev => {
       if (!prev) return prev;
       return {
@@ -2806,6 +2909,7 @@ export function useWorkoutMutations({
     handleInsertSetAtPosition,
     handleRecalculateSlotWeights,
     handleSkipDeload,
+    handleResetSlot,
     handleChangeProgramWeek,
     refreshAutoProgramWeek,
     handleChangeSessionProgram,

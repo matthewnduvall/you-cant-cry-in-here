@@ -366,6 +366,12 @@ export const normalizeSetType = rawType => {
 export const setReportedRir = st => {
   const i = st?.intensity;
   if (!i) return 0;
+  // A worked-out intensity: its exact RIR (the shown one is rounded up to whole reps). On a set not done yet it may be
+  // below 0 (more reps than the load allows), so the plan's 1RM stays put; a done set counts at least RIR 0
+  if (i.auto && i.mode !== 'pct' && Number.isFinite(Number(i.exactRir))) {
+    const exact = Number(i.exactRir);
+    return st?.completed ? Math.max(0, exact) : exact;
+  }
   const v = Number(i.value);
   if (!Number.isFinite(v)) return 0;
   // %1RM: the RIR that share of the 1RM leaves for these reps (%1RM = 100 / (1 + (reps + RIR - 1) / 30))
@@ -1449,7 +1455,9 @@ export const lockAndCompleteSets = slots => {
           }
         : st
     );
-  return (Array.isArray(slots) ? slots : []).map(slot => {
+  return (Array.isArray(slots) ? slots : []).map(rawSlot => {
+    // The RESET snapshot (resetSnapshot) only lives in the editor
+    const slot = rawSlot && rawSlot.resetSnapshot ? (({ resetSnapshot: _rs, ...rest }) => rest)(rawSlot) : rawSlot;
     if (!slot || slot.historyLocked) return slot;
     const matrix = Array.isArray(slot.supersetSetsByExercise) ? slot.supersetSetsByExercise.map(fix) : undefined;
     return {

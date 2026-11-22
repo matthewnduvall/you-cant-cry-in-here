@@ -607,6 +607,7 @@ export default function App() {
     handleInsertSetAtPosition,
     handleRecalculateSlotWeights,
     handleSkipDeload,
+    handleResetSlot,
     handleChangeProgramWeek,
     handleChangeSessionProgram,
     handleChangeProgramDay,
@@ -1393,6 +1394,7 @@ export default function App() {
               handleInsertSetAtPosition={handleInsertSetAtPosition}
               handleRecalculateSlotWeights={handleRecalculateSlotWeights}
               handleSkipDeload={handleSkipDeload}
+              handleResetSlot={handleResetSlot}
               handleToggleSetLock={handleToggleSetLock}
               handleToggleSetDone={handleToggleSetDone}
               handleReorderExercises={handleReorderExercises}
@@ -1417,6 +1419,7 @@ export default function App() {
                         handleUpdateSetType: partnerMutations.handleUpdateSetType,
                         handleInsertSetAtPosition: partnerMutations.handleInsertSetAtPosition,
                         handleRecalculateSlotWeights: partnerMutations.handleRecalculateSlotWeights,
+                        handleResetSlot: partnerMutations.handleResetSlot,
                         handleToggleSetLock: partnerMutations.handleToggleSetLock,
                         handleToggleSetDone: partnerMutations.handleToggleSetDone,
                         handleReorderSets: partnerMutations.handleReorderSets

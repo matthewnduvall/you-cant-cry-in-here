@@ -123,8 +123,9 @@ export const deriveIntensity = (oneRM, weight, reps, mode = DEFAULT_INTENSITY_MO
   const rir = rtf - n;
   // Whole reps, rounded up (fractional RIR is hard to read; up = the cautious side: 1.5 reads RIR 2)
   const wholeRir = Math.ceil(rir - 1e-6);
-  if (mode === 'rir') return { mode, value: wholeRir, auto: true };
-  return { mode, value: Math.max(1, 10 - wholeRir), auto: true };
+  // exactRir: the unrounded RIR, kept so a set's 1RM (setReportedRir) isn't moved by the rounding
+  if (mode === 'rir') return { mode, value: wholeRir, auto: true, exactRir: rir };
+  return { mode, value: Math.max(1, 10 - wholeRir), auto: true, exactRir: rir };
 };
 
 /** The weight for `reps` at an intensity (null when unknown). */
