@@ -393,8 +393,11 @@ export function useWorkoutMutations({
   // A slot with the workout's program week applied (unchanged when the program doesn't cover it)
   // Bodyweight-type exercises store what is added (0 / the plate), not the total load
   const programSlot = (slot, workout) => fillIntensities(toAddedWeights(programSlotLoads(slot, workout)), workout);
-  const programSlotLoads = (slot, workout) =>
-    applyProgramToSlot(slot, programContextFor(workout), {
+  // A program's own plan replaces the usual effort plan, deload included (Society's cycle sets its own loads), so an
+  // exercise the program covers never carries the DELOAD note
+  const programSlotLoads = (slot, workout) => {
+    const ctx = programContextFor(workout);
+    const out = applyProgramToSlot(slot, ctx, {
       history,
       incrementLbs: currentIncrementLbs,
       userBodyweightLbs,
@@ -403,6 +406,8 @@ export function useWorkoutMutations({
       targetStandardClass,
       heightInches
     });
+    return out && out.deload && isProgrammedSlot(slot, ctx) ? { ...out, deload: false } : out;
+  };
   const isAvailable = ex => isExerciseAvailableWithEquipment(ex, availableEquipment);
   // Default picks prefer exercises the athlete has the equipment for; the full list is the fallback
   const preferAvailable = pool => {
