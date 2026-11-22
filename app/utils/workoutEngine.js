@@ -1022,13 +1022,98 @@ export const getIncrementInLbs = (goalIncrement = 1.25, goalUnit = 'lb', goalTyp
 // The goal increment is for a 200 lb lift: with the exercise's 1RM it scales to the lift (× 1RM ÷ 200, between a
 // quarter and double; to 0.25 lb), so a curl moves a little and a deadlift more. Without a 1RM: as set.
 export const INCREMENT_REFERENCE_1RM = 200;
+// Learned from History when there is enough (learnProgressionRates): how much each lift's 1RM really rises per
+// session, blended with the default as if PROGRESSION_PRIOR_SESSIONS more sessions had gone at the default rate, and
+// kept between a quarter and double the default. Set every render in page.js.
+let ENGINE_PROGRESSION = {};
+export const setEngineProgression = map => {
+  ENGINE_PROGRESSION = map && typeof map === 'object' ? map : {};
+};
+export const getLearnedProgression = exerciseId => (exerciseId && ENGINE_PROGRESSION[exerciseId]) || null;
+export const PROGRESSION_PRIOR_SESSIONS = 4;
 export const getEffectiveIncrementForExercise = (exerciseId, baseIncrementLbs = 0, oneRM = 0) => {
   const inc = Number(baseIncrementLbs) || 0;
   if (!(inc > 0)) return 0;
   const m = Number(oneRM) || 0;
-  if (!(m > 0)) return roundToIncrement(inc);
-  const scaled = inc * Math.min(2, Math.max(0.25, m / INCREMENT_REFERENCE_1RM));
-  return Math.max(0.25, Math.round(scaled * 4) / 4);
+  const scaled = m > 0 ? inc * Math.min(2, Math.max(0.25, m / INCREMENT_REFERENCE_1RM)) : inc;
+  const learned = getLearnedProgression(exerciseId);
+  let value = scaled;
+  if (learned && Number.isFinite(learned.perSession)) {
+    const n = Math.max(0, learned.sessions - 1);
+    value = (n * learned.perSession + PROGRESSION_PRIOR_SESSIONS * scaled) / (n + PROGRESSION_PRIOR_SESSIONS);
+    value = Math.min(scaled * 2, Math.max(scaled * 0.25, value));
+  }
+  return m > 0 || learned ? Math.max(0.25, Math.round(value * 4) / 4) : roundToIncrement(inc);
+};
+
+/**
+ * Each lift's real rate of progress, learned from History: the slope of its session 1RMs (deloads left out) over the
+ * last PROGRESSION_WINDOW_DAYS before the latest workout, as lb per session at the lifter's own frequency. Needs 4+
+ * sessions spanning 3+ weeks. Returns { [exerciseId]: { perSession, perWeek, sessions } }.
+ */
+export const PROGRESSION_WINDOW_DAYS = 84;
+export const learnProgressionRates = (history = []) => {
+  const list = (history || []).filter(w => w && w.loadedRoutineTitle !== 'PERSONAL RECORD');
+  if (list.length === 0) return {};
+  const latestMs = Math.max(...list.map(workoutTimeMs).filter(Number.isFinite));
+  const ids = new Set();
+  list.forEach(w =>
+    (w.slots || []).forEach(slot => (slot?.supersetExerciseIds || [slot?.exerciseId]).filter(Boolean).forEach(id => ids.add(id)))
+  );
+  const DAY = 86400000;
+  const rates = {};
+  ids.forEach(id => {
+    const sessions = recentSession1RMs(id, list).filter(
+      s => !s.deload && Number.isFinite(s.timeMs) && s.timeMs >= latestMs - PROGRESSION_WINDOW_DAYS * DAY
+    );
+    if (sessions.length < 4) return;
+    const ts = sessions.map(s => s.timeMs / DAY);
+    const span = Math.max(...ts) - Math.min(...ts);
+    if (span < 21) return;
+    const n = sessions.length;
+    const mt = ts.reduce((a, b) => a + b, 0) / n;
+    const mv = sessions.reduce((a, s) => a + s.value, 0) / n;
+    let num = 0;
+    let den = 0;
+    sessions.forEach((s, i) => {
+      num += (ts[i] - mt) * (s.value - mv);
+      den += (ts[i] - mt) ** 2;
+    });
+    if (!(den > 0)) return;
+    const perDay = num / den;
+    rates[id] = { perSession: perDay * (span / (n - 1)), perWeek: perDay * 7, sessions: n };
+  });
+  return rates;
+};
+
+/**
+ * How the exercise's last logged session went against its plan: the average of (RIR you reported − RIR that was
+ * planned) over its done working sets whose intensity you entered by hand (set.plannedRir is kept when you do).
+ * Negative = harder than planned. { gap, sets } (sets 0 = nothing to go on).
+ */
+export const lastSessionEffortGap = (exerciseId, history = [], excludeWorkoutId = null) => {
+  const last = getLoggedSessionsForExercise(exerciseId, history, excludeWorkoutId).find(s => !s.isPersonalRecord);
+  const diffs = (last?.sets || [])
+    .filter(
+      st =>
+        st?.completed &&
+        normalizeSetType(st.type) !== 'Warmup' &&
+        st.intensity &&
+        !st.intensity.auto &&
+        Number.isFinite(Number(st.plannedRir))
+    )
+    .map(st => setReportedRir(st) - Number(st.plannedRir));
+  if (diffs.length === 0) return { gap: 0, sets: 0 };
+  return { gap: diffs.reduce((a, b) => a + b, 0) / diffs.length, sets: diffs.length };
+};
+// A last session that came in this much harder than planned (RIR, on average) holds the weight: no increment next time
+export const HOLD_EFFORT_GAP = -1;
+
+/** The increment for the next session: the learned / scaled one, or 0 when the last session was harder than planned. */
+export const progressionIncrement = (exerciseId, baseIncrementLbs, oneRM, history = [], excludeWorkoutId = null) => {
+  const { gap, sets } = lastSessionEffortGap(exerciseId, history, excludeWorkoutId);
+  if (sets > 0 && gap <= HOLD_EFFORT_GAP) return 0;
+  return getEffectiveIncrementForExercise(exerciseId, baseIncrementLbs, oneRM);
 };
 
 // Exercise Set Preferences (Configuration → ROUTINES): the type of each set, by position, for new exercises on the

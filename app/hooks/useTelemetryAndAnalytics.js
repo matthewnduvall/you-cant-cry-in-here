@@ -4,9 +4,8 @@ import { useState, useEffect, useMemo } from 'react';
 import {
   EXERCISE_LIBRARY,
   EXERCISE_MAP,
-  MUSCLE_GROUP_OPTIONS,
+  MUSCLE_REGIONS,
   isSupersetCategory,
-  doesExerciseInteractWithMuscleGroup,
   formatDateYMD,
   parseYMDToISO
 } from '../data/exerciseLibrary';
@@ -198,19 +197,16 @@ export function useTelemetryAndAnalytics({
     };
   }, []);
 
+  // Keyed by muscle region (MUSCLE_REGIONS: Biceps, Triceps, Quads, Hamstrings, Front / Side / Rear Delts…), not body
+  // part, so antagonists are tracked apart
   const muscleStimulusStatus = useMemo(() => {
-    const groups = MUSCLE_GROUP_OPTIONS.filter(g => g !== 'All Muscles');
+    const groups = MUSCLE_REGIONS;
     const result = {};
 
-    // Hard-set credit per muscle group: every working (non-warm-up) set counts 1 for the exercise's own muscle group
-    // and ½ for each secondary one (bench: chest 1, shoulders and arms ½), so secondary work adds up — two sets that
-    // hit the biceps secondarily equal one curl set. A group is TRAINED on a day once its credit reaches 1.
-    const creditOf = (ex, g) =>
-      doesExerciseInteractWithMuscleGroup({ muscleGroup: ex.muscleGroup }, g)
-        ? 1
-        : (ex.stimulusSecondaryGroups || []).some(mg => doesExerciseInteractWithMuscleGroup({ muscleGroup: mg }, g))
-          ? 0.5
-          : 0;
+    // Hard-set credit per region: every working (non-warm-up) set counts 1 for the exercise's main region and ½ for
+    // each other region it lists (incline press: chest 1, front delts and triceps ½), so secondary work adds up — two
+    // sets that hit the triceps secondarily equal one pushdown set. A region is TRAINED on a day once it reaches 1.
+    const creditOf = (ex, g) => (ex.primaryRegion === g ? 1 : (ex.stimulusSecondaryRegions || []).includes(g) ? 0.5 : 0);
     const hardSets = list => {
       const sets = (list || []).filter(st => st && normalizeSetType(st.type) !== 'Warmup');
       const done = sets.filter(st => st.completed);

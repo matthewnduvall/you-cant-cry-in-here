@@ -11,7 +11,7 @@
 // sets its set's weight instead of the week's plan.
 
 import { EXERCISE_MAP, isBodyweightExercise, isSupersetCategory, normalizeSlotCategory, getSlotEquipmentChoice } from '../data/exerciseLibrary';
-import { generateSetsForScheme, getBestHistory1RM, getLastSession1RM, normalizeSetType, DEFAULT_SET_PREFERENCES, setLoadLbs, countsBodyweight, getExerciseBodyweightLoad, warmupRamp, getEffectiveIncrementForExercise } from './workoutEngine';
+import { generateSetsForScheme, getBestHistory1RM, getLastSession1RM, normalizeSetType, DEFAULT_SET_PREFERENCES, setLoadLbs, countsBodyweight, getExerciseBodyweightLoad, warmupRamp, getEffectiveIncrementForExercise, progressionIncrement } from './workoutEngine';
 import { INTENSITY_OPTIONS, intensityToRir, solveSet, deriveIntensity, weightForIntensity, convertIntensity, repsForIntensity, formatIntensity } from './intensity';
 import { getStarting1RM, describe1RM } from './starting1RM';
 import { traceLine, isTracing, fmt } from './calcTrace';
@@ -43,7 +43,8 @@ export const getCycleTarget1RM = ({
     EXERCISE_MAP[exerciseId]?.default1RM ||
     135;
   // (the goal increment scaled to the lift: getEffectiveIncrementForExercise)
-  return base + (isBodyweightExercise(exerciseId) ? 0 : getEffectiveIncrementForExercise(exerciseId, incrementLbs, base));
+  // The learned increment, or none when the last session came in harder than planned (progressionIncrement)
+  return base + (isBodyweightExercise(exerciseId) ? 0 : progressionIncrement(exerciseId, incrementLbs, base, pool));
 };
 
 /** Does the program change this slot? */
