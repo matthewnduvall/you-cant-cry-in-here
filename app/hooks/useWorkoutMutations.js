@@ -26,7 +26,8 @@ import {
   findEquivalentExerciseForEquipment,
   getSlotEquipmentChoice,
   isBandEquipment,
-  doesExerciseInteractWithMuscleGroup
+  doesExerciseInteractWithMuscleGroup,
+  REGION_GROUP
 } from '../data/exerciseLibrary';
 import {
   getBestHistory1RM,
@@ -34,6 +35,9 @@ import {
   calculateLastEquivalentWeightForSet,
   calculateEquivalentRepsForWeight,
   getEffectiveIncrementForExercise,
+  progressionIncrement,
+  lastSessionEffortGap,
+  setReportedRir,
   createWorkoutSlot as createWorkoutSlotRaw,
   generateSetsForScheme,
   getDefaultSchemeForGoal,
@@ -121,6 +125,13 @@ const MUSCLE_GROUP_WEIGHT = {
   Calves: 0.5,
   Forearms: 0.4,
   Neck: 0.25
+};
+// The same by muscle region (the stimulus score uses the exercise's main region): smaller muscles that big lifts
+// already train count less, so + ADD EXERCISE doesn't chase every small region
+const REGION_WEIGHT = {
+  Chest: 1, Lats: 1, Quads: 1, Hamstrings: 0.9, Glutes: 0.9, 'Upper Back': 0.8, 'Front Delts': 0.7, 'Side Delts': 0.7,
+  'Rear Delts': 0.6, Biceps: 0.7, Triceps: 0.7, 'Lower Back': 0.5, Abs: 0.6, Obliques: 0.4, Adductors: 0.4, Calves: 0.5,
+  Forearms: 0.35, Neck: 0.25
 };
 const NON_TRAINING_EQUIPMENT = ['stretch', 'isometric'];
 
@@ -272,8 +283,13 @@ export function useWorkoutMutations({
     const calc = getHistoricalCalculated1RM(exId);
     const prev = getLastSession1RM(exId, history, workout?.id || null);
     if (!(prev > 0)) return calc;
-    const inc = getEffectiveIncrementForExercise(exId, currentIncrementLbs, prev);
-    if (isTracing()) traceLine(`${EXERCISE_MAP[exId]?.name || exId}: recent sessions' 1RM ${fmt(prev)} (smoothed) + goal increment ${fmt(inc)} (scaled to the lift) = ${fmt(prev + inc)} lb (what you're planned to be capable of)`);
+    // The learned / scaled increment; none when the last session came in harder than you planned (a hold)
+    const inc = progressionIncrement(exId, currentIncrementLbs, prev, history, workout?.id || null);
+    if (isTracing() && inc === 0 && currentIncrementLbs > 0) {
+      const g = lastSessionEffortGap(exId, history, workout?.id || null);
+      traceLine(`${EXERCISE_MAP[exId]?.name || exId}: last session came in ${fmt(-g.gap)} RIR harder than planned → weight held (no increment)`);
+    }
+    if (isTracing()) traceLine(`${EXERCISE_MAP[exId]?.name || exId}: recent sessions' 1RM ${fmt(prev)} (smoothed) + increment ${fmt(inc)} (learned from your progress, else scaled to the lift) = ${fmt(prev + inc)} lb (what you're planned to be capable of)`);
     return prev + inc;
   };
 
@@ -549,8 +565,10 @@ export function useWorkoutMutations({
 
     // Muscle groups already in this workout (existing slots + picks made below)
     const usedGroups = new Set();
+    // (by main muscle region: a bench press and a triceps extension don't count as the same)
     usedIds.forEach(id => {
-      if (EXERCISE_MAP[id]?.muscleGroup) usedGroups.add(EXERCISE_MAP[id].muscleGroup);
+      const r = EXERCISE_MAP[id]?.primaryRegion || EXERCISE_MAP[id]?.muscleGroup;
+      if (r) usedGroups.add(r);
     });
 
     const daysBehind = group => {
@@ -595,9 +613,11 @@ export function useWorkoutMutations({
     };
 
     const scoreExercise = (ex, preferBig4) => {
-      let score = daysBehind(ex.muscleGroup) * (MUSCLE_GROUP_WEIGHT[ex.muscleGroup] ?? 0.7) + varietyAdjust(ex);
+      // Stimulus by the exercise's main muscle region (Triceps, Hamstrings…), weighted by its body part
+      const region = ex.primaryRegion || ex.muscleGroup;
+      let score = daysBehind(region) * (REGION_WEIGHT[region] ?? MUSCLE_GROUP_WEIGHT[REGION_GROUP[region] || ex.muscleGroup] ?? 0.7) + varietyAdjust(ex);
       if (preferBig4 && big4Order.includes(ex.id)) score += BIG4_BONUS_DAYS;
-      if (usedGroups.has(ex.muscleGroup)) score -= SAME_WORKOUT_PENALTY_DAYS;
+      if (usedGroups.has(region)) score -= SAME_WORKOUT_PENALTY_DAYS;
       if (ex.isPriority) score += 1;
       if (!String(ex.id).startsWith('exrx_')) score += 1.5; // hand-curated library entries first
       return score;
@@ -654,13 +674,14 @@ export function useWorkoutMutations({
             a.ex.name.localeCompare(b.ex.name)
         )[0].ex;
       usedIds.add(best.id);
-      usedGroups.add(best.muscleGroup);
+      usedGroups.add(best.primaryRegion || best.muscleGroup);
       return best;
     };
 
     if (suggestFor) {
       // Only that type: pickBest falls back to other types or groups when nothing fits, which isn't a suggestion
-      const fits = ex => ex.muscleGroup === suggestFor && ex.category === suggestCategory;
+      // suggestFor: a muscle region (the exercise's main one)
+      const fits = ex => ex.primaryRegion === suggestFor && ex.category === suggestCategory;
       const pick = pickBest(suggestCategory, null, fits);
       return pick && fits(pick) ? pick : null;
     }
@@ -2245,7 +2266,16 @@ export function useWorkoutMutations({
           // program) works the weight / reps out from it instead of putting the plan back; CLEAR unlocks it
           if (field === 'intensity') {
             const hasValue = rawVal && rawVal.value !== null && rawVal.value !== undefined && rawVal.value !== '';
-            return { ...st, intensity: hasValue ? rawVal : null, lockIntensity: Boolean(hasValue) };
+            // The planned RIR (the worked-out one) is kept the first time you enter your own, so the next session can
+            // tell whether this one came in harder or easier than planned (lastSessionEffortGap)
+            const plannedRir =
+              st.plannedRir ?? (st.intensity?.auto && !st.durationSeconds ? Math.round(setReportedRir(st) * 10) / 10 : undefined);
+            return {
+              ...st,
+              intensity: hasValue ? rawVal : null,
+              lockIntensity: Boolean(hasValue),
+              ...(plannedRir !== undefined ? { plannedRir } : {})
+            };
           }
           const calc1RM = getHistoricalCalculated1RM(exId, history, oneRepMaxes);
           const lastW =

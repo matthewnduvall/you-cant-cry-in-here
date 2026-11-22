@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { IOSListSection, IOSListRow } from '../Primitives';
 import { StimulusSettingsSection } from './SettingsView';
-import { SPECIFIC_MUSCLES_BY_GROUP } from '../../data/exerciseLibrary';
+import { SPECIFIC_MUSCLES_BY_REGION } from '../../data/exerciseLibrary';
 
 // Status is shown by pattern as well as colour (red / green alone is hard to tell apart with colour blindness):
 // OVERDUE = diagonal stripes, RECOVERED = dots, RECOVERING = solid, never logged = solid grey.
@@ -19,7 +19,7 @@ const mirror = d => d.replace(/(-?\d+(?:\.\d+)?) (-?\d+(?:\.\d+)?)/g, (_, x, y) 
 // One body part on the map: an organic outline (path), not a box. Tapping (or Enter / Space) selects its muscle
 // group: the readout under the map names it, says when it was last trained, lists its muscles and suggests a
 // compound and an accessory; every part of that group fills solid white.
-function MusclePart({ group, statusMap, selected, onSelect, d }) {
+function MusclePart({ group, statusMap, selected, dimmed, onSelect, d }) {
   const status = statusMap?.[group];
   const pattern = statusPattern(status?.label);
   return (
@@ -35,7 +35,9 @@ function MusclePart({ group, statusMap, selected, onSelect, d }) {
           onSelect?.(group);
         }
       }}
-      style={{ cursor: 'pointer', outline: 'none' }}
+      // While another muscle is selected this one steps back (the selected one is solid white, which recovering muscles
+      // are close to)
+      style={{ cursor: 'pointer', outline: 'none', opacity: dimmed ? 0.3 : 1, transition: 'opacity 140ms ease-out' }}
     >
       {/* A bigger, invisible tap area around the part (small parts like the neck are hard to hit) */}
       <path d={d} fill="transparent" stroke="transparent" strokeWidth={HIT_PAD * 2} strokeLinejoin="round" />
@@ -74,16 +76,20 @@ function StatusSwatch({ color, pattern, size = 12 }) {
 // ---- Body outlines (viewBox 0 0 120 230; left side written, right side mirrored) ----
 const HEAD = 'M60 5 C67 5 71 10 71 17 C71 25 66 30 60 30 C54 30 49 25 49 17 C49 10 53 5 60 5 Z';
 const NECK = 'M54 28 C56 31 64 31 66 28 L67 36 C63 38 57 38 53 36 Z';
-const DELT_L = 'M44 38 C36 36 26 38 22 46 C20 52 21 58 24 61 C28 58 31 54 34 50 C37 46 41 42 44 40 Z';
 const BICEP_L = 'M23 62 C26 60 30 58 33 54 C35 62 35 72 33 84 C30 86 25 86 21 84 C19 76 20 68 23 62 Z';
 const FOREARM_L = 'M21 87 C25 89 30 89 33 87 C33 96 31 106 28 114 C25 116 22 116 19 114 C18 105 19 95 21 87 Z';
 const PEC_L = 'M59 38 L59 60 C52 64 43 63 38 57 C35 52 36 45 40 41 C45 38 52 37 59 38 Z';
+// Delts split in two: the inner piece is the front delt (front view) or the rear delt (back view), the outer cap the side
+const DELT_INNER_L = 'M44 38 C40 37 35 37 32 38 C30 44 28 51 27 57 C29 56 32 53 34 50 C37 46 41 42 44 40 Z';
+const DELT_SIDE_L = 'M32 38 C26 39 23 42 22 46 C20 52 21 58 24 61 C25 60 26 58 27 57 C28 51 30 44 32 38 Z';
 const ABS_L = [
-  'M41 68 C41 66 43 65 45 65 L58 66 L58 79 L42 79 C41 79 41 78 41 77 Z',
-  'M42 82 L58 82 L58 95 L43 95 C42 95 42 94 42 93 Z',
-  'M43 98 L58 98 L58 112 C53 113 48 112 45 110 C44 109 43 108 43 106 Z'
+  'M47 65 L58 66 L58 79 L46 79 L46 67 C46 66 46 65 47 65 Z',
+  'M46 82 L58 82 L58 95 L46 95 Z',
+  'M46 98 L58 98 L58 112 C54 113 50 112 47 110 L46 109 Z'
 ];
-const QUAD_L = 'M41 116 C47 114 54 115 58 117 C60 130 59 150 56 172 C52 175 46 175 43 172 C38 155 37 132 41 116 Z';
+const OBLIQUE_L = 'M38 64 C40 64 42 65 44 66 L44 108 C41 106 39 101 38 95 C37 85 37 74 38 64 Z';
+const QUAD_L = 'M40 116 C44 115 48 115 52 116 C52 132 54 148 56 164 C56 168 56 170 56 172 C52 175 46 175 43 172 C38 155 37 132 40 116 Z';
+const ADDUCTOR_L = 'M53 116 C55 116 57 116 58 117 C59 128 58 140 56 152 C54 142 53 130 53 116 Z';
 const CALF_FRONT_L = 'M44 178 C48 176 52 176 55 178 C57 190 56 205 53 220 C51 222 47 222 45 220 C41 205 41 190 44 178 Z';
 const TRAPS = 'M52 34 C56 37 64 37 68 34 C72 38 76 41 80 44 C72 47 66 49 60 49 C54 49 48 47 40 44 C44 41 48 38 52 34 Z';
 const LAT_L = 'M40 47 C46 50 53 52 59 52 L59 88 C54 89 49 88 46 85 C41 76 38 62 40 47 Z';
@@ -93,25 +99,32 @@ const HAM_L = 'M40 140 C46 143 53 143 58 141 C60 152 59 163 56 176 C52 178 46 17
 const CALF_BACK_L = 'M43 180 C47 178 53 178 56 180 C58 192 57 206 53 220 C51 222 47 222 45 220 C40 206 40 192 43 180 Z';
 
 const both = d => [d, mirror(d)];
+// [muscle region (MUSCLE_REGIONS), its outlines] per view: the front shows biceps, quads, front delts, abs and obliques;
+// the back triceps, hamstrings, rear delts, lats, upper and lower back and glutes
 const FRONT_PARTS = [
   ['Neck', [NECK]],
-  ['Shoulders', both(DELT_L)],
+  ['Front Delts', both(DELT_INNER_L)],
+  ['Side Delts', both(DELT_SIDE_L)],
   ['Chest', both(PEC_L)],
-  ['Upper Arms', both(BICEP_L)],
+  ['Biceps', both(BICEP_L)],
   ['Forearms', both(FOREARM_L)],
-  ['Core', ABS_L.flatMap(both)],
-  ['Thighs', both(QUAD_L)],
+  ['Abs', ABS_L.flatMap(both)],
+  ['Obliques', both(OBLIQUE_L)],
+  ['Quads', both(QUAD_L)],
+  ['Adductors', both(ADDUCTOR_L)],
   ['Calves', both(CALF_FRONT_L)]
 ];
 const BACK_PARTS = [
   ['Neck', [NECK]],
-  ['Back', [TRAPS, ...both(LAT_L)]],
-  ['Shoulders', both(DELT_L)],
-  ['Upper Arms', both(BICEP_L)],
+  ['Upper Back', [TRAPS]],
+  ['Lats', both(LAT_L)],
+  ['Rear Delts', both(DELT_INNER_L)],
+  ['Side Delts', both(DELT_SIDE_L)],
+  ['Triceps', both(BICEP_L)],
   ['Forearms', both(FOREARM_L)],
-  ['Core', [LOW_BACK]],
-  ['Hips', both(GLUTE_L)],
-  ['Thighs', both(HAM_L)],
+  ['Lower Back', [LOW_BACK]],
+  ['Glutes', both(GLUTE_L)],
+  ['Hamstrings', both(HAM_L)],
   ['Calves', both(CALF_BACK_L)]
 ];
 
@@ -126,13 +139,18 @@ const MUSCLE_LABELS = {
   'Pectoralis Major - Clavicular': 'Upper chest',
   'Pectoralis Major - Sternal': 'Mid and lower chest',
   'Pectoralis Minor': 'Pec minor',
+  'Biceps Brachii': 'Biceps',
+  'Triceps Brachii': 'Triceps (all three heads)',
+  'Hip Flexors': 'Hip flexors (rectus femoris)',
+  'Hip Adductors': 'Adductors',
+  'Hip Abductors': 'Glute medius and minimus (abductors)',
   'Latissimus Dorsi': 'Lats',
   'Gluteus Maximus': 'Glutes',
   'Infraspinatus & Teres Minor': 'Infraspinatus and teres minor'
 };
-const musclesOf = group =>
-  (SPECIFIC_MUSCLES_BY_GROUP[group] || [])
-    .filter(m => m !== group && m !== 'General Back')
+const musclesOf = region =>
+  (SPECIFIC_MUSCLES_BY_REGION[region] || [])
+    .filter(m => m !== region && m !== 'General Back')
     .map(m => MUSCLE_LABELS[m] || m);
 
 function BodyFigure({ label, parts, part }) {
@@ -170,6 +188,7 @@ export function StimulusMapView({
     group,
     statusMap: muscleStimulusStatus,
     selected: selectedGroup === group,
+    dimmed: selectedGroup !== null && selectedGroup !== group,
     onSelect: g => setSelectedGroup(prev => (prev === g ? null : g))
   });
   const selectedStatus = selectedGroup ? muscleStimulusStatus?.[selectedGroup] : null;
@@ -237,7 +256,7 @@ export function StimulusMapView({
               </>
             ) : (
               <span style={{ fontSize: '12px', fontWeight: 500, color: '#9A9A9A' }}>
-                Tap a muscle group to see when you last trained it, its muscles and exercises for it.
+                Tap a muscle to see when you last trained it, its muscles and exercises for it.
               </span>
             )}
           </div>

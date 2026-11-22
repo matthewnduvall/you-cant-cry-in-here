@@ -84,7 +84,9 @@ export function InfoView({
           The app turns your 1RM back into a weight for each set’s reps, set type and number of sets. It works from a
           smoothed 1RM of your last three sessions of that exercise (the newest counting most, not your record) plus
           your increment, scaled to the lift (your Goals increment is for a 200 lb lift, so a curl moves less than a
-          deadlift). RESET puts an exercise back the way it was loaded.
+          deadlift). Once a lift has 4 sessions over 3 weeks, the increment leans toward how fast it has really been
+          going up (up to double the default, down to a quarter). If you report the last session as harder than planned
+          (by 1 RIR or more on average), the next one adds no weight. RESET puts an exercise back the way it was loaded.
         </P>
         <P title="Live adjustment.">
           As you finish working sets, what they say (weight, reps and the RIR you report) re-plans the sets still to do:
@@ -152,10 +154,12 @@ export function InfoView({
           band-assisted.
         </P>
         <P title="Stimulus." last>
-          Each working set counts 1 for the exercise’s main muscle group and ½ for each secondary one (bench: chest 1,
-          shoulders and arms ½), so secondary work adds up. A group counts as trained on a day once it reaches 1; the
-          Stimulus page shows recovering, recovered or overdue from the day thresholds you set, and the sets in the last
-          7 days.
+          The map tracks 18 muscles, so opposing ones are kept apart: biceps and triceps, quads and hamstrings, front,
+          side and rear delts, lats, upper and lower back. Each working set counts 1 for the exercise’s main muscle and
+          ½ for each other muscle it works (incline press: chest 1, front delts and triceps ½; grip-heavy lifts like
+          deadlifts and pull-ups also count ½ for the forearms), so secondary work adds up. A muscle counts as trained on
+          a day once it reaches 1; the Stimulus page shows recovering, recovered or overdue from the day thresholds you
+          set, and the sets in the last 7 days.
         </P>
       </Section>
 

@@ -318,6 +318,87 @@ const SPECIFIC_MUSCLE_GROUP = {
 // Exercises whose grip is a limit (deadlifts and RDLs, pull-ups / chin-ups, rows, shrugs, carries, hangs, swings,
 // cleans and snatches, pulldowns and pull-throughs held in the hands): they count toward Forearms on the stimulus map
 const GRIP_DEMANDING = /deadlift|\brdl\b|romanian|\bpull-?ups?\b|\bchin-?ups?\b|\brows?\b|shrug|farmer|\bcarry\b|\bhang(ing)?\b|\bswing|\bclean\b|snatch|pull-?down|high pull|muscle-?up|rack pull|towel/i;
+// ---- Muscle regions (the stimulus map, its thresholds, + ADD EXERCISE's stimulus score) ----
+// Finer than the body parts above, so antagonists aren't lumped: biceps vs triceps, quads vs hamstrings, front / side /
+// rear delts, lats vs upper back vs lower back, abs vs obliques. Each region belongs to one body part (REGION_GROUP).
+export const MUSCLE_REGIONS = [
+  'Neck', 'Chest', 'Front Delts', 'Side Delts', 'Rear Delts', 'Biceps', 'Triceps', 'Forearms', 'Lats', 'Upper Back',
+  'Lower Back', 'Abs', 'Obliques', 'Glutes', 'Quads', 'Adductors', 'Hamstrings', 'Calves'
+];
+export const REGION_GROUP = {
+  Neck: 'Neck', Chest: 'Chest', 'Front Delts': 'Shoulders', 'Side Delts': 'Shoulders', 'Rear Delts': 'Shoulders',
+  Biceps: 'Upper Arms', Triceps: 'Upper Arms', Forearms: 'Forearms', Lats: 'Back', 'Upper Back': 'Back',
+  'Lower Back': 'Back', Abs: 'Core', Obliques: 'Core', Glutes: 'Hips', Quads: 'Thighs', Adductors: 'Thighs',
+  Hamstrings: 'Thighs', Calves: 'Calves'
+};
+const SPECIFIC_MUSCLE_REGION = {
+  'Biceps Brachii': 'Biceps',
+  Brachialis: 'Biceps',
+  'Triceps Brachii': 'Triceps',
+  Brachioradialis: 'Forearms',
+  Forearms: 'Forearms',
+  Pronators: 'Forearms',
+  Supinators: 'Forearms',
+  'Wrist Extensors': 'Forearms',
+  'Wrist Flexors': 'Forearms',
+  'Deltoid - Anterior': 'Front Delts',
+  'Deltoid - Lateral': 'Side Delts',
+  'Deltoid - Posterior': 'Rear Delts',
+  Supraspinatus: 'Side Delts',
+  'General Back': 'Upper Back',
+  'Latissimus Dorsi': 'Lats',
+  'Teres Major': 'Lats',
+  Subscapularis: 'Lats',
+  Rhomboids: 'Upper Back',
+  'Infraspinatus & Teres Minor': 'Rear Delts',
+  'Trapezius - Lower': 'Upper Back',
+  'Trapezius - Middle': 'Upper Back',
+  'Trapezius - Upper': 'Upper Back',
+  'Erector Spinae': 'Lower Back',
+  'Quadratus Lumborum': 'Lower Back',
+  'Pectoralis Major - Clavicular': 'Chest',
+  'Pectoralis Major - Sternal': 'Chest',
+  'Pectoralis Minor': 'Chest',
+  'Serratus Anterior': 'Chest',
+  'Rectus Abdominis': 'Abs',
+  'Transverse Abdominis': 'Abs',
+  Obliques: 'Obliques',
+  'Gluteus Maximus': 'Glutes',
+  'Hip Abductors': 'Glutes',
+  'Hip Flexors': 'Quads',
+  'Hip Adductors': 'Adductors',
+  Quadriceps: 'Quads',
+  Hamstrings: 'Hamstrings',
+  Gastrocnemius: 'Calves',
+  Soleus: 'Calves',
+  'Tibialis Anterior': 'Calves',
+  Calves: 'Calves',
+  Splenius: 'Neck',
+  Sternocleidomastoid: 'Neck'
+};
+/** The specific muscles in each region ({ Triceps: ['Triceps Brachii'], … }), for the Stimulus page. */
+export const SPECIFIC_MUSCLES_BY_REGION = Object.entries(SPECIFIC_MUSCLE_REGION).reduce((acc, [muscle, region]) => {
+  (acc[region] = acc[region] || []).push(muscle);
+  return acc;
+}, {});
+// A body part's region when the exercise lists no specific muscle there (by the exercise's name where it matters)
+const defaultRegionFor = (group, name = '') => {
+  const n = String(name).toLowerCase();
+  switch (group) {
+    case 'Chest': return 'Chest';
+    case 'Shoulders': return /lateral|side|upright/.test(n) ? 'Side Delts' : /rear|reverse fly|face pull/.test(n) ? 'Rear Delts' : 'Front Delts';
+    case 'Upper Arms': return /tricep|extension|pushdown|push-down|dip|skull|kickback|close.grip/.test(n) ? 'Triceps' : 'Biceps';
+    case 'Forearms': return 'Forearms';
+    case 'Back': return /hyperext|back extension|good morning|superman/.test(n) ? 'Lower Back' : /row|shrug|face pull/.test(n) ? 'Upper Back' : 'Lats';
+    case 'Core': return /oblique|twist|side|woodchop|russian/.test(n) ? 'Obliques' : 'Abs';
+    case 'Hips': return 'Glutes';
+    case 'Thighs': return /adduct/.test(n) ? 'Adductors' : /curl|hamstring|rdl|romanian|deadlift|nordic/.test(n) ? 'Hamstrings' : 'Quads';
+    case 'Calves': return 'Calves';
+    case 'Neck': return 'Neck';
+    default: return null;
+  }
+};
+
 /** The specific muscles in each body part ({ Back: ['Latissimus Dorsi', …] }), for the Stimulus page. */
 export const SPECIFIC_MUSCLES_BY_GROUP = Object.entries(SPECIFIC_MUSCLE_GROUP).reduce((acc, [muscle, group]) => {
   (acc[group] = acc[group] || []).push(muscle);
@@ -390,6 +471,18 @@ export const parseExercisesCsv = rawCsv => {
 
     // Grip: exercises that hold a heavy load in the hands also train the forearms (half credit on the stimulus map)
     const gripGroups = GRIP_DEMANDING.test(name) && !/machine|smith|belt|band-assisted/i.test(`${name} ${equipment}`) ? ['Forearms'] : [];
+    // Regions (the stimulus map): the main one is its first listed muscle in its own body part (else its first
+    // listed muscle, else the body part's default); every other listed muscle, secondary body part and grip is ½
+    const listedRegions = [...new Set(specificMuscles.map(m => SPECIFIC_MUSCLE_REGION[m]).filter(Boolean))];
+    const primaryRegion =
+      listedRegions.find(r => REGION_GROUP[r] === muscleGroup) || listedRegions[0] || defaultRegionFor(muscleGroup, name);
+    const secondaryRegions = [
+      ...new Set([
+        ...listedRegions,
+        ...(SECONDARY_MUSCLE_GROUPS[id] || []).map(g => defaultRegionFor(g, name)),
+        ...(gripGroups.length > 0 ? ['Forearms'] : [])
+      ])
+    ].filter(r => r && r !== primaryRegion);
     const entry = {
       id,
       name,
@@ -416,6 +509,9 @@ export const parseExercisesCsv = rawCsv => {
           ...gripGroups
         ])
       ].filter(g => g !== muscleGroup),
+      // Stimulus map regions: primaryRegion counts 1 per working set, stimulusSecondaryRegions ½ each
+      primaryRegion,
+      stimulusSecondaryRegions: secondaryRegions,
       // Other names it goes by (search + .csv import)
       aliases: [...(EXERCISE_NAME_ALIASES[id] || []), ...(DUPLICATE_EXERCISE_ALIASES[id] || [])],
       specificMuscles,

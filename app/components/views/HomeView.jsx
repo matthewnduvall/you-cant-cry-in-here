@@ -421,7 +421,7 @@ export function HomeView({
       id: 'overdue',
       label: 'OVERDUE',
       value: String(overdue.length),
-      unit: overdue.length === 1 ? 'GROUP' : 'GROUPS',
+      unit: overdue.length === 1 ? 'MUSCLE' : 'MUSCLES',
       sub: overdue.length > 0 ? overdue.slice(0, 2).join(' · ').toUpperCase() : 'ALL ON SCHEDULE',
       // the screen's red: something needs training
       alert: overdue.length > 0,
