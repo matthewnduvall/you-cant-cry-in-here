@@ -84,7 +84,7 @@ export function InfoView({
           The app turns your 1RM back into a weight for each set’s reps, set type and number of sets. It works from a
           smoothed 1RM of your last three sessions of that exercise (the newest counting most, not your record) plus
           your increment, scaled to the lift (your Goals increment is for a 200 lb lift, so a curl moves less than a
-          deadlift). RECALCULATE redoes this for an exercise.
+          deadlift). RESET puts an exercise back the way it was loaded.
         </P>
         <P title="Live adjustment.">
           As you finish working sets, what they say (weight, reps and the RIR you report) re-plans the sets still to do:
@@ -130,8 +130,10 @@ export function InfoView({
           everything after it.
         </P>
         <P title="Locks.">
-          Lock any of a set’s weight, reps or intensity and RECALCULATE works out the rest around them. An intensity
-          you pick locks itself.
+          A set’s weight, reps and intensity are tied by your 1RM, so whichever is unlocked follows the others as you
+          edit. Anything you enter locks itself: type a weight and the intensity shows how hard it will be; pick an
+          intensity with the weight open and the weight follows it. With weight and reps locked, the intensity you pick
+          is how the set felt, and it moves your 1RM. RESET unlocks everything and puts the exercise back as loaded.
         </P>
         <P title="Checking before saving." last>
           When you finish, sets whose 1RM is far from the rest of their exercise are listed, e.g. a light set marked RIR

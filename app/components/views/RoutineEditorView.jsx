@@ -95,6 +95,7 @@ export function RoutineEditorView({
   handleUpdateSetType,
   handleRecalculateSlotWeights,
   handleSkipDeload,
+  handleResetSlot,
   handleToggleSetLock,
   handleToggleSetDone,
   handleReorderExercises,
@@ -426,6 +427,7 @@ export function RoutineEditorView({
                 handleInsertSetAtPosition,
                 handleRecalculateSlotWeights,
                 handleSkipDeload,
+                handleResetSlot,
                 handleToggleSetLock,
                 handleToggleSetDone,
                 handleReorderSets
@@ -544,8 +546,8 @@ export function RoutineEditorView({
                     }
                     onReorderSets={(exIdx, fromIdx, toIdx) => slotHandler('handleReorderSets')?.(slot.id, exIdx, fromIdx, toIdx)}
                     onInsertSet={position => slotHandler('handleInsertSetAtPosition')(slot.id, position)}
-                    actionLabel="RECALCULATE"
-                    onAction={() => slotHandler('handleRecalculateSlotWeights')(slot.id)}
+                    actionLabel="RESET"
+                    onAction={() => slotHandler('handleResetSlot')(slot.id)}
                     onSkipDeload={slotHandler('handleSkipDeload') ? () => slotHandler('handleSkipDeload')(slot.id) : undefined}
                     onFillSetValue={({ exIdx, set, field, value }) =>
                       slotHandler('handleUpdateSetField')?.(slot.id, exIdx, set.id, field, value)
