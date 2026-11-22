@@ -1344,7 +1344,7 @@ export function SlotEditor({
                 <button
                   type="button"
                   aria-label={`Intensity: ${hasValue ? formatIntensity(intensity.mode, intensity.value) : 'not set'}. Tap to change`}
-                  onClick={() => setIntensityTarget({ exIdx, set: st, label: setNumText, laterSets: laterSetsFor('intensity') })}
+                  onClick={() => setIntensityTarget({ exIdx, set: st, label: setNumText, laterSets: laterSetsFor('intensity'), exerciseId: exObj?.id })}
                   style={{ ...setCellStyle(cellBg), color: '#FFFFFF', cursor: 'pointer', overflow: 'hidden' }}
                 >
                   <span style={{ ...cellLabelStyle, whiteSpace: 'nowrap' }}>{hasValue ? modeLabel : 'INT.'}</span>
@@ -1456,6 +1456,7 @@ export function SlotEditor({
         <IntensityEditorModal
           title={`SET ${intensityTarget.label} INTENSITY`}
           reps={intensityTarget.set.reps}
+          exerciseId={intensityTarget.exerciseId}
           intensity={intensityTarget.set.intensity}
           onClose={() => setIntensityTarget(null)}
           laterSets={intensityTarget.laterSets}

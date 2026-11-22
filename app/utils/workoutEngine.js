@@ -421,6 +421,17 @@ let ENGINE_FATIGUE_BY_EXERCISE = {};
 export const setEngineFatigueByExercise = map => {
   ENGINE_FATIGUE_BY_EXERCISE = map && typeof map === 'object' ? map : {};
 };
+export const getEngineFatigueByExercise = () => ENGINE_FATIGUE_BY_EXERCISE;
+/** Runs fn with other learned fatigue rates (a friend's), then puts yours back. */
+export const withEngineFatigueByExercise = (map, fn) => {
+  const previous = ENGINE_FATIGUE_BY_EXERCISE;
+  ENGINE_FATIGUE_BY_EXERCISE = map && typeof map === 'object' ? map : {};
+  try {
+    return fn();
+  } finally {
+    ENGINE_FATIGUE_BY_EXERCISE = previous;
+  }
+};
 /** The fatigue rate for an exercise: learned from your History when there is enough, else the FATIGUE setting. */
 export const fatigueRateFor = exerciseId =>
   exerciseId && Number.isFinite(ENGINE_FATIGUE_BY_EXERCISE[exerciseId]) ? ENGINE_FATIGUE_BY_EXERCISE[exerciseId] : ENGINE_FATIGUE_PER_SET;
@@ -480,10 +491,24 @@ export const setEngineRestExponent = v => {
   ENGINE_REST_EXPONENT = Number.isFinite(n) ? Math.min(1.5, Math.max(0, n)) : DEFAULT_REST_EXPONENT;
 };
 export const getEngineRestExponent = () => ENGINE_REST_EXPONENT;
+// Planning only (fillIntensities / solveSet's fatigue allowance): a logged set's 1RM never reads its rest
 export const restFatigueFactor = (restSec, exponent = ENGINE_REST_EXPONENT) => {
   const r = Number(restSec);
   if (!(r > 0)) return 1;
   return Math.min(2.5, Math.max(0.5, Math.pow(REST_REFERENCE_SECONDS / Math.max(15, r), exponent)));
+};
+/**
+ * The rest before a set ticked now: since the previous set ticked of the same exercise (`list` = that exercise's sets),
+ * less ~3 s a rep for the set itself. null when there is no earlier ticked set or it is outside 10 s – 10 min.
+ */
+export const setRestSeconds = (st, list = [], nowMs = 0) => {
+  let lastAt = 0;
+  (list || []).forEach(x => {
+    if (x?.completed && x.id !== st?.id && Number(x.completedAt) > lastAt) lastAt = Number(x.completedAt);
+  });
+  if (!(lastAt > 0) || !(nowMs > lastAt)) return null;
+  const rest = Math.round((nowMs - lastAt) / 1000 - 3 * Math.max(1, Number(st?.reps) || 1));
+  return rest >= 10 && rest <= 600 ? rest : null;
 };
 /** A planned set's rest: the exercise's REST, else the session's rest bar, else 1:30. */
 export const plannedRestSeconds = (slot, workout) =>
@@ -523,7 +548,7 @@ export const getBodyweightShare = exerciseId => {
   let share = 1;
   if (/push ?up/.test(name)) {
     share = /handstand/.test(name) ? 0.95 : /pike/.test(name) ? 0.7 : /decline/.test(name) ? 0.74 : /incline/.test(name) ? 0.41 : /knee/.test(name) ? 0.49 : 0.64;
-  } else if (/dips?/.test(name)) {
+  } else if (/\bdips?\b/.test(name)) {
     share = /bench/.test(name) ? 0.55 : 0.95;
   } else if (/pull ?up|chin ?up|chinup|muscle ?up/.test(name)) {
     share = 1;
@@ -660,11 +685,16 @@ export const snapSlotToPlates = slot => {
 export const estimateSet1RM = (st, priorHard = 0, exerciseId = null) => {
   const w = Number(st?.weight) || 0;
   if (w <= 0) return 0;
-  // Fatigue from the working sets before it, scaled by the rest it had (restFatigueFactor; unknown rest = 1)
+  // Fatigue from the working sets before it. Rest length never changes a logged 1RM: an intensity the app worked out
+  // carries the fatigue allowance it was planned with (intensity.fatigueReps — that is where a planned rest counts),
+  // so a set done as shown gives back the 1RM it was planned from; any other set counts fatigue × earlier working sets
+  const plannedFatigue = st?.intensity?.auto ? Number(st.intensity.fatigueReps) : NaN;
   const fatigue =
     normalizeSetType(st?.type) === 'Warmup'
       ? 0
-      : Math.max(0, Number(priorHard) || 0) * fatigueRateFor(exerciseId) * restFatigueFactor(st?.restSec);
+      : Number.isFinite(plannedFatigue)
+        ? plannedFatigue
+        : Math.max(0, Number(priorHard) || 0) * fatigueRateFor(exerciseId);
   const effReps = Math.max(1, Number(st?.reps) || 1) + setReportedRir(st, exerciseId) + fatigue;
   // The exact inverse of planning (utils/intensity.js: weight = 1RM ÷ (1 + (reps + RIR − 1) ÷ k), k = this lift's
   // rep curve, 30 by default), so a set done as planned gives back the 1RM it was planned from; a single with nothing
@@ -1050,7 +1080,8 @@ export const calculateLastEquivalentWeightForSet = (
   totalSetsCount = 5,
   category = 'Compound',
   setIndex = 0,
-  scheme = ''
+  scheme = '',
+  exerciseId = null
 ) => {
   const max1RM = Math.max(5, Number(base1RM) || 135);
   const sType = normalizeSetType(setItem?.type);
@@ -1070,7 +1101,7 @@ export const calculateLastEquivalentWeightForSet = (
     return roundTo5(max1RM * pct);
   }
 
-  const repPct = 1 / (1 + Math.max(0, reps - 1) / 30);
+  const repPct = 1 / (1 + Math.max(0, reps - 1) / repCurveFor(exerciseId));
   let typeMultiplier = 0.98;
   if (sType === 'Warmup') typeMultiplier = 0.74;
   else if (sType === 'Top Out') typeMultiplier = 1.04;
@@ -1251,7 +1282,7 @@ export const generateSetsForScheme = (
           ? s.lastWeight
           : isBw
             ? bwDefault
-            : calculateLastEquivalentWeightForSet(base1RM, { ...s, type: normType }, totalCount, category, idx, scheme);
+            : calculateLastEquivalentWeightForSet(base1RM, { ...s, type: normType }, totalCount, category, idx, scheme, exerciseId);
       const setInc = isBw || scheme === 'Timer' || normType === '1 Rep Max' ? 0 : effectiveInc;
       const targetW = isBw
         ? bwDefault
@@ -1263,11 +1294,11 @@ export const generateSetsForScheme = (
         else if (normType === '1 Rep Max') traceLine(`${traceName(exerciseId)}set ${idx + 1} 1 Rep Max: 1RM ${fmt(base1RM)} → ${fmt(targetW)} lb`);
         else if (scheme !== 'Timer') {
           const reps = Math.max(1, Number(s.reps) || 8);
-          const repPct = 1 / (1 + Math.max(0, reps - 1) / 30);
+          const repPct = 1 / (1 + Math.max(0, reps - 1) / repCurveFor(exerciseId));
           const typeM = SET_TYPE_MULTIPLIER_MAP[normType] ?? 0.98;
           const fatigue = 1 / (1 + Math.max(0, totalCount - 1) * 0.035);
           traceLine(
-            `${traceName(exerciseId)}set ${idx + 1} ${normType} × ${reps}: 1RM ${fmt(base1RM)} × reps ${fmt(repPct)} [1 ÷ (1 + (${reps} − 1) ÷ 30)] × type ${fmt(typeM)} × fatigue ${fmt(fatigue)} [${totalCount} sets] = ${fmt(lastW)} lb${setInc ? ` + increment ${fmt(setInc)}` : ''} → ${fmt(targetW)} lb`
+            `${traceName(exerciseId)}set ${idx + 1} ${normType} × ${reps}: 1RM ${fmt(base1RM)} × reps ${fmt(repPct)} [1 ÷ (1 + (${reps} − 1) ÷ ${fmt(repCurveFor(exerciseId))})] × type ${fmt(typeM)} × fatigue ${fmt(fatigue)} [${totalCount} sets] = ${fmt(lastW)} lb${setInc ? ` + increment ${fmt(setInc)}` : ''} → ${fmt(targetW)} lb`
           );
         }
       }
@@ -1353,7 +1384,8 @@ export const generateSetsForScheme = (
               totalCount,
               category,
               idx,
-              'Pyramid 1RM'
+              'Pyramid 1RM',
+              exerciseId
             );
         return {
           id: `set_${ts}_${idx}_${Math.random().toString(36).slice(2, 5)}`,
@@ -1401,11 +1433,11 @@ export const GOAL_PROGRESS_SCHEMES = ['3x5', '3x8', '3x12', '5x5', '5x6', '5x8',
 const roundToStep = (val, step) => Math.round(val / step) * step;
 
 /** 1RM factor of one set within an exercise of `totalSetsCount` sets (weight = 1RM × factor). */
-export const getSetOneRepMaxFactor = (setItem, totalSetsCount = 1) => {
+export const getSetOneRepMaxFactor = (setItem, totalSetsCount = 1, exerciseId = null) => {
   const reps = Math.max(1, Number(setItem?.reps) || 1);
   const sType = normalizeSetType(setItem?.type);
   if (sType === '1 Rep Max' || (reps === 1 && totalSetsCount <= 1)) return 1;
-  const repPct = 1 / (1 + Math.max(0, reps - 1) / 30);
+  const repPct = 1 / (1 + Math.max(0, reps - 1) / repCurveFor(exerciseId));
   const typeMultiplier = SET_TYPE_MULTIPLIER_MAP[sType] || 0.98;
   const setStressFactor = 1 / (1 + Math.max(0, totalSetsCount - 1) * 0.035);
   return Math.min(1, repPct * typeMultiplier * setStressFactor);
@@ -1416,7 +1448,7 @@ export const getSetOneRepMaxFactor = (setItem, totalSetsCount = 1) => {
  * Warm-ups only count when the exercise has no other sets: they're deliberately easy, so with their 0.74 effort
  * factor a warm-up close to the working weight would otherwise imply a higher 1RM than the working sets.
  */
-export const getExerciseCalculated1RM = sets => {
+export const getExerciseCalculated1RM = (sets, exerciseId = null) => {
   const weighted = (Array.isArray(sets) ? sets : []).filter(st => st && Number(st.weight) > 0);
   if (weighted.length === 0) return 0;
   const completed = weighted.filter(st => st.completed);
@@ -1426,7 +1458,7 @@ export const getExerciseCalculated1RM = sets => {
   const total = (Array.isArray(sets) ? sets : []).length || used.length;
   // A set's reps in reserve count as reps it could have done
   return Math.max(
-    ...used.map(st => Number(st.weight) / getSetOneRepMaxFactor({ ...st, reps: Math.max(1, Number(st.reps) || 1) + setReportedRir(st) }, total))
+    ...used.map(st => Number(st.weight) / getSetOneRepMaxFactor({ ...st, reps: Math.max(1, Number(st.reps) || 1) + setReportedRir(st, exerciseId) }, total, exerciseId))
   );
 };
 
@@ -1507,7 +1539,7 @@ export const applyGoalProgressToSets = (
   const total = list.length;
   const stored1RM = getStored1RM(exerciseId, history, oneRepMaxes, excludeWorkoutId);
   const lastSets = getLastLoggedSetsForExercise(exerciseId, history, excludeWorkoutId);
-  const last1RM = getExerciseCalculated1RM(lastSets);
+  const last1RM = getExerciseCalculated1RM(lastSets, exerciseId);
   if (stored1RM <= 0 && last1RM <= 0) {
     if (isTracing()) traceLine(`No logged sets yet: the scheme's own weights stand (from the 1RM above)`);
     return list;
@@ -1526,7 +1558,7 @@ export const applyGoalProgressToSets = (
   const sameShape = lastSets.length === total;
 
   const targetFor = (st, idx) => {
-    const factor = getSetOneRepMaxFactor(st, total);
+    const factor = getSetOneRepMaxFactor(st, total, exerciseId);
     const options = [];
     const parts = [];
     if (last1RM > 0) {
@@ -1560,7 +1592,7 @@ export const applyGoalProgressToSets = (
     targets[i] = targetFor(list[i], i);
   });
   // The 1RM the first working set implies (warm-ups are converted from it)
-  const implied1RM = targets[firstWorking] / getSetOneRepMaxFactor(list[firstWorking], total);
+  const implied1RM = targets[firstWorking] / getSetOneRepMaxFactor(list[firstWorking], total, exerciseId);
 
   const locked = new Set(lockedIndexes);
   const hasStart = Number(startWeight) > 0;
@@ -1577,10 +1609,10 @@ export const applyGoalProgressToSets = (
       const ramp = Number(startWeight) + ((targets[firstWorking] - Number(startWeight)) * idx) / firstWorking;
       return withIncrement(st, Math.max(0, roundToStep(ramp, step)));
     }
-    const w = Math.max(0, roundToStep(implied1RM * getSetOneRepMaxFactor(st, total), step));
+    const w = Math.max(0, roundToStep(implied1RM * getSetOneRepMaxFactor(st, total, exerciseId), step));
     if (isTracing()) {
       traceLine(
-        `${traceName(exerciseId)}set ${idx + 1} Warm-up × ${st.reps}: 1RM implied by set ${firstWorking + 1} (${fmt(targets[firstWorking])} ÷ ${fmt(getSetOneRepMaxFactor(list[firstWorking], total))} = ${fmt(implied1RM)}) × ${fmt(getSetOneRepMaxFactor(st, total))} → ${fmt(w)} lb`
+        `${traceName(exerciseId)}set ${idx + 1} Warm-up × ${st.reps}: 1RM implied by set ${firstWorking + 1} (${fmt(targets[firstWorking])} ÷ ${fmt(getSetOneRepMaxFactor(list[firstWorking], total, exerciseId))} = ${fmt(implied1RM)}) × ${fmt(getSetOneRepMaxFactor(st, total, exerciseId))} → ${fmt(w)} lb`
       );
     }
     return withIncrement(st, w);

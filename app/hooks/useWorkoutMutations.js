@@ -37,6 +37,7 @@ import {
   getEffectiveIncrementForExercise,
   restFatigueFactor,
   plannedRestSeconds,
+  setRestSeconds,
   progressionIncrement,
   lastSessionEffortGap,
   setReportedRir,
@@ -424,7 +425,8 @@ export function useWorkoutMutations({
         if (!same && isTracing()) {
           traceLine(`${name} set ${idx + 1}: ${fmt(load)} lb × ${next.reps} against 1RM ${fmt(oneRM)} → reps to failure ${fmt(rtf)} → ${formatIntensity(derived.mode, derived.value)}${st.intensity ? ` (was ${formatIntensity(st.intensity.mode, st.intensity.value)})` : ''}`);
         }
-        return { ...next, intensity: derived };
+        // (it keeps the fatigue allowance it was worked out with: the set's 1RM reads it back, never the rest itself)
+        return { ...next, intensity: { ...derived, fatigueReps } };
       });
     };
     if (isSup) {
@@ -2259,7 +2261,8 @@ export function useWorkoutMutations({
   // The prediction log: a set keeps what the app planned for it (weight, reps, RIR) the first time you change it or
   // tick it, so History can show how often you did what was planned (utils/modelLearning.js planFollowThrough)
   const withPlan = st => {
-    if (!st || st.plan || st.completed || st.durationSeconds || !(Number(st.weight) > 0)) return st;
+    // (live sessions only: a History edit or a preview has no plan to keep)
+    if (currentView !== 'session' || !st || st.plan || st.completed || st.durationSeconds || !(Number(st.weight) > 0)) return st;
     const rir = st.intensity ? Math.round(setReportedRir(st) * 10) / 10 : null;
     return { ...st, plan: { weight: Number(st.weight), reps: Number(st.reps) || 0, rir } };
   };
@@ -2296,7 +2299,7 @@ export function useWorkoutMutations({
           const lastW =
             st.lastWeight !== undefined
               ? st.lastWeight
-              : calculateLastEquivalentWeightForSet(calc1RM, st, totalCount, slot.category, sIdx, listScheme);
+              : calculateLastEquivalentWeightForSet(calc1RM, st, totalCount, slot.category, sIdx, listScheme, exId);
 
           if (field === 'increment') {
             const rawStr = String(rawVal ?? '');
@@ -2430,7 +2433,8 @@ export function useWorkoutMutations({
                     total,
                     slot.category,
                     idx,
-                    listScheme
+                    listScheme,
+                    exId
                   ) + effInc
                 );
             const [w, r] = setTypeTarget(newType, refWeight, refReps);
@@ -2519,7 +2523,7 @@ export function useWorkoutMutations({
               ? 0
               : isBw
                 ? bwDefault
-                : calculateLastEquivalentWeightForSet(base1RM, draftSet, nextCount, slot.category, 0, listScheme);
+                : calculateLastEquivalentWeightForSet(base1RM, draftSet, nextCount, slot.category, 0, listScheme, exId);
           const newSet = {
             ...draftSet,
             lastWeight: lastW,
@@ -2583,7 +2587,7 @@ export function useWorkoutMutations({
       const effInc = isBw ? 0 : getEffectiveIncrementForExercise(exId, currentIncrementLbs);
       const weightFor = (st, idx) => {
         if (normalizeSetType(st.type) === '1 Rep Max') return roundToIncrement(roundTo5(calc1RM) + (idx === total - 1 ? effInc : 0));
-        const base = calculateLastEquivalentWeightForSet(calc1RM, { ...st, lastEditedField: 'reps' }, total, category, idx, scheme);
+        const base = calculateLastEquivalentWeightForSet(calc1RM, { ...st, lastEditedField: 'reps' }, total, category, idx, scheme, exId);
         const isRampWarmup = scheme === 'Pyramid 1RM' && normalizeSetType(st.type) === 'Warmup';
         return Math.max(0, roundToIncrement(base + (isRampWarmup ? 0 : effInc)));
       };
@@ -2922,25 +2926,19 @@ export function useWorkoutMutations({
 
   const handleToggleSetDone = (slot, exIndex, setItem) => {
     const markingDone = !setItem.completed;
-    // Live session only: when it was ticked and the rest before it (since the last set ticked in the session, less
-    // ~3 s a rep for the set itself) — the rest-length model (restFatigueFactor) reads it
+    // Live session only: when it was ticked, the rest before it and the app's plan for it. The rest is since the
+    // previous set ticked OF THE SAME EXERCISE (a superset's B set rests from B's last set, not from A's), less ~3 s a
+    // rep for the set itself (setRestSeconds). It feeds the rest-length model only; a logged 1RM never reads it.
     const live = currentView === 'session';
     const nowMs = Date.now();
-    const stampDone = (st, workout) => {
+    const stampDone = (st, list) => {
       if (!markingDone) {
         const { completedAt: _c, restSec: _r, ...rest } = st;
         return { ...rest, completed: false };
       }
-      const out = { ...withPlan(st), completed: true };
-      if (!live) return out;
-      let lastAt = 0;
-      (workout?.slots || []).forEach(sl =>
-        (isSupersetCategory(sl.category) && Array.isArray(sl.supersetSetsByExercise) ? sl.supersetSetsByExercise.flat() : sl.sets || []).forEach(x => {
-          if (x?.completed && x.id !== st.id && Number(x.completedAt) > lastAt) lastAt = Number(x.completedAt);
-        })
-      );
-      const rest = lastAt > 0 ? Math.round((nowMs - lastAt) / 1000 - 3 * Math.max(1, Number(st.reps) || 1)) : null;
-      return { ...out, completedAt: nowMs, ...(rest !== null && rest >= 10 && rest <= 600 ? { restSec: rest } : {}) };
+      if (!live) return { ...st, completed: true };
+      const rest = setRestSeconds(st, list, nowMs);
+      return { ...withPlan(st), completed: true, completedAt: nowMs, ...(rest !== null ? { restSec: rest } : {}) };
     };
     // No rest timer while editing a logged workout or looking at a preview
     if (markingDone && isRoutineEditorView && currentView !== 'history_editor' && currentView !== 'routine_preview') {
@@ -2960,7 +2958,7 @@ export function useWorkoutMutations({
         if (isSupersetCategory(s.category) && Array.isArray(s.supersetSetsByExercise)) {
           const nextMatrix = s.supersetSetsByExercise.map((list, idx) =>
             idx === exIndex
-              ? list.map(st => (st.id === setItem.id ? stampDone(st, prev) : st))
+              ? list.map(st => (st.id === setItem.id ? stampDone(st, list) : st))
               : list
           );
           return {
@@ -2972,7 +2970,7 @@ export function useWorkoutMutations({
         }
         return {
           ...s,
-          sets: (s.sets || []).map(st => (st.id === setItem.id ? stampDone(st, prev) : st))
+          sets: (s.sets || []).map(st => (st.id === setItem.id ? stampDone(st, s.sets || []) : st))
         };
       });
       // Marking a set done: what the sets done so far say re-plans the ones still to do (autoregulateSlot)

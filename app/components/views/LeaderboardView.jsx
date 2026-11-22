@@ -6,6 +6,7 @@ import { IOSListSection, IOSListRow } from '../Primitives';
 import { Button, AttachedTabStrip } from '../Controls';
 import { dotsScore } from '../../utils/dots';
 import { buildHistoryPRRanges, buildHistoryPRs, getBestHistory1RMInfo, oneRepMaxLabel, withEngineBodyweight } from '../../utils/workoutEngine';
+import { withAthleteModel } from '../../utils/modelLearning';
 import { UI } from '../../styles/kineticTokens';
 import {
   EXERCISE_MAP,
@@ -111,7 +112,8 @@ export function getBig3BwRank({ oneRepMaxes = {}, friendsList = [], userBodyweig
     seen.add(id);
     const bw = rankingBwOf(f);
     if (!(bw > 0)) return;
-    const prs = withEngineBodyweight(bw, () => buildHistoryPRs(f.history));
+    // (their own bodyweight and their own learned model: rep curves and fatigue)
+    const prs = withEngineBodyweight(bw, () => withAthleteModel(f.history, () => buildHistoryPRs(f.history)));
     const total = BIG_THREE_LIFT_IDS.reduce((n, liftId) => n + (Number(prs?.[liftId]) || 0), 0);
     if (total > 0) others.push(dotsScore(total, bw, rankingSexOf(f)));
   });
@@ -162,7 +164,10 @@ export function LeaderboardView({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const selfStats = useMemo(() => statsOf(history), [history, userBodyweightLbs]);
   const friendStats = useMemo(
-    () => new Map(distinctFriends.map(f => [f, withEngineBodyweight(rankingBwOf(f), () => statsOf(f.history))])),
+    () =>
+      new Map(
+        distinctFriends.map(f => [f, withEngineBodyweight(rankingBwOf(f), () => withAthleteModel(f.history, () => statsOf(f.history)))])
+      ),
     [distinctFriends]
   );
 

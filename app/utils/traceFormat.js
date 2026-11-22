@@ -109,7 +109,7 @@ export const formatTrace = trace => {
       const detail = head
         .replace(type || '', '')
         .replace(/^[\s·]+/, '')
-        .replace(/\s*×\s*(\d+)/, (m, n) => ` · ${n} reps`)
+        .replace(/\s*×\s*(\d+)\b/, (m, n) => ` · ${n} reps`)
         .replace(/^[\s·]+/, '')
         .trim();
       const full = detail ? `${detail}: ${text}` : text;

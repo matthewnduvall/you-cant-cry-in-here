@@ -1,12 +1,14 @@
-// What the engine learns about the lifter from History, and how well it predicts them.
+// What the engine learns about a lifter from History, and how well it predicts them.
 //
 //   learnRepCurves      each lift's rep curve k (1RM = weight × (1 + (reps + RIR − 1) ÷ k), 30 by default)
-//   learnRestEffect     how much rest length changes fatigue (restFatigueFactor's exponent)
+//   learnRestEffect     how much rest length changes fatigue (restFatigueFactor's exponent; planning only)
 //   backtestPredictions the prediction replay: walks History in order and, before each session, forecasts it from
 //                       only the sessions before it — then scores the forecasts against what happened
 //   planFollowThrough   the prediction log: how often the sets you did matched what the app planned (set.plan)
+//   withAthleteModel    runs a calculation on another athlete's own learned model (a friend's curve and fatigue)
+//   historySignature    a cheap fingerprint of History's content, so page.js only relearns when it really changed
 //
-// All of it is plain arithmetic over History, recomputed when History changes (page.js memos). Nothing is stored.
+// All of it is plain arithmetic over History. Nothing is stored.
 
 import { EXERCISE_MAP, isSupersetCategory, getSlotEquipmentChoice } from '../data/exerciseLibrary';
 import {
@@ -22,9 +24,12 @@ import {
   kalman1RM,
   ESTIMATORS,
   DEFAULT_REST_EXPONENT,
-  REST_REFERENCE_SECONDS
+  REST_REFERENCE_SECONDS,
+  learnFatigueRates,
+  getEngineFatigue,
+  withEngineFatigueByExercise
 } from './workoutEngine';
-import { DEFAULT_REP_CURVE } from './intensity';
+import { DEFAULT_REP_CURVE, withRepCurves } from './intensity';
 
 const DAY_MS = 86400000;
 
@@ -55,7 +60,8 @@ const ratedByHand = st =>
 
 /**
  * Sets that tell us about the rep curve: done working sets with an effort you rated, each as its effective reps to
- * failure (reps + RIR + the fatigue of the sets before it) at its weight. [{ exId, t, w, e }]
+ * failure (reps + RIR + the fatigue of the working sets before it; rest is never counted) at its weight, oldest first.
+ * [{ exId, t, w, e }]
  */
 const curveObservations = history => {
   const obs = [];
@@ -65,7 +71,7 @@ const curveObservations = history => {
       const done = (sets || []).filter(st => st?.completed && Number(st.weight) > 0);
       done.forEach((st, i) => {
         if (normalizeSetType(st.type) === 'Warmup' || !ratedByHand(st)) return;
-        const fatigue = fatigueRateFor(exId) * priorHardSets(done, i) * restFatigueFactor(st.restSec);
+        const fatigue = fatigueRateFor(exId) * priorHardSets(done, i);
         const e = Math.max(1, Number(st.reps) || 1) + setReportedRir(st) + fatigue;
         obs.push({ exId, t, w: Number(st.weight), e });
       });
@@ -74,50 +80,65 @@ const curveObservations = history => {
   return obs;
 };
 
-// k for one exercise from its observations: pairs within 14 days whose effective reps differ by 3+ should give the
-// same 1RM; k is the value that makes them agree best (a 1-D search), shrunk toward 30 as if there were
-// REP_CURVE_PRIOR_PAIRS more pairs at 30. Under 3 pairs: none.
-const REP_CURVE_PRIOR_PAIRS = 8;
+// ---- The rep-curve fit. Rated sets within 14 days of each other whose effective reps differ by 3+ should give the same
+// 1RM; k (searched 12–60 in 0.5 steps) is the value that makes them agree best. Observations are added oldest first and
+// each pair's cost is added to a running total per k, so the fit after any point in time costs nothing extra (the
+// replay reads it session by session). The result is shrunk toward 30 by the number of SETS involved (pairs grow with
+// the square of sets and aren't independent), as if there were REP_CURVE_PRIOR_SETS more sets on the standard curve.
+export const REP_CURVE_K_GRID = Array.from({ length: 97 }, (_, i) => 12 + i * 0.5);
+export const REP_CURVE_PRIOR_SETS = 12;
 const REP_CURVE_WINDOW_DAYS = 14;
-const fitRepCurve = list => {
-  const recent = list.slice(-200);
-  const pairs = [];
-  for (let i = 0; i < recent.length; i++) {
-    for (let j = i + 1; j < recent.length; j++) {
-      const a = recent[i];
-      const b = recent[j];
-      if (Math.abs(b.t - a.t) > REP_CURVE_WINDOW_DAYS * DAY_MS) continue;
-      if (Math.abs(a.e - b.e) < 3) continue;
-      pairs.push([a, b]);
+const MIN_PAIRS = 3;
+
+export const createRepCurveFitter = () => {
+  const costs = new Float64Array(REP_CURVE_K_GRID.length);
+  const window = [];
+  const used = new Set();
+  let pairs = 0;
+  let count = 0;
+  return {
+    add(o) {
+      // log of the set's 1RM at every k, once per set
+      const logs = REP_CURVE_K_GRID.map(k => Math.log(o.w * (1 + (o.e - 1) / k)));
+      const me = { ...o, idx: count++, logs };
+      while (window.length > 0 && me.t - window[0].t > REP_CURVE_WINDOW_DAYS * DAY_MS) window.shift();
+      window.forEach(p => {
+        if (Math.abs(p.e - me.e) < 3) return;
+        for (let j = 0; j < costs.length; j++) {
+          const d = me.logs[j] - p.logs[j];
+          costs[j] += d * d;
+        }
+        pairs += 1;
+        used.add(p.idx);
+        used.add(me.idx);
+      });
+      window.push(me);
+    },
+    result() {
+      if (pairs < MIN_PAIRS) return null;
+      let bestJ = 0;
+      for (let j = 1; j < costs.length; j++) if (costs[j] < costs[bestJ]) bestJ = j;
+      const fitted = REP_CURVE_K_GRID[bestJ];
+      const sets = used.size;
+      const k = (sets * fitted + REP_CURVE_PRIOR_SETS * DEFAULT_REP_CURVE) / (sets + REP_CURVE_PRIOR_SETS);
+      return { k: Math.round(k * 10) / 10, fitted, pairs, sets };
     }
-  }
-  if (pairs.length < 3) return null;
-  const cost = k =>
-    pairs.reduce((sum, [a, b]) => {
-      const d = Math.log(a.w * (1 + (a.e - 1) / k)) - Math.log(b.w * (1 + (b.e - 1) / k));
-      return sum + d * d;
-    }, 0);
-  let best = DEFAULT_REP_CURVE;
-  let bestCost = Infinity;
-  for (let k = 12; k <= 60; k += 0.5) {
-    const c = cost(k);
-    if (c < bestCost) {
-      bestCost = c;
-      best = k;
-    }
-  }
-  const n = pairs.length;
-  const k = (n * best + REP_CURVE_PRIOR_PAIRS * DEFAULT_REP_CURVE) / (n + REP_CURVE_PRIOR_PAIRS);
-  return { k: Math.round(k * 10) / 10, fitted: best, pairs: n };
+  };
 };
 
-/** Each lift's rep curve from History: { [exerciseId]: { k, fitted, pairs } } (only lifts with enough data). */
-export const learnRepCurves = (history = []) => {
+const observationsByExercise = history => {
   const byEx = {};
   curveObservations(history).forEach(o => (byEx[o.exId] = byEx[o.exId] || []).push(o));
+  return byEx;
+};
+
+/** Each lift's rep curve from History: { [exerciseId]: { k, fitted, pairs, sets } } (only lifts with enough data). */
+export const learnRepCurves = (history = []) => {
   const out = {};
-  Object.entries(byEx).forEach(([exId, list]) => {
-    const fit = fitRepCurve(list);
+  Object.entries(observationsByExercise(history)).forEach(([exId, list]) => {
+    const fitter = createRepCurveFitter();
+    list.forEach(o => fitter.add(o));
+    const fit = fitter.result();
     if (fit) out[exId] = fit;
   });
   return out;
@@ -130,7 +151,7 @@ export const repsAtShare = (share, k = DEFAULT_REP_CURVE) => 1 + k * (1 / share 
  * How much rest length changes fatigue, from back-to-back done working sets at the same weight and reps, both rated
  * by hand, with the rest between them known: the drop in RIR should be fatigue × (90 s ÷ rest) ^ exponent. The
  * exponent that fits best (0–1.5), shrunk toward 0.5 as if there were 6 more pairs at it. Needs 4+ pairs whose rests
- * differ (longest ≥ 1.5 × shortest). { exponent, pairs } or null.
+ * differ (longest ≥ 1.5 × shortest). { exponent, pairs } or null. Used for planning only.
  */
 export const learnRestEffect = (history = []) => {
   const pairs = [];
@@ -167,90 +188,100 @@ export const learnRestEffect = (history = []) => {
 
 const summarize = errors => {
   const n = errors.length;
-  if (n === 0) return { n: 0, mae: null, bias: null, within: null };
+  if (n === 0) return { n: 0, mae: null, bias: null };
   const mae = errors.reduce((s, e) => s + Math.abs(e), 0) / n;
   const bias = errors.reduce((s, e) => s + e, 0) / n;
   return { n, mae, bias };
 };
 
 /**
- * The prediction replay. For every logged session of every exercise after its first, forecast its 1RM from only the
- * sessions before it, by each estimator (last / smooth / kalman), and compare with the 1RM the session really showed:
- * error = (actual − forecast) ÷ forecast. And for every set you rated by hand, predict the reps you had to failure at
- * its weight from that forecast (standard curve k = 30 vs your learned k, learned only from earlier sets), and compare
- * with reps + RIR. Returns:
- *   { forecasts: { last | smooth | kalman: { n, mae, bias } }  (shares of the 1RM)
- *     best: the estimator with the lowest error, once there are MIN_FORECASTS forecasts (else null)
- *     reps: { standard: { n, mae, bias }, personal: { n, mae, bias } }  (reps)
- *     byLift: { [exerciseId]: { name, n, mae (best estimator), k } } }
+ * The prediction replay. Nothing it scores may see the future, so it runs on the standard curve and the FATIGUE
+ * setting (not the model learned from all of History):
+ *   1RM forecasts — every logged session of every exercise after its first is forecast from only the sessions before
+ *   it, by each estimator (last / smooth / kalman); error = (actual − forecast) ÷ forecast.
+ *   Reps — for every set you rated, the reps you had to failure (reps + RIR) are predicted from the smoothed forecast
+ *   twice: on the standard curve (sessions and prediction at k = 30) and on your curve as learned ONLY from the rated
+ *   sets before that session (sessions and prediction at that k).
+ * Returns { forecasts: { last | smooth | kalman: { n, mae, bias } }, best (once there are MIN_FORECASTS, else null),
+ *   reps: { standard, personal: { n, mae, bias } }, byLift: { [exerciseId]: { name, n, mae: {…}, k } } }.
  */
 export const MIN_FORECASTS = 20;
-export const backtestPredictions = (history = [], repCurves = {}) => {
-  const errs = Object.fromEntries(ESTIMATORS.map(m => [m, []]));
-  const repErr = { standard: [], personal: [] };
-  const byLift = {};
-  const ids = new Set();
-  chronological(history).forEach(w => exercisesOf(w).forEach(({ exId }) => ids.add(exId)));
-  // Rated sets per exercise in time order, for the leave-the-future-out rep curve
-  const obsByEx = {};
-  curveObservations(history).forEach(o => (obsByEx[o.exId] = obsByEx[o.exId] || []).push(o));
+export const backtestPredictions = (history = [], repCurves = {}) =>
+  withRepCurves({}, () =>
+    withEngineFatigueByExercise({}, () => {
+      const errs = Object.fromEntries(ESTIMATORS.map(m => [m, []]));
+      const repErr = { standard: [], personal: [] };
+      const byLift = {};
+      const ids = new Set();
+      chronological(history).forEach(w => exercisesOf(w).forEach(({ exId }) => ids.add(exId)));
+      const obsByEx = observationsByExercise(history);
 
-  ids.forEach(exId => {
-    const sessions = exerciseSession1RMs(exId, history)
-      .filter(s => !s.deload)
-      .reverse(); // oldest first
-    if (sessions.length < 2) return;
-    const liftErr = Object.fromEntries(ESTIMATORS.map(m => [m, []]));
-    for (let i = 1; i < sessions.length; i++) {
-      const before = sessions.slice(0, i);
-      const target = sessions[i];
-      const newestFirst = [...before].reverse();
-      ESTIMATORS.forEach(m => {
-        const f = m === 'kalman' ? kalman1RM(before).value : estimateFromSessions(newestFirst, m);
-        if (f > 0) {
-          const e = (target.value - f) / f;
-          errs[m].push(e);
-          liftErr[m].push(e);
+      ids.forEach(exId => {
+        const sessions = exerciseSession1RMs(exId, history)
+          .filter(s => !s.deload)
+          .reverse(); // oldest first, on the standard curve
+        if (sessions.length < 2) return;
+        const liftErr = Object.fromEntries(ESTIMATORS.map(m => [m, []]));
+        const obs = obsByEx[exId] || [];
+        const fitter = createRepCurveFitter();
+        let fed = 0;
+        for (let i = 1; i < sessions.length; i++) {
+          const before = sessions.slice(0, i);
+          const target = sessions[i];
+          const newestFirst = [...before].reverse();
+          ESTIMATORS.forEach(m => {
+            const f = m === 'kalman' ? kalman1RM(before).value : estimateFromSessions(newestFirst, m);
+            if (f > 0) {
+              const e = (target.value - f) / f;
+              errs[m].push(e);
+              liftErr[m].push(e);
+            }
+          });
+          // Rated sets before this session teach the curve; this session's are predicted
+          while (fed < obs.length && obs[fed].t < target.timeMs) fitter.add(obs[fed++]);
+          const rated = obs.filter(o => o.t === target.timeMs);
+          if (rated.length === 0) continue;
+          const stdForecast = estimateFromSessions(newestFirst, 'smooth');
+          const kMine = fitter.result()?.k ?? DEFAULT_REP_CURVE;
+          const mineForecast =
+            kMine === DEFAULT_REP_CURVE
+              ? stdForecast
+              : withRepCurves({ [exId]: kMine }, () =>
+                  estimateFromSessions(
+                    exerciseSession1RMs(exId, history).filter(s => !s.deload && s.timeMs < target.timeMs),
+                    'smooth'
+                  )
+                );
+          rated.forEach(o => {
+            if (stdForecast > 0) repErr.standard.push(o.e - repsAtShare(Math.min(1.5, o.w / stdForecast), DEFAULT_REP_CURVE));
+            if (mineForecast > 0) repErr.personal.push(o.e - repsAtShare(Math.min(1.5, o.w / mineForecast), kMine));
+          });
+        }
+        const n = liftErr.smooth.length;
+        if (n > 0) {
+          byLift[exId] = {
+            name: EXERCISE_MAP[exId]?.name || exId,
+            n,
+            mae: Object.fromEntries(ESTIMATORS.map(m => [m, summarize(liftErr[m]).mae])),
+            k: repCurves?.[exId]?.k ?? null
+          };
         }
       });
-      // Reps: each set you rated in this session, predicted from the smoothed forecast
-      const forecast = estimateFromSessions(newestFirst, 'smooth');
-      if (!(forecast > 0)) continue;
-      const rated = (obsByEx[exId] || []).filter(o => o.t === target.timeMs);
-      if (rated.length === 0) continue;
-      // (the last 60 rated sets before it, so the replay stays quick)
-      const fit = fitRepCurve((obsByEx[exId] || []).filter(o => o.t < target.timeMs).slice(-60));
-      const kMine = fit ? fit.k : DEFAULT_REP_CURVE;
-      rated.forEach(o => {
-          const share = Math.min(1.5, o.w / forecast);
-          repErr.standard.push(o.e - repsAtShare(share, DEFAULT_REP_CURVE));
-          repErr.personal.push(o.e - repsAtShare(share, kMine));
-      });
-    }
-    const n = liftErr.smooth.length;
-    if (n > 0) {
-      byLift[exId] = {
-        name: EXERCISE_MAP[exId]?.name || exId,
-        n,
-        mae: Object.fromEntries(ESTIMATORS.map(m => [m, summarize(liftErr[m]).mae])),
-        k: repCurves?.[exId]?.k ?? null
+      const forecasts = Object.fromEntries(ESTIMATORS.map(m => [m, summarize(errs[m])]));
+      const ranked = ESTIMATORS.filter(m => forecasts[m].n > 0).sort((a, b) => forecasts[a].mae - forecasts[b].mae);
+      const best = forecasts.smooth.n >= MIN_FORECASTS ? ranked[0] || null : null;
+      return {
+        forecasts,
+        best,
+        reps: { standard: summarize(repErr.standard), personal: summarize(repErr.personal) },
+        byLift
       };
-    }
-  });
-  const forecasts = Object.fromEntries(ESTIMATORS.map(m => [m, summarize(errs[m])]));
-  const ranked = ESTIMATORS.filter(m => forecasts[m].n > 0).sort((a, b) => forecasts[a].mae - forecasts[b].mae);
-  const best = forecasts.smooth.n >= MIN_FORECASTS ? ranked[0] || null : null;
-  return {
-    forecasts,
-    best,
-    reps: { standard: summarize(repErr.standard), personal: summarize(repErr.personal) },
-    byLift
-  };
-};
+    })
+  );
 
 /**
- * The prediction log: done working sets that carry the app's plan (set.plan, kept when a set is first changed or
- * ticked) against what was done. { n, asPlanned, moreReps, fewerReps, heavier, lighter } (counts).
+ * The prediction log: done working sets that carry the app's plan (set.plan, kept in a live session when a set is
+ * first changed or ticked) against what was done. { n, asPlanned, moreReps, fewerReps, heavier, lighter } (counts).
  */
 export const planFollowThrough = (history = []) => {
   const out = { n: 0, asPlanned: 0, moreReps: 0, fewerReps: 0, heavier: 0, lighter: 0 };
@@ -271,6 +302,70 @@ export const planFollowThrough = (history = []) => {
     )
   );
   return out;
+};
+
+/**
+ * Another athlete's own model, learned from their History (cached per History array): their fatigue rates (on your
+ * FATIGUE setting as the starting point) and their rep curves. { fatigue, curves }
+ */
+const athleteModels = new WeakMap();
+export const athleteModelOf = history => {
+  if (!Array.isArray(history)) return { fatigue: {}, curves: {} };
+  let model = athleteModels.get(history);
+  if (!model) {
+    const fatigue = learnFatigueRates(history, getEngineFatigue());
+    const curves = withEngineFatigueByExercise(fatigue, () => learnRepCurves(history));
+    model = { fatigue, curves };
+    athleteModels.set(history, model);
+  }
+  return model;
+};
+/** Runs fn on another athlete's own learned model (their curves and fatigue), then puts yours back. */
+export const withAthleteModel = (history, fn) => {
+  const { fatigue, curves } = athleteModelOf(history);
+  return withEngineFatigueByExercise(fatigue, () => withRepCurves(curves, fn));
+};
+
+/**
+ * A fingerprint of History's content (every workout's id and time, and each set's weight, reps, done state, type,
+ * intensity and rest), so learning reruns only when it really changed — not when a cloud pull rebuilds the same
+ * History as new objects.
+ */
+export const historySignature = (history = []) => {
+  let h = 2166136261;
+  const mix = v => {
+    const s = String(v ?? '');
+    for (let i = 0; i < s.length; i++) {
+      h ^= s.charCodeAt(i);
+      h = Math.imul(h, 16777619);
+    }
+    h ^= 124; // separator
+    h = Math.imul(h, 16777619);
+  };
+  (history || []).forEach(w => {
+    mix(w?.id);
+    mix(workoutTimeMs(w));
+    mix(w?.loadedRoutineTitle);
+    (w?.slots || []).forEach(slot => {
+      mix(slot?.exerciseId);
+      mix(JSON.stringify(slot?.supersetEquipmentFilters || slot?.equipmentFilter || ''));
+      mix((slot?.supersetExerciseIds || []).join(','));
+      mix(slot?.deload ? 1 : slot?.deloadSkipped ? 2 : 0);
+      const lists = Array.isArray(slot?.supersetSetsByExercise) ? slot.supersetSetsByExercise : [slot?.sets || []];
+      lists.forEach(list =>
+        (list || []).forEach(st => {
+          mix(st?.weight);
+          mix(st?.reps);
+          mix(st?.completed ? 1 : 0);
+          mix(st?.type);
+          mix(st?.intensity ? `${st.intensity.mode}${st.intensity.value}${st.intensity.auto ? 'a' : ''}` : '');
+          mix(st?.restSec);
+          mix(st?.plan ? `${st.plan.weight}x${st.plan.reps}` : '');
+        })
+      );
+    });
+  });
+  return `${(history || []).length}:${h >>> 0}`;
 };
 
 export { REST_REFERENCE_SECONDS };

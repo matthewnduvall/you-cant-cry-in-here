@@ -16,6 +16,17 @@ let REP_CURVES = {};
 export const setRepCurves = map => {
   REP_CURVES = map && typeof map === 'object' ? map : {};
 };
+export const getRepCurves = () => REP_CURVES;
+/** Runs fn with other rep curves (a friend's, or none = the standard 30 for the replay), then puts yours back. */
+export const withRepCurves = (map, fn) => {
+  const previous = REP_CURVES;
+  REP_CURVES = map && typeof map === 'object' ? map : {};
+  try {
+    return fn();
+  } finally {
+    REP_CURVES = previous;
+  }
+};
 /** The rep curve constant k for an exercise (learned, else 30). */
 export const repCurveFor = exerciseId => {
   const k = exerciseId ? Number(REP_CURVES[exerciseId]?.k ?? REP_CURVES[exerciseId]) : NaN;
@@ -188,7 +199,11 @@ export const solveSet = (st, oneRM, { step = 2.5, keepIntensity = false, fatigue
   const k = repCurveFor(exerciseId);
   if (f > 0 && st && st.intensity?.mode !== 'pct') {
     const fresh = solveSet({ ...st, reps: (Number(st.reps) || 1) + f }, oneRM, { step, keepIntensity, exerciseId });
-    return fresh === st || !fresh ? st : { ...fresh, reps: fresh.reps === (Number(st.reps) || 1) + f ? st.reps : Math.max(1, Math.round(fresh.reps - f)), intensity: fresh.intensity };
+    if (fresh === st || !fresh) return st;
+    // A worked-out intensity keeps the fatigue allowance it was worked out with (fatigueReps), so the set's 1RM
+    // (estimateSet1RM) is the exact inverse of this plan whatever rest it assumed
+    const intensity = fresh.intensity?.auto ? { ...fresh.intensity, fatigueReps: f } : fresh.intensity;
+    return { ...fresh, reps: fresh.reps === (Number(st.reps) || 1) + f ? st.reps : Math.max(1, Math.round(fresh.reps - f)), intensity };
   }
   if (!st || st.completed || !(Number(oneRM) > 0)) return st;
   const hasIntensity = st.intensity && st.intensity.value !== null && st.intensity.value !== undefined && st.intensity.value !== '';
