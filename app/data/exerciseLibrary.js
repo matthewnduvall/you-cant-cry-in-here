@@ -315,6 +315,9 @@ const SPECIFIC_MUSCLE_GROUP = {
   Splenius: 'Neck',
   Sternocleidomastoid: 'Neck'
 };
+// Exercises whose grip is a limit (deadlifts and RDLs, pull-ups / chin-ups, rows, shrugs, carries, hangs, swings,
+// cleans and snatches, pulldowns and pull-throughs held in the hands): they count toward Forearms on the stimulus map
+const GRIP_DEMANDING = /deadlift|\brdl\b|romanian|\bpull-?ups?\b|\bchin-?ups?\b|\brows?\b|shrug|farmer|\bcarry\b|\bhang(ing)?\b|\bswing|\bclean\b|snatch|pull-?down|high pull|muscle-?up|rack pull|towel/i;
 /** The specific muscles in each body part ({ Back: ['Latissimus Dorsi', …] }), for the Stimulus page. */
 export const SPECIFIC_MUSCLES_BY_GROUP = Object.entries(SPECIFIC_MUSCLE_GROUP).reduce((acc, [muscle, group]) => {
   (acc[group] = acc[group] || []).push(muscle);
@@ -385,6 +388,8 @@ export const parseExercisesCsv = rawCsv => {
       .map(s => s.trim())
       .filter(Boolean);
 
+    // Grip: exercises that hold a heavy load in the hands also train the forearms (half credit on the stimulus map)
+    const gripGroups = GRIP_DEMANDING.test(name) && !/machine|smith|belt|band-assisted/i.test(`${name} ${equipment}`) ? ['Forearms'] : [];
     const entry = {
       id,
       name,
@@ -400,13 +405,15 @@ export const parseExercisesCsv = rawCsv => {
         ...new Set([
           muscleGroup,
           ...(SECONDARY_MUSCLE_GROUPS[id] || []),
-          ...specificMuscles.map(m => SPECIFIC_MUSCLE_GROUP[m]).filter(Boolean)
+          ...specificMuscles.map(m => SPECIFIC_MUSCLE_GROUP[m]).filter(Boolean),
+          ...gripGroups
         ])
       ],
       stimulusSecondaryGroups: [
         ...new Set([
           ...(SECONDARY_MUSCLE_GROUPS[id] || []),
-          ...specificMuscles.map(m => SPECIFIC_MUSCLE_GROUP[m]).filter(Boolean)
+          ...specificMuscles.map(m => SPECIFIC_MUSCLE_GROUP[m]).filter(Boolean),
+          ...gripGroups
         ])
       ].filter(g => g !== muscleGroup),
       // Other names it goes by (search + .csv import)
