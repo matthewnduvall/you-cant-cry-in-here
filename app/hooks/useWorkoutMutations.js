@@ -266,12 +266,12 @@ export function useWorkoutMutations({
       const override = Number(override1RMs?.[half]) || 0;
       const true1RM = override > 0 ? override : effort1RM(exId, option, workout);
       if (!(true1RM > 0)) return sets;
-      // Stall (no new 1RM in the last 3 sessions, detectStall): this session is a deload — planned 10 % lighter at the
-      // same reps (the intensity, judged against the real 1RM, reads easier); logging it restarts the count
-      const stall = override > 0 ? { stalled: false } : detectStall(exId, history, workout?.id || null);
+      // Stall (no new 1RM in the last 30 days, detectStall): this session is a deload — planned 10 % lighter at the
+      // same reps (the intensity, judged against the real 1RM, reads easier); logging it, or SKIP, restarts the count
+      const stall = override > 0 || slot.deloadSkipped ? { stalled: false } : detectStall(exId, history, workout?.id || null);
       if (stall.stalled) {
         deloadHalves.add(half);
-        if (isTracing()) traceLine(`${EXERCISE_MAP[exId]?.name || exId}: no new 1RM in ${stall.sessions} sessions (best ${fmt(stall.peak)} lb) → deload: planned from ${Math.round(DELOAD_SHARE * 100)}% of ${fmt(true1RM)} lb`);
+        if (isTracing()) traceLine(`${EXERCISE_MAP[exId]?.name || exId}: no new 1RM in ${stall.days} days (best before them ${fmt(stall.peak)} lb) → deload: planned from ${Math.round(DELOAD_SHARE * 100)}% of ${fmt(true1RM)} lb`);
       }
       const oneRM = stall.stalled ? true1RM * DELOAD_SHARE : true1RM;
       const bw = countsBodyweight(exId) ? getExerciseBodyweightLoad(exId) : 0;
@@ -281,7 +281,7 @@ export function useWorkoutMutations({
       const step = effInc > 0 ? Math.min(2.5, effInc) : 2.5;
       const types = sets.map(st => normalizeSetType(st?.type));
       const name = EXERCISE_MAP[exId]?.name || exId;
-      // Warm-ups ramp up to the first working set (warmupRamp: 50 → 80 % of its weight, fewer reps as it climbs)
+      // Warm-ups ramp up to the first working set (warmupRamp: 50 → 80 % of its weight, at its reps)
       const firstWorkIdx = types.findIndex(t => t !== 'Warmup');
       const firstWork = firstWorkIdx >= 0 ? sets[firstWorkIdx] : null;
       const workReps = Math.max(1, Number(firstWork?.reps) || 8);
@@ -2141,13 +2141,15 @@ export function useWorkoutMutations({
           }
 
           const val = Math.max(0, Number(rawVal) || 0);
+          // A weight or reps typed by hand is what you'll lift: a locked (target) intensity gives way and follows it,
+          // the same as when nothing is locked (the latest edit wins)
           if (field === 'weight') {
             const nextInc = Math.round((val - lastW) * 100) / 100;
-            return { ...st, weight: val, increment: nextInc, lastEditedField: 'weight' };
+            return { ...st, weight: val, increment: nextInc, lastEditedField: 'weight', lockIntensity: false };
           }
 
           if (field === 'reps') {
-            return { ...st, reps: Math.max(1, val), lastEditedField: 'reps' };
+            return { ...st, reps: Math.max(1, val), lastEditedField: 'reps', lockIntensity: false };
           }
 
           return { ...st, [field]: val };
@@ -2591,6 +2593,26 @@ export function useWorkoutMutations({
     );
   };
 
+  // SKIP on an exercise's DELOAD note: plan it at full strength today (slot.deloadSkipped, kept when logged, so the
+  // 30 days start again as they would after a deload)
+  const handleSkipDeload = slotId => {
+    updateCurrentWorkoutState(prev => {
+      if (!prev) return prev;
+      return withTrace(
+        'SKIP DELOAD',
+        () => ({
+          ...prev,
+          slots: prev.slots.map(slot => {
+            if (slot.id !== slotId) return slot;
+            const next = { ...slot, deload: false, deloadSkipped: true };
+            return isProgrammedSlot(next, programContextFor(prev)) ? programSlot(next, prev) : recalculateSlot(next, prev.id);
+          })
+        }),
+        `skipdeload:${slotId}`
+      );
+    });
+  };
+
   const handleRecalculateSlotWeights = slotId => {
     updateCurrentWorkoutState(prev => {
       if (!prev) return prev;
@@ -2670,7 +2692,18 @@ export function useWorkoutMutations({
   const handleToggleSetLock = (slotId, exIdx, setId, field) => {
     const key = { weight: 'lockWeight', reps: 'lockReps', type: 'lockType', intensity: 'lockIntensity' }[field] || null;
     if (!key) return;
-    const toggle = list => (list || []).map(st => (st.id === setId ? { ...st, [key]: !st[key] } : st));
+    // Weight, reps and intensity: any two decide the third, so at most two stay locked. Locking weight + reps
+    // releases a locked intensity (it then follows them); locking an intensity on top of both releases the reps.
+    const toggle = list =>
+      (list || []).map(st => {
+        if (st.id !== setId) return st;
+        const next = { ...st, [key]: !st[key] };
+        if (next.lockWeight && next.lockReps && next.lockIntensity) {
+          if (key === 'lockIntensity') next.lockReps = false;
+          else next.lockIntensity = false;
+        }
+        return next;
+      });
     updateCurrentWorkoutState(prev => {
       if (!prev) return prev;
       return {
@@ -2679,10 +2712,10 @@ export function useWorkoutMutations({
           if (slot.id !== slotId) return slot;
           if (isSupersetCategory(slot.category) && Array.isArray(slot.supersetSetsByExercise)) {
             const matrix = slot.supersetSetsByExercise.map((list, i) => (i === exIdx ? toggle(list) : list));
-            return { ...slot, supersetSetsByExercise: matrix, sets: matrix[0] || [], secondarySets: matrix[1] || [] };
+            return fillIntensities({ ...slot, supersetSetsByExercise: matrix, sets: matrix[0] || [], secondarySets: matrix[1] || [] }, prev);
           }
           const sets = toggle(slot.sets);
-          return { ...slot, sets, supersetSetsByExercise: [sets] };
+          return fillIntensities({ ...slot, sets, supersetSetsByExercise: [sets] }, prev);
         })
       };
     });
@@ -2767,6 +2800,7 @@ export function useWorkoutMutations({
     handleUpdateSetType,
     handleInsertSetAtPosition,
     handleRecalculateSlotWeights,
+    handleSkipDeload,
     handleChangeProgramWeek,
     refreshAutoProgramWeek,
     handleChangeSessionProgram,

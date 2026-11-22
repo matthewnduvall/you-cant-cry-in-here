@@ -17,7 +17,8 @@ export const SET_TYPE_RIR = { Warmup: 3, Working: 2, 'Top Out': 1, 'Burn Out': 3
 // Burn Out RIR 3, a 1 Rep Max RIR 0. With the default preferences (2 warm-ups, 3 working) a 5-set exercise is
 // 3, 3, 2, 1, 1. `types` = the exercise's normalized set types in order.
 // Since the fatigue model (2026/11) this is the FRESH effort by type — every working set is planned at the same weight;
-// the RIR shown then falls by the fatigue allowance per earlier working set (2, 1.5, 1 at 0.5 per set).
+// the RIR shown then falls by the fatigue allowance per earlier working set (2, 1.5, 1 at 0.5 per set; shown rounded up
+// to whole reps: 2, 2, 1).
 export const plannedRirForSet = (types, idx) => SET_TYPE_RIR[types[idx]] ?? SET_TYPE_RIR.Working;
 // The uniform rep schemes whose sets come from Exercise Set Preferences: these are planned by effort
 export const EFFORT_PLANNED_SCHEMES = ['3x5', '3x8', '3x12', '5x5', '5x6', '5x8', '5x8w', '5x10', '8x8', 'Cluster'];
@@ -120,9 +121,10 @@ export const deriveIntensity = (oneRM, weight, reps, mode = DEFAULT_INTENSITY_MO
   }
   // Below 0 when the set asks more reps than the load allows
   const rir = rtf - n;
-  // Half steps: the fatigue allowance (0.5 a set by default) moves RIR by halves
-  if (mode === 'rir') return { mode, value: Math.round(rir * 2) / 2, auto: true };
-  return { mode, value: Math.max(1, Math.round((10 - rir) * 2) / 2), auto: true };
+  // Whole reps, rounded up (fractional RIR is hard to read; up = the cautious side: 1.5 reads RIR 2)
+  const wholeRir = Math.ceil(rir - 1e-6);
+  if (mode === 'rir') return { mode, value: wholeRir, auto: true };
+  return { mode, value: Math.max(1, 10 - wholeRir), auto: true };
 };
 
 /** The weight for `reps` at an intensity (null when unknown). */

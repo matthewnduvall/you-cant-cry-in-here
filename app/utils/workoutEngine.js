@@ -389,13 +389,14 @@ export const setReportedRir = st => {
 // ---------------------------------------------------------------------------
 /**
  * Warm-ups ramp up to the first working weight, well short of failure: n warm-ups from 50 % to 80 % of that weight,
- * with fewer reps as the weight climbs (the working reps on the first, half of them by the last; at least 2).
- * 1 warm-up = 65 % × ¾ of the reps; 2 = 50 % × reps, 80 % × ½; 3 = 50 %, 65 %, 80 %. Every program uses it.
+ * at the working sets' reps. 1 warm-up = 65 %; 2 = 50 %, 80 %; 3 = 50 %, 65 %, 80 %. Every program uses it (day
+ * programs written with their own warm-up reps, like 5/3/1, keep theirs).
  */
 export const warmupRamp = (n, workReps = 8) =>
   Array.from({ length: Math.max(0, n) }, (_, i) => {
     const t = n <= 1 ? 0.5 : i / (n - 1);
-    return { share: 0.5 + 0.3 * t, reps: Math.max(2, Math.round(Math.max(1, Number(workReps) || 8) * (1 - 0.5 * t))) };
+    // Warm-ups keep the working sets' reps (a 5 × 6 reads 6, 6, 6, 6, 6); only the weight ramps
+    return { share: 0.5 + 0.3 * t, reps: Math.max(1, Math.round(Number(workReps) || 8)) };
   });
 
 // Fatigue (Configuration → PROGRAM → FATIGUE, settings.fatiguePerSet, set every render in page.js): the reps of
@@ -911,20 +912,25 @@ export const getLastSession1RM = (exerciseId, history = [], excludeWorkoutId = n
 };
 
 /**
- * Stall: no new 1RM for the exercise in its last STALL_SESSIONS sessions (each at or below the best before them), none
- * of them a deload. { stalled, sessions, peak }. The planner then makes the next session a deload (10 % lighter, at
- * the same reps: easier RIR), which resets the count.
+ * Stall: no new 1RM for the exercise in the last STALL_WINDOW_DAYS days (it was logged in that window and never above
+ * its best from before it), and no deload, done or skipped, in that window. 30 days, not a number of sessions, so a
+ * program that only tests a new 1RM every 4 weeks (Society) isn't read as stalled between tests. { stalled, days,
+ * peak }. The planner then makes the next session a deload (10 % lighter, at the same reps: easier RIR); the athlete
+ * can SKIP it, and either one restarts the 30 days.
  */
-export const STALL_SESSIONS = 3;
+export const STALL_WINDOW_DAYS = 30;
 export const DELOAD_SHARE = 0.9;
-export const detectStall = (exerciseId, history = [], excludeWorkoutId = null) => {
+export const detectStall = (exerciseId, history = [], excludeWorkoutId = null, nowMs = Date.now()) => {
+  const none = { stalled: false, days: 0, peak: 0 };
   const recent = recentSession1RMs(exerciseId, history, excludeWorkoutId);
-  if (recent.length < STALL_SESSIONS + 1) return { stalled: false, sessions: 0, peak: 0 };
-  const last = recent.slice(0, STALL_SESSIONS);
-  if (last.some(s => s.deload)) return { stalled: false, sessions: 0, peak: 0 };
-  const peak = Math.max(...recent.slice(STALL_SESSIONS).map(s => s.value));
-  const stalled = last.every(s => s.value <= peak);
-  return { stalled, sessions: stalled ? STALL_SESSIONS : 0, peak };
+  const windowStart = nowMs - STALL_WINDOW_DAYS * 86400000;
+  const inWindow = recent.filter(s => s.timeMs >= windowStart);
+  const before = recent.filter(s => s.timeMs < windowStart);
+  if (inWindow.length === 0 || before.length === 0) return none;
+  if (inWindow.some(s => s.deload || s.deloadSkipped)) return none;
+  const peak = Math.max(...before.map(s => s.value));
+  const stalled = inWindow.every(s => s.value <= peak);
+  return { stalled, days: stalled ? STALL_WINDOW_DAYS : 0, peak };
 };
 
 export const getHistoricalCalculated1RM = (exerciseId, history = [], oneRepMaxes = {}, excludeWorkoutId = null) => {
@@ -1274,7 +1280,11 @@ const getLoggedSessionsForExercise = (exerciseId, history = [], excludeWorkoutId
       const deload = (w.slots || []).some(
         slot => slot?.deload && (slot.exerciseId === exerciseId || (slot.supersetExerciseIds || []).includes(exerciseId))
       );
-      return { workoutId: w.id, timeMs: workoutTimeMs(w), isPersonalRecord: w.loadedRoutineTitle === 'PERSONAL RECORD', deload, sets };
+      // deloadSkipped: the athlete skipped that deload (SKIP on the card); it restarts the count too
+      const deloadSkipped = (w.slots || []).some(
+        slot => slot?.deloadSkipped && (slot.exerciseId === exerciseId || (slot.supersetExerciseIds || []).includes(exerciseId))
+      );
+      return { workoutId: w.id, timeMs: workoutTimeMs(w), isPersonalRecord: w.loadedRoutineTitle === 'PERSONAL RECORD', deload, deloadSkipped, sets };
     })
     .filter(s => s.sets.some(st => st && Number(st.weight) > 0));
 
