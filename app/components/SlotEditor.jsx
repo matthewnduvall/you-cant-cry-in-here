@@ -342,7 +342,8 @@ export function SlotEditor({
       const target = list[i];
       if (!target) continue;
       if (kind === 'lock') {
-        if (Boolean(target[lockKey]) !== payload.target) onToggleSetLock?.({ exIdx, set: target, field });
+        const current = lockKey === 'lockType' || lockKey === 'lockReps' ? target[lockKey] ?? true : Boolean(target[lockKey]);
+        if (current !== payload.target) onToggleSetLock?.({ exIdx, set: target, field });
       } else if (i !== from && !target.completed && !target[lockKey]) {
         onFillSetValue?.({ exIdx, set: target, field, value: payload.value });
       }
@@ -998,7 +999,8 @@ export function SlotEditor({
   // just the value.
   const withSetLock = (exIdx, st, field, cellBg, valueEl, setIdx = 0) => {
     if (!onToggleSetLock) return valueEl;
-    const ownLocked = Boolean({ weight: st.lockWeight, reps: st.lockReps, type: st.lockType, intensity: st.lockIntensity }[field]);
+    // Type and reps are locked by default (not set = locked; a padlock opened by hand is false)
+    const ownLocked = Boolean({ weight: st.lockWeight, reps: st.lockReps ?? true, type: st.lockType ?? true, intensity: st.lockIntensity }[field]);
     // Dragging from a padlock: the rows it covers show the lock state they will get
     const lockPreview = fillDrag.preview(exIdx, setIdx, field);
     const lockFill = lockPreview?.kind === 'lock' ? lockPreview : null;

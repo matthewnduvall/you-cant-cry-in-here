@@ -133,7 +133,7 @@ export function InfoView({
           A set’s weight, reps and intensity are tied by your 1RM, so whichever is unlocked follows the others as you
           edit. Anything you enter locks itself: type a weight and the intensity shows how hard it will be; pick an
           intensity with the weight open and the weight follows it. With weight and reps locked, the intensity you pick
-          is how the set felt, and it moves your 1RM. RESET unlocks everything and puts the exercise back as loaded.
+          is how the set felt, and it moves your 1RM. Type and reps start locked, so picking an intensity moves the weight. RESET puts the locks and the exercise back as loaded.
         </P>
         <P title="Checking before saving." last>
           When you finish, sets whose 1RM is far from the rest of their exercise are listed, e.g. a light set marked RIR
