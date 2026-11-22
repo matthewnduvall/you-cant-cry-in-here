@@ -35,8 +35,12 @@ aren't in the smoke tests yet; they are listed under "Not yet automated" and sti
 - **session.sentence-search** — typed or spoken sentences set up exercise, sets, reps and rest
 - **session.sentence-superset** — a superset sentence pairs two exercises
 - **session.one-rep-max** — "1 rep max bench" makes one max single
+- **session.sentence-scheme** — scheme words in a sentence ("bench press pyramid one rep max")
+- **session.sentence-reps-stay** — said reps stay as said, bodyweight exercises included ("12 sets of 10 pushups")
+- **session.search-clear** — the ✕ in the search box clears it
+- **session.spoken-enter** — a complete spoken request enters itself after 2 s with no new words (typed ones wait for a tap)
 - **session.typo-search** — the search forgives typos
-- **session.microphone** — the search box's microphone (where the browser has speech recognition)
+- **session.microphone** — the microphone in the search box and beside the exercise name (where the browser has speech recognition), lit white while listening
 - **session.console** — the CONSOLE explains the maths, and goes full screen
 - **session.finish** — FINISH logs the done sets to History
 

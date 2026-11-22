@@ -1947,7 +1947,11 @@ export function useWorkoutMutations({
   // from scratch — the matching scheme when there is one (3x5 … 8x8), else the goal's — to that set count and those
   // reps, and its weights re-planned for them (as RESET / RECALCULATE would). Sets already done stay first.
   // A superset (both exercises already set): its set count and reps, then the weights re-planned.
-  const applySentenceShape = (slotId, { sets = null, reps = null } = {}) => {
+  // A named scheme (Pyramid 1RM, Reverse Pyramid, Pyramid, Cluster) rebuilds on that scheme with its own sets and reps.
+  // Reps you said are locked (they're what you asked for): a bodyweight exercise's reps are otherwise re-planned from
+  // the load ("12 sets of 10 push-ups" must stay 10, not drift to what your bodyweight allows).
+  const lockSaidReps = list => (list || []).map(st => (st && !st.completed && !st.durationSeconds ? { ...st, lockReps: true } : st));
+  const applySentenceShape = (slotId, { sets = null, reps = null, scheme: saidScheme = null } = {}) => {
     updateCurrentWorkoutState(prev => {
       if (!prev) return prev;
       return withTrace('SET UP', () => ({
@@ -1957,10 +1961,14 @@ export function useWorkoutMutations({
           if (isSupersetCategory(slot.category)) {
             let sup = slot;
             if (sets) sup = reshapeSlot(sup, { setCount: sets, supersetHalf: 0 });
-            if (reps) [0, 1].forEach(h => (sup = reshapeSlot(sup, { targetReps: reps, supersetHalf: h })));
+            if (reps) {
+              [0, 1].forEach(h => (sup = reshapeSlot(sup, { targetReps: reps, supersetHalf: h })));
+              const matrix = (sup.supersetSetsByExercise || []).map(lockSaidReps);
+              sup = { ...sup, supersetSetsByExercise: matrix, sets: matrix[0] || [], secondarySets: matrix[1] || [] };
+            }
             return isProgrammedSlot(sup, programContextFor(prev)) ? programSlot(sup, prev) : recalculateSlot(sup, prev.id);
           }
-          const named = sets && reps && SCHEME_OPTIONS.includes(`${sets}x${reps}`) ? `${sets}x${reps}` : null;
+          const named = saidScheme || (sets && reps && SCHEME_OPTIONS.includes(`${sets}x${reps}`) ? `${sets}x${reps}` : null);
           const scheme = named || defaultScheme;
           const fresh = createWorkoutSlot({
             category: slot.category,
@@ -1979,6 +1987,10 @@ export function useWorkoutMutations({
           let next = { ...slot, scheme, targetReps: null, programOff: true, sets: fresh.sets, supersetSetsByExercise: [fresh.sets] };
           if (sets && !named) next = reshapeSlot(next, { setCount: sets });
           if (reps && !named) next = reshapeSlot(next, { targetReps: reps });
+          if (reps) {
+            const locked = lockSaidReps(next.sets);
+            next = { ...next, sets: locked, supersetSetsByExercise: [locked] };
+          }
           next = recalculateSlot(next, prev.id);
           if (done.length > 0) {
             const all = [...done, ...(next.sets || [])].map((st, i) => ({ ...st, setNumber: i + 1 }));

@@ -176,6 +176,76 @@ test.describe('Session', () => {
     });
   });
 
+  test('[session.sentence-scheme] "bench press pyramid one rep max" sets up the Pyramid 1RM scheme', async ({ page }) => {
+    await newSession(page);
+    await addExercise(page);
+    await searchInCard(page, 'bench press pyramid one rep max');
+    const setup = results(page).filter({ hasText: 'SET UP' });
+    await expect(setup).toContainText('Pyramid 1RM');
+    await setup.click();
+    await waitForState(page, s => {
+      const sl = s.activeSession?.slots?.[0];
+      return sl?.scheme === 'Pyramid 1RM' && sl.sets.length > 1 && sl.sets[sl.sets.length - 1].type === '1 Rep Max';
+    });
+  });
+
+  test('[session.sentence-reps-stay] "12 sets of 10 pushups" keeps 10 reps on every set', async ({ page }) => {
+    await newSession(page);
+    await addExercise(page);
+    await searchInCard(page, '12 sets of 10 pushups');
+    await results(page).filter({ hasText: 'SET UP' }).click();
+    await waitForState(page, s => {
+      const sets = s.activeSession?.slots?.[0]?.sets || [];
+      return sets.length === 12 && sets.every(x => x.reps === 10);
+    });
+  });
+
+  test('[session.spoken-enter] a complete spoken request enters itself after 2 s of silence; typed ones wait', async ({ page }) => {
+    // A stand-in recogniser the test can speak into (window.__say)
+    await page.addInitScript(() => {
+      class FakeRecognition {
+        start() {
+          window.__rec = this;
+        }
+        abort() {
+          this.onend?.();
+        }
+        stop() {
+          this.onend?.();
+        }
+      }
+      window.webkitSpeechRecognition = FakeRecognition;
+      window.SpeechRecognition = FakeRecognition;
+      window.__say = text => window.__rec?.onresult?.({ results: [[{ transcript: text }]] });
+    });
+    await newSession(page);
+    await addExercise(page);
+    // Typed: still waiting for a tap after 2.5 s
+    const box = await searchInCard(page, 'bench 5x5');
+    await page.waitForTimeout(2500);
+    await expect(box).toBeVisible();
+    await page.getByRole('button', { name: 'Clear the search' }).click();
+    await box.press('Escape');
+    // Spoken: tap the mic shortcut, say it, and it builds the card on its own
+    await page.getByRole('button', { name: /Say the exercise/ }).first().click();
+    await page.evaluate(() => window.__say('bench press'));
+    await page.evaluate(() => window.__say('bench press 4 sets of 6'));
+    await expect(page.locator('input[type="search"]')).toHaveCount(0, { timeout: 5000 });
+    await waitForState(page, s => {
+      const sets = s.activeSession?.slots?.[0]?.sets || [];
+      return sets.length === 4 && sets.every(x => x.reps === 6);
+    });
+  });
+
+  test('[session.search-clear] the ✕ clears the search box', async ({ page }) => {
+    await newSession(page);
+    await addExercise(page);
+    const box = await searchInCard(page, 'bench press');
+    await page.getByRole('button', { name: 'Clear the search' }).click();
+    await expect(box).toHaveValue('');
+    await expect(box).toBeFocused();
+  });
+
   test('[session.typo-search] the search forgives typos', async ({ page }) => {
     await newSession(page);
     await addExercise(page);
@@ -187,10 +257,12 @@ test.describe('Session', () => {
     await newSession(page);
     await addExercise(page);
     const hasSpeech = await page.evaluate(() => Boolean(window.SpeechRecognition || window.webkitSpeechRecognition));
+    // Beside the exercise name (a shortcut), and inside the open search box
+    const shortcut = page.getByRole('button', { name: /Say the exercise/ });
+    if (hasSpeech) await expect(shortcut.first()).toBeVisible();
+    else await expect(shortcut).toHaveCount(0);
     await searchInCard(page, '');
-    const mic = page.getByRole('button', { name: /Say the exercise/ });
-    if (hasSpeech) await expect(mic).toBeVisible();
-    else await expect(mic).toHaveCount(0);
+    if (hasSpeech) await expect(page.getByRole('button', { name: /Say the exercise/ }).first()).toBeVisible();
   });
 
   test('[session.console] the CONSOLE opens, and goes full screen', async ({ page }) => {
