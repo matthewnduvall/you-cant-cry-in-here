@@ -2,7 +2,8 @@
 //
 // iPhone Safari is fragile here: a recogniser started while a previous one hasn't really let go of the microphone turns
 // the mic on (the system indicator shows) but never sends any words. So:
-//   - ONE recogniser is created for the page and reused for every session (start() again after it has ended);
+//   - every session (and every restart) gets a FRESH recogniser: on an iPhone a recogniser that has lost the mic
+//     (an `audio-capture` error, even while idle) stays deaf for good, so one is never reused;
 //   - its real state comes from its own events (start / end), never from what we asked it to do;
 //   - a session asked for while it is still ending waits for its `end` (aborting it if it takes longer than
 //     HANDOVER_MS, replacing it if even that doesn't end it) and RESTART_GAP_MS more, then starts;
@@ -21,8 +22,9 @@ export const HANDOVER_MS = 800;
 export const WATCHDOG_MS = 6000;
 export const SOUND_WATCHDOG_MS = 3500;
 export const RESTART_GAP_MS = 300;
+export const MAX_RESTARTS = 2;
 
-let rec = null; // the one recogniser
+let rec = null; // the current recogniser (a new one per session)
 let engine = 'idle'; // 'idle' | 'starting' | 'listening' | 'ending' | 'cooldown' — from its events
 let owner = null; // the session the recogniser is working for
 let pending = null; // the session waiting for the recogniser to end
@@ -52,10 +54,7 @@ const queue = session => {
     setTimeout(() => {
       if (pending !== session || engine === 'idle' || engine === 'cooldown') return;
       note('handover_replace');
-      if (rec) {
-        rec.onstart = rec.onaudiostart = rec.onsoundstart = rec.onspeechstart = null;
-        rec.onresult = rec.onnomatch = rec.onerror = rec.onend = null;
-      }
+      detach(rec);
       rec = null;
       engine = 'idle';
       owner = null;
@@ -74,12 +73,12 @@ const clearWatchdog = () => {
 const armWatchdog = ms => {
   clearWatchdog();
   const session = owner;
-  if (!session || session.restarted || session.heard) return;
+  if (!session || session.restarts >= MAX_RESTARTS || session.heard) return;
   watchdog = setTimeout(() => {
     watchdog = null;
     if (owner !== session || session.stopped || session.heard) return;
     note('watchdog_restart');
-    session.restarted = true;
+    session.restarts += 1;
     owner = null;
     engine = 'ending';
     queue(session);
@@ -91,8 +90,15 @@ const armWatchdog = ms => {
   }, ms);
 };
 
-const recogniser = () => {
-  if (rec) return rec;
+// The old recogniser's events are ignored from here on
+const detach = r => {
+  if (!r) return;
+  r.onstart = r.onaudiostart = r.onsoundstart = r.onspeechstart = null;
+  r.onresult = r.onnomatch = r.onerror = r.onend = null;
+};
+
+const freshRecogniser = () => {
+  detach(rec);
   const Api = recogniserApi();
   rec = new Api();
   rec.lang = 'en-US';
@@ -150,8 +156,8 @@ const begin = session => {
   owner = session;
   engine = 'starting';
   try {
-    recogniser().start();
-    note('start_called', session.restarted ? 'restart' : '');
+    freshRecogniser().start();
+    note('start_called', session.restarts ? `restart ${session.restarts}` : '');
   } catch (err) {
     // Still busy (InvalidStateError): wait for its end, then start
     note('start_failed', err?.name || '');
@@ -172,7 +178,7 @@ const begin = session => {
  */
 export function startSpeech({ onText, onEnd } = {}) {
   if (!recogniserApi()) return null;
-  const session = { onText, onEnd, stopped: false, ended: false, heard: false, restarted: false };
+  const session = { onText, onEnd, stopped: false, ended: false, heard: false, restarts: 0 };
   session.finish = () => {
     if (session.ended) return;
     session.ended = true;

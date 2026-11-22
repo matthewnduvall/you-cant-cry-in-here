@@ -4,7 +4,9 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 //   - stop() / abort() end it a little later (asynchronously);
 //   - start() while a recogniser is still running, or within 200 ms of one ending, turns the mic on but hears nothing
 //     (the dead-mic bug), until that session is aborted and started again later;
-//   - `stuck` makes it ignore stop() / abort() altogether.
+//   - `stuck` makes it ignore stop() / abort() altogether;
+//   - a recogniser that has lost the mic (`loseMic()`: an `audio-capture` error, even while idle) is deaf for good
+//     (logged on a real iPhone, 2026/11/22).
 let running = 0;
 let lastEndAt = -Infinity;
 let instances = [];
@@ -19,7 +21,7 @@ class FakeRecognition {
     if (this.live) throw Object.assign(new Error('already started'), { name: 'InvalidStateError' });
     this.live = true;
     this.starts += 1;
-    this.deaf = running > 0 || Date.now() - lastEndAt < 200;
+    this.deaf = this.lostMic || running > 0 || Date.now() - lastEndAt < 200;
     running += 1;
     setTimeout(() => this.live && this.onstart?.(), 5);
   }
@@ -36,6 +38,10 @@ class FakeRecognition {
     running -= 1;
     lastEndAt = Date.now();
     this.onend?.();
+  }
+  loseMic() {
+    this.lostMic = true;
+    this.onerror?.({ error: 'audio-capture' });
   }
   sound() {
     if (this.live) this.onsoundstart?.();
@@ -75,15 +81,28 @@ describe('speech controller', () => {
     expect(ends).toBe(1);
   });
 
-  it('reuses one recogniser for every session', () => {
+  it('every session gets a fresh recogniser', () => {
     for (let i = 0; i < 3; i += 1) {
       const s = speech.startSpeech({});
       vi.advanceTimersByTime(10);
       s.stop();
       vi.advanceTimersByTime(1000);
     }
-    expect(instances).toHaveLength(1);
-    expect(rec().starts).toBe(3);
+    expect(instances).toHaveLength(3);
+  });
+
+  it('a recogniser that lost the mic while idle is never used again (the logged iPhone bug)', () => {
+    const heard = [];
+    speech.startSpeech({ onText: t => heard.push(t) });
+    vi.advanceTimersByTime(10);
+    rec().say('two sets of push-ups');
+    rec().end(); // ends by itself after the words
+    vi.advanceTimersByTime(20000);
+    rec().loseMic(); // audio-capture, 22 s later, nothing listening
+    speech.startSpeech({ onText: t => heard.push(t) });
+    vi.advanceTimersByTime(1000);
+    rec().say('curls');
+    expect(heard).toEqual(['two sets of push-ups', 'curls']);
   });
 
   it('search, delete the card, search again: the second session hears (the dead-mic bug)', () => {
@@ -137,7 +156,7 @@ describe('speech controller', () => {
     rec().say('lateral raise');
     expect(heard).toEqual([]);
     vi.advanceTimersByTime(speech.SOUND_WATCHDOG_MS + 1000);
-    expect(rec().starts).toBe(2);
+    expect(instances).toHaveLength(2);
     rec().say('lateral raise');
     expect(heard).toEqual(['lateral raise']);
     expect(speech.getSpeechLog().some(e => e.type === 'speech_watchdog_restart')).toBe(true);
