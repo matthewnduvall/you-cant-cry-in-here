@@ -12,7 +12,7 @@ import { INTENSITY_MODES, formatIntensity } from '../utils/intensity';
 import { IntensityEditorModal } from './IntensityEditorModal';
 import { SchemeEditorModal, schemeButtonLabel } from './SchemeEditorModal';
 import { getProgram } from '../data/programs';
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { SHARED_CELL_BORDER, UI } from '../styles/kineticTokens';
 import {
   EXERCISE_LIBRARY,
@@ -36,6 +36,9 @@ import {
   normalizeMuscleGroupName
 } from '../data/exerciseLibrary';
 import { getVariationFamily } from '../data/exerciseVariations';
+import { searchExercises } from '../utils/exerciseSearch';
+import { parseExerciseSentence, describeSentence } from '../utils/exerciseSentence';
+export { searchExercises };
 import {
   normalizeSetType,
   getBestHistory1RMInfo,
@@ -131,7 +134,6 @@ const best1RM = (sets, exId = null, option = null) =>
 const SET_TYPE_LABELS = { Warmup: 'WARMUP', Working: 'WORKING', 'Top Out': 'TOP OUT', 'Burn Out': 'BURN OUT', '1 Rep Max': '1RM' };
 
 // The results list scrolls, so it can hold plenty
-const SEARCH_RESULT_LIMIT = 40;
 
 // Each superset exercise is a Compound or Accessory pick; this value in its type menu ends the superset
 const SUPERSET_HALF_CATEGORIES = ['Compound', 'Accessory'];
@@ -168,50 +170,15 @@ const LockIcon = ({ locked, color }) => (
   </svg>
 );
 
-/**
- * Exercises whose name / equipment / muscle group contain every word typed, best matches first: a name that starts
- * with the text, then one with a word starting with it, then one containing it, then equipment / muscle matches.
- * Within each, the plainest names first (shortest name without the equipment word: "Lateral Raise" before
- * "Hanging Pike (Toes-to-Bar) Leg Raise"), then priority / hand-picked exercises. Searches the whole library (the
- * Equipment page list only drives the exercises picked automatically); up to SEARCH_RESULT_LIMIT, in a scrolling list.
- */
-export const searchExercises = (query, pool = EXERCISE_LIBRARY) => {
-  const words = String(query || '').toLowerCase().trim().split(/\s+/).filter(Boolean);
-  if (words.length === 0) return [];
-  const phrase = words.join(' ');
-  const rank = ex => {
-    const name = ex.name.toLowerCase();
-    const short = stripEquipmentFromExerciseName(ex.name).toLowerCase();
-    // Exactly another name it goes by ("squat" = Barbell Back Squat): first
-    if ((ex.aliases || []).some(alias => alias.toLowerCase() === phrase)) return -1;
-    if (name.startsWith(phrase) || short.startsWith(phrase)) return 0;
-    // Another name it goes by ("RDL", "Dips")
-    if ((ex.aliases || []).some(alias => alias.toLowerCase().startsWith(phrase))) return 0;
-    // A word in the name starts with the text ("raise" in "Lateral Raise")
-    const at = name.indexOf(phrase);
-    if (at > 0 && name.split(/[^a-z0-9]+/).some(word => word.startsWith(words[0]))) return 1;
-    if (name.includes(phrase)) return 2;
-    return 3;
-  };
-  const plainLength = ex => stripEquipmentFromExerciseName(ex.name).length;
-  const curated = ex => (String(ex.id).startsWith('exrx_') ? 0 : 1);
-  return pool
-    .filter(ex => {
-      const hay = `${ex.name} ${(ex.aliases || []).join(' ')} ${ex.equipment || ''} ${ex.muscleGroup || ''}`.toLowerCase();
-      return words.every(w => hay.includes(w));
-    })
-    .map(ex => ({ ex, r: rank(ex), len: plainLength(ex) }))
-    .sort(
-      (a, b) =>
-        a.r - b.r ||
-        a.len - b.len ||
-        Number(Boolean(b.ex.isPriority)) - Number(Boolean(a.ex.isPriority)) ||
-        curated(b.ex) - curated(a.ex) ||
-        a.ex.name.localeCompare(b.ex.name)
-    )
-    .slice(0, SEARCH_RESULT_LIMIT)
-    .map(item => item.ex);
-};
+// Microphone for spoken search
+function MicGlyph() {
+  return (
+    <svg width="16" height="18" viewBox="0 0 16 18" aria-hidden="true">
+      <rect x="5" y="1" width="6" height="10" rx="3" fill="none" stroke="currentColor" strokeWidth="1.6" />
+      <path d="M2.5 8.5a5.5 5.5 0 0 0 11 0M8 14v3" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+    </svg>
+  );
+}
 
 export function SearchGlyph() {
   return (
@@ -344,7 +311,8 @@ export function SlotEditor({
       if (kind === 'lock') {
         const current = lockKey === 'lockType' || lockKey === 'lockReps' ? target[lockKey] ?? true : Boolean(target[lockKey]);
         if (current !== payload.target) onToggleSetLock?.({ exIdx, set: target, field });
-      } else if (i !== from && !target.completed && !target[lockKey]) {
+      // (SIMPLE hides the padlocks, so a fill there writes over locked values too; done sets are never changed)
+      } else if (i !== from && !target.completed && (simple || !target[lockKey])) {
         onFillSetValue?.({ exIdx, set: target, field, value: payload.value });
       }
     }
@@ -355,7 +323,7 @@ export function SlotEditor({
     const p = fillDrag.preview(exIdx, setIdx, field);
     if (!p || p.kind !== 'value') return null;
     const lockKey = field === 'weight' ? 'lockWeight' : 'lockReps';
-    if (!p.isSource && (st.completed || st[lockKey])) return null;
+    if (!p.isSource && (st.completed || (!simple && st[lockKey]))) return null;
     return p;
   };
   // Props that make a weight / reps / timer cell a fill source (not on done sets; needs the host's onFillSetValue)
@@ -392,9 +360,13 @@ export function SlotEditor({
         (isSuperset ? slot.supersetMuscleFilters?.[half] : slot.muscleGroupFilter) || exObj.muscleGroup || 'All Muscles'
       );
     const muscle = availMuscles.includes(rawMuscle) ? rawMuscle : 'All Muscles';
-    const basePool = getFilteredExercisesForSlotInline({ category, muscleGroupFilter: muscle }, '', []).filter(
-      ex => !isSuperset || ex.id !== supIds[1 - half]
-    );
+    // SIMPLE mode: the type doesn't matter (compound and accessory exercises alike; the slot keeps its own type)
+    const poolFor = cat => getFilteredExercisesForSlotInline({ category: cat, muscleGroupFilter: muscle }, '', []);
+    const typedPool =
+      simple && !isSuperset
+        ? [...new Map([...poolFor('Compound'), ...poolFor('Accessory')].map(ex => [ex.id, ex])).values()]
+        : poolFor(category);
+    const basePool = typedPool.filter(ex => !isSuperset || ex.id !== supIds[1 - half]);
     const pool = basePool.some(ex => ex.id === exId) ? basePool : [exObj, ...basePool];
     // The athlete's equipment choice for this exercise; must be one the exercise allows ("A / B" = either)
     const exEquipment = equipmentOptionsOf(exObj);
@@ -486,9 +458,70 @@ export function SlotEditor({
     };
     const exCategory = normalizeSlotCategory(ex.category);
     const allowed = isSuperset ? SUPERSET_HALF_CATEGORIES : categories;
-    // A Cluster keeps its type whatever exercise is picked
-    if (allowed.includes(exCategory) && exCategory !== current.category && current.category !== 'Cluster') changes.category = exCategory;
+    // A Cluster keeps its type whatever exercise is picked; in SIMPLE mode every slot keeps its type (the program's)
+    if (!simple && allowed.includes(exCategory) && exCategory !== current.category && current.category !== 'Cluster') changes.category = exCategory;
     sendHeaderChange(half, changes);
+  };
+
+  // A sentence typed or spoken in the search box ("bench press 5 x 6 with 1:30 rest", "superset pushdowns and curls
+  // 3 x 12"): exercise(s), then the set count, the reps and the REST, each as its own change, in order
+  const sentence = search?.query ? parseExerciseSentence(search.query) : null;
+  const applySentence = (half, parsed) => {
+    setSearch(null);
+    if (!parsed) return;
+    if (parsed.superset) {
+      const [a, b] = parsed.exercises;
+      if (!isSuperset) onHeaderChange?.({ category: 'Superset' });
+      onHeaderChange?.({ supersetExerciseIds: [a.id, b.id] });
+      if (parsed.sets || parsed.reps) onHeaderChange?.({ sentenceShape: { sets: parsed.sets, reps: parsed.reps } });
+    } else {
+      // The exercise is always picked again, so the sets start fresh (their types and weights from the scheme)
+      // before the set count and reps change — never copies of whatever was there (a 1 Rep Max set, say)
+      handleSearchPick(half, parsed.exercises[0]);
+      if (parsed.oneRepMax && !isSuperset) {
+        // One max single: one 1 Rep Max set at your calculated 1RM (sets already done stay)
+        onHeaderChange?.({ singleMax: true });
+      } else if (parsed.sets || parsed.reps) {
+        // Rebuilt to that shape from scratch (the matching scheme when there is one) and weighed for those reps
+        onHeaderChange?.({ sentenceShape: { sets: parsed.sets, reps: parsed.reps } });
+      }
+    }
+    if (parsed.restSeconds) onHeaderChange?.({ customRestSeconds: parsed.restSeconds });
+  };
+
+  // Microphone in the search box (Web Speech API, where the browser has it): what you say becomes the search text
+  const SpeechRecognitionApi =
+    typeof window !== 'undefined' ? window.SpeechRecognition || window.webkitSpeechRecognition : null;
+  const [listening, setListening] = useState(false);
+  const recognitionRef = useRef(null);
+  const startListening = half => {
+    if (!SpeechRecognitionApi) return;
+    try {
+      recognitionRef.current?.abort?.();
+      const rec = new SpeechRecognitionApi();
+      rec.lang = 'en-US';
+      rec.interimResults = true;
+      rec.maxAlternatives = 1;
+      rec.onresult = e => {
+        const text = [...e.results].map(r => r[0]?.transcript || '').join(' ').trim();
+        setSearch({ half, query: text });
+      };
+      rec.onend = () => setListening(false);
+      rec.onerror = () => setListening(false);
+      recognitionRef.current = rec;
+      setListening(true);
+      rec.start();
+    } catch {
+      setListening(false);
+    }
+  };
+  const stopListening = () => {
+    try {
+      recognitionRef.current?.stop?.();
+    } catch {
+      // already stopped
+    }
+    setListening(false);
   };
 
   const searchResults = search?.query ? searchExercises(search.query) : [];
@@ -683,17 +716,27 @@ export function SlotEditor({
       );
     }
     return (
+      <div style={{ position: 'relative', gridColumn: cellBase.gridColumn, gridRow: cellBase.gridRow, minWidth: 0 }}>
       <input
         type="search"
         aria-label={isSuperset ? `Search exercises (${tag})` : 'Search exercises'}
         placeholder={`SEARCH · ${title.toUpperCase()}`}
         autoFocus
         enterKeyHint="search"
+        // The OS's autocorrect "fixes" gym words (RDL, skullcrusher, pushdown); the search corrects typos itself
+        // against the exercise library (utils/exerciseSearch.js correctQuery)
+        autoCorrect="off"
+        autoCapitalize="none"
+        spellCheck={false}
         value={search.query}
         onChange={e => setSearch({ half, query: e.target.value })}
         onBlur={() => setSearch(null)}
         onKeyDown={e => {
           if (e.key === 'Escape') setSearch(null);
+          if (e.key === 'Enter' && sentence) {
+            applySentence(half, sentence);
+            return;
+          }
           const first = search.query.trim() ? searchResults[0] : list[0];
           if (e.key === 'Enter' && first) handleSearchPick(half, first);
         }}
@@ -705,9 +748,43 @@ export function SlotEditor({
           textTransform: 'none',
           fontFamily: 'inherit',
           // 16 px so iOS doesn't zoom into the field
-          fontSize: '16px'
+          fontSize: '16px',
+          width: '100%',
+          boxSizing: 'border-box',
+          display: 'block',
+          ...(SpeechRecognitionApi ? { paddingRight: '48px' } : {})
         }}
       />
+      {SpeechRecognitionApi && (
+        <button
+          type="button"
+          className="kinetic-btn"
+          aria-label={listening ? 'Stop listening' : 'Say the exercise, e.g. bench press 5 sets of 6'}
+          aria-pressed={listening}
+          // Keep focus in the search box (it closes when it loses focus)
+          onPointerDown={e => e.preventDefault()}
+          onMouseDown={e => e.preventDefault()}
+          onClick={() => (listening ? stopListening() : startListening(half))}
+          style={{
+            position: 'absolute',
+            right: '2px',
+            top: '2px',
+            bottom: '2px',
+            width: '44px',
+            border: 'none',
+            borderRadius: '8px',
+            backgroundColor: listening ? '#FFFFFF' : 'transparent',
+            color: listening ? '#000000' : '#BDBDBD',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: 'pointer'
+          }}
+        >
+          <MicGlyph />
+        </button>
+      )}
+      </div>
     );
   };
 
@@ -780,8 +857,33 @@ export function SlotEditor({
           </>
         )}
         {!typed && <div style={{ ...hintStyle, padding: '8px 12px' }}>MATCHING YOUR FILTERS · TYPE TO SEARCH ALL</div>}
+        {typed && sentence && (
+          <button
+            type="button"
+            role="option"
+            aria-selected={false}
+            onClick={() => applySentence(half, sentence)}
+            style={{
+              display: 'block',
+              width: '100%',
+              textAlign: 'left',
+              padding: '10px 12px',
+              backgroundColor: '#2A2A2A',
+              border: 'none',
+              borderBottom: '1px solid var(--dp-color-rule)',
+              cursor: 'pointer'
+            }}
+          >
+            <span style={{ display: 'block', fontSize: '11px', fontWeight: 500, color: '#9A9A9A', letterSpacing: '0.1em' }}>
+              SET UP
+            </span>
+            <span style={{ display: 'block', fontSize: '14px', fontWeight: 500, color: '#FFFFFF', marginTop: '2px' }}>
+              {describeSentence(sentence, ex => stripEquipmentFromExerciseName(ex.name) === ex.name ? ex.name : `${stripEquipmentFromExerciseName(ex.name)} (${equipmentOf(ex)})`)}
+            </span>
+          </button>
+        )}
         {results.length === 0 ? (
-          <div style={hintStyle}>NO MATCHING EXERCISES</div>
+          sentence ? null : <div style={hintStyle}>NO MATCHING EXERCISES</div>
         ) : (
           results.map(ex => (
             <button
@@ -998,7 +1100,12 @@ export function SlotEditor({
   // RECALCULATE never changes a locked value; see handleRecalculateSlotWeights. Without onToggleSetLock the cell is
   // just the value.
   const withSetLock = (exIdx, st, field, cellBg, valueEl, setIdx = 0) => {
-    if (!onToggleSetLock) return valueEl;
+    if (!onToggleSetLock) {
+      // No padlocks (SIMPLE): the cell itself shows a value fill — the held cell once it's ready to drag, and every
+      // row it will fill (iPhones can't buzz from a web page, so this outline is the cue)
+      const vfSimple = valueFillPreview(exIdx, setIdx, field, st);
+      return vfSimple ? React.cloneElement(valueEl, { style: { ...valueEl.props.style, ...FILL_OUTLINE } }) : valueEl;
+    }
     // Type and reps are locked by default (not set = locked; a padlock opened by hand is false)
     const ownLocked = Boolean({ weight: st.lockWeight, reps: st.lockReps ?? true, type: st.lockType ?? true, intensity: st.lockIntensity }[field]);
     // Dragging from a padlock: the rows it covers show the lock state they will get
@@ -1006,7 +1113,8 @@ export function SlotEditor({
     const lockFill = lockPreview?.kind === 'lock' ? lockPreview : null;
     const locked = lockFill ? lockFill.payload.target : ownLocked;
     const vf = valueFillPreview(exIdx, setIdx, field, st);
-    const valueFill = vf && !vf.isSource ? vf : null;
+    // (the held cell too, as soon as it is ready to drag)
+    const valueFill = vf || null;
     const label = field === 'weight' ? 'weight' : field === 'reps' ? 'reps' : field === 'intensity' ? 'intensity' : 'set type';
     // One box (the cell's border and background): the padlock sits inside on the left, the value fills the rest
     const innerValue = React.cloneElement(valueEl, {
@@ -1143,9 +1251,11 @@ export function SlotEditor({
           color={isSuperset && exIdx === 0 ? 'var(--dp-color-accent)' : '#FFFFFF'}
           height="100%"
           bg={cellBg}
-          title={setLocked ? 'Done set: untick it to move it' : 'Hold for a second, then drag to rearrange the set'}
-          aria-label={setLocked ? `Set ${setNumText} is done and can't be moved` : `Hold, then drag to reorder set ${setNumText}`}
-          {...setHandleProps(`${exIdx}:${setIdx}`, { disabled: setLocked })}
+          // SIMPLE: sets aren't reordered (exercise cards still are), so the number is plain
+          grip={!simple}
+          title={simple ? `Set ${setNumText}` : setLocked ? 'Done set: untick it to move it' : 'Hold for a second, then drag to rearrange the set'}
+          aria-label={simple ? `Set ${setNumText}` : setLocked ? `Set ${setNumText} is done and can't be moved` : `Hold, then drag to reorder set ${setNumText}`}
+          {...setHandleProps(`${exIdx}:${setIdx}`, { disabled: setLocked || simple })}
         />
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 0, minWidth: 0 }}>
@@ -1321,7 +1431,7 @@ export function SlotEditor({
                     color: '#FFFFFF',
                     cursor: 'pointer',
                     // (a timer has no lock wrapper: the outline goes on the cell itself)
-                    ...(isTimerScheme && repsPreview && !repsPreview.isSource ? FILL_OUTLINE : null)
+                    ...(isTimerScheme && repsPreview ? FILL_OUTLINE : null)
                   }}
                 >
                   <span style={cellLabelStyle}>{isTimerScheme ? 'TIMER' : 'REPS'}</span>
@@ -1524,11 +1634,51 @@ export function SlotEditor({
           style={{
             display: 'grid',
             // Equal-width buttons: SCHEME | RECALCULATE | DELETE
-            gridTemplateColumns: `repeat(${(onRemove ? 3 : 2) - (simple ? 1 : 0)}, minmax(0, 1fr))`,
+            // SIMPLE: + 1 ROW | SUPERSET | DELETE; otherwise SCHEME | RESET | DELETE
+            gridTemplateColumns: `repeat(${onRemove ? 3 : 2}, minmax(0, 1fr))`,
             gap: 0
           }}
         >
-          {/* The scheme (sets × reps, or its name): opens the SCHEME pop-up */}
+          {simple ? (
+            <>
+              {/* SIMPLE: + 1 ROW adds a set (a copy of the last; in a superset, one of each exercise) */}
+              <button
+                type="button"
+                className="kinetic-btn"
+                onClick={() => sendHeaderChange(0, { setCount: ((isSuperset ? slot.supersetSetsByExercise?.[0] : slot.sets) || []).length + 1 })}
+                style={bottomBtnStyle('#1C1C1C', '#FFFFFF')}
+              >
+                + 1 ROW
+              </button>
+              {/* SUPERSET pairs this exercise with a second one (picked for you; tap its name to change it); UNPAIR keeps
+                  the first exercise on its own */}
+              <button
+                type="button"
+                className="kinetic-btn"
+                // Pairing rebuilds the exercise, so it's only offered before a set is done (done sets are kept)
+                disabled={rows.some(r => r.set?.completed)}
+                aria-label={
+                  rows.some(r => r.set?.completed)
+                    ? 'Pair before any set is done'
+                    : isSuperset
+                      ? 'Unpair: keep the first exercise on its own'
+                      : 'Superset: pair with a second exercise'
+                }
+                onClick={() =>
+                  isSuperset
+                    ? onHeaderChange?.({
+                        endSuperset: 1,
+                        category: normalizeSlotCategory(EXERCISE_MAP[supIds[0]]?.category) === 'Compound' ? 'Compound' : 'Accessory'
+                      })
+                    : onHeaderChange?.({ category: 'Superset' })
+                }
+                style={bottomBtnStyle('#1C1C1C', '#FFFFFF')}
+              >
+                {isSuperset ? 'UNPAIR' : 'SUPERSET'}
+              </button>
+            </>
+          ) : (
+          /* The scheme (sets × reps, or its name): opens the SCHEME pop-up */
           <button
             type="button"
             className="kinetic-btn"
@@ -1539,6 +1689,7 @@ export function SlotEditor({
             <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{schemeSummary}</span>
             <span aria-hidden="true" style={{ color: '#9A9A9A', fontSize: '10px' }}>▾</span>
           </button>
+          )}
           {!simple && (
           <button
             type="button"

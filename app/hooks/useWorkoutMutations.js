@@ -35,6 +35,7 @@ import {
   calculateLastEquivalentWeightForSet,
   calculateEquivalentRepsForWeight,
   getEffectiveIncrementForExercise,
+  SCHEME_OPTIONS,
   restFatigueFactor,
   plannedRestSeconds,
   setRestSeconds,
@@ -1900,7 +1901,104 @@ export function useWorkoutMutations({
     };
   };
 
+  // One max single ("1 rep max bench" in the exercise search): the exercise becomes one 1 Rep Max set — your
+  // calculated 1RM + the increment, the same as picking the 1 Rep Max set type — after any sets already done.
+  // Single exercises only.
+  const makeSingleMax = slotId => {
+    const stamp = Date.now();
+    updateCurrentWorkoutState(prev => {
+      if (!prev) return prev;
+      return withTrace('1 REP MAX', () => ({
+        ...prev,
+        slots: prev.slots.map(slot => {
+          if (slot.id !== slotId || isSupersetCategory(slot.category)) return slot;
+          const list = slot.sets || [];
+          const done = list.filter(st => st?.completed);
+          const base = list.find(st => st && !st.completed) || list[list.length - 1];
+          if (!base) return slot;
+          const exId = slot.exerciseId;
+          const isBw = isBodyweightExercise(exId);
+          const calc1RM = getHistoricalCalculated1RM(exId, history, oneRepMaxes);
+          const effInc = isBw ? 0 : getEffectiveIncrementForExercise(exId, currentIncrementLbs, calc1RM);
+          const weight = isBw ? base.weight : roundToIncrement(roundTo5(calc1RM) + effInc);
+          if (isTracing()) traceLine(`${EXERCISE_MAP[exId]?.name || exId} set ${done.length + 1} 1 Rep Max: 1RM ${fmt(calc1RM)} + increment ${fmt(effInc)} → ${fmt(weight)} lb × 1`);
+          const single = {
+            ...base,
+            id: base.completed ? `set_${stamp}_max` : base.id,
+            type: '1 Rep Max',
+            reps: 1,
+            weight,
+            completed: false,
+            lockWeight: false,
+            lockIntensity: false,
+            lockReps: undefined,
+            lockType: undefined,
+            intensity: intensityOn(prev) ? { mode: 'rir', value: 0 } : null,
+            lastEditedField: 'type'
+          };
+          const sets = [...done, single].map((st, i) => ({ ...st, setNumber: i + 1 }));
+          return fillIntensities({ ...slot, sets, supersetSetsByExercise: [sets], targetReps: 1 }, prev);
+        })
+      }), `max:${slotId}`);
+    });
+  };
+
+  // A shape from a sentence in the exercise search ("bench 5 x 8", "curls 3 sets of 12"): the exercise is rebuilt
+  // from scratch — the matching scheme when there is one (3x5 … 8x8), else the goal's — to that set count and those
+  // reps, and its weights re-planned for them (as RESET / RECALCULATE would). Sets already done stay first.
+  // A superset (both exercises already set): its set count and reps, then the weights re-planned.
+  const applySentenceShape = (slotId, { sets = null, reps = null } = {}) => {
+    updateCurrentWorkoutState(prev => {
+      if (!prev) return prev;
+      return withTrace('SET UP', () => ({
+        ...prev,
+        slots: prev.slots.map(slot => {
+          if (slot.id !== slotId) return slot;
+          if (isSupersetCategory(slot.category)) {
+            let sup = slot;
+            if (sets) sup = reshapeSlot(sup, { setCount: sets, supersetHalf: 0 });
+            if (reps) [0, 1].forEach(h => (sup = reshapeSlot(sup, { targetReps: reps, supersetHalf: h })));
+            return isProgrammedSlot(sup, programContextFor(prev)) ? programSlot(sup, prev) : recalculateSlot(sup, prev.id);
+          }
+          const named = sets && reps && SCHEME_OPTIONS.includes(`${sets}x${reps}`) ? `${sets}x${reps}` : null;
+          const scheme = named || defaultScheme;
+          const fresh = createWorkoutSlot({
+            category: slot.category,
+            slotLabel: slot.category,
+            exerciseId: slot.exerciseId,
+            supersetExerciseIds: [slot.exerciseId],
+            scheme,
+            oneRepMaxes,
+            history,
+            incrementLbs: currentIncrementLbs,
+            setPreferences,
+            restSeconds: slot.restSeconds || 90,
+            userBodyweightLbs
+          });
+          const done = (slot.sets || []).filter(st => st?.completed);
+          let next = { ...slot, scheme, targetReps: null, programOff: true, sets: fresh.sets, supersetSetsByExercise: [fresh.sets] };
+          if (sets && !named) next = reshapeSlot(next, { setCount: sets });
+          if (reps && !named) next = reshapeSlot(next, { targetReps: reps });
+          next = recalculateSlot(next, prev.id);
+          if (done.length > 0) {
+            const all = [...done, ...(next.sets || [])].map((st, i) => ({ ...st, setNumber: i + 1 }));
+            next = { ...next, sets: all, supersetSetsByExercise: [all] };
+          }
+          return next;
+        })
+      }), `shape:${slotId}`);
+    });
+  };
+
   const handleUpdateSlotCategoryOrExercise = (slotId, changes) => {
+    if (changes?.singleMax) {
+      makeSingleMax(slotId);
+      return;
+    }
+    if (changes?.sentenceShape) {
+      applySentenceShape(slotId, changes.sentenceShape);
+      return;
+    }
     updateCurrentWorkoutState(prev => {
       if (!prev) return prev;
       const next = withTrace(`CHANGE · ${Object.keys(changes || {}).join(', ')}`, () => applySlotHeaderChange(prev, slotId, changes), `change:${slotId}`);
@@ -2286,8 +2384,14 @@ export function useWorkoutMutations({
             const hasValue = rawVal && rawVal.value !== null && rawVal.value !== undefined && rawVal.value !== '';
             // The planned RIR (the worked-out one) is kept the first time you enter your own, so the next session can
             // tell whether this one came in harder or easier than planned (lastSessionEffortGap)
+            // (no worked-out intensity, e.g. SIMPLE mode's effort question: the set type's planned effort)
             const plannedRir =
-              st.plannedRir ?? (st.intensity?.auto && !st.durationSeconds ? Math.round(setReportedRir(st) * 10) / 10 : undefined);
+              st.plannedRir ??
+              (st.intensity?.auto && !st.durationSeconds
+                ? Math.round(setReportedRir(st) * 10) / 10
+                : !st.durationSeconds && SET_TYPE_RIR[normalizeSetType(st.type)] !== undefined
+                  ? SET_TYPE_RIR[normalizeSetType(st.type)]
+                  : undefined);
             return {
               ...st,
               intensity: hasValue ? rawVal : null,

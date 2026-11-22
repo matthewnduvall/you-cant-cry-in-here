@@ -2,209 +2,11 @@
 
 import React, { useState, useEffect } from 'react';
 import { UI } from '../../styles/kineticTokens';
-import {
-  formatDateYMD,
-  EXERCISE_MAP,
-  stripEquipmentFromExerciseName,
-  getBandLoadLabel,
-  isBodyweightExercise,
-  getSlotEquipmentChoice
-} from '../../data/exerciseLibrary';
-import {
-  NEW_FRIEND_DAYS,
-  readFriendFirstSeen,
-  recordFriendFirstSeen,
-  daysBetweenYMD
-} from '../../utils/friendFirstSeen';
-import { buildHistoryPRs, getBestHistory1RMInfo, oneRepMaxLabel, getSetTimerMMSS, estimateSet1RM, loggedExercise1RMInfo } from '../../utils/workoutEngine';
-import { withAthleteModel } from '../../utils/modelLearning';
+import { formatDateYMD } from '../../data/exerciseLibrary';
 
 // ============================================================================
 // VIEW: HOME SCREEN
 // ============================================================================
-
-const SCROLLER_LIFTS = [
-  { id: 'barbell_bench_press', label: 'BENCH' },
-  { id: 'barbell_back_squat', label: 'SQUAT' },
-  { id: 'barbell_deadlift', label: 'DEADLIFT' },
-  { id: 'overhead_press', label: 'OHP' }
-];
-
-const deterministicHash = str => {
-  let h = 2166136261;
-  const s = String(str || '');
-  for (let i = 0; i < s.length; i++) {
-    h ^= s.charCodeAt(i);
-    h = Math.imul(h, 16777619);
-  }
-  return h >>> 0;
-};
-
-// Other exercises from a friend's latest workout: at most this many per friend
-const RECENT_EXERCISES_PER_FRIEND = 3;
-
-/**
- * A friend's last completed exercises outside the Big 3 + OHP (those have their own entries): from their most recent
- * workout with a completed set, each exercise's best completed set — "@X: LAT PULLDOWN 140 LB × 10 (11/12)",
- * "@X: PULL-UP × 12", "@X: PLANK 01:30", "@X: BAND ROW RED BAND × 15". Entries carry the same sort fields as the lift
- * entries (newest first).
- */
-function getAthleteRecentExerciseEntries(friend, randomSeed = 1) {
-  const uname = (friend?.username || 'athlete').toUpperCase();
-  const timeOf = w => new Date(w?.startedAt || w?.workoutDate || w?.updatedAt || 0).getTime();
-  const done = st => st && st.completed;
-  const latest = [...(Array.isArray(friend?.history) ? friend.history : [])]
-    .sort((a, b) => timeOf(b) - timeOf(a))
-    .find(w => (w?.slots || []).some(slot => (slot?.supersetSetsByExercise || [slot?.sets]).some(list => (list || []).some(done))));
-  if (!latest) return [];
-  const timeMs = timeOf(latest) || 0;
-  const dateStr = timeMs > 0 ? formatDateYMD(latest.startedAt || latest.workoutDate).replace(/^\d{4}\//, '') : '';
-  const coreIds = new Set(SCROLLER_LIFTS.map(l => l.id));
-  const seen = new Set();
-  const entries = [];
-  (latest.slots || []).forEach(slot => {
-    const ids =
-      Array.isArray(slot?.supersetExerciseIds) && slot.supersetExerciseIds.length > 0
-        ? slot.supersetExerciseIds
-        : [slot?.exerciseId].filter(Boolean);
-    ids.forEach((exId, exIdx) => {
-      if (!exId || coreIds.has(exId) || seen.has(exId)) return;
-      const list = Array.isArray(slot?.supersetSetsByExercise) && slot.supersetSetsByExercise[exIdx]
-        ? slot.supersetSetsByExercise[exIdx]
-        : exIdx === 0 ? slot?.sets || [] : slot?.secondarySets || [];
-      const completed = (list || []).filter(done);
-      if (completed.length === 0) return;
-      seen.add(exId);
-      // Best completed set: heaviest estimated 1RM, else most reps / longest time
-      const score = st => {
-        const w = Number(st.weight) || 0;
-        const r = Math.max(1, Number(st.reps) || 1);
-        return w > 0 ? estimateSet1RM(st) : Number(st.durationSeconds) || r;
-      };
-      const best = completed.reduce((a, b) => (score(b) > score(a) ? b : a));
-      const name = stripEquipmentFromExerciseName(EXERCISE_MAP[exId]?.name || exId).toUpperCase();
-      const reps = Number(best.reps) || 0;
-      const load = best.durationSeconds || best.timerStr
-        ? getSetTimerMMSS(best, true)
-        : best.bandColor
-          ? `${getBandLoadLabel(best.bandColor)} × ${reps}`
-          : Number(best.weight) > 0 && !isBodyweightExercise(exId)
-            ? `${best.weight} LB × ${reps}`
-            : `× ${reps}`;
-      entries.push({
-        uname,
-        dayBucket: Math.floor(timeMs / 86400000),
-        entryTimeMs: timeMs,
-        tieRand: deterministicHash(`${uname}_${exId}_${randomSeed}`),
-        text: `@${uname}: ${name} ${load}${dateStr ? ` (${dateStr})` : ''}`
-      });
-    });
-  });
-  return entries.slice(0, RECENT_EXERCISES_PER_FRIEND);
-}
-
-function getAthleteScrollerEntries(friend, randomSeed = 1, todayFallbackStr = '') {
-  const uname = (friend?.username || 'athlete').toUpperCase();
-  // Their PRs from logged History only (saved numbers without data don't count)
-  const prs = buildHistoryPRs(friend?.history);
-  const histList = Array.isArray(friend?.history) ? friend.history : [];
-
-  const sortedHist = [...histList].sort(
-    (a, b) =>
-      new Date(b?.startedAt || b?.workoutDate || b?.updatedAt || 0).getTime() -
-      new Date(a?.startedAt || a?.workoutDate || a?.updatedAt || 0).getTime()
-  );
-
-  const fallbackDateRaw =
-    sortedHist[0]?.startedAt ||
-    sortedHist[0]?.workoutDate ||
-    sortedHist[0]?.updatedAt ||
-    friend?.updatedAt ||
-    null;
-
-  // Shuffle the 4 lifts (Big 3 + OHP) per athlete using randomSeed
-  const shuffledLifts = [...SCROLLER_LIFTS].sort((a, b) => {
-    const ha = deterministicHash(`${uname}_${a.id}_${randomSeed}`);
-    const hb = deterministicHash(`${uname}_${b.id}_${randomSeed}`);
-    return ha - hb;
-  });
-
-  const entries = [];
-
-  shuffledLifts.forEach(lift => {
-    let latestHistWeight = 0;
-    let bestHistWeight = 0;
-    let latestDateRaw = null;
-    let latestTimeMs = 0;
-
-    for (const w of sortedHist) {
-      const wDateRaw = w?.startedAt || w?.workoutDate || w?.updatedAt || null;
-      const wTimeMs = wDateRaw ? new Date(wDateRaw).getTime() : 0;
-
-      for (const slot of w?.slots || []) {
-        const slotExIds =
-          Array.isArray(slot?.supersetExerciseIds) && slot.supersetExerciseIds.length > 0
-            ? slot.supersetExerciseIds
-            : [slot?.exerciseId, slot?.secondaryExerciseId].filter(Boolean);
-
-        slotExIds.forEach((exId, exIdx) => {
-          if (exId !== lift.id) return;
-          const sets =
-            Array.isArray(slot?.supersetSetsByExercise) && slot.supersetSetsByExercise[exIdx]
-              ? slot.supersetSetsByExercise[exIdx]
-              : slot?.sets || [];
-          // The session's 1RM: a real single, else the whole exercise (the same rule as Performance)
-          const maxSetW = loggedExercise1RMInfo(exId, sets, getSlotEquipmentChoice(slot, exIdx)).value;
-          if (maxSetW > 0) {
-            if (maxSetW > bestHistWeight) bestHistWeight = maxSetW;
-            if (!latestDateRaw || wTimeMs > latestTimeMs) {
-              latestHistWeight = maxSetW;
-              latestDateRaw = wDateRaw;
-              latestTimeMs = Number.isNaN(wTimeMs) ? 0 : wTimeMs;
-            }
-          }
-        });
-      }
-    }
-
-    const prVal = Number(prs[lift.id]) || 0;
-    const weightVal = Math.max(prVal, bestHistWeight, latestHistWeight);
-    // * = their best was calculated from reps, not lifted for 1 rep
-    const histInfo = getBestHistory1RMInfo(lift.id, histList);
-    const weightLabel = oneRepMaxLabel(weightVal, weightVal === histInfo.best && histInfo.calculated);
-
-    if (weightVal > 0) {
-      const resolvedDateRaw = latestDateRaw || fallbackDateRaw;
-      const parsedTimeMs =
-        resolvedDateRaw && !Number.isNaN(new Date(resolvedDateRaw).getTime())
-          ? new Date(resolvedDateRaw).getTime()
-          : 0;
-      const dateStr =
-        resolvedDateRaw && parsedTimeMs > 0
-          ? formatDateYMD(resolvedDateRaw)
-          : todayFallbackStr;
-      const entryTimeMs = latestTimeMs > 0 ? latestTimeMs : parsedTimeMs;
-      const dayBucket = Math.floor(entryTimeMs / 86400000);
-      // Month and day only (MM/DD): the year is clear enough in a news ticker
-      const dateSuffix = dateStr ? ` (${dateStr.replace(/^\d{4}\//, '')})` : '';
-
-      entries.push({
-        uname,
-        liftId: lift.id,
-        liftLabel: lift.label,
-        weightVal,
-        dateStr,
-        entryTimeMs,
-        dayBucket,
-        tieRand: deterministicHash(`${uname}_${lift.id}_${dateStr}_${randomSeed}`),
-        // Every ticker value is a 1RM, so it isn't spelled out
-        text: `@${uname}: ${lift.label} ${weightLabel} LB${dateSuffix}`
-      });
-    }
-  });
-
-  return entries.slice(0, 4);
-}
 
 // The count of routines friends sent you that are still waiting (Routines row)
 function CountBadge({ count }) {
@@ -243,11 +45,9 @@ export function HomeView({
   handleOpenNewAutoSession,
   setCurrentView,
   setRoutineSelectReturnView,
-  marqueePaused,
-  setMarqueePaused,
   friendsList,
   pendingIncomingRequests,
-  // Your muscle groups' stimulus status (READY / OVERDUE entries in the ticker)
+  // Your muscle groups' stimulus status (the OVERDUE tile)
   muscleStimulusStatus = {},
   // Routines friends sent you, still waiting (the INBOX tile)
   receivedRoutineCount = 0,
@@ -259,8 +59,9 @@ export function HomeView({
   goalLiftsLabel = 'BIG 3 + OHP',
   // The TODAY panel while a session is open: { title, done, total } (sets)
   activeSessionSummary = null,
-  // Bodyweight / height not entered yet: the ticker starts with a reminder
+  // Bodyweight / height not entered yet: a reminder line under the session buttons (opens Configuration)
   bodyMetricsSet = true,
+  onOpenBodyMetrics,
   // LAST SESSION opens that workout in History (onOpenWorkout(id)); THIS WEEK opens History filtered to the last
   // 7 days (onOpenThisWeek)
   onOpenWorkout,
@@ -275,102 +76,11 @@ export function HomeView({
   // Below the tiles: CHALLENGES and FEED (SocialFeedSection, built in page.js)
   belowTiles = null
 }) {
-  const [scrollerSeed, setScrollerSeed] = useState(1);
-  const [todayFallbackStr, setTodayFallbackStr] = useState('');
   // "Now" for LAST SESSION / THIS WEEK (read after mount: never Date.now() in render)
   const [nowMs, setNowMs] = useState(null);
   useEffect(() => {
-    setScrollerSeed(Math.floor(Math.random() * 1000000) + 2);
-    setTodayFallbackStr(formatDateYMD(new Date()));
     setNowMs(Date.now());
   }, []);
-
-
-  // The scroller shows friends only (never your own lifts): one list entry per friend account.
-  const uniqueAthletes = [];
-  const seenKeys = new Set();
-  if (user?.id) seenKeys.add(String(user.id));
-
-  // Friends are accepted friendships keyed by account id (one entry per account, never yourself)
-  (friendsList || []).forEach(f => {
-    const key = String(f?.id || '');
-    if (!key || seenKeys.has(key)) return;
-    seenKeys.add(key);
-    uniqueAthletes.push(f);
-  });
-
-  const friendIdsKey = uniqueAthletes.map(f => String(f.id)).sort().join(',');
-  useEffect(() => {
-    if (!user?.id || !todayFallbackStr) return;
-    recordFriendFirstSeen(user.id, friendIdsKey ? friendIdsKey.split(',') : [], todayFallbackStr);
-  }, [user?.id, friendIdsKey, todayFallbackStr]);
-
-  // NEW FRIEND entries: friends first seen on this device in the last NEW_FRIEND_DAYS days. Before the
-  // account's first record exists nothing counts as new (existing friends on a new device aren't "new").
-  const firstSeen = todayFallbackStr ? readFriendFirstSeen(user?.id) : null;
-  const newFriendEntries = firstSeen
-    ? uniqueAthletes
-        .filter(f => {
-          const seen = firstSeen[String(f.id)];
-          if (seen === undefined) return true; // appeared since the last record
-          return Boolean(seen) && daysBetweenYMD(seen, todayFallbackStr) < NEW_FRIEND_DAYS;
-        })
-        .map(f => `NEW FRIEND: @${String(f.username || 'athlete').toUpperCase()}`)
-    : [];
-
-  // Your muscle groups that are ready (RECOVERED) or OVERDUE for stimulus, most overdue first
-  const muscleEntries = Object.entries(muscleStimulusStatus || {})
-    .filter(([, s]) => /OVERDUE|RECOVERED/.test(s?.label || ''))
-    .sort(([, a], [, b]) => (b?.daysAgo || 0) - (a?.daysAgo || 0))
-    .map(([group, s]) =>
-      /OVERDUE/.test(s.label)
-        ? `${group.toUpperCase()} OVERDUE (${s.daysAgo}D AGO)`
-        : `${group.toUpperCase()} READY (${s.daysAgo}D AGO)`
-    );
-
-  // Limit to 10 athletes: their Big 3 + OHP entries plus up to 3 other exercises from their latest workout, ordered by
-  // time of entry
-  const tickerEntryObjects = uniqueAthletes
-    .slice(0, 10)
-    .flatMap(a => [
-      // (each friend's lifts on their own learned model: their rep curves and fatigue)
-      ...withAthleteModel(a?.history, () => [
-        ...getAthleteScrollerEntries(a, scrollerSeed, todayFallbackStr),
-        ...getAthleteRecentExerciseEntries(a, scrollerSeed)
-      ])
-    ]);
-
-  const sortedTickerEntries = [...tickerEntryObjects]
-    .sort((a, b) => {
-      if (b.dayBucket !== a.dayBucket) {
-        return b.dayBucket - a.dayBucket;
-      }
-      if (b.entryTimeMs !== a.entryTimeMs) {
-        return b.entryTimeMs - a.entryTimeMs;
-      }
-      return a.tieRand - b.tieRand;
-    })
-    .slice(0, 40)
-    .map(item => item.text);
-
-  // Order: new friends, then your muscle groups, then friends' lifts (or a prompt when there are none)
-  const tickerItems = [
-    // Goals, standards and bodyweight lifts use them: a reminder first until they are entered
-    ...(bodyMetricsSet ? [] : ['SET YOUR BODYWEIGHT AND HEIGHT IN CONFIGURATION → BODY METRICS']),
-    ...newFriendEntries,
-    ...muscleEntries,
-    ...(sortedTickerEntries.length > 0
-      ? sortedTickerEntries
-      : [uniqueAthletes.length === 0 ? 'INVITE FRIENDS TO KEEP TRACK OF PROGRESS' : 'NO RECENT LIFTS FROM YOUR FRIENDS YET'])
-  ];
-  const baseTickerText = tickerItems.join('   ·   ') + '   ·   ';
-
-  const repeatCount = Math.max(1, Math.ceil(90 / Math.max(1, baseTickerText.length)));
-  const friendsTickerText = baseTickerText.repeat(repeatCount);
-
-  // Constant linear character/pixel speed (~11.5 chars/sec, 1/4 of the previous 7s fixed-duration speed)
-  // Scales duration proportionally to total character length so speed never changes with entry count.
-  const marqueeDurationSec = Math.max(8, Math.round(friendsTickerText.length * 0.087 * 10) / 10);
 
   // ---- Home's readouts (each tile opens its page) ----
   const workoutMs = w => (typeof w?.startedAt === 'number' ? w.startedAt : Date.parse(w?.startedAt || '')) || 0;
@@ -485,7 +195,7 @@ export function HomeView({
 
   return (
     <div>
-      {/* No big title on Home (the locked header already says YOU CAN'T CRY IN HERE): TODAY, the ticker, then the
+      {/* No big title on Home (the locked header already says YOU CAN'T CRY IN HERE): the session buttons, then the
           readouts. The page's heading is kept for screen readers. */}
       <h1
         style={{
@@ -518,48 +228,37 @@ export function HomeView({
         </div>
       </section>
 
-      {/* NEWS TICKER: friends' lifts and your muscles, between TODAY and the readouts (a rounded strip in the gutter,
-          like the tiles); tap anywhere on it to pause / play */}
-      <div style={{ padding: '8px var(--dp-spacing-gutter) 0' }}>
-      <button
-        type="button"
-        aria-pressed={marqueePaused}
-        aria-label={marqueePaused ? 'News ticker paused. Tap to play' : 'News ticker. Tap to pause'}
-        onClick={() => setMarqueePaused(p => !p)}
-        className={marqueePaused ? 'kinetic-marquee-paused' : ''}
-        style={{
-          width: '100%',
-          minHeight: '40px',
-          padding: 0,
-          border: 'none',
-          borderRadius: '12px',
-          backgroundColor: '#1C1C1C',
-          color: '#FFFFFF',
-          display: 'flex',
-          alignItems: 'center',
-          overflow: 'hidden',
-          cursor: 'pointer',
-          textAlign: 'left',
-          fontFamily: 'inherit'
-        }}
-      >
-        <span style={{ display: 'block', flex: 1, overflow: 'hidden', padding: '8px 0' }}>
-          <span
-            className="kinetic-marquee-track"
+      {/* Until bodyweight and height are entered (goals, standards and bodyweight lifts use them): one line that opens
+          Configuration → BODY METRICS */}
+      {!bodyMetricsSet && (
+        <div style={{ padding: '8px var(--dp-spacing-gutter) 0' }}>
+          <button
+            type="button"
+            className="kinetic-btn"
+            onClick={() => onOpenBodyMetrics?.()}
             style={{
-              '--dp-marquee-duration': `${marqueeDurationSec}s`,
-              fontSize: '11px',
-              fontWeight: 500,
-              letterSpacing: '0.08em',
-              textTransform: 'uppercase'
+              width: '100%',
+              minHeight: '44px',
+              padding: '10px 14px',
+              border: 'none',
+              borderRadius: '12px',
+              backgroundColor: '#1C1C1C',
+              color: '#BDBDBD',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '12px',
+              textAlign: 'left',
+              cursor: 'pointer',
+              ...UI.sentence,
+              fontSize: '13px'
             }}
           >
-            <span style={{ paddingRight: '32px' }}>{friendsTickerText}</span>
-            <span aria-hidden="true" style={{ paddingRight: '32px' }}>{friendsTickerText}</span>
-          </span>
-        </span>
-      </button>
-      </div>
+            <span>Set your bodyweight and height to get your goals and starting weights right.</span>
+            <span aria-hidden="true" style={{ color: '#9A9A9A' }}>›</span>
+          </button>
+        </div>
+      )}
 
       {/* READOUTS: each tile is a number worth tapping (it opens its page); no list of pages here (the menu has those) */}
       <section

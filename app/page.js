@@ -76,7 +76,6 @@ export default function App() {
   // --- Navigation & Drawer State ---
   const [currentView, setCurrentView] = useState('home');
   const [showHamburgerDrawer, setShowHamburgerDrawer] = useState(false);
-  const [marqueePaused, setMarqueePaused] = useState(false);
   const importBackupInputRef = useRef(null);
 
   // --- User & Auth State ---
@@ -1333,13 +1332,15 @@ export default function App() {
               handleOpenNewAutoSession={handleOpenNewAutoSession}
               setCurrentView={setCurrentView}
               setRoutineSelectReturnView={setRoutineSelectReturnView}
-              marqueePaused={marqueePaused}
-              setMarqueePaused={setMarqueePaused}
               friendsList={friendsList}
               pendingIncomingRequests={pendingIncomingRequests}
               muscleStimulusStatus={muscleStimulusStatus}
               receivedRoutineCount={routineShares.incoming.length}
               bodyMetricsSet={bodyMetricsSet}
+              onOpenBodyMetrics={() => {
+                setConfigurationTab('body');
+                setCurrentView('configuration');
+              }}
               onOpenWorkout={openHistoryWorkout}
               onOpenInbox={() => {
                 setRoutineSelectReturnView(null);

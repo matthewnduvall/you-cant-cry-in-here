@@ -9,6 +9,7 @@
 - `npm run lint` — ESLint (flat config, `eslint-config-next`). The tree currently has known pre-existing errors (mostly `react-hooks/set-state-in-effect`); don't add new ones.
 - `npm run build` — production build; run it before committing anything that touches rendering, data loading, or `next.config.mjs`.
 - `npm test` — Vitest unit tests (`tests/*.test.js`, config `vitest.config.mjs`, which loads `exercises.csv` as a string like `next.config.mjs` does): the 1RM / intensity maths, rep curves, Kalman, rest, the prediction replay, friends' models, the console's grouping, and a guard that no source file contains a control character. Run it after touching `app/utils/`; add tests for new engine logic.
+- ESLint here does not catch undefined names (`no-undef` isn't on for JS): when new code uses an import, grep that it is imported. `npm run build` and a browser check catch what slips through.
 - Python patch scripts: never put a regex `\b` inside a heredoc or a non-raw Python string — it becomes a real backspace (it broke the dip bodyweight share once). Write scripts to a file with raw strings; `tests/source.test.js` catches it.
 
 ## Workflow

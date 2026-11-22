@@ -377,6 +377,8 @@ export function DragNumberBadge({
   minHeight,
   bg = '#1C1C1C',
   title = 'Click and drag to rearrange',
+  // false: a plain number (no grip dots, no grab cursor) where the row can't be dragged
+  grip = true,
   // Extra handlers / attributes (e.g. pointer-drag props from usePointerReorder)
   style: extraStyle,
   ...rest
@@ -399,14 +401,14 @@ export function DragNumberBadge({
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        cursor: 'grab',
+        cursor: grip ? 'grab' : 'default',
         userSelect: 'none',
         overflow: 'hidden',
         flexShrink: 0,
         ...extraStyle
       }}
     >
-      <div
+      {grip && <div
         aria-hidden="true"
         style={{
           position: 'absolute',
@@ -418,7 +420,7 @@ export function DragNumberBadge({
           pointerEvents: 'none',
           zIndex: 0
         }}
-      />
+      />}
       <span
         style={{
           position: 'relative',
