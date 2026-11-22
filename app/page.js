@@ -45,7 +45,7 @@ import { useSyncedHistoryUpdates } from './hooks/useSyncedHistoryUpdates';
 import { useRoutineShares } from './hooks/useRoutineShares';
 import { useSocialFeed, workoutExerciseNames } from './hooks/useSocialFeed';
 import { SocialFeedSection } from './components/views/SocialFeedSection';
-import { SocialSettingsSection, SharingDefaultsSection } from './components/views/SettingsView';
+import { SocialSettingsSection, SharingDefaultsSection, VoiceInputPrivacySection } from './components/views/SettingsView';
 import { normalizeShareDefaults } from './utils/storageMigration';
 import { CORE_LIFT_IDS, getClassGoalSummary } from './components/LiftGoals';
 import { withTrace, traceLine, logOperation } from './utils/calcTrace';
@@ -1336,7 +1336,10 @@ export default function App() {
               pendingIncomingRequests={pendingIncomingRequests}
               muscleStimulusStatus={muscleStimulusStatus}
               receivedRoutineCount={routineShares.incoming.length}
-              bodyMetricsSet={bodyMetricsSet}
+              // Only a brand-new account: nothing logged, bodyweight and height still the defaults and never
+              // confirmed — and only once this device's data (and, signed in, the first cloud pull) has loaded, so an
+              // account that is set up never sees it while it loads
+              bodyMetricsSet={!(isStorageHydrated && (!user || cloudSyncStatus === 'ok') && !bodyMetricsSet && (history || []).length === 0)}
               onOpenBodyMetrics={() => {
                 setConfigurationTab('body');
                 setCurrentView('configuration');
@@ -1650,6 +1653,7 @@ export default function App() {
                 setEmailChallenges={setEmailChallenges}
               />
               <SharingDefaultsSection colors={colors} shareDefaults={shareDefaults} setShareDefaults={setShareDefaults} />
+              <VoiceInputPrivacySection colors={colors} />
             </div>
           )}
 

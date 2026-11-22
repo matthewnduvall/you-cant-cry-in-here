@@ -12,7 +12,7 @@ import { INTENSITY_MODES, formatIntensity } from '../utils/intensity';
 import { IntensityEditorModal } from './IntensityEditorModal';
 import { SchemeEditorModal, schemeButtonLabel } from './SchemeEditorModal';
 import { getProgram } from '../data/programs';
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { SHARED_CELL_BORDER, UI } from '../styles/kineticTokens';
 import {
   EXERCISE_LIBRARY,
@@ -433,6 +433,7 @@ export function SlotEditor({
 
   // Search result → that exercise, its muscle group and its type (Compound / Accessory)
   const handleSearchPick = (half, ex) => {
+    stopListening();
     setSearch(null);
     if (!ex) return;
     const current = pickerState(half);
@@ -467,6 +468,7 @@ export function SlotEditor({
   // 3 x 12"): exercise(s), then the set count, the reps and the REST, each as its own change, in order
   const sentence = search?.query ? parseExerciseSentence(search.query) : null;
   const applySentence = (half, parsed) => {
+    stopListening();
     setSearch(null);
     if (!parsed) return;
     if (parsed.superset) {
@@ -494,6 +496,9 @@ export function SlotEditor({
     typeof window !== 'undefined' ? window.SpeechRecognition || window.webkitSpeechRecognition : null;
   const [listening, setListening] = useState(false);
   const recognitionRef = useRef(null);
+  // Results that arrive after listening was stopped are dropped (stop() can still deliver a last result, which would
+  // reopen the search box after an entry was picked)
+  const listeningRef = useRef(false);
   const startListening = half => {
     if (!SpeechRecognitionApi) return;
     try {
@@ -503,26 +508,53 @@ export function SlotEditor({
       rec.interimResults = true;
       rec.maxAlternatives = 1;
       rec.onresult = e => {
+        if (!listeningRef.current || recognitionRef.current !== rec) return;
         const text = [...e.results].map(r => r[0]?.transcript || '').join(' ').trim();
         setSearch({ half, query: text });
       };
-      rec.onend = () => setListening(false);
-      rec.onerror = () => setListening(false);
+      rec.onend = () => {
+        if (recognitionRef.current === rec) {
+          listeningRef.current = false;
+          setListening(false);
+        }
+      };
+      rec.onerror = rec.onend;
       recognitionRef.current = rec;
+      listeningRef.current = true;
       setListening(true);
       rec.start();
     } catch {
       setListening(false);
     }
   };
+  // Stops the microphone at once and discards anything still being heard (abort, not stop)
   const stopListening = () => {
+    listeningRef.current = false;
+    const rec = recognitionRef.current;
+    recognitionRef.current = null;
     try {
-      recognitionRef.current?.stop?.();
+      rec?.abort?.();
     } catch {
       // already stopped
     }
     setListening(false);
   };
+  // The microphone never outlives the search box: picking an entry, setting a sentence up, closing the box or leaving
+  // the page all stop it
+  useEffect(() => {
+    if (!search && listeningRef.current) stopListening();
+  }, [search]);
+  useEffect(
+    () => () => {
+      listeningRef.current = false;
+      try {
+        recognitionRef.current?.abort?.();
+      } catch {
+        // already stopped
+      }
+    },
+    []
+  );
 
   const searchResults = search?.query ? searchExercises(search.query) : [];
 

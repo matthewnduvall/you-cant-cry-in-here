@@ -562,6 +562,41 @@ export function DataBackupSection({
  * friends' feeds, and SAVE AS ROUTINE to @me (your routine library) and @all (your shared routines). Each save can
  * still change them.
  */
+/**
+ * VOICE INPUT (Privacy page): what happens to speech from the exercise search's microphone. The app never records or
+ * keeps audio; the browser's own speech service turns it into text, which only fills the search box.
+ */
+export function VoiceInputPrivacySection({ colors }) {
+  const points = [
+    { title: 'No audio is recorded or kept', sub: 'Nothing you say is saved by the app, on this device or on our servers.' },
+    {
+      title: "Your device's speech service does the listening",
+      sub: "Speech goes to your browser's speech recognition (Apple's on iPhone and Safari, Google's in Chrome), which returns text. Their privacy policies cover that step."
+    },
+    {
+      title: 'Only the text is used',
+      sub: 'It fills the search box while it is open and is discarded once you pick an entry. What you pick is saved as part of your workout, like any exercise.'
+    },
+    { title: 'The microphone stops on its own', sub: 'When you pick an entry, close the search or leave the page.' }
+  ];
+  return (
+    <IOSListSection
+      header="VOICE INPUT"
+      footer="Your browser asks before the microphone is used for the first time; you can turn that permission off in its settings."
+      colors={colors}
+    >
+      {points.map((p, i) => (
+        <IOSListRow key={p.title} isLast={i === points.length - 1} colors={colors}>
+          <span style={{ minWidth: 0 }}>
+            <span style={UI.rowTitle}>{p.title}</span>
+            <span style={{ ...UI.sentence, display: 'block', fontSize: '13px', color: '#9A9A9A', marginTop: '2px' }}>{p.sub}</span>
+          </span>
+        </IOSListRow>
+      ))}
+    </IOSListSection>
+  );
+}
+
 export function SharingDefaultsSection({ colors, shareDefaults, setShareDefaults }) {
   const d = shareDefaults || {};
   const rows = [

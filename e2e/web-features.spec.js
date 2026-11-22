@@ -1,0 +1,297 @@
+// The web app's feature smoke tests: one test per feature in WEB_FEATURES.md, titled with its [id]
+// (tests/webFeatures.test.js checks every listed feature has one). They check each feature is there and does its basic
+// job, not every detail — the unit tests cover the maths.
+import { test, expect, devices } from '@playwright/test';
+import { appState, waitForState, openHome, openFromMenu, newSession, addExercise, sessionSlots, searchInCard, seedHistory, results } from './helpers';
+
+test.describe('Home', () => {
+  test('[home.session-buttons] NEW SESSION and AUTO SESSION', async ({ page }) => {
+    await openHome(page);
+    await expect(page.getByRole('button', { name: 'AUTO SESSION' })).toBeVisible();
+    await page.getByRole('button', { name: 'AUTO SESSION' }).click();
+    await expect.poll(async () => (await sessionSlots(page)).length, { timeout: 8000 }).toBeGreaterThan(0);
+  });
+
+  test('[home.readout-tiles] the six readout tiles', async ({ page }) => {
+    await openHome(page);
+    for (const label of ['TO GOAL', 'OVERDUE', 'LAST SESSION', 'THIS WEEK', 'FRIENDS', 'RANK']) {
+      await expect(page.getByRole('button', { name: new RegExp(label) }).first()).toBeVisible();
+    }
+  });
+
+  test('[home.body-reminder] only a brand-new account is reminded to set bodyweight and height', async ({ page, browser }) => {
+    await openHome(page);
+    const reminder = page.getByRole('button', { name: /Set your bodyweight and height/ });
+    await expect(reminder).toBeVisible();
+    await reminder.click();
+    await expect(page.getByText('CONFIGURATION').first()).toBeVisible();
+    // An account with History never sees it
+    const used = await browser.newContext({ ...devices['Pixel 7'], baseURL: test.info().project.use.baseURL });
+    const usedPage = await used.newPage();
+    await seedHistory(usedPage);
+    await openHome(usedPage);
+    await expect(usedPage.getByRole('button', { name: /AUTO SESSION/ })).toBeVisible();
+    await expect(usedPage.getByRole('button', { name: /Set your bodyweight and height/ })).toHaveCount(0);
+    await used.close();
+  });
+
+  test('[home.feed] the feed asks a signed-out athlete to sign in', async ({ page }) => {
+    await openHome(page);
+    await expect(page.getByText(/Sign in to see your friends/)).toBeVisible();
+  });
+});
+
+test.describe('Navigation', () => {
+  test('[nav.menu] the menu opens every page', async ({ page }) => {
+    await openHome(page);
+    const pages = [
+      ['Routines', 'ROUTINES'],
+      ['Performance', 'PERFORMANCE'],
+      ['History', 'HISTORY'],
+      ['Stimulus', 'STIMULUS'],
+      ['Friends', 'FRIENDS'],
+      ['Leaderboards', 'LEADERBOARDS'],
+      ['Privacy', 'PRIVACY'],
+      ['Configuration', 'CONFIGURATION'],
+      ['Info', 'INFO']
+    ];
+    for (const [row, title] of pages) {
+      await openFromMenu(page, row);
+      await expect(page.getByText(title, { exact: true }).first()).toBeVisible();
+    }
+  });
+
+  test('[nav.back] BACK returns to the previous page', async ({ page }) => {
+    await openHome(page);
+    await openFromMenu(page, 'Info');
+    await openFromMenu(page, 'Stimulus');
+    await page.getByRole('button', { name: 'Back to the previous page' }).click();
+    await expect(page.getByText('INFO', { exact: true }).first()).toBeVisible();
+  });
+
+  test('[nav.feedback] FEEDBACK opens the feedback pop-up', async ({ page }) => {
+    await openHome(page);
+    await page.getByRole('button', { name: 'Send Feedback' }).click();
+    await expect(page.getByText(/ENTER YOUR FEEDBACK|feedback/i).first()).toBeVisible();
+  });
+});
+
+test.describe('Session', () => {
+  test('[session.add-exercise] + ADD EXERCISE adds a planned exercise', async ({ page }) => {
+    await newSession(page);
+    await addExercise(page);
+    const slots = await sessionSlots(page);
+    expect(slots.length).toBe(1);
+    expect(slots[0].sets.length).toBeGreaterThan(0);
+    expect(slots[0].sets.some(s => Number(s.weight) > 0)).toBe(true);
+  });
+
+  test('[session.tick-set] ticking a set marks it done and starts the rest timer', async ({ page }) => {
+    await newSession(page);
+    await addExercise(page);
+    await page.getByRole('button', { name: 'Mark set complete' }).first().click();
+    await waitForState(page, s => s.activeSession?.slots?.[0]?.sets?.[0]?.completed);
+  });
+
+  test('[session.simple-effort] SIMPLE asks how many more reps after a working set', async ({ page }) => {
+    await newSession(page, 'SIMPLE');
+    await addExercise(page);
+    const sets = (await sessionSlots(page))[0].sets;
+    const working = sets.findIndex(s => s.type !== 'Warmup');
+    await page.getByRole('button', { name: 'Mark set complete' }).nth(working).click();
+    const dialog = page.getByRole('dialog');
+    await expect(dialog.getByText('How many more reps could you have done?')).toBeVisible();
+    await dialog.getByRole('button', { name: '2 more' }).click();
+    await waitForState(page, s => s.activeSession?.slots?.[0]?.sets?.[working]?.intensity?.value === 2);
+  });
+
+  test('[session.simple-rows-superset] SIMPLE: + 1 ROW and SUPERSET / UNPAIR', async ({ page }) => {
+    await newSession(page, 'SIMPLE');
+    await addExercise(page);
+    const before = (await sessionSlots(page))[0].sets.length;
+    await page.getByRole('button', { name: '+ 1 ROW' }).click();
+    await waitForState(page, s => s.activeSession?.slots?.[0]?.sets?.length === before + 1);
+    await page.getByRole('button', { name: /^Superset: pair/ }).click();
+    await waitForState(page, s => s.activeSession?.slots?.[0]?.category === 'Superset');
+    await page.getByRole('button', { name: /^Unpair/ }).click();
+    await waitForState(page, s => s.activeSession?.slots?.[0]?.category !== 'Superset');
+  });
+
+  test('[session.advanced-scheme] ADVANCED: the scheme pop-up changes sets and reps', async ({ page }) => {
+    await newSession(page);
+    await addExercise(page);
+    await page.getByRole('button', { name: /^Scheme:/ }).first().click();
+    await expect(page.getByText('SCHEME').first()).toBeVisible();
+    await expect(page.getByRole('button', { name: /^APPLY/ })).toBeVisible();
+  });
+
+  test('[session.reset-exercise] ADVANCED: RESET puts an exercise back as it was loaded', async ({ page }) => {
+    await newSession(page);
+    await addExercise(page);
+    await expect(page.getByRole('button', { name: 'RESET', exact: true }).last()).toBeVisible();
+    await page.getByRole('button', { name: 'RESET', exact: true }).last().click();
+  });
+
+  test('[session.search] the exercise search finds and picks an exercise', async ({ page }) => {
+    await newSession(page);
+    await addExercise(page);
+    const before = (await sessionSlots(page))[0].exerciseId;
+    await searchInCard(page, 'lateral raise');
+    await results(page).filter({ hasText: /lateral raise/i }).first().click();
+    await waitForState(page, s => {
+      const id = s.activeSession?.slots?.[0]?.exerciseId;
+      return id && id !== before;
+    });
+  });
+
+  test('[session.sentence-search] a sentence sets up exercise, sets, reps and rest', async ({ page }) => {
+    await newSession(page);
+    await addExercise(page);
+    await searchInCard(page, 'bench press for 6 reps in 5 sets with 1:30 rest');
+    const setup = results(page).filter({ hasText: 'SET UP' });
+    await expect(setup).toContainText('5 × 6');
+    await setup.click();
+    await waitForState(page, s => {
+      const sl = s.activeSession?.slots?.[0];
+      return sl?.exerciseId === 'barbell_bench_press' && sl.sets.length === 5 && sl.sets.every(x => x.reps === 6) && sl.customRestSeconds === 90;
+    });
+  });
+
+  test('[session.sentence-superset] a superset sentence pairs two exercises', async ({ page }) => {
+    await newSession(page);
+    await addExercise(page);
+    await searchInCard(page, 'superset triceps pushdowns and curls 12 reps 3 sets');
+    await results(page).filter({ hasText: 'SET UP' }).click();
+    await waitForState(page, s => s.activeSession?.slots?.[0]?.category === 'Superset');
+  });
+
+  test('[session.one-rep-max] "1 rep max bench" makes one max single', async ({ page }) => {
+    await newSession(page);
+    await addExercise(page);
+    await searchInCard(page, '1 rep max bench');
+    await results(page).filter({ hasText: '1 rep max' }).click();
+    await waitForState(page, s => {
+      const sets = s.activeSession?.slots?.[0]?.sets || [];
+      return sets.length === 1 && sets[0].type === '1 Rep Max' && sets[0].reps === 1;
+    });
+  });
+
+  test('[session.typo-search] the search forgives typos', async ({ page }) => {
+    await newSession(page);
+    await addExercise(page);
+    await searchInCard(page, 'benhc press');
+    await expect(results(page).first()).toContainText(/bench press/i);
+  });
+
+  test('[session.microphone] the search box offers the microphone where the browser has speech recognition', async ({ page }) => {
+    await newSession(page);
+    await addExercise(page);
+    const hasSpeech = await page.evaluate(() => Boolean(window.SpeechRecognition || window.webkitSpeechRecognition));
+    await searchInCard(page, '');
+    const mic = page.getByRole('button', { name: /Say the exercise/ });
+    if (hasSpeech) await expect(mic).toBeVisible();
+    else await expect(mic).toHaveCount(0);
+  });
+
+  test('[session.console] the CONSOLE opens, and goes full screen', async ({ page }) => {
+    await newSession(page);
+    await addExercise(page);
+    await page.getByRole('button', { name: /Show the formulas/ }).click();
+    await page.getByRole('button', { name: 'Full screen' }).click();
+    await expect(page.getByRole('button', { name: 'Exit full screen' })).toBeVisible();
+    await expect(page.getByRole('log')).toContainText(/ADD EXERCISE/);
+  });
+
+  test('[session.finish] FINISH logs the done sets to History', async ({ page }) => {
+    await newSession(page);
+    await addExercise(page);
+    await page.getByRole('button', { name: 'Mark set complete' }).first().click();
+    await page.getByRole('button', { name: 'FINISH', exact: true }).first().click();
+    await expect(page.getByText('FINISH SESSION')).toBeVisible();
+    await page.getByRole('button', { name: 'FINISH', exact: true }).last().click();
+    await waitForState(page, s => (s.history || []).length === 1 && !(s.activeSession?.slots || []).length);
+  });
+});
+
+test.describe('History and progress', () => {
+  test('[history.list-and-editor] History lists sessions and opens one as an editor', async ({ page }) => {
+    await seedHistory(page);
+    await openHome(page);
+    await openFromMenu(page, 'History');
+    await expect(page.getByText(/BENCH DAY/i).first()).toBeVisible();
+    await page.getByText(/BENCH DAY/i).first().click();
+    await expect(page.getByRole('button', { name: /Mark set/ }).first()).toBeVisible();
+  });
+
+  test('[performance.chart-and-accuracy] Performance shows the chart, ACCURACY and REP CURVE', async ({ page }) => {
+    await seedHistory(page);
+    await openHome(page);
+    await openFromMenu(page, 'Performance');
+    await expect(page.getByText('ACCURACY', { exact: true })).toBeVisible();
+    await expect(page.getByText('REP CURVE', { exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: /SET GOALS/ })).toBeVisible();
+  });
+
+  test('[stimulus.map] Stimulus shows the body map, thresholds and suggestions', async ({ page }) => {
+    await openHome(page);
+    await openFromMenu(page, 'Stimulus');
+    await expect(page.getByText('STIMULUS THRESHOLDS')).toBeVisible();
+    await expect(page.locator('svg').first()).toBeVisible();
+  });
+});
+
+test.describe('Routines', () => {
+  test('[routines.page] the Routines page: + NEW ROUTINE and AUTO ROUTINE', async ({ page }) => {
+    await openHome(page);
+    await openFromMenu(page, 'Routines');
+    await expect(page.getByRole('button', { name: /\+ NEW ROUTINE/ })).toBeVisible();
+    await expect(page.getByRole('button', { name: /AUTO ROUTINE/ })).toBeVisible();
+  });
+});
+
+test.describe('Settings and data', () => {
+  test('[configuration.tabs] Configuration: body metrics, goals, equipment and program', async ({ page }) => {
+    await openHome(page);
+    await openFromMenu(page, 'Configuration');
+    for (const tab of ['BODY METRICS', 'GOALS', 'EQUIPMENT', 'PROGRAM']) {
+      await page.getByRole('button', { name: tab, exact: true }).or(page.getByRole('tab', { name: tab, exact: true })).first().click();
+    }
+  });
+
+  test('[privacy.page] Privacy: sharing settings, sharing defaults and voice input', async ({ page }) => {
+    await openHome(page);
+    await openFromMenu(page, 'Privacy');
+    await expect(page.getByText('SHARING DEFAULTS')).toBeVisible();
+    await expect(page.getByText('VOICE INPUT')).toBeVisible();
+    await expect(page.getByText('No audio is recorded or kept')).toBeVisible();
+  });
+
+  test('[info.backup] Info: the idea, and DATA & BACKUP export', async ({ page }) => {
+    await openHome(page);
+    await openFromMenu(page, 'Info');
+    await expect(page.getByText('DATA & BACKUP')).toBeVisible();
+  });
+});
+
+test.describe('Social', () => {
+  test('[social.signed-out] Friends and Leaderboards ask a signed-out athlete to sign in', async ({ page }) => {
+    await openHome(page);
+    await openFromMenu(page, 'Leaderboards');
+    await expect(page.getByText(/Sign in to see where you rank/)).toBeVisible();
+  });
+
+  test('[auth.sign-in] the sign-in page', async ({ page }) => {
+    await openHome(page);
+    // (the signed-out line under the header)
+    await page.getByRole('button', { name: 'SIGN IN', exact: true }).first().click();
+    await expect(page.getByText('SIGN IN').first()).toBeVisible();
+    await expect(page.locator('input[type="password"]').first()).toBeVisible();
+  });
+});
+
+test('[app.state-saves] what you do is saved on this device', async ({ page }) => {
+  await newSession(page);
+  await addExercise(page);
+  await page.reload();
+  expect(((await appState(page)).activeSession?.slots || []).length).toBe(1);
+});

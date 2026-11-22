@@ -1,0 +1,17 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/scripts/ship-gate.mjs\"",
+            "timeout": 600,
+            "statusMessage": "Checking the web app's features before shipping…"
+          }
+        ]
+      }
+    ]
+  }
+}
