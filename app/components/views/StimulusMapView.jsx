@@ -11,7 +11,7 @@ const statusPattern = label =>
   /OVERDUE/.test(label || '') ? 'url(#stim-stripes)' : /RECOVERED/.test(label || '') ? 'url(#stim-dots)' : null;
 
 // Extra tap area around each body part, in map units (a wide transparent stroke on the same shape)
-const HIT_PAD = 6;
+const HIT_PAD = 8;
 
 // Mirror a path across the body's centre line (x = 60), so each side is drawn once
 const mirror = d => d.replace(/(-?\d+(?:\.\d+)?) (-?\d+(?:\.\d+)?)/g, (_, x, y) => `${120 - Number(x)} ${y}`);
@@ -39,12 +39,28 @@ function MusclePart({ group, statusMap, selected, dimmed, onSelect, d }) {
       // are close to)
       style={{ cursor: 'pointer', outline: 'none', opacity: dimmed ? 0.3 : 1, transition: 'opacity 140ms ease-out' }}
     >
-      {/* A bigger, invisible tap area around the part (small parts like the neck are hard to hit) */}
-      <path d={d} fill="transparent" stroke="transparent" strokeWidth={HIT_PAD * 2} strokeLinejoin="round" />
       {/* Selected: the whole group fills solid white (no pattern); otherwise its status colour + pattern */}
       <path d={d} fill={selected ? '#FFFFFF' : status?.color || '#3A3A3A'} stroke="#000000" strokeWidth={1.5} strokeLinejoin="round" />
       {pattern && !selected && <path d={d} fill={pattern} stroke="none" pointerEvents="none" />}
     </g>
+  );
+}
+
+// The extra tap area around a part (a wide transparent stroke), drawn in a layer BEHIND every visible part: each
+// muscle always gets taps on its own shape, and the margins only fill the empty space around it (where margins meet,
+// the part drawn later — the smaller one — wins)
+function MuscleHitArea({ group, onSelect, d }) {
+  return (
+    <path
+      d={d}
+      fill="transparent"
+      stroke="transparent"
+      strokeWidth={HIT_PAD * 2}
+      strokeLinejoin="round"
+      aria-hidden="true"
+      onClick={() => onSelect?.(group)}
+      style={{ cursor: 'pointer' }}
+    />
   );
 }
 
@@ -74,7 +90,6 @@ function StatusSwatch({ color, pattern, size = 12 }) {
 }
 
 // ---- Body outlines (viewBox 0 0 120 230; left side written, right side mirrored) ----
-const HEAD = 'M60 5 C67 5 71 10 71 17 C71 25 66 30 60 30 C54 30 49 25 49 17 C49 10 53 5 60 5 Z';
 const NECK = 'M54 28 C56 31 64 31 66 28 L67 36 C63 38 57 38 53 36 Z';
 const BICEP_L = 'M23 62 C26 60 30 58 33 54 C35 62 35 72 33 84 C30 86 25 86 21 84 C19 76 20 68 23 62 Z';
 const FOREARM_L = 'M21 87 C25 89 30 89 33 87 C33 96 31 106 28 114 C25 116 22 116 19 114 C18 105 19 95 21 87 Z';
@@ -101,31 +116,33 @@ const CALF_BACK_L = 'M43 180 C47 178 53 178 56 180 C58 192 57 206 53 220 C51 222
 const both = d => [d, mirror(d)];
 // [muscle region (MUSCLE_REGIONS), its outlines] per view: the front shows biceps, quads, front delts, abs and obliques;
 // the back triceps, hamstrings, rear delts, lats, upper and lower back and glutes
+// Big muscles first, small ones last: each part's extra tap area sits over the parts drawn before it, so where they
+// meet the small muscle (side delts, obliques, adductors, neck) wins the tap
 const FRONT_PARTS = [
-  ['Neck', [NECK]],
-  ['Front Delts', both(DELT_INNER_L)],
-  ['Side Delts', both(DELT_SIDE_L)],
   ['Chest', both(PEC_L)],
+  ['Quads', both(QUAD_L)],
+  ['Abs', ABS_L.flatMap(both)],
+  ['Calves', both(CALF_FRONT_L)],
   ['Biceps', both(BICEP_L)],
   ['Forearms', both(FOREARM_L)],
-  ['Abs', ABS_L.flatMap(both)],
+  ['Front Delts', both(DELT_INNER_L)],
   ['Obliques', both(OBLIQUE_L)],
-  ['Quads', both(QUAD_L)],
   ['Adductors', both(ADDUCTOR_L)],
-  ['Calves', both(CALF_FRONT_L)]
+  ['Side Delts', both(DELT_SIDE_L)],
+  ['Neck', [NECK]]
 ];
 const BACK_PARTS = [
-  ['Neck', [NECK]],
-  ['Upper Back', [TRAPS]],
   ['Lats', both(LAT_L)],
-  ['Rear Delts', both(DELT_INNER_L)],
-  ['Side Delts', both(DELT_SIDE_L)],
+  ['Hamstrings', both(HAM_L)],
+  ['Glutes', both(GLUTE_L)],
+  ['Calves', both(CALF_BACK_L)],
+  ['Lower Back', [LOW_BACK]],
+  ['Upper Back', [TRAPS]],
   ['Triceps', both(BICEP_L)],
   ['Forearms', both(FOREARM_L)],
-  ['Lower Back', [LOW_BACK]],
-  ['Glutes', both(GLUTE_L)],
-  ['Hamstrings', both(HAM_L)],
-  ['Calves', both(CALF_BACK_L)]
+  ['Rear Delts', both(DELT_INNER_L)],
+  ['Side Delts', both(DELT_SIDE_L)],
+  ['Neck', [NECK]]
 ];
 
 // Friendlier names for the ExRx muscle names listed under a group
@@ -158,12 +175,13 @@ function BodyFigure({ label, parts, part }) {
     <div
       style={{
         border: 'none', borderRadius: '10px', backgroundColor: '#000000',
-        padding: '10px', display: 'flex', flexDirection: 'column', alignItems: 'center'
+        padding: '8px 4px', display: 'flex', flexDirection: 'column', alignItems: 'center'
       }}
     >
       <div style={{ fontSize: '11px', fontWeight: 500, color: '#9A9A9A', letterSpacing: '0.1em', marginBottom: '8px' }}>{label}</div>
-      <svg viewBox="0 0 120 230" style={{ width: '100%', maxWidth: '160px', height: 'auto' }}>
-        <path d={HEAD} fill="#262626" />
+      {/* Cropped to the body (no head) and drawn as wide as the panel, so small muscles are bigger to tap */}
+      <svg viewBox="15 27 90 197" style={{ width: '100%', maxWidth: '220px', height: 'auto', overflow: 'visible' }}>
+        {parts.map(([group, paths]) => paths.map((d, i) => <MuscleHitArea key={`hit_${group}_${i}`} d={d} group={group} onSelect={part(group).onSelect} />))}
         {parts.map(([group, paths]) => paths.map((d, i) => <MusclePart key={`${group}_${i}`} d={d} {...part(group)} />))}
       </svg>
     </div>
