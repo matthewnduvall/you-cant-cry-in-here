@@ -474,7 +474,7 @@ export function HomeView({
       label: 'RANK',
       value: rank ? `#${rank.rank}` : '—',
       unit: rank ? `OF ${rank.of}` : '',
-      sub: !user ? 'SIGN IN TO RANK' : !rank ? 'LOG THE BIG 3' : rank.of === 1 ? 'BIG 3 / BW · ADD FRIENDS' : 'BIG 3 / BW',
+      sub: !user ? 'SIGN IN TO RANK' : !rank ? 'LOG THE BIG 3' : rank.of === 1 ? 'BIG 3 DOTS · ADD FRIENDS' : 'BIG 3 DOTS',
       view: 'leaderboards'
     }
   ];

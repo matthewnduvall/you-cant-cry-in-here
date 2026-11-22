@@ -213,6 +213,10 @@ export function StimulusMapView({
                 >
                   {selectedStatus?.label === 'UNLOGGED' || !selectedStatus ? 'NOT LOGGED YET' : selectedStatus.label}
                 </span>
+                {/* Hard sets in the last 7 days (secondary work counts half) */}
+                <span style={{ fontSize: '12px', fontWeight: 500, color: '#9A9A9A', whiteSpace: 'nowrap' }}>
+                  · {selectedStatus?.weeklySets || 0} {selectedStatus?.weeklySets === 1 ? 'SET' : 'SETS'} / 7D
+                </span>
               </>
             ) : (
               <span style={{ fontSize: '12px', fontWeight: 500, color: '#9A9A9A' }}>

@@ -11,7 +11,7 @@
 // sets its set's weight instead of the week's plan.
 
 import { EXERCISE_MAP, isBodyweightExercise, isSupersetCategory, normalizeSlotCategory, getSlotEquipmentChoice } from '../data/exerciseLibrary';
-import { generateSetsForScheme, getBestHistory1RM, getLastSession1RM, normalizeSetType, DEFAULT_SET_PREFERENCES, setLoadLbs, countsBodyweight, getEngineBodyweight } from './workoutEngine';
+import { generateSetsForScheme, getBestHistory1RM, getLastSession1RM, normalizeSetType, DEFAULT_SET_PREFERENCES, setLoadLbs, countsBodyweight, getExerciseBodyweightLoad, warmupRamp, getEffectiveIncrementForExercise } from './workoutEngine';
 import { INTENSITY_OPTIONS, intensityToRir, solveSet, deriveIntensity, weightForIntensity, convertIntensity, repsForIntensity, formatIntensity } from './intensity';
 import { getStarting1RM, describe1RM } from './starting1RM';
 import { traceLine, isTracing, fmt } from './calcTrace';
@@ -42,7 +42,8 @@ export const getCycleTarget1RM = ({
     getStarting1RM(exerciseId, { ...startOpts, history: pool }) ||
     EXERCISE_MAP[exerciseId]?.default1RM ||
     135;
-  return base + (isBodyweightExercise(exerciseId) ? 0 : Math.max(0, Number(incrementLbs) || 0));
+  // (the goal increment scaled to the lift: getEffectiveIncrementForExercise)
+  return base + (isBodyweightExercise(exerciseId) ? 0 : getEffectiveIncrementForExercise(exerciseId, incrementLbs, base));
 };
 
 /** Does the program change this slot? */
@@ -62,7 +63,8 @@ export const isProgrammedSlot = (slot, ctx) => {
 // load allows at that intensity, or (Weighted, weight unlocked) the added weight for the set's reps
 export const solveBodyweightSet = (st, orig, oneRM, exId, option, step = 2.5) => {
   const intensity = orig.intensity;
-  const bw = getEngineBodyweight();
+  // (the share of bodyweight this exercise moves)
+  const bw = getExerciseBodyweightLoad(exId);
   const weighted = /weighted/i.test(String(option || ''));
   const label = `set ${st.setNumber ?? ''}`.trim();
   // The weight comes back as the total load; toAddedWeights (after RECALCULATE) stores what is added
@@ -135,12 +137,16 @@ export const applyProgramToSlot = (slot, ctx, opts = {}) => {
   const total = fresh.length;
   // The working sets' %1RM at the week's RIR (warm-ups are a step below the first working set)
   const firstWorkingReps = Number(fresh.find(st => normalizeSetType(st.type) !== 'Warmup')?.reps) || 8;
+  // Warm-ups ramp up to the first working set (warmupRamp: 50 → 80 % of its weight, fewer reps)
+  const warmIdxs = fresh.map((st, i) => (normalizeSetType(st.type) === 'Warmup' ? i : -1)).filter(i => i >= 0);
+  const ramp = warmupRamp(warmIdxs.length, firstWorkingReps);
 
   const sets = fresh.map((st, idx) => {
     const prev = old[idx];
     if (prev?.completed) return prev;
     const type = prev?.lockType ? prev.type : st.type;
-    const reps = prev?.lockReps ? prev.reps : st.reps;
+    const rampStep = !plan.maxOut && normalizeSetType(type) === 'Warmup' ? ramp[warmIdxs.indexOf(idx)] : null;
+    const reps = prev?.lockReps ? prev.reps : rampStep ? rampStep.reps : st.reps;
     let pct;
     let intensity;
     const lockedIntensity = prev?.lockIntensity ? prev.intensity : null;
@@ -157,7 +163,7 @@ export const applyProgramToSlot = (slot, ctx, opts = {}) => {
       pct = idx === total - 1 ? 100 : 50 + (35 * idx) / Math.max(1, total - 2);
       intensity = { mode: 'rir', value: convertIntensity({ mode: 'pct', value: nearestPct(pct) }, 'rir', reps) ?? 0 };
     } else if (normalizeSetType(type) === 'Warmup') {
-      pct = pctFor(firstWorkingReps, plan.rir) * WARMUP_SHARE;
+      pct = pctFor(firstWorkingReps, plan.rir) * (rampStep ? rampStep.share : WARMUP_SHARE);
       intensity = { mode: 'rir', value: convertIntensity({ mode: 'pct', value: nearestPct(pct) }, 'rir', reps) ?? 0 };
     } else {
       pct = pctFor(reps, plan.rir);

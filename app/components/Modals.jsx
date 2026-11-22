@@ -146,6 +146,8 @@ export function PlateCalculatorModal({
 }) {
   // Page held still while open (no jump after APPLY / SAVE / SEND)
   useModalScrollLock(Boolean(plateCalcTarget));
+  // The "!" on 1RM* CURRENT: why high-rep sets don't count (a small pop-up over this one)
+  const [highRepInfoOpen, setHighRepInfoOpen] = useState(false);
   if (!plateCalcTarget) return null;
 
   return (
@@ -181,13 +183,13 @@ export function PlateCalculatorModal({
           // * = calculated from reps (not lifted for 1 rep)
           // The set being picked keeps its type and intensity (only its weight is the one on the pop-up)
           const pickedSet = sessionSets.find(st => st && st.id === plateCalcTarget.setId) || {};
-          const { value: current1RM, calculated: currentCalculated } = exercise1RMInfoOfSets(
+          const { value: current1RM, calculated: currentCalculated, highRepExcluded = 0, highRepOnly = false } = exercise1RMInfoOfSets(
             // Bodyweight-type exercises count bodyweight (the picked weight is what's added)
             withEffectiveLoad(plateCalcTarget.exerciseId, [
               { ...pickedSet, weight: currentTotal, reps: plateCalcTarget.setReps ?? pickedSet.reps },
               ...sessionSets.filter(st => st && st.id !== plateCalcTarget.setId)
             ], plateCalcTarget.equipment)
-          );
+          , plateCalcTarget.exerciseId);
           const oneRepMaxLabel = color => ({ fontSize: '11px', fontWeight: 500, color, lineHeight: 1, whiteSpace: 'nowrap' });
           const oneRepMaxValue = {
             fontSize: '14px',
@@ -274,10 +276,46 @@ export function PlateCalculatorModal({
                     <span style={oneRepMaxLabel('var(--dp-color-accent)')}>1RM PR</span>
                     <span style={oneRepMaxValue}>{prValue > 0 ? oneRepMaxText(prValue, prCalculated) : '—'}</span>
                   </button>
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '2px 0 4px' }}>
-                    <span style={oneRepMaxLabel('#9A9A9A')}>1RM* CURRENT</span>
-                    <span style={oneRepMaxValue}>{current1RM > 0 ? oneRepMaxText(current1RM, currentCalculated) : '—'}</span>
-                  </div>
+                  {highRepExcluded > 0 || highRepOnly ? (
+                    // High-rep sets in play: a "!" — tap for why they don't count (or why this 1RM is rough)
+                    <button
+                      type="button"
+                      aria-label="1RM current: some sets are 15 reps or more. Tap to find out why that matters"
+                      onClick={() => setHighRepInfoOpen(true)}
+                      style={{
+                        display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '2px 0 4px', minHeight: '40px',
+                        background: 'transparent', border: 'none', cursor: 'pointer', color: '#BDBDBD'
+                      }}
+                    >
+                      <span style={oneRepMaxLabel('#9A9A9A')}>
+                        1RM* CURRENT <span style={{ color: 'var(--cr-red-text)', fontWeight: 600 }}>!</span>
+                      </span>
+                      <span style={oneRepMaxValue}>{current1RM > 0 ? oneRepMaxText(current1RM, currentCalculated) : '—'}</span>
+                    </button>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '2px 0 4px' }}>
+                      <span style={oneRepMaxLabel('#9A9A9A')}>1RM* CURRENT</span>
+                      <span style={oneRepMaxValue}>{current1RM > 0 ? oneRepMaxText(current1RM, currentCalculated) : '—'}</span>
+                    </div>
+                  )}
+                  {highRepInfoOpen && (
+                    <div style={{ ...UI.modalBackdrop, zIndex: 1400 }}>
+                      <div role="dialog" aria-label="High-rep sets" style={UI.modalCard('360px')}>
+                        <div style={UI.modalHeader}>
+                          <span>HIGH-REP SETS</span>
+                          <CloseButton onClick={() => setHighRepInfoOpen(false)} />
+                        </div>
+                        <p style={{ ...UI.sentence, color: '#BDBDBD', margin: '0 0 16px', textAlign: 'left', lineHeight: 1.5 }}>
+                          {highRepOnly
+                            ? 'Every working set of this exercise is 15 reps or more. Rep-based 1RM estimates lose accuracy past about 12 to 15 reps, so this 1RM is only a rough guide. Log a set of fewer reps to firm it up.'
+                            : `${highRepExcluded === 1 ? '1 set of 15 reps or more is' : `${highRepExcluded} sets of 15 reps or more are`} left out of this 1RM. Rep-based 1RM estimates lose accuracy past about 12 to 15 reps, so the 1RM comes from your lower-rep sets. The high-rep sets still count toward your training and the Stimulus map.`}
+                        </p>
+                        <button type="button" className="kinetic-btn" onClick={() => setHighRepInfoOpen(false)} style={{ ...UI.primaryBtnCenter, width: '100%' }}>
+                          GOT IT
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div style={{ borderLeft: '1px solid var(--dp-color-rule)' }} />

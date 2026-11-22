@@ -125,7 +125,7 @@ const equipmentOf = ex => ex?.equipment || 'Bodyweight';
 // The exercise's calculated 1RM: the average over its working sets (each with its own reps and intensity)
 // Bodyweight-type exercises count bodyweight (withEffectiveLoad); LAST comes from History already loaded
 const best1RM = (sets, exId = null, option = null) =>
-  exercise1RMInfoOfSets(exId ? withEffectiveLoad(exId, sets, option) : Array.isArray(sets) ? sets : []);
+  exercise1RMInfoOfSets(exId ? withEffectiveLoad(exId, sets, option) : Array.isArray(sets) ? sets : [], exId);
 
 // Set type dropdown labels (short enough for the set row's type column)
 const SET_TYPE_LABELS = { Warmup: 'WARMUP', Working: 'WORKING', 'Top Out': 'TOP OUT', 'Burn Out': 'BURN OUT', '1 Rep Max': '1RM' };
@@ -138,6 +138,18 @@ const SUPERSET_HALF_CATEGORIES = ['Compound', 'Accessory'];
 
 // Width of the lock button at the left of a set's type / weight / reps cell (6 px gap before the padlock)
 const LOCK_COL_PX = 27;
+
+// A sentence row inside the exercise card (the deload note)
+const UI_SENTENCE_STRIP = {
+  display: 'flex',
+  flexDirection: 'column',
+  gap: '2px',
+  padding: '8px 12px',
+  backgroundColor: '#1C1C1C',
+  color: '#BDBDBD',
+  fontSize: '12px',
+  lineHeight: 1.4
+};
 
 // Four equal set cells (intensity shown) leave the type ~38 px beside its padlock: the cell shows a short form (the
 // dropdown still lists the full names)
@@ -1448,6 +1460,18 @@ export function SlotEditor({
         <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>{halves.map(renderHeaderBlock)}</div>
       </div>
 
+      {/* Deload (no new 1RM in 3 sessions): this session is planned 10 % lighter */}
+      {slot.deload && (
+        <div
+          style={{
+            ...UI_SENTENCE_STRIP,
+            borderTop: '1px solid var(--dp-color-rule)'
+          }}
+        >
+          <span style={{ fontSize: '10px', fontWeight: 500, letterSpacing: '0.1em', color: '#FFFFFF' }}>DELOAD</span>
+          <span>No new 1RM in your last 3 sessions, so today is 10% lighter at the same reps. Back to normal next time.</span>
+        </div>
+      )}
       {/* Sets */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
         {rows.map(renderSetRow)}

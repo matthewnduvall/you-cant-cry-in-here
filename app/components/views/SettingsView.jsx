@@ -15,7 +15,10 @@ export function BodyMetricsSection({
   userHeightFeet,
   setUserHeightFeet,
   userHeightInches,
-  setUserHeightInches
+  setUserHeightInches,
+  // Sex: only for DOTS leaderboard scoring ('male' | 'female' | null)
+  userSex = null,
+  setUserSex
 }) {
   return (
     // No heading: the Configuration tab above already says BODY METRICS
@@ -29,7 +32,7 @@ export function BodyMetricsSection({
           style={UI.numInput('90px', 'var(--dp-color-accent)')}
         />
       </IOSListRow>
-      <IOSListRow isLast={true} colors={colors}>
+      <IOSListRow colors={colors}>
         <span style={UI.rowTitle}>Height <span style={{ color: '#9A9A9A', fontWeight: 400 }}>ft / in</span></span>
         <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
           <input
@@ -46,6 +49,29 @@ export function BodyMetricsSection({
             style={UI.numInput('54px')}
           />
           <span style={{ fontSize: '12px', fontWeight: 500 }}>IN</span>
+        </div>
+      </IOSListRow>
+      {/* Sex: only for the leaderboards' DOTS scores (men's and women's formulas differ); not set = the men's */}
+      <IOSListRow isLast={true} colors={colors}>
+        <span style={UI.rowTitle}>
+          Sex <span style={{ color: '#9A9A9A', fontWeight: 400 }}>for DOTS scores</span>
+        </span>
+        <div role="group" aria-label="Sex" style={{ display: 'flex', gap: '6px' }}>
+          {[
+            { id: 'male', label: 'MALE' },
+            { id: 'female', label: 'FEMALE' }
+          ].map(o => (
+            <button
+              key={o.id}
+              type="button"
+              className="kinetic-btn"
+              aria-pressed={userSex === o.id}
+              onClick={() => setUserSex?.(userSex === o.id ? null : o.id)}
+              style={{ ...UI.pillBtn(userSex === o.id), minHeight: '40px' }}
+            >
+              {o.label}
+            </button>
+          ))}
         </div>
       </IOSListRow>
     </IOSListSection>

@@ -4,6 +4,7 @@ import React, { useMemo, useState } from 'react';
 import { ProfileAvatar } from '../ProfileAvatar';
 import { IOSListSection, IOSListRow } from '../Primitives';
 import { Button, AttachedTabStrip } from '../Controls';
+import { dotsScore } from '../../utils/dots';
 import { buildHistoryPRRanges, buildHistoryPRs, getBestHistory1RMInfo, oneRepMaxLabel, withEngineBodyweight } from '../../utils/workoutEngine';
 import { UI } from '../../styles/kineticTokens';
 import {
@@ -14,16 +15,18 @@ import {
 
 // One tab per leaderboard (BIG 3 / BW first and default); the tabs name the board, so no section titles
 const LEADERBOARD_TABS = [
-  { id: 'big3_normalized', label: 'BIG 3 / BW' },
+  { id: 'big3_normalized', label: 'BIG 3 DOTS' },
   // Short labels so the nested tab row stays on one line at phone width
   { id: 'big3_total', label: 'BIG 3 LB' },
-  { id: 'ohp_normalized', label: 'OHP / BW' },
+  { id: 'ohp_normalized', label: 'OHP DOTS' },
   { id: 'most_improved', label: 'IMPROVED' },
   // Challenges finished (Home → CHALLENGES), all time
   { id: 'challenges', label: 'CHALLENGES' }
 ];
 
 // The bodyweight a friend's BW ratios are worked out with (never shown): saved bodyweight, shared or not
+// Their sex for DOTS (null = the men's formula)
+const rankingSexOf = f => f?.rankingSex || null;
 const rankingBwOf = f => {
   const bw = Number(f?.rankingBodyweightLbs) || Number(f?.bodyweightLbs) || 0;
   return bw > 0 ? Math.max(50, bw) : 0;
@@ -95,11 +98,11 @@ const statsOf = hist => ({
  * the board: you and the friends with something logged and a bodyweight saved, ranked by the ratio. Returns
  * { rank, of } (rank 1 = top), or null when you have no Big 3 logged.
  */
-export function getBig3BwRank({ oneRepMaxes = {}, friendsList = [], userBodyweightLbs = 220, userId = null }) {
+export function getBig3BwRank({ oneRepMaxes = {}, friendsList = [], userBodyweightLbs = 220, userId = null, userSex = null }) {
   const selfBw = Math.max(50, Number(userBodyweightLbs) || 220);
   const selfTotal = BIG_THREE_LIFT_IDS.reduce((n, id) => n + (Number(oneRepMaxes?.[id]) || 0), 0);
   if (!(selfTotal > 0)) return null;
-  const self = selfTotal / selfBw;
+  const self = dotsScore(selfTotal, selfBw, userSex);
   const seen = new Set(userId ? [String(userId)] : []);
   const others = [];
   (friendsList || []).forEach(f => {
@@ -110,7 +113,7 @@ export function getBig3BwRank({ oneRepMaxes = {}, friendsList = [], userBodyweig
     if (!(bw > 0)) return;
     const prs = withEngineBodyweight(bw, () => buildHistoryPRs(f.history));
     const total = BIG_THREE_LIFT_IDS.reduce((n, liftId) => n + (Number(prs?.[liftId]) || 0), 0);
-    if (total > 0) others.push(total / bw);
+    if (total > 0) others.push(dotsScore(total, bw, rankingSexOf(f)));
   });
   return { rank: 1 + others.filter(v => v > self).length, of: others.length + 1 };
 }
@@ -118,6 +121,8 @@ export function getBig3BwRank({ oneRepMaxes = {}, friendsList = [], userBodyweig
 export function LeaderboardView({
   colors,
   user,
+  // Your sex for DOTS ('male' | 'female' | null = the men's formula)
+  userSex = null,
   oneRepMaxes = {},
   friendsList = [],
   userBodyweightLbs = 220,
@@ -199,11 +204,11 @@ export function LeaderboardView({
       bw: selfBw,
       total: selfBig3Total,
       totalCalculated: big3Calculated([selfBench, selfSquat, selfDead], selfStats),
-      normalized: selfBig3Total / selfBw,
+      normalized: dotsScore(selfBig3Total, selfBw, userSex),
       standing: selfStanding,
       ohp: selfOhp,
       ohpCalculated: isCalc('overhead_press', selfOhp, selfStats),
-      ohpNormalized: selfOhp / selfBw,
+      ohpNormalized: dotsScore(selfOhp, selfBw, userSex),
       ohpStanding: selfOhpStanding
     },
     ...distinctFriends.map((f, i) => {
@@ -240,11 +245,11 @@ export function LeaderboardView({
         bw: fBw,
         total: fTotal,
         totalCalculated: big3Calculated([fBench, fSquat, fDead], fStats),
-        normalized: fTotal / fBw,
+        normalized: dotsScore(fTotal, fBw, rankingSexOf(f)),
         standing: fBwKnown ? fStanding : null,
         ohp: fOhp,
         ohpCalculated: isCalc('overhead_press', fOhp, fStats),
-        ohpNormalized: fOhp / fBw,
+        ohpNormalized: dotsScore(fOhp, fBw, rankingSexOf(f)),
         ohpStanding: fBwKnown ? fOhpStanding : null
       };
     })
@@ -288,11 +293,11 @@ export function LeaderboardView({
         peakWeight: high,
         deltaLbs,
         bw: who.bw,
-        normalizedGain: deltaLbs / who.bw
+        normalizedGain: dotsScore(deltaLbs, who.bw, who.sex)
       });
     });
   };
-  pushImprovements(selfStats.ranges, { idPrefix: 'self_imp', name: selfName, photo: profilePhoto, isSelf: true, bw: selfBw });
+  pushImprovements(selfStats.ranges, { idPrefix: 'self_imp', name: selfName, photo: profilePhoto, isSelf: true, bw: selfBw, sex: userSex });
   distinctFriends.forEach((f, i) => {
     if (!(rankingBwOf(f) > 0)) return; // no bodyweight saved: not on this board
     pushImprovements(friendStats.get(f).ranges, {
@@ -301,12 +306,10 @@ export function LeaderboardView({
       photo: f.profilePhoto,
       isSelf: false,
       friend: f,
-      bw: rankingBwOf(f)
+      bw: rankingBwOf(f),
+      sex: rankingSexOf(f)
     });
   });
-
-  // Friends with no bodyweight saved at all sit out the BW boards (a note says how many)
-  const bwHiddenCount = distinctFriends.filter(f => !(rankingBwOf(f) > 0)).length;
 
   const mostImprovedEntries = buildTop10WithSelfSlot(
     improvementEntries.sort((a, b) => b.normalizedGain - a.normalizedGain || b.deltaLbs - a.deltaLbs)
@@ -326,14 +329,11 @@ export function LeaderboardView({
 
   return (
     <div style={{ paddingTop: embedded ? 0 : '12px' }}>
-      <div style={{ padding: '0 var(--dp-spacing-gutter)', marginBottom: '14px' }}>
-        {title && <div style={{ ...UI.sectionTitle, marginBottom: '8px' }}>{title}</div>}
-        {user && bwHiddenCount > 0 && activeTab !== 'big3_total' && activeTab !== 'challenges' && (
-          <div style={{ ...UI.sentence, marginTop: '10px' }}>
-            {bwHiddenCount === 1 ? '1 friend hasn’t' : `${bwHiddenCount} friends haven’t`} saved a bodyweight, so they’re not on this board.
-          </div>
-        )}
-      </div>
+      {title && (
+        <div style={{ padding: '0 var(--dp-spacing-gutter)', marginBottom: '14px' }}>
+          <div style={{ ...UI.sectionTitle, marginBottom: '8px' }}>{title}</div>
+        </div>
+      )}
 
       {!user && (
         <IOSListSection colors={colors}>
@@ -429,7 +429,7 @@ export function LeaderboardView({
             </div>
             </div>
             <span style={{ fontSize: '16px', fontWeight: 500, color: entry.unlogged ? '#8A8A8A' : 'var(--dp-color-accent)' }}>
-              {entry.unlogged ? '—' : `${entry.normalized.toFixed(2)}x BW`}
+              {entry.unlogged ? '—' : `${entry.normalized.toFixed(1)} DOTS`}
             </span>
           </IOSListRow>
         ))}
@@ -469,7 +469,7 @@ export function LeaderboardView({
             </div>
             </div>
             <span style={{ fontSize: '16px', fontWeight: 500, color: entry.unlogged ? '#8A8A8A' : 'var(--dp-color-accent)' }}>
-              {entry.unlogged ? '—' : `${entry.ohpNormalized.toFixed(2)}x BW`}
+              {entry.unlogged ? '—' : `${entry.ohpNormalized.toFixed(1)} DOTS`}
             </span>
           </IOSListRow>
         ))}
@@ -510,7 +510,7 @@ export function LeaderboardView({
                   <span style={{ color: '#FFFFFF' }}>{entry.exerciseName}</span>
                 </span>
                 <span style={{ fontSize: '11px', fontWeight: 500, color: '#9A9A9A', textTransform: 'uppercase' }}>
-                  {entry.startWeight} LB → {entry.peakWeight} LB ({entry.normalizedGain.toFixed(2)}x BW GAIN)
+                  {entry.startWeight} LB → {entry.peakWeight} LB (+{entry.normalizedGain.toFixed(1)} DOTS)
                 </span>
               </div>
               </div>

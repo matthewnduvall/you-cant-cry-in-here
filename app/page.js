@@ -4,7 +4,7 @@ import { FormulaConsole } from './components/FormulaConsole';
 import { getProgram, getWorkoutProgramInfo } from './data/programs';
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { IOS_DARK, KINETIC_CSS } from './styles/kineticTokens';
-import { getIncrementInLbs, getInitial1RMs, asHistoricalWorkout, withAutoSessionName, setEngineFatigue, setEngineBodyweight } from './utils/workoutEngine';
+import { getIncrementInLbs, getInitial1RMs, asHistoricalWorkout, withAutoSessionName, setEngineFatigue, setEngineFatigueByExercise, learnFatigueRates, setEngineBodyweight } from './utils/workoutEngine';
 import { fetchAthleteProfileSnapshot, signOutUser } from './utils/supabaseAuth';
 import { AppHeaderAndDrawer, PageTitle } from './components/AppHeaderAndDrawer';
 import {
@@ -166,6 +166,8 @@ export default function App() {
   const [userHeightInches, setUserHeightInches] = useState(10);
   // The athlete entered bodyweight / height (Configuration → BODY METRICS). Values other than the defaults count too.
   const [bodyMetricsConfirmed, setBodyMetricsConfirmed] = useState(false);
+  // Sex (Configuration → BODY METRICS): 'male' | 'female' | null — only for DOTS leaderboard scoring
+  const [userSex, setUserSex] = useState(null);
   const bodyMetricsSet =
     bodyMetricsConfirmed || Number(userBodyweightLbs) !== 220 || Number(userHeightFeet) !== 5 || Number(userHeightInches) !== 10;
   const [stimulusGreenDays, setStimulusGreenDays] = useState(2);
@@ -191,6 +193,9 @@ export default function App() {
   // Fatigue per set: reps of reserve each earlier working set uses up (Configuration → PROGRAM; the engine reads it)
   const [fatiguePerSet, setFatiguePerSet] = useState(0.5);
   setEngineFatigue(fatiguePerSet);
+  // Each exercise's fatigue rate learned from the RIRs you log by hand (the setting until there is enough)
+  const learnedFatigue = useMemo(() => learnFatigueRates(history, fatiguePerSet), [history, fatiguePerSet]);
+  setEngineFatigueByExercise(learnedFatigue);
   // Configuration → EQUIPMENT → PLATES: the plates the athlete owns ({ [size]: count }) or null = not counted
   const [plateInventory, setPlateInventoryState] = useState(null);
   // Both-sided loads (barbells, plate-loaded machines) use only the athlete's plates, when counted (set every render,
@@ -355,6 +360,8 @@ export default function App() {
     setUserHeightInches,
     bodyMetricsConfirmed,
     setBodyMetricsConfirmed,
+    userSex,
+    setUserSex,
     stimulusGreenDays,
     setStimulusGreenDays,
     stimulusYellowDays,
@@ -926,6 +933,7 @@ export default function App() {
 
   // The Leaderboards page (view 'leaderboards'): boards ranked from logged History
   const leaderboardProps = {
+    userSex,
     onSignIn: () => setCurrentView('auth'),
     profilePhoto,
     // A leaderboard row opens that athlete's profile
@@ -947,9 +955,9 @@ export default function App() {
   const homeRank = useMemo(
     () =>
       user
-        ? getBig3BwRank({ oneRepMaxes: effectiveOneRepMaxes, friendsList, userBodyweightLbs, userId: user.id })
+        ? getBig3BwRank({ oneRepMaxes: effectiveOneRepMaxes, friendsList, userBodyweightLbs, userId: user.id, userSex })
         : null,
-    [user, effectiveOneRepMaxes, friendsList, userBodyweightLbs]
+    [user, effectiveOneRepMaxes, friendsList, userBodyweightLbs, userSex]
   );
 
   // Home's TO GOAL tile: the STRENGTH CLASS GOAL row's TO GO (goal total − the tracked lifts' latest 1RMs added up;
@@ -1505,6 +1513,8 @@ export default function App() {
                   setBodyMetricsConfirmed(true);
                   setUserHeightFeet(v);
                 },
+                userSex,
+                setUserSex,
                 userHeightInches,
                 setUserHeightInches: v => {
                   setBodyMetricsConfirmed(true);

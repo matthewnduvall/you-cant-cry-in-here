@@ -6,7 +6,7 @@
 // Exercises that have been logged use their own History. Bodyweight exercises keep the library default.
 
 import { EXERCISE_MAP, EXRX_CLASSES, getExRxTargetForLift, isBodyweightExercise } from '../data/exerciseLibrary';
-import { getBestHistory1RM, estimateSet1RM, setReportedRir, loggedExercise1RMInfo,
+import { getBestHistory1RM, getBodyweightShare, estimateSet1RM, setReportedRir, loggedExercise1RMInfo,
   withEffectiveLoad
 } from './workoutEngine';
 import { getSlotEquipmentChoice } from '../data/exerciseLibrary';
@@ -57,11 +57,10 @@ export const getStarting1RMInfo = (exerciseId, { history = [], targetStandardCla
   if (EXERCISE_MAP[exerciseId] && isBodyweightExercise(exerciseId) && Number(bodyweightLbs) > 0) {
     // Bodyweight exercises count your bodyweight as the load, so a 1RM below it would mean one rep at most. Never
     // logged: start at about BODYWEIGHT_START_REPS reps to failure at bodyweight (the library default if higher)
-    const fromBodyweight = Math.round((Number(bodyweightLbs) * (1 + (BODYWEIGHT_START_REPS - 1) / 30)) / 5) * 5;
-    const libraryDefault = EXERCISE_MAP[exerciseId]?.default1RM ?? 0;
-    return libraryDefault >= fromBodyweight
-      ? { value: libraryDefault, source: 'default', fromId: null }
-      : { value: fromBodyweight, source: 'bodyweight', fromId: null };
+    // (the share of bodyweight the exercise moves: a push-up ≈ 64 %, getBodyweightShare)
+    const moved = Number(bodyweightLbs) * getBodyweightShare(exerciseId);
+    const fromBodyweight = Math.round((moved * (1 + (BODYWEIGHT_START_REPS - 1) / 30)) / 5) * 5;
+    return { value: fromBodyweight, source: 'bodyweight', fromId: null };
   }
   if (!EXERCISE_MAP[exerciseId] || isBodyweightExercise(exerciseId)) {
     return { value: EXERCISE_MAP[exerciseId]?.default1RM ?? 135, source: 'default', fromId: null };
@@ -141,7 +140,7 @@ export const describe1RM = (exerciseId, opts = {}) => {
     return `1RM ${name} (never logged) = ${cls} standard (one class below your ${opts.targetStandardClass || 'Novice'} goal) at ${fmt(opts.bodyweightLbs || 220)} lb bodyweight = ${fmt(info.value)} lb`;
   }
   if (info.source === 'bodyweight') {
-    return `1RM ${name} (never logged) = bodyweight ${fmt(opts.bodyweightLbs || 220)} × (1 + (${BODYWEIGHT_START_REPS} reps to failure − 1) ÷ 30) = ${fmt(info.value)} lb`;
+    return `1RM ${name} (never logged) = bodyweight ${fmt(opts.bodyweightLbs || 220)} × ${Math.round(getBodyweightShare(exerciseId) * 100)}% moved × (1 + (${BODYWEIGHT_START_REPS} reps to failure − 1) ÷ 30) = ${fmt(info.value)} lb`;
   }
   return `1RM ${name} = library default ${fmt(info.value)} lb`;
 };

@@ -34,6 +34,7 @@ import {
 import { getInitial1RMs, buildHistoryPRs } from '../utils/workoutEngine';
 import { getEquipmentListForGymSelection, normalizeSlotCategory } from '../data/exerciseLibrary';
 import { normalizePlateInventory } from '../utils/loading';
+import { normalizeSex } from '../utils/dots';
 import { normalizeShareDefaults, normalizeRoutinePlaylists, normalizeFatiguePerSet } from '../utils/storageMigration';
 
 // How often an on-screen app checks whether a friend has logged a new workout (one tiny request)
@@ -103,6 +104,9 @@ export function useCloudAndStorageSync({
   // Bodyweight / height entered by the athlete (settings.bodyMetrics.confirmed; else the Home ticker reminds them)
   bodyMetricsConfirmed = false,
   setBodyMetricsConfirmed,
+  // Sex for DOTS scoring ('male' | 'female' | null), in settings.bodyMetrics.sex
+  userSex = null,
+  setUserSex,
   stimulusGreenDays,
   setStimulusGreenDays,
   stimulusYellowDays,
@@ -166,6 +170,7 @@ export function useCloudAndStorageSync({
     setPendingIncomingRequests([]);
     setOutgoingInvites([]);
     setBodyMetricsConfirmed?.(false);
+    setUserSex?.(null);
     setAvailableEquipment?.(null);
     setProfilePhoto?.(null);
     setProfileIsPublic?.(true);
@@ -251,6 +256,7 @@ export function useCloudAndStorageSync({
           setUserHeightFeet(hydrated.settings.bodyMetrics.heightFeet ?? 5);
           setUserHeightInches(hydrated.settings.bodyMetrics.heightInches ?? 10);
           setBodyMetricsConfirmed?.(Boolean(hydrated.settings.bodyMetrics.confirmed));
+          setUserSex?.(normalizeSex(hydrated.settings.bodyMetrics.sex));
         }
         if (hydrated.settings.stimulus) {
           setStimulusGreenDays(hydrated.settings.stimulus.greenDays ?? 2);
@@ -572,6 +578,7 @@ export function useCloudAndStorageSync({
               if (cloud.settings.bodyMetrics.heightFeet !== undefined) setUserHeightFeet(cloud.settings.bodyMetrics.heightFeet);
               if (cloud.settings.bodyMetrics.heightInches !== undefined) setUserHeightInches(cloud.settings.bodyMetrics.heightInches);
               if (cloud.settings.bodyMetrics.confirmed) setBodyMetricsConfirmed?.(true);
+              if (normalizeSex(cloud.settings.bodyMetrics.sex)) setUserSex?.(normalizeSex(cloud.settings.bodyMetrics.sex));
             }
             if (cloud.settings.goals) {
               // Only a goal the app saved (pushes stamp settings.updatedAt): a new account's row holds the database
@@ -748,7 +755,8 @@ export function useCloudAndStorageSync({
               bodyweightLbs: userBodyweightLbs,
               heightFeet: userHeightFeet,
               heightInches: userHeightInches,
-              confirmed: Boolean(bodyMetricsConfirmed)
+              confirmed: Boolean(bodyMetricsConfirmed),
+              sex: normalizeSex(userSex)
             },
             goals: {
               goalType,
@@ -863,6 +871,7 @@ export function useCloudAndStorageSync({
     userHeightFeet,
     userHeightInches,
     bodyMetricsConfirmed,
+    userSex,
     goalType,
     goalIncrement,
     goalUnit,
@@ -936,6 +945,7 @@ export function useCloudAndStorageSync({
           setUserHeightFeet(rehydrated.settings.bodyMetrics.heightFeet);
           setUserHeightInches(rehydrated.settings.bodyMetrics.heightInches);
           setBodyMetricsConfirmed?.(Boolean(rehydrated.settings.bodyMetrics.confirmed));
+          setUserSex?.(normalizeSex(rehydrated.settings.bodyMetrics.sex));
           setGoalType(rehydrated.settings.goals.goalType);
           setGoalIncrement(rehydrated.settings.goals.goalIncrement);
           setGoalUnit(rehydrated.settings.goals.goalUnit);

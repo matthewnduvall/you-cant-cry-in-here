@@ -137,7 +137,7 @@ export function GoalsView({
                 textTransform: 'uppercase'
               }}
             >
-              PROGRESSION INCREMENT (ADDED TO THE TOTAL WEIGHT)
+              PROGRESSION INCREMENT (FOR A 200 LB LIFT; SCALED TO EACH LIFT)
             </div>
             <div
               style={{
