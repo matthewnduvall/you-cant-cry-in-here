@@ -593,6 +593,7 @@ export default function App() {
     handleAutoBuildWorkout,
     handleAddAutoSlot,
     getNextAutoSlotCategory,
+    suggestExerciseForMuscleGroup,
     handleSaveCurrentEditor,
     handleConfirmSaveWorkout,
     handleAutoFinishActiveSession,
@@ -1585,6 +1586,7 @@ export default function App() {
               setStimulusYellowDays={setStimulusYellowDays}
               muscleStimulusStatus={muscleStimulusStatus}
               setSetValueTarget={setSetValueTarget}
+              suggestExerciseForMuscleGroup={suggestExerciseForMuscleGroup}
             />
           )}
 

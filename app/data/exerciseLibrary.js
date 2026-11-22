@@ -315,6 +315,11 @@ const SPECIFIC_MUSCLE_GROUP = {
   Splenius: 'Neck',
   Sternocleidomastoid: 'Neck'
 };
+/** The specific muscles in each body part ({ Back: ['Latissimus Dorsi', …] }), for the Stimulus page. */
+export const SPECIFIC_MUSCLES_BY_GROUP = Object.entries(SPECIFIC_MUSCLE_GROUP).reduce((acc, [muscle, group]) => {
+  (acc[group] = acc[group] || []).push(muscle);
+  return acc;
+}, {});
 
 const parseCsvLine = line => {
   const fields = [];

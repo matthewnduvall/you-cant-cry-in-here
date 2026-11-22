@@ -506,7 +506,9 @@ export function useWorkoutMutations({
   // addOne: return the existing slots plus just the next guessed slot (+ ADD EXERCISE)
   // peek (with addOne): just the type that slot would be ("on deck": Compound / Accessory / Superset / Cluster), nothing
   // built. category (with addOne): the type the athlete picked in + ADD EXERCISE's dropdown instead of that.
-  const buildGeneratedAutoSlots = (existingSlots = [], { addOne = false, programTarget = null, peek = false, category = null } = {}) => {
+  // suggestFor (with suggestCategory): just the exercise the picker would choose next for that muscle group (Stimulus
+  // page), by the same rules as + ADD EXERCISE; null when nothing in the library trains it
+  const buildGeneratedAutoSlots = (existingSlots = [], { addOne = false, programTarget = null, peek = false, category = null, suggestFor = null, suggestCategory = 'Accessory' } = {}) => {
     const cleanExisting = Array.isArray(existingSlots) ? cloneSlots(existingSlots) : [];
     const usedIds = new Set();
     const remainingCategoryCounts = {
@@ -655,6 +657,14 @@ export function useWorkoutMutations({
       usedGroups.add(best.muscleGroup);
       return best;
     };
+
+    if (suggestFor) {
+      const inGroup = ex => ex.muscleGroup === suggestFor;
+      const first = pickBest(suggestCategory, null, inGroup);
+      if (first && inGroup(first)) return first;
+      const other = pickBest(suggestCategory === 'Compound' ? 'Accessory' : 'Compound', null, inGroup);
+      return other && inGroup(other) ? other : null;
+    }
 
     const createSlotForPref = rawPref => {
       const pref = normalizeSlotCategory(rawPref);
@@ -1181,6 +1191,18 @@ export function useWorkoutMutations({
       return buildGeneratedAutoSlots(getCurrentEditorWorkout()?.slots || [], { addOne: true, peek: true });
     } catch {
       return 'Compound';
+    }
+  };
+
+  // Stimulus page: the exercise + ADD EXERCISE would pick next for a muscle group, as the type on deck (a Superset or
+  // Cluster on deck picks an accessory, as they do). Uses the open session's exercises (none = a new session).
+  const suggestExerciseForMuscleGroup = group => {
+    try {
+      const slots = activeSession?.slots || [];
+      const onDeck = normalizeSlotCategory(buildGeneratedAutoSlots(slots, { addOne: true, peek: true }) || 'Compound');
+      return buildGeneratedAutoSlots(slots, { suggestFor: group, suggestCategory: onDeck === 'Compound' ? 'Compound' : 'Accessory' });
+    } catch {
+      return null;
     }
   };
 
@@ -2904,6 +2926,7 @@ export function useWorkoutMutations({
     handleAutoBuildWorkout,
     handleAddAutoSlot,
     getNextAutoSlotCategory,
+    suggestExerciseForMuscleGroup,
     handleSaveCurrentEditor,
     handleConfirmSaveWorkout,
     handleAutoFinishActiveSession,

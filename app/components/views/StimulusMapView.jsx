@@ -3,19 +3,23 @@
 import React, { useState } from 'react';
 import { IOSListSection, IOSListRow } from '../Primitives';
 import { StimulusSettingsSection } from './SettingsView';
-import { STIMULUS_WHITE, STIMULUS_PINK } from '../../hooks/useTelemetryAndAnalytics';
+import { SPECIFIC_MUSCLES_BY_GROUP } from '../../data/exerciseLibrary';
 
 // Status is shown by pattern as well as colour (red / green alone is hard to tell apart with colour blindness):
 // OVERDUE = diagonal stripes, RECOVERED = dots, RECOVERING = solid, never logged = solid grey.
 const statusPattern = label =>
   /OVERDUE/.test(label || '') ? 'url(#stim-stripes)' : /RECOVERED/.test(label || '') ? 'url(#stim-dots)' : null;
 
-// One body part on the map. Tapping (or Enter / Space) selects its muscle group: the readout under the map
-// names it and says when it was last trained, and every box of that group gets a white outline.
-// Extra tap area around each body part, in map units
+// Extra tap area around each body part, in map units (a wide transparent stroke on the same shape)
 const HIT_PAD = 6;
 
-function MuscleRect({ group, statusMap, selected, onSelect, strokeWidth, ...rect }) {
+// Mirror a path across the body's centre line (x = 60), so each side is drawn once
+const mirror = d => d.replace(/(-?\d+(?:\.\d+)?) (-?\d+(?:\.\d+)?)/g, (_, x, y) => `${120 - Number(x)} ${y}`);
+
+// One body part on the map: an organic outline (path), not a box. Tapping (or Enter / Space) selects its muscle
+// group: the readout under the map names it, says when it was last trained, lists its muscles and suggests an
+// exercise; every part of that group gets a white outline.
+function MusclePart({ group, statusMap, selected, onSelect, d }) {
   const status = statusMap?.[group];
   const pattern = statusPattern(status?.label);
   return (
@@ -33,17 +37,16 @@ function MuscleRect({ group, statusMap, selected, onSelect, strokeWidth, ...rect
       }}
       style={{ cursor: 'pointer', outline: 'none' }}
     >
-      {/* A bigger, invisible tap area around the box (small parts like the neck are hard to hit); parts drawn later sit
-          on top, so it only reaches into empty space and the head */}
-      <rect
-        x={Number(rect.x) - HIT_PAD}
-        y={Number(rect.y) - HIT_PAD}
-        width={Number(rect.width) + HIT_PAD * 2}
-        height={Number(rect.height) + HIT_PAD * 2}
-        fill="transparent"
+      {/* A bigger, invisible tap area around the part (small parts like the neck are hard to hit) */}
+      <path d={d} fill="transparent" stroke="transparent" strokeWidth={HIT_PAD * 2} strokeLinejoin="round" />
+      <path
+        d={d}
+        fill={status?.color || '#3A3A3A'}
+        stroke={selected ? '#FFFFFF' : '#000000'}
+        strokeWidth={selected ? 2.5 : 1.5}
+        strokeLinejoin="round"
       />
-      <rect {...rect} fill={status?.color || '#3A3A3A'} stroke={selected ? '#FFFFFF' : '#000000'} strokeWidth={selected ? 2.5 : strokeWidth} />
-      {pattern && <rect {...rect} fill={pattern} stroke="none" pointerEvents="none" />}
+      {pattern && <path d={d} fill={pattern} stroke="none" pointerEvents="none" />}
     </g>
   );
 }
@@ -63,13 +66,94 @@ function StimulusPatternDefs() {
   );
 }
 
-// Small legend swatch with the same colour + pattern as the map
+// Small swatch with the same colour + pattern as the map (the selected group's readout)
 function StatusSwatch({ color, pattern, size = 12 }) {
   return (
-    <svg width={size} height={size} style={{ display: 'inline-block', verticalAlign: '-1px', marginRight: '4px' }} aria-hidden="true">
-      <rect width={size} height={size} fill={color} />
-      {pattern && <rect width={size} height={size} fill={pattern} />}
+    <svg width={size} height={size} style={{ display: 'inline-block', verticalAlign: '-1px', flexShrink: 0 }} aria-hidden="true">
+      <rect width={size} height={size} rx={size / 4} fill={color} />
+      {pattern && <rect width={size} height={size} rx={size / 4} fill={pattern} />}
     </svg>
+  );
+}
+
+// ---- Body outlines (viewBox 0 0 120 230; left side written, right side mirrored) ----
+const HEAD = 'M60 5 C67 5 71 10 71 17 C71 25 66 30 60 30 C54 30 49 25 49 17 C49 10 53 5 60 5 Z';
+const NECK = 'M54 28 C56 31 64 31 66 28 L67 36 C63 38 57 38 53 36 Z';
+const DELT_L = 'M44 38 C36 36 26 38 22 46 C20 52 21 58 24 61 C28 58 31 54 34 50 C37 46 41 42 44 40 Z';
+const BICEP_L = 'M23 62 C26 60 30 58 33 54 C35 62 35 72 33 84 C30 86 25 86 21 84 C19 76 20 68 23 62 Z';
+const FOREARM_L = 'M21 87 C25 89 30 89 33 87 C33 96 31 106 28 114 C25 116 22 116 19 114 C18 105 19 95 21 87 Z';
+const PEC_L = 'M59 38 L59 60 C52 64 43 63 38 57 C35 52 36 45 40 41 C45 38 52 37 59 38 Z';
+const ABS_L = [
+  'M41 68 C41 66 43 65 45 65 L58 66 L58 79 L42 79 C41 79 41 78 41 77 Z',
+  'M42 82 L58 82 L58 95 L43 95 C42 95 42 94 42 93 Z',
+  'M43 98 L58 98 L58 112 C53 113 48 112 45 110 C44 109 43 108 43 106 Z'
+];
+const QUAD_L = 'M41 116 C47 114 54 115 58 117 C60 130 59 150 56 172 C52 175 46 175 43 172 C38 155 37 132 41 116 Z';
+const CALF_FRONT_L = 'M44 178 C48 176 52 176 55 178 C57 190 56 205 53 220 C51 222 47 222 45 220 C41 205 41 190 44 178 Z';
+const TRAPS = 'M52 34 C56 37 64 37 68 34 C72 38 76 41 80 44 C72 47 66 49 60 49 C54 49 48 47 40 44 C44 41 48 38 52 34 Z';
+const LAT_L = 'M40 47 C46 50 53 52 59 52 L59 88 C54 89 49 88 46 85 C41 76 38 62 40 47 Z';
+const LOW_BACK = 'M46 90 C51 92 69 92 74 90 C76 97 76 104 74 111 C68 113 52 113 46 111 C44 104 44 97 46 90 Z';
+const GLUTE_L = 'M59 114 L59 137 C52 141 44 140 40 134 C37 128 37 120 40 115 C45 113 52 113 59 114 Z';
+const HAM_L = 'M40 140 C46 143 53 143 58 141 C60 152 59 163 56 176 C52 178 46 178 43 176 C39 164 38 151 40 140 Z';
+const CALF_BACK_L = 'M43 180 C47 178 53 178 56 180 C58 192 57 206 53 220 C51 222 47 222 45 220 C40 206 40 192 43 180 Z';
+
+const both = d => [d, mirror(d)];
+const FRONT_PARTS = [
+  ['Neck', [NECK]],
+  ['Shoulders', both(DELT_L)],
+  ['Chest', both(PEC_L)],
+  ['Upper Arms', both(BICEP_L)],
+  ['Forearms', both(FOREARM_L)],
+  ['Core', ABS_L.flatMap(both)],
+  ['Thighs', both(QUAD_L)],
+  ['Calves', both(CALF_FRONT_L)]
+];
+const BACK_PARTS = [
+  ['Neck', [NECK]],
+  ['Back', [TRAPS, ...both(LAT_L)]],
+  ['Shoulders', both(DELT_L)],
+  ['Upper Arms', both(BICEP_L)],
+  ['Forearms', both(FOREARM_L)],
+  ['Core', [LOW_BACK]],
+  ['Hips', both(GLUTE_L)],
+  ['Thighs', both(HAM_L)],
+  ['Calves', both(CALF_BACK_L)]
+];
+
+// Friendlier names for the ExRx muscle names listed under a group
+const MUSCLE_LABELS = {
+  'Deltoid - Anterior': 'Front delts',
+  'Deltoid - Lateral': 'Side delts',
+  'Deltoid - Posterior': 'Rear delts',
+  'Trapezius - Upper': 'Upper traps',
+  'Trapezius - Middle': 'Middle traps',
+  'Trapezius - Lower': 'Lower traps',
+  'Pectoralis Major - Clavicular': 'Upper chest',
+  'Pectoralis Major - Sternal': 'Mid and lower chest',
+  'Pectoralis Minor': 'Pec minor',
+  'Latissimus Dorsi': 'Lats',
+  'Gluteus Maximus': 'Glutes',
+  'Infraspinatus & Teres Minor': 'Infraspinatus and teres minor'
+};
+const musclesOf = group =>
+  (SPECIFIC_MUSCLES_BY_GROUP[group] || [])
+    .filter(m => m !== group && m !== 'General Back')
+    .map(m => MUSCLE_LABELS[m] || m);
+
+function BodyFigure({ label, parts, part }) {
+  return (
+    <div
+      style={{
+        border: 'none', borderRadius: '10px', backgroundColor: '#000000',
+        padding: '10px', display: 'flex', flexDirection: 'column', alignItems: 'center'
+      }}
+    >
+      <div style={{ fontSize: '11px', fontWeight: 500, color: '#9A9A9A', letterSpacing: '0.1em', marginBottom: '8px' }}>{label}</div>
+      <svg viewBox="0 0 120 230" style={{ width: '100%', maxWidth: '160px', height: 'auto' }}>
+        <path d={HEAD} fill="#262626" />
+        {parts.map(([group, paths]) => paths.map((d, i) => <MusclePart key={`${group}_${i}`} d={d} {...part(group)} />))}
+      </svg>
+    </div>
   );
 }
 
@@ -81,7 +165,9 @@ export function StimulusMapView({
   setStimulusYellowDays,
   muscleStimulusStatus,
   // The shared value pop-up (STIMULUS THRESHOLDS day boxes)
-  setSetValueTarget
+  setSetValueTarget,
+  // The exercise + ADD EXERCISE would pick next for a muscle group (useWorkoutMutations)
+  suggestExerciseForMuscleGroup
 }) {
   // Tapped muscle group (null = none yet)
   const [selectedGroup, setSelectedGroup] = useState(null);
@@ -92,135 +178,66 @@ export function StimulusMapView({
     onSelect: g => setSelectedGroup(prev => (prev === g ? null : g))
   });
   const selectedStatus = selectedGroup ? muscleStimulusStatus?.[selectedGroup] : null;
+  const muscles = selectedGroup ? musclesOf(selectedGroup) : [];
+  const suggested = selectedGroup ? suggestExerciseForMuscleGroup?.(selectedGroup) : null;
+  const capsLabel = { fontSize: '10px', fontWeight: 500, letterSpacing: '0.1em', color: '#9A9A9A' };
   return (
     <div style={{ paddingTop: '14px' }}>
       <StimulusPatternDefs />
-      <IOSListSection
-        footer={
-          // Vertical legend: swatch (colour + pattern) | status | days since last trained (the map's colours blend
-          // smoothly between these: white → pink → red)
-          <span
-            style={{ display: 'grid', gridTemplateColumns: 'auto auto 1fr', columnGap: '6px', rowGap: '4px', alignItems: 'center', lineHeight: 1.4 }}
-          >
-            {[
-              { color: STIMULUS_WHITE, label: 'RECOVERING', text: '#FFFFFF', range: `0–${stimulusGreenDays} DAYS` },
-              {
-                color: STIMULUS_PINK,
-                pattern: 'url(#stim-dots)',
-                label: 'RECOVERED',
-                text: STIMULUS_PINK,
-                range: `${Number(stimulusGreenDays) + 1}–${stimulusYellowDays} DAYS`
-              },
-              {
-                color: '#FF4A3D',
-                pattern: 'url(#stim-stripes)',
-                label: 'OVERDUE',
-                text: '#FF4A3D',
-                range: `${Number(stimulusYellowDays) + 1}+ DAYS`
-              },
-              { color: '#3A3A3A', label: 'UNLOGGED', text: '#9A9A9A', range: 'NOT LOGGED YET' }
-            ].map(item => (
-              <React.Fragment key={item.label}>
-                <span style={{ lineHeight: 0 }}>
-                  <StatusSwatch color={item.color} pattern={item.pattern} />
-                </span>
-                <span style={{ color: item.text }}>{item.label}</span>
-                <span>{item.range}</span>
-              </React.Fragment>
-            ))}
-          </span>
-        }
-        colors={colors}
-      >
+      <IOSListSection colors={colors}>
         <IOSListRow colors={colors}>
           <div style={{ width: '100%', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', padding: '8px 0' }}>
-            <div
-              style={{
-                border: 'none', borderRadius: '10px', backgroundColor: '#000000',
-                padding: '10px', display: 'flex', flexDirection: 'column', alignItems: 'center'
-              }}
-            >
-              <div style={{ fontSize: '11px', fontWeight: 500, color: 'var(--dp-color-accent)', letterSpacing: '0.06em', marginBottom: '8px' }}>
-                FRONT
-              </div>
-              <svg viewBox="0 0 120 230" style={{ width: '100%', maxWidth: '160px', height: 'auto' }}>
-                <rect x="50" y="6" width="20" height="22" fill="#262626" stroke="#3A3A3A" strokeWidth="1.5" />
-                <MuscleRect x="54" y="28" width="12" height="8" {...part('Neck')} strokeWidth="1" />
-                <MuscleRect x="22" y="36" width="16" height="22" {...part('Shoulders')} strokeWidth="1.5" />
-                <MuscleRect x="82" y="36" width="16" height="22" {...part('Shoulders')} strokeWidth="1.5" />
-                <MuscleRect x="38" y="36" width="21" height="28" {...part('Chest')} strokeWidth="1.5" />
-                <MuscleRect x="61" y="36" width="21" height="28" {...part('Chest')} strokeWidth="1.5" />
-                <MuscleRect x="18" y="60" width="15" height="24" {...part('Upper Arms')} strokeWidth="1.5" />
-                <MuscleRect x="87" y="60" width="15" height="24" {...part('Upper Arms')} strokeWidth="1.5" />
-                <MuscleRect x="18" y="85" width="15" height="23" {...part('Forearms')} strokeWidth="1.5" />
-                <MuscleRect x="87" y="85" width="15" height="23" {...part('Forearms')} strokeWidth="1.5" />
-                <MuscleRect x="40" y="66" width="40" height="46" {...part('Core')} strokeWidth="1.5" />
-                <line x1="60" y1="66" x2="60" y2="112" stroke="#000000" strokeWidth="1.5" />
-                <line x1="40" y1="81" x2="80" y2="81" stroke="#000000" strokeWidth="1.5" />
-                <line x1="40" y1="96" x2="80" y2="96" stroke="#000000" strokeWidth="1.5" />
-                <MuscleRect x="38" y="116" width="20" height="58" {...part('Thighs')} strokeWidth="1.5" />
-                <MuscleRect x="62" y="116" width="20" height="58" {...part('Thighs')} strokeWidth="1.5" />
-                <MuscleRect x="40" y="177" width="16" height="44" {...part('Calves')} strokeWidth="1.5" />
-                <MuscleRect x="64" y="177" width="16" height="44" {...part('Calves')} strokeWidth="1.5" />
-              </svg>
-            </div>
-
-            <div
-              style={{
-                border: 'none', borderRadius: '10px', backgroundColor: '#000000',
-                padding: '10px', display: 'flex', flexDirection: 'column', alignItems: 'center'
-              }}
-            >
-              <div style={{ fontSize: '11px', fontWeight: 500, color: 'var(--dp-color-accent)', letterSpacing: '0.06em', marginBottom: '8px' }}>
-                BACK
-              </div>
-              <svg viewBox="0 0 120 230" style={{ width: '100%', maxWidth: '160px', height: 'auto' }}>
-                <rect x="50" y="6" width="20" height="22" fill="#262626" stroke="#3A3A3A" strokeWidth="1.5" />
-                <MuscleRect x="54" y="28" width="12" height="8" {...part('Neck')} strokeWidth="1" />
-                <MuscleRect x="22" y="36" width="16" height="22" {...part('Shoulders')} strokeWidth="1.5" />
-                <MuscleRect x="82" y="36" width="16" height="22" {...part('Shoulders')} strokeWidth="1.5" />
-                <MuscleRect x="38" y="36" width="44" height="52" {...part('Back')} strokeWidth="1.5" />
-                <line x1="60" y1="36" x2="60" y2="88" stroke="#000000" strokeWidth="1.5" />
-                <MuscleRect x="18" y="60" width="15" height="24" {...part('Upper Arms')} strokeWidth="1.5" />
-                <MuscleRect x="87" y="60" width="15" height="24" {...part('Upper Arms')} strokeWidth="1.5" />
-                <MuscleRect x="18" y="85" width="15" height="23" {...part('Forearms')} strokeWidth="1.5" />
-                <MuscleRect x="87" y="85" width="15" height="23" {...part('Forearms')} strokeWidth="1.5" />
-                <MuscleRect x="42" y="90" width="36" height="22" {...part('Core')} strokeWidth="1.5" />
-                <MuscleRect x="38" y="114" width="21" height="24" {...part('Hips')} strokeWidth="1.5" />
-                <MuscleRect x="61" y="114" width="21" height="24" {...part('Hips')} strokeWidth="1.5" />
-                <MuscleRect x="38" y="140" width="20" height="36" {...part('Thighs')} strokeWidth="1.5" />
-                <MuscleRect x="62" y="140" width="20" height="36" {...part('Thighs')} strokeWidth="1.5" />
-                <MuscleRect x="40" y="178" width="16" height="43" {...part('Calves')} strokeWidth="1.5" />
-                <MuscleRect x="64" y="178" width="16" height="43" {...part('Calves')} strokeWidth="1.5" />
-              </svg>
-            </div>
+            <BodyFigure label="FRONT" parts={FRONT_PARTS} part={part} />
+            <BodyFigure label="BACK" parts={BACK_PARTS} part={part} />
           </div>
         </IOSListRow>
         <IOSListRow isLast={true} colors={colors}>
-          <div aria-live="polite" style={{ display: 'flex', alignItems: 'center', gap: '8px', minHeight: '24px', width: '100%' }}>
+          <div aria-live="polite" style={{ display: 'flex', flexDirection: 'column', gap: '10px', minHeight: '24px', width: '100%', padding: '4px 0' }}>
             {selectedGroup ? (
               <>
-                <StatusSwatch color={selectedStatus?.color || '#3A3A3A'} pattern={statusPattern(selectedStatus?.label)} size={14} />
-                <span style={{ fontSize: '15px', fontWeight: 500, textTransform: 'uppercase' }}>{selectedGroup}</span>
-                <span
-                  style={{
-                    marginLeft: 'auto',
-                    fontSize: '12px',
-                    fontWeight: 500,
-                    textTransform: 'uppercase',
-                    color: !selectedStatus || selectedStatus.label === 'UNLOGGED' ? '#9A9A9A' : selectedStatus.color
-                  }}
-                >
-                  {selectedStatus?.label === 'UNLOGGED' || !selectedStatus ? 'NOT LOGGED YET' : selectedStatus.label}
-                </span>
-                {/* Hard sets in the last 7 days (secondary work counts half) */}
-                <span style={{ fontSize: '12px', fontWeight: 500, color: '#9A9A9A', whiteSpace: 'nowrap' }}>
-                  · {selectedStatus?.weeklySets || 0} {selectedStatus?.weeklySets === 1 ? 'SET' : 'SETS'} / 7D
-                </span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <StatusSwatch color={selectedStatus?.color || '#3A3A3A'} pattern={statusPattern(selectedStatus?.label)} size={14} />
+                  <span style={{ fontSize: '15px', fontWeight: 500, textTransform: 'uppercase' }}>{selectedGroup}</span>
+                  <span
+                    style={{
+                      marginLeft: 'auto',
+                      fontSize: '12px',
+                      fontWeight: 500,
+                      textTransform: 'uppercase',
+                      color: !selectedStatus || selectedStatus.label === 'UNLOGGED' ? '#9A9A9A' : selectedStatus.color
+                    }}
+                  >
+                    {selectedStatus?.label === 'UNLOGGED' || !selectedStatus ? 'NOT LOGGED YET' : selectedStatus.label}
+                  </span>
+                  {/* Hard sets in the last 7 days (secondary work counts half) */}
+                  <span style={{ fontSize: '12px', fontWeight: 500, color: '#9A9A9A', whiteSpace: 'nowrap' }}>
+                    · {selectedStatus?.weeklySets || 0} {selectedStatus?.weeklySets === 1 ? 'SET' : 'SETS'} / 7D
+                  </span>
+                </div>
+                {muscles.length > 0 && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                    <span style={capsLabel}>MUSCLES</span>
+                    <span style={{ fontSize: '13px', color: '#BDBDBD', lineHeight: 1.4 }}>{muscles.join(', ')}</span>
+                  </div>
+                )}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                  <span style={capsLabel}>SUGGESTED EXERCISE</span>
+                  {suggested ? (
+                    <span style={{ fontSize: '15px', fontWeight: 500, color: '#FFFFFF' }}>
+                      {suggested.name}
+                      {suggested.equipment ? <span style={{ color: '#9A9A9A', fontWeight: 400 }}> · {suggested.equipment}</span> : null}
+                    </span>
+                  ) : (
+                    <span style={{ fontSize: '13px', color: '#9A9A9A' }}>No exercise in the library trains this group yet.</span>
+                  )}
+                  <span style={{ fontSize: '12px', color: '#8A8A8A', lineHeight: 1.4 }}>
+                    What + ADD EXERCISE would pick next for this group.
+                  </span>
+                </div>
               </>
             ) : (
               <span style={{ fontSize: '12px', fontWeight: 500, color: '#9A9A9A' }}>
-                Tap a muscle group to see when you last trained it.
+                Tap a muscle group to see when you last trained it, its muscles and an exercise for it.
               </span>
             )}
           </div>
@@ -238,4 +255,3 @@ export function StimulusMapView({
     </div>
   );
 }
-
