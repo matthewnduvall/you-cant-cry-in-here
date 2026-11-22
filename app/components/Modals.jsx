@@ -8,6 +8,7 @@ import { SET_TYPES_LIST, exercise1RMInfoOfSets, oneRepMaxLabel as oneRepMaxText,
 import { ApplyToLaterToggle, Button, CloseButton } from './Controls';
 import { useModalScrollLock } from '../hooks/useModalScrollLock';
 import { ProfileAvatar } from './ProfileAvatar';
+import { getSpeechLog } from '../utils/speech';
 import { PickBadge, PickList, PickRow, friendAvatar } from './PickList';
 
 // ============================================================================
@@ -953,7 +954,7 @@ export function FeedbackModal({
   showFeedbackModal,
   setShowFeedbackModal,
   user,
-  sessionLogs = [],
+  sessionLogs: appLogs = [],
   appSnapshot = {}
 }) {
   const [message, setMessage] = useState('');
@@ -964,6 +965,10 @@ export function FeedbackModal({
   // Page held still while open (no jump after APPLY / SAVE / SEND)
   useModalScrollLock(Boolean(showFeedbackModal));
   if (!showFeedbackModal) return null;
+  // The app's own events plus the microphone's (start / sound / result / error codes), in time order
+  const sessionLogs = [...(Array.isArray(appLogs) ? appLogs : []), ...getSpeechLog()].sort((x, y) =>
+    String(x.timestamp || '').localeCompare(String(y.timestamp || ''))
+  );
 
   const buildFeedbackMailtoUrl = rawMessage => {
     const senderLabel = user?.username
