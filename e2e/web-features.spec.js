@@ -206,12 +206,13 @@ test.describe('Session', () => {
       class FakeRecognition {
         start() {
           window.__rec = this;
+          setTimeout(() => this.onstart?.(), 10);
         }
         abort() {
-          this.onend?.();
+          setTimeout(() => this.onend?.(), 30);
         }
         stop() {
-          this.onend?.();
+          setTimeout(() => this.onend?.(), 30);
         }
       }
       window.webkitSpeechRecognition = FakeRecognition;
@@ -235,6 +236,11 @@ test.describe('Session', () => {
       const sets = s.activeSession?.slots?.[0]?.sets || [];
       return sets.length === 4 && sets.every(x => x.reps === 6);
     });
+    // Speaking again right after still registers (the dead-mic bug)
+    await page.getByRole('button', { name: /Say the exercise/ }).first().click();
+    await page.waitForTimeout(600);
+    await page.evaluate(() => window.__say('squat'));
+    await expect(page.locator('input[type="search"]')).toHaveValue('squat');
   });
 
   test('[session.search-clear] the ✕ clears the search box', async ({ page }) => {
