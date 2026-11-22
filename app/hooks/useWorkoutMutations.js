@@ -2787,14 +2787,15 @@ export function useWorkoutMutations({
       next = { ...slot, sets: lists[0], supersetSetsByExercise: [lists[0]] };
     }
     if (changes.targetReps !== undefined) {
-      // REPS box: only the reps change. Every set that isn't done or reps-locked gets the new count (a 1 Rep Max set
-      // stays at 1); weights are left exactly as they are (RECALCULATE re-works them on request).
+      // The scheme pop-up's REPS: every set not done gets the new count, locked reps included — they are unlocked,
+      // changed and locked again (back to the default lock). A 1 Rep Max set stays at 1, timed sets keep their time;
+      // weights stay (the intensities follow them).
       const reps = Math.max(1, Math.min(50, Math.round(Number(changes.targetReps) || 1)));
       const withReps = list =>
         (list || []).map(st =>
-          st.completed || st.lockReps || st.type === '1 Rep Max' || st.durationSeconds || st.timerStr
+          st.completed || st.type === '1 Rep Max' || st.durationSeconds || st.timerStr
             ? st
-            : { ...st, reps }
+            : { ...st, reps, lockReps: undefined }
         );
       if (isSup) {
         const targets = [slot.supersetTargetReps?.[0] ?? null, slot.supersetTargetReps?.[1] ?? null];
