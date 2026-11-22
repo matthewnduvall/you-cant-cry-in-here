@@ -17,6 +17,7 @@ import {
   daysBetweenYMD
 } from '../../utils/friendFirstSeen';
 import { buildHistoryPRs, getBestHistory1RMInfo, oneRepMaxLabel, getSetTimerMMSS, estimateSet1RM, loggedExercise1RMInfo } from '../../utils/workoutEngine';
+import { withAthleteModel } from '../../utils/modelLearning';
 
 // ============================================================================
 // VIEW: HOME SCREEN
@@ -332,8 +333,11 @@ export function HomeView({
   const tickerEntryObjects = uniqueAthletes
     .slice(0, 10)
     .flatMap(a => [
-      ...getAthleteScrollerEntries(a, scrollerSeed, todayFallbackStr),
-      ...getAthleteRecentExerciseEntries(a, scrollerSeed)
+      // (each friend's lifts on their own learned model: their rep curves and fatigue)
+      ...withAthleteModel(a?.history, () => [
+        ...getAthleteScrollerEntries(a, scrollerSeed, todayFallbackStr),
+        ...getAthleteRecentExerciseEntries(a, scrollerSeed)
+      ])
     ]);
 
   const sortedTickerEntries = [...tickerEntryObjects]

@@ -2,10 +2,10 @@
 
 import { FormulaConsole } from './components/FormulaConsole';
 import { getProgram, getWorkoutProgramInfo } from './data/programs';
-import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback } from 'react';
 import { IOS_DARK, KINETIC_CSS } from './styles/kineticTokens';
 import { getIncrementInLbs, getInitial1RMs, asHistoricalWorkout, withAutoSessionName, setEngineFatigue, setEngineFatigueByExercise, learnFatigueRates, setEngineProgression, learnProgressionRates, setEngineBodyweight, setEngineRestExponent, DEFAULT_REST_EXPONENT, setEngineEstimator } from './utils/workoutEngine';
-import { learnRepCurves, learnRestEffect, backtestPredictions, planFollowThrough } from './utils/modelLearning';
+import { learnRepCurves, learnRestEffect, backtestPredictions, planFollowThrough, historySignature } from './utils/modelLearning';
 import { setRepCurves } from './utils/intensity';
 import { fetchAthleteProfileSnapshot, signOutUser } from './utils/supabaseAuth';
 import { AppHeaderAndDrawer, PageTitle } from './components/AppHeaderAndDrawer';
@@ -195,25 +195,41 @@ export default function App() {
   // Fatigue per set: reps of reserve each earlier working set uses up (Configuration → PROGRAM; the engine reads it)
   const [fatiguePerSet, setFatiguePerSet] = useState(0.5);
   setEngineFatigue(fatiguePerSet);
+  // Learning reruns only when History's content changes (a cloud pull rebuilds the same History as new objects)
+  const historySig = useMemo(() => historySignature(history), [history]);
+  /* eslint-disable react-hooks/exhaustive-deps -- keyed on historySig: the same content, not the same objects */
   // Each exercise's fatigue rate learned from the RIRs you log by hand (the setting until there is enough)
-  const learnedFatigue = useMemo(() => learnFatigueRates(history, fatiguePerSet), [history, fatiguePerSet]);
+  const learnedFatigue = useMemo(() => learnFatigueRates(history, fatiguePerSet), [historySig, fatiguePerSet]);
   setEngineFatigueByExercise(learnedFatigue);
-  // How much rest length changes fatigue, and each lift's rep curve (k in weight × (1 + (reps + RIR − 1) ÷ k)),
-  // learned from the sets you rate by hand (utils/modelLearning.js); the defaults until there is enough
-  const learnedRest = useMemo(() => learnRestEffect(history), [history, learnedFatigue]); // eslint-disable-line react-hooks/exhaustive-deps
+  // How much rest length changes fatigue (planning only), and each lift's rep curve (k in
+  // weight × (1 + (reps + RIR − 1) ÷ k)), learned from the sets you rate by hand (utils/modelLearning.js)
+  const learnedRest = useMemo(() => learnRestEffect(history), [historySig, learnedFatigue]);
   setEngineRestExponent(learnedRest?.exponent ?? DEFAULT_REST_EXPONENT);
-  const learnedRepCurves = useMemo(() => learnRepCurves(history), [history, learnedFatigue, learnedRest]); // eslint-disable-line react-hooks/exhaustive-deps
+  const learnedRepCurves = useMemo(() => learnRepCurves(history), [historySig, learnedFatigue]);
   setRepCurves(learnedRepCurves);
   // Each lift's learned rate of progress (lb per session), which the increment leans toward once there is enough
-  const learnedProgression = useMemo(() => learnProgressionRates(history), [history]);
+  const learnedProgression = useMemo(() => learnProgressionRates(history), [historySig, learnedRepCurves]);
   setEngineProgression(learnedProgression);
-  // The prediction replay: how well each estimator forecasts your next session (and the rep curves your sets); the
-  // engine uses the estimator that forecasts you best once there are enough forecasts (Performance → ACCURACY)
+  // The prediction replay (on the standard curve and the FATIGUE setting, so nothing it scores sees the future): how
+  // well each estimator forecasts your next session and how well your curve predicts your reps; the engine uses the
+  // estimator that forecasts you best once there are enough forecasts (Performance → ACCURACY)
   const predictionReport = useMemo(
     () => ({ ...backtestPredictions(history, learnedRepCurves), follow: planFollowThrough(history), repCurves: learnedRepCurves, rest: learnedRest }),
-    [history, learnedRepCurves, learnedRest]
+    [historySig, learnedRepCurves, learnedRest, fatiguePerSet]
   );
+  /* eslint-enable react-hooks/exhaustive-deps */
   setEngineEstimator(predictionReport.best || 'smooth');
+  // The settings above are set during render, so this render's own calculations use them. A render React starts and
+  // then throws away could leave its values behind, so the committed render puts its own back before any tap plans
+  // anything (event handlers run after commit)
+  useLayoutEffect(() => {
+    setEngineFatigue(fatiguePerSet);
+    setEngineFatigueByExercise(learnedFatigue);
+    setEngineRestExponent(learnedRest?.exponent ?? DEFAULT_REST_EXPONENT);
+    setRepCurves(learnedRepCurves);
+    setEngineProgression(learnedProgression);
+    setEngineEstimator(predictionReport.best || 'smooth');
+  });
   // Configuration → EQUIPMENT → PLATES: the plates the athlete owns ({ [size]: count }) or null = not counted
   const [plateInventory, setPlateInventoryState] = useState(null);
   // Both-sided loads (barbells, plate-loaded machines) use only the athlete's plates, when counted (set every render,

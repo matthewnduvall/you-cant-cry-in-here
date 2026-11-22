@@ -3,6 +3,7 @@
 // ============================================================================
 
 import { buildHistoryPRs, withEngineBodyweight } from './workoutEngine';
+import { withAthleteModel } from './modelLearning';
 import { canonicalExerciseData } from '../data/exerciseLibrary';
 
 const LOCAL_ACCOUNTS_KEY = 'yccih_registered_accounts_v1';
@@ -1290,7 +1291,10 @@ function buildAthleteFromProfileRow(
   const statsShared = row?.settings?.social?.shareStatsWithFriends !== false;
   const sharedHistory = statsShared ? rowHistory : [];
   // Their bodyweight-type lifts count their own bodyweight (unknown = as stored), never the viewer's
-  const mergedPrs = withEngineBodyweight(Number(row?.settings?.bodyMetrics?.bodyweightLbs) || 0, () => buildHistoryPRs(sharedHistory));
+  // …and their own learned model (rep curves and fatigue), never the viewer's
+  const mergedPrs = withEngineBodyweight(Number(row?.settings?.bodyMetrics?.bodyweightLbs) || 0, () =>
+    withAthleteModel(sharedHistory, () => buildHistoryPRs(sharedHistory))
+  );
 
   return {
     id: row?.id || `friend_${uname.toLowerCase()}`,

@@ -22,7 +22,8 @@ const MODE_HELP = {
   rpe: 'Rate of perceived exertion: 1 is easiest, 10 is as hard as possible.'
 };
 
-export function IntensityEditorModal({ title = 'INTENSITY', reps = 8, intensity = null, laterSets = [], onApply, onClose }) {
+// exerciseId: the lift's own rep curve converts between %1RM and RIR / RPE (utils/intensity.js repCurveFor)
+export function IntensityEditorModal({ title = 'INTENSITY', reps = 8, exerciseId = null, intensity = null, laterSets = [], onApply, onClose }) {
   // ALSO SETS n–m: write the value to the exercise's later sets too
   const [alsoLater, setAlsoLater] = useState(false);
   useModalScrollLock(true);
@@ -32,7 +33,7 @@ export function IntensityEditorModal({ title = 'INTENSITY', reps = 8, intensity 
   const hasValue = draft.value !== null && draft.value !== undefined && draft.value !== '';
   const switchMode = mode => {
     if (mode === draft.mode) return;
-    setDraft({ mode, value: hasValue ? convertIntensity(draft, mode, reps) : null });
+    setDraft({ mode, value: hasValue ? convertIntensity(draft, mode, reps, exerciseId) : null });
   };
   const options = INTENSITY_OPTIONS[draft.mode];
 
@@ -62,7 +63,7 @@ export function IntensityEditorModal({ title = 'INTENSITY', reps = 8, intensity 
             {hasValue ? formatIntensity(draft.mode, draft.value) : '—'}
           </span>
           <span style={{ fontSize: '12px', fontWeight: 500, color: '#9A9A9A', textAlign: 'right' }}>
-            {hasValue ? `≈ ${intensityEquivalents(draft, reps)}` : ''}
+            {hasValue ? `≈ ${intensityEquivalents(draft, reps, exerciseId)}` : ''}
             <br />
             {`FOR ${reps} REP${Number(reps) === 1 ? '' : 'S'}`}
           </span>

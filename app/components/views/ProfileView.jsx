@@ -3,6 +3,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { IOSListSection, IOSListRow } from '../Primitives';
 import { buildHistoryPRs, withEngineBodyweight } from '../../utils/workoutEngine';
+import { withAthleteModel } from '../../utils/modelLearning';
 import {
   fetchAthleteProfileSnapshot,
   fetchFriendsOfAthlete,
@@ -221,7 +222,8 @@ export function ProfileView({
 
   // One pass over the History (PRs come only from logged History)
   const historyPRs = useMemo(
-    () => buildHistoryPRs(isFriend ? friendHistorySource : history),
+    // (a friend's on their own learned model: their rep curves and fatigue)
+    () => (isFriend ? withAthleteModel(friendHistorySource, () => buildHistoryPRs(friendHistorySource)) : buildHistoryPRs(history)),
     [isFriend, friendHistorySource, history]
   );
   const profPRs = { ...rawProfPRs };
@@ -237,7 +239,9 @@ export function ProfileView({
     () =>
       isFriend
         ? // their bodyweight-type lifts with their own bodyweight (unknown = as stored)
-          withEngineBodyweight(Number(profUser?.rankingBodyweightLbs) || 0, () => buildProgressionSeriesByLift(friendHistorySource || []))
+          withEngineBodyweight(Number(profUser?.rankingBodyweightLbs) || 0, () =>
+            withAthleteModel(friendHistorySource, () => buildProgressionSeriesByLift(friendHistorySource || []))
+          )
         : null,
     [isFriend, friendHistorySource, profUser?.rankingBodyweightLbs]
   );
