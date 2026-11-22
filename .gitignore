@@ -45,3 +45,8 @@ next-env.d.ts
 
 # Claude Code personal settings (local permission rules)
 .claude/settings.local.json
+
+# Playwright
+/test-results/
+/playwright-report/
+/blob-report/
