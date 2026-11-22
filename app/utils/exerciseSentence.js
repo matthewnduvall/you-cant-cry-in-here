@@ -72,6 +72,22 @@ export const parseExerciseSentence = text => {
   let t = normalize(text);
   if (!t) return null;
   const superset = /\bsuper ?sets?\b|\bpaired with\b|\balternating\b/.test(t);
+  // A named scheme: "bench press pyramid one rep max", "squat reverse pyramid", "curls pyramid", "lateral raise
+  // clusters" (checked before the max single, so "pyramid … 1 rep max" is the Pyramid 1RM scheme, not one single)
+  let scheme = null;
+  const SCHEME_WORDS = [
+    [/\breverse\s+pyramids?\b/, 'Reverse Pyramid'],
+    [/\bpyramids?\s+(?:to\s+)?(?:an?\s+)?(?:1\s*rep\s*max(?:imum)?|1\s*rm|max)\b/, 'Pyramid 1RM'],
+    [/\bpyramids?\b/, 'Pyramid'],
+    [/\bclusters?\b/, 'Cluster']
+  ];
+  for (const [re, name] of SCHEME_WORDS) {
+    if (re.test(t)) {
+      scheme = name;
+      t = t.replace(re, ' ').replace(/\s+/g, ' ').trim();
+      break;
+    }
+  }
   // A max single: "1 rep max bench", "bench 1rm", "max single on squat", "heavy single deadlift"
   let oneRepMax = false;
   t = t
@@ -153,9 +169,13 @@ export const parseExerciseSentence = text => {
   }
   if (exercises.length === 0) return null;
   const isSuperset = superset && exercises.length === 2;
-  if (oneRepMax && !isSuperset) return { exercises, sets: 1, reps: 1, restSeconds, superset: false, oneRepMax: true };
+  if (scheme && !isSuperset) {
+    // The scheme sets its own sets and reps (a pyramid's are fixed; a cluster is 3 × 18), so only rest is kept
+    return { exercises, sets: null, reps: null, restSeconds, superset: false, oneRepMax: false, scheme };
+  }
+  if (oneRepMax && !isSuperset) return { exercises, sets: 1, reps: 1, restSeconds, superset: false, oneRepMax: true, scheme: null };
   if (!isSuperset && sets === null && reps === null && restSeconds === null) return null;
-  return { exercises, sets, reps, restSeconds, superset: isSuperset, oneRepMax: false };
+  return { exercises, sets, reps, restSeconds, superset: isSuperset, oneRepMax: false, scheme: null };
 };
 
 const restText = s => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
@@ -164,7 +184,9 @@ const restText = s => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
 export const describeSentence = (parsed, nameOf = ex => ex.name) => {
   if (!parsed) return '';
   const names = parsed.exercises.map(nameOf);
-  const shape = parsed.oneRepMax
+  const shape = parsed.scheme
+    ? parsed.scheme
+    : parsed.oneRepMax
     ? '1 rep max'
     : parsed.sets && parsed.reps
       ? `${parsed.sets} × ${parsed.reps}`

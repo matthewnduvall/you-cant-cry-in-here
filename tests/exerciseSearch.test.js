@@ -30,6 +30,28 @@ describe('typo-tolerant search', () => {
   });
 });
 
+describe('scheme words', () => {
+  it('"bench press pyramid one rep max" is the Pyramid 1RM scheme, not a single', () => {
+    const p = parseExerciseSentence('bench press pyramid one rep max');
+    expect(p).toMatchObject({ scheme: 'Pyramid 1RM', oneRepMax: false });
+    expect(p.exercises[0].name).toMatch(/bench press/i);
+    expect(describeSentence(p, () => 'Bench Press')).toBe('Bench Press · Pyramid 1RM');
+  });
+
+  it('reads reverse pyramid, pyramid and clusters', () => {
+    expect(parseExerciseSentence('squat reverse pyramid')?.scheme).toBe('Reverse Pyramid');
+    expect(parseExerciseSentence('curls pyramid')?.scheme).toBe('Pyramid');
+    expect(parseExerciseSentence('lateral raise clusters')?.scheme).toBe('Cluster');
+    expect(parseExerciseSentence('bench pyramid with 2 minutes rest')).toMatchObject({ scheme: 'Pyramid', restSeconds: 120 });
+  });
+
+  it('"12 sets of 10 pushups" keeps its sets and reps', () => {
+    const p = parseExerciseSentence('12 sets of 10 pushups');
+    expect(p).toMatchObject({ sets: 12, reps: 10, scheme: null });
+    expect(p.exercises[0].name).toMatch(/push/i);
+  });
+});
+
 describe('1 rep max sentences', () => {
   it('"1 rep max bench" is one max single of bench', () => {
     const p = parseExerciseSentence('1 rep max bench');

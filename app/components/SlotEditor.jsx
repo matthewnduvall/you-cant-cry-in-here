@@ -12,7 +12,9 @@ import { INTENSITY_MODES, formatIntensity } from '../utils/intensity';
 import { IntensityEditorModal } from './IntensityEditorModal';
 import { SchemeEditorModal, schemeButtonLabel } from './SchemeEditorModal';
 import { getProgram } from '../data/programs';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useSyncExternalStore } from 'react';
+
+const noopSubscribe = () => () => {};
 import { SHARED_CELL_BORDER, UI } from '../styles/kineticTokens';
 import {
   EXERCISE_LIBRARY,
@@ -38,6 +40,7 @@ import {
 import { getVariationFamily } from '../data/exerciseVariations';
 import { searchExercises } from '../utils/exerciseSearch';
 import { parseExerciseSentence, describeSentence } from '../utils/exerciseSentence';
+import { speechSupported, startSpeech } from '../utils/speech';
 export { searchExercises };
 import {
   normalizeSetType,
@@ -169,6 +172,23 @@ const LockIcon = ({ locked, color }) => (
     />
   </svg>
 );
+
+// A complete spoken request enters itself after this long with no new words
+export const SPOKEN_ENTER_MS = 2000;
+
+// The microphone button: lit white (black icon) while listening, otherwise its usual quiet state
+const micButtonStyle = listening => ({
+  width: '44px',
+  border: 'none',
+  borderRadius: '8px',
+  backgroundColor: listening ? '#FFFFFF' : 'transparent',
+  color: listening ? '#000000' : '#BDBDBD',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  cursor: 'pointer',
+  transition: 'background-color 120ms ease-out, color 120ms ease-out'
+});
 
 // Microphone for spoken search
 function MicGlyph() {
@@ -483,6 +503,9 @@ export function SlotEditor({
       if (parsed.oneRepMax && !isSuperset) {
         // One max single: one 1 Rep Max set at your calculated 1RM (sets already done stay)
         onHeaderChange?.({ singleMax: true });
+      } else if (parsed.scheme) {
+        // A named scheme (Pyramid 1RM, Reverse Pyramid, Pyramid, Cluster): rebuilt on it, with its own sets and reps
+        onHeaderChange?.({ sentenceShape: { scheme: parsed.scheme } });
       } else if (parsed.sets || parsed.reps) {
         // Rebuilt to that shape from scratch (the matching scheme when there is one) and weighed for those reps
         onHeaderChange?.({ sentenceShape: { sets: parsed.sets, reps: parsed.reps } });
@@ -491,67 +514,62 @@ export function SlotEditor({
     if (parsed.restSeconds) onHeaderChange?.({ customRestSeconds: parsed.restSeconds });
   };
 
-  // Microphone in the search box (Web Speech API, where the browser has it): what you say becomes the search text
-  const SpeechRecognitionApi =
-    typeof window !== 'undefined' ? window.SpeechRecognition || window.webkitSpeechRecognition : null;
+  // Microphone (utils/speech.js: one recogniser for the whole app). It lights white while listening and goes back the
+  // moment listening ends; what you say becomes the search text. It stops when an entry is picked or set up, when the
+  // search closes, and when the card goes away.
+  // (read after hydration: the server has no speech API, so the first render matches it)
+  const SpeechRecognitionApi = useSyncExternalStore(noopSubscribe, speechSupported, () => false) || null;
   const [listening, setListening] = useState(false);
-  const recognitionRef = useRef(null);
-  // Results that arrive after listening was stopped are dropped (stop() can still deliver a last result, which would
-  // reopen the search box after an entry was picked)
-  const listeningRef = useRef(false);
+  const speechRef = useRef(null);
+  // True while the search text came from speech (typing clears it): only spoken requests enter themselves
+  const heardRef = useRef(false);
   const startListening = half => {
-    if (!SpeechRecognitionApi) return;
-    try {
-      recognitionRef.current?.abort?.();
-      const rec = new SpeechRecognitionApi();
-      rec.lang = 'en-US';
-      rec.interimResults = true;
-      rec.maxAlternatives = 1;
-      rec.onresult = e => {
-        if (!listeningRef.current || recognitionRef.current !== rec) return;
-        const text = [...e.results].map(r => r[0]?.transcript || '').join(' ').trim();
+    speechRef.current?.stop();
+    let session = null;
+    session = startSpeech({
+      onText: text => {
+        if (speechRef.current !== session) return;
+        heardRef.current = true;
         setSearch({ half, query: text });
-      };
-      rec.onend = () => {
-        if (recognitionRef.current === rec) {
-          listeningRef.current = false;
+      },
+      onEnd: () => {
+        if (speechRef.current === session) {
+          speechRef.current = null;
           setListening(false);
         }
-      };
-      rec.onerror = rec.onend;
-      recognitionRef.current = rec;
-      listeningRef.current = true;
-      setListening(true);
-      rec.start();
-    } catch {
-      setListening(false);
-    }
+      }
+    });
+    speechRef.current = session;
+    setListening(Boolean(session));
   };
-  // Stops the microphone at once and discards anything still being heard (abort, not stop)
   const stopListening = () => {
-    listeningRef.current = false;
-    const rec = recognitionRef.current;
-    recognitionRef.current = null;
-    try {
-      rec?.abort?.();
-    } catch {
-      // already stopped
-    }
+    const session = speechRef.current;
+    speechRef.current = null;
+    session?.stop();
     setListening(false);
   };
-  // The microphone never outlives the search box: picking an entry, setting a sentence up, closing the box or leaving
-  // the page all stop it
+  // The microphone never outlives the search box, nor the card
   useEffect(() => {
-    if (!search && listeningRef.current) stopListening();
+    if (!search && speechRef.current) stopListening();
+    if (!search) heardRef.current = false;
   }, [search]);
+  // A complete spoken request (one that reads as a sentence: SET UP …) enters itself once nothing new has been heard
+  // for SPOKEN_ENTER_MS — each new word restarts the wait; typing, or anything that isn't a whole request, doesn't
+  useEffect(() => {
+    if (!search?.query || !heardRef.current) return undefined;
+    const parsed = parseExerciseSentence(search.query);
+    if (!parsed) return undefined;
+    const half = search.half;
+    const timer = setTimeout(() => {
+      if (heardRef.current) applySentence(half, parsed);
+    }, SPOKEN_ENTER_MS);
+    return () => clearTimeout(timer);
+  }, [search?.query, search?.half]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(
     () => () => {
-      listeningRef.current = false;
-      try {
-        recognitionRef.current?.abort?.();
-      } catch {
-        // already stopped
-      }
+      const session = speechRef.current;
+      speechRef.current = null;
+      session?.stop();
     },
     []
   );
@@ -682,17 +700,22 @@ export function SlotEditor({
       };
       return (
         <>
+          <div style={{ position: 'relative', gridColumn: simple ? '1 / 13' : '1 / 9', gridRow: 1, minWidth: 0, display: 'flex' }}>
           <button
             type="button"
             aria-label={ariaLabel}
             onClick={() => setSearch({ half, query: '' })}
             style={{
               ...cellBase,
-              gridColumn: simple ? '1 / 13' : '1 / 9',
+              gridColumn: 'auto',
+              gridRow: 'auto',
+              flex: '1 1 auto',
+              minWidth: 0,
+              width: '100%',
               display: 'flex',
               alignItems: 'center',
               gap: '6px',
-              padding: '0 8px',
+              padding: SpeechRecognitionApi ? '0 44px 0 8px' : '0 8px',
               fontSize: '13px',
               textAlign: 'left',
               overflow: 'hidden'
@@ -723,6 +746,22 @@ export function SlotEditor({
               <SearchGlyph />
             </span>
           </button>
+          {/* Shortcut: say the exercise straight away (opens the search and starts listening) */}
+          {SpeechRecognitionApi && (
+            <button
+              type="button"
+              className="kinetic-btn"
+              aria-label="Say the exercise, e.g. bench press 5 sets of 6"
+              onClick={() => {
+                setSearch({ half, query: '' });
+                startListening(half);
+              }}
+              style={{ ...micButtonStyle(false), position: 'absolute', right: '2px', top: '2px', bottom: '2px' }}
+            >
+              <MicGlyph />
+            </button>
+          )}
+          </div>
           {!simple && (
           <div
             role="group"
@@ -761,7 +800,10 @@ export function SlotEditor({
         autoCapitalize="none"
         spellCheck={false}
         value={search.query}
-        onChange={e => setSearch({ half, query: e.target.value })}
+        onChange={e => {
+          heardRef.current = false;
+          setSearch({ half, query: e.target.value });
+        }}
         onBlur={() => setSearch(null)}
         onKeyDown={e => {
           if (e.key === 'Escape') setSearch(null);
@@ -784,9 +826,40 @@ export function SlotEditor({
           width: '100%',
           boxSizing: 'border-box',
           display: 'block',
-          ...(SpeechRecognitionApi ? { paddingRight: '48px' } : {})
+          paddingRight: `${8 + (SpeechRecognitionApi ? 44 : 0) + (search.query ? 40 : 0)}px`
         }}
       />
+      {/* Clear what was typed or heard (keeps the box open) */}
+      {search.query && (
+        <button
+          type="button"
+          className="kinetic-btn"
+          aria-label="Clear the search"
+          onPointerDown={e => e.preventDefault()}
+          onMouseDown={e => e.preventDefault()}
+          onClick={() => {
+            heardRef.current = false;
+            setSearch({ half, query: '' });
+          }}
+          style={{
+            position: 'absolute',
+            right: SpeechRecognitionApi ? '46px' : '2px',
+            top: '2px',
+            bottom: '2px',
+            width: '40px',
+            border: 'none',
+            background: 'transparent',
+            color: '#BDBDBD',
+            fontSize: '16px',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center'
+          }}
+        >
+          ✕
+        </button>
+      )}
       {SpeechRecognitionApi && (
         <button
           type="button"
@@ -797,21 +870,7 @@ export function SlotEditor({
           onPointerDown={e => e.preventDefault()}
           onMouseDown={e => e.preventDefault()}
           onClick={() => (listening ? stopListening() : startListening(half))}
-          style={{
-            position: 'absolute',
-            right: '2px',
-            top: '2px',
-            bottom: '2px',
-            width: '44px',
-            border: 'none',
-            borderRadius: '8px',
-            backgroundColor: listening ? '#FFFFFF' : 'transparent',
-            color: listening ? '#000000' : '#BDBDBD',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            cursor: 'pointer'
-          }}
+          style={{ ...micButtonStyle(listening), position: 'absolute', right: '2px', top: '2px', bottom: '2px' }}
         >
           <MicGlyph />
         </button>
