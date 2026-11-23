@@ -243,6 +243,42 @@ test.describe('Session', () => {
     await expect(page.locator('input[type="search"]')).toHaveValue('squat');
   });
 
+  test('[session.mic-no-keyboard] the mic shortcut listens without opening the keyboard', async ({ page }) => {
+    await page.addInitScript(() => {
+      class FakeRecognition {
+        start() {
+          setTimeout(() => this.onstart?.(), 10);
+        }
+        abort() {
+          setTimeout(() => this.onend?.(), 30);
+        }
+        stop() {
+          this.abort();
+        }
+      }
+      window.webkitSpeechRecognition = FakeRecognition;
+      window.SpeechRecognition = FakeRecognition;
+    });
+    await newSession(page);
+    await addExercise(page);
+    await page.getByRole('button', { name: /Say the exercise/ }).first().click();
+    const box = page.locator('input[type="search"]');
+    await expect(box).toBeVisible();
+    await expect(box).not.toBeFocused();
+    await expect(page.getByRole('button', { name: 'Stop listening' })).toBeVisible();
+    // A tap outside closes the search (and the mic)
+    await page.mouse.click(5, 400);
+    await expect(box).toHaveCount(0);
+  });
+
+  test('[session.delete-exercise] the ✕ at the top right deletes the exercise', async ({ page }) => {
+    await newSession(page);
+    await addExercise(page);
+    await page.getByRole('button', { name: /Remove exercise|Delete exercise/ }).first().click();
+    await page.getByRole('button', { name: /^DELETE ✕$/ }).click();
+    await expect(page.getByRole('button', { name: /Remove exercise|Delete exercise/ })).toHaveCount(0);
+  });
+
   test('[session.search-clear] the ✕ clears the search box', async ({ page }) => {
     await newSession(page);
     await addExercise(page);

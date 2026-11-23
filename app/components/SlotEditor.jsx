@@ -241,7 +241,7 @@ function PrBadge({ marginRight = '6px' }) {
  * - onHeaderChange(changes): { category | muscleGroupFilter | scheme | exerciseId }. Supersets add
  *   supersetHalf (0 = A, 1 = B) to say which exercise changed. A half's type menu reads SUPERSET; picking another
  *   type sends { endSuperset: otherHalf, category } (that exercise stays, as that type; the other is removed).
- * - onRemove / removeLabel: grey DELETE button at the end of the bottom row (omit to hide it)
+ * - onRemove / removeLabel: grey ✕ at the card's top right (omit to hide it)
  * - onEditSetValue({ mode, exIdx, set, exercise, currentValue }): mode = type | increment | reps | timer
  * - onEditWeight({ exIdx, set, exercise, exerciseId, equipment, lastDisplay, showOneRepMax, setReps, prValue,
  *   prWorkoutId }): CURRENT weight pop-up; LAST and the 1RM box (PR / CURRENT, links to the PR's History entry)
@@ -530,7 +530,8 @@ export function SlotEditor({
       onText: text => {
         if (speechRef.current !== session) return;
         heardRef.current = true;
-        setSearch({ half, query: text });
+        // Keeps a search opened by the mic shortcut keyboard-free (voice)
+        setSearch(prev => ({ half, query: text, voice: prev?.voice }));
       },
       onEnd: () => {
         if (speechRef.current === session) {
@@ -548,6 +549,16 @@ export function SlotEditor({
     session?.stop();
     setListening(false);
   };
+  // A search opened by the mic shortcut has no keyboard (the box isn't focused, so it can't close on blur): a tap
+  // anywhere outside it closes it
+  useEffect(() => {
+    if (!search?.voice) return undefined;
+    const onDown = e => {
+      if (!e.target?.closest?.(`[data-search-zone="${slot.id}"]`)) setSearch(null);
+    };
+    document.addEventListener('pointerdown', onDown);
+    return () => document.removeEventListener('pointerdown', onDown);
+  }, [search?.voice, slot.id]);
   // The microphone never outlives the search box, nor the card
   useEffect(() => {
     if (!search && speechRef.current) stopListening();
@@ -640,7 +651,8 @@ export function SlotEditor({
       fontSize: '14px'
     };
     if (search?.half !== half) {
-      // 1RM box on the right of the row (same estimate as History's PRs and the weight pop-up's 1RM box):
+      const showDelete = Boolean(onRemove) && half === 0;
+      // 1RM box on the left of the row (same estimate as History's PRs and the weight pop-up's 1RM box):
       // LAST = last logged session of the exercise; NOW = this exercise's sets here; PR = best ever logged
       const exSets = (isSuperset ? slot.supersetSetsByExercise?.[half] : slot.sets) || [];
       const lastLogged = getLastLoggedSessionForExercise(exObj.id, history, workoutId);
@@ -700,7 +712,7 @@ export function SlotEditor({
       };
       return (
         <>
-          <div style={{ position: 'relative', gridColumn: simple ? '1 / 13' : '1 / 9', gridRow: 1, minWidth: 0, display: 'flex' }}>
+          <div style={{ position: 'relative', gridColumn: simple ? '1 / 13' : '5 / 13', gridRow: 1, minWidth: 0, display: 'flex' }}>
           <button
             type="button"
             aria-label={ariaLabel}
@@ -753,12 +765,38 @@ export function SlotEditor({
               className="kinetic-btn"
               aria-label="Say the exercise, e.g. bench press 5 sets of 6"
               onClick={() => {
-                setSearch({ half, query: '' });
+                // voice: the search opens without focusing the box, so no keyboard comes up
+                setSearch({ half, query: '', voice: true });
                 startListening(half);
               }}
-              style={{ ...micButtonStyle(false), position: 'absolute', right: '2px', top: '2px', bottom: '2px' }}
+              style={{ ...micButtonStyle(false), position: 'absolute', right: showDelete ? '46px' : '2px', top: '2px', bottom: '2px' }}
             >
               <MicGlyph />
+            </button>
+          )}
+          {/* Delete the exercise: a grey ✕ at the card's top right (the host asks first) */}
+          {showDelete && (
+            <button
+              type="button"
+              className="kinetic-btn"
+              aria-label={removeLabel || 'Delete exercise'}
+              onClick={() => onRemove()}
+              style={{
+                flex: '0 0 44px',
+                width: '44px',
+                height: '44px',
+                border: 'none',
+                borderLeft: '1px solid var(--dp-color-rule)',
+                backgroundColor: '#1C1C1C',
+                color: '#9A9A9A',
+                fontSize: '16px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}
+            >
+              ✕
             </button>
           )}
           </div>
@@ -767,7 +805,7 @@ export function SlotEditor({
             role="group"
             aria-label={`1 rep max (an asterisk means calculated from reps): last session ${last1RM ? oneRepMaxLabel(last1RM, lastInfo.calculated) : 'none'}, now ${now1RM ? oneRepMaxLabel(now1RM, nowInfo.calculated) : 'none'}, record ${pr1RM ? oneRepMaxLabel(pr1RM, prInfoHeader.calculated) : 'none'}`}
             style={{
-              gridColumn: '9 / 13',
+              gridColumn: '1 / 5',
               gridRow: 1,
               height: '44px',
               boxSizing: 'border-box',
@@ -787,12 +825,19 @@ export function SlotEditor({
       );
     }
     return (
-      <div style={{ position: 'relative', gridColumn: cellBase.gridColumn, gridRow: cellBase.gridRow, minWidth: 0 }}>
+      <div data-search-zone={slot.id} style={{ position: 'relative', gridColumn: cellBase.gridColumn, gridRow: cellBase.gridRow, minWidth: 0 }}>
       <input
         type="search"
         aria-label={isSuperset ? `Search exercises (${tag})` : 'Search exercises'}
         placeholder={`SEARCH · ${title.toUpperCase()}`}
-        autoFocus
+        // Opened by the mic shortcut (voice): no focus, so no keyboard
+        autoFocus={!search.voice}
+        // Tapping the box brings the keyboard, which takes over from the app's mic
+        onFocus={() => {
+          if (!search.voice) return;
+          stopListening();
+          setSearch(prev => (prev ? { ...prev, voice: false } : prev));
+        }}
         enterKeyHint="search"
         // The OS's autocorrect "fixes" gym words (RDL, skullcrusher, pushdown); the search corrects typos itself
         // against the exercise library (utils/exerciseSearch.js correctQuery)
@@ -839,7 +884,7 @@ export function SlotEditor({
           onMouseDown={e => e.preventDefault()}
           onClick={() => {
             heardRef.current = false;
-            setSearch({ half, query: '' });
+            setSearch(prev => ({ half, query: '', voice: prev?.voice }));
           }}
           style={{
             position: 'absolute',
@@ -893,6 +938,7 @@ export function SlotEditor({
     return (
       <div
         role="listbox"
+        data-search-zone={slot.id}
         aria-label={typed ? 'Exercise search results' : 'Exercises matching the filters'}
         // Keep focus in the search box while a result is tapped
         onMouseDown={e => e.preventDefault()}
@@ -1720,13 +1766,12 @@ export function SlotEditor({
 
         {footer}
 
-        {/* SCHEME ▾ · RECALCULATE · DELETE (sets are added / removed in the scheme pop-up) — white text, DELETE grey (DELETE still asks first) */}
+        {/* SCHEME ▾ · RESET (sets are added / removed in the scheme pop-up); deleting the exercise is the ✕ at the top right */}
         <div
           style={{
             display: 'grid',
-            // Equal-width buttons: SCHEME | RECALCULATE | DELETE
-            // SIMPLE: + 1 ROW | SUPERSET | DELETE; otherwise SCHEME | RESET | DELETE
-            gridTemplateColumns: `repeat(${onRemove ? 3 : 2}, minmax(0, 1fr))`,
+            // Equal-width buttons. SIMPLE: + 1 ROW | SUPERSET; otherwise SCHEME | RESET
+            gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
             gap: 0
           }}
         >
@@ -1790,17 +1835,6 @@ export function SlotEditor({
           >
             {actionLabel}
           </button>
-          )}
-          {onRemove && (
-            <button
-              type="button"
-              className="kinetic-btn"
-              aria-label={removeLabel}
-              onClick={() => onRemove()}
-              style={bottomBtnStyle('#1C1C1C', '#9A9A9A')}
-            >
-              DELETE
-            </button>
           )}
         </div>
       </div>
