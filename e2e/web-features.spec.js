@@ -392,6 +392,47 @@ test.describe('Programs', () => {
     await waitForState(page, s => (s.activeSession?.slots || []).length > 0 && s.activeSession.program === 'linear_5x5');
   });
 
+  test('[programs.cycles] a logged cycle is reviewed week by week and saved as a program with its weeks', async ({ page }) => {
+    // Two Society sessions logged in weeks 1 and 2 (with the app's plan on their sets)
+    await page.addInitScript(() => {
+      if (window.localStorage.getItem('yccih_e2e_cycle')) return;
+      window.localStorage.setItem('yccih_e2e_cycle', '1');
+      const session = (id, date, week) => ({
+        id,
+        title: `Society Week ${week}`,
+        startedAt: date.toISOString(),
+        program: 'society',
+        programWeek: `Week ${week}`,
+        programDay: 'A',
+        slots: [
+          {
+            id: `${id}_s`,
+            category: 'Compound',
+            exerciseId: 'barbell_bench_press',
+            scheme: '5x6',
+            sets: [0, 1, 2].map(i => ({ id: `${id}_${i}`, type: 'Working', weight: 185, reps: 6, completed: true, plan: { weight: 185, reps: 6, rir: 3 } }))
+          }
+        ]
+      });
+      window.localStorage.setItem(
+        'yccih_app_state_v3',
+        JSON.stringify({ schemaVersion: 3, history: [session('c1', new Date(2026, 9, 5, 18), 1), session('c2', new Date(2026, 9, 12, 18), 2)] })
+      );
+    });
+    await openHome(page);
+    await openFromMenu(page, 'Programs');
+    await page.getByRole('button', { name: 'Open program Society' }).click();
+    await expect(page.getByText('YOUR LOGGED CYCLES (1)')).toBeVisible();
+    await page.getByRole('button', { name: /^Cycle .*show its review/ }).click();
+    await expect(page.getByRole('table', { name: 'Cycle review, week by week' })).toBeVisible();
+    await page.getByRole('button', { name: 'SAVE AS PROGRAM' }).click();
+    await expect(page.getByText('WEEK 2', { exact: true })).toBeVisible();
+    await waitForState(page, s => {
+      const p = (s.settings?.routinePlaylists || [])[0];
+      return p && p.routines?.length === 2 && p.routines[0].week === 1 && p.routines[1].week === 2 && p.routines[0].slots[0].sets[0].weight === 0;
+    });
+  });
+
   test('[programs.choose] USE THIS PROGRAM chooses a program; COPY makes one of your own, chosen as CUSTOM', async ({ page }) => {
     await openHome(page);
     await openFromMenu(page, 'Programs');

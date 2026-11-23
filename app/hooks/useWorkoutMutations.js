@@ -27,7 +27,8 @@ import {
   getSlotEquipmentChoice,
   isBandEquipment,
   doesExerciseInteractWithMuscleGroup,
-  REGION_GROUP
+  REGION_GROUP,
+  formatDateYMD
 } from '../data/exerciseLibrary';
 import {
   getBestHistory1RM,
@@ -68,6 +69,7 @@ import {
   findIntensityMismatches,
   toAddedWeights,
   workoutTimeMs,
+  historyAsOf,
   countsBodyweight,
   setLoadLbs,
   snapSlotToPlates,
@@ -932,6 +934,13 @@ export function useWorkoutMutations({
     setCurrentView('session');
   };
 
+  // A slot without the program's own planning tags (so it loads as a plain routine)
+  const withoutProgramTags = slot => {
+    if (!slot) return slot;
+    const { programRef, programmed, programInfo, programOff, resetSnapshot, ...rest } = slot;
+    return rest;
+  };
+
   // ── Programs page ───────────────────────────────────────────────────────────────────────────────────────────
   // A built-in program's day as a routine: the session that day would get today (its exercises, sets, reps and
   // effort at this athlete's weights), built the way the session's PROGRAM / DAY boxes build one.
@@ -991,11 +1000,6 @@ export function useWorkoutMutations({
     if (!hasProgramDays(program)) return [];
     const savedAt = new Date().toISOString();
     const stamp = Date.now().toString(36);
-    const plain = slot => {
-      if (!slot) return slot;
-      const { programRef, programmed, programInfo, programOff, resetSnapshot, ...rest } = slot;
-      return rest;
-    };
     const routines = program.days.map((day, i) => {
       const built = buildProgramDaySlots(program.id, day.id);
       return {
@@ -1005,11 +1009,40 @@ export function useWorkoutMutations({
         savedAt,
         fromProgram: program.id,
         defaultRestSeconds: built.restSeconds,
-        slots: routineSlotsForStorage(built.slots.map(plain))
+        slots: routineSlotsForStorage(built.slots.map(withoutProgramTags))
       };
     });
     setSavedRoutines(prev => [...routines, ...(prev || [])]);
     return routines;
+  };
+
+  // SAVE AS PROGRAM on a logged cycle (utils/programCycles.js findLoggedCycles): each session as it was actually done
+  // — edits included — becomes one of the program's routines, in order, tagged with its week (and day). Weights are
+  // removed as in every routine; each set keeps its reps, type and effort, measured against History as of that
+  // session. The routines live inside the program (program.routines), not in ROUTINES. Returns them in order.
+  const cycleToRoutines = cycle => {
+    const stamp = Date.now().toString(36);
+    const savedAt = new Date().toISOString();
+    return (cycle?.sessions || []).map((session, i) => {
+      const w = session.workout;
+      const date = formatDateYMD(w.startedAt || w.workoutDate);
+      return {
+        key: `cycle_${stamp}_${i}`,
+        label: `Week ${session.week} · ${session.dayName || date}`,
+        author: user?.username || 'test_lifter',
+        savedAt,
+        week: session.week,
+        dayId: session.dayId || null,
+        sourceWorkoutId: w.id,
+        defaultRestSeconds: w.defaultRestSeconds || 90,
+        slots: routineSlotsForStorage(
+          (w.slots || []).map(withoutProgramTags).map(freshRoutineSlot).map(slot =>
+            mapSlotLists(slot, list => (list || []).map(st => (st ? (({ plan, completedAt, restSec, ...rest }) => rest)(st) : st)))
+          ),
+          historyAsOf(history, w)
+        )
+      };
+    });
   };
 
   // A loaded routine starts fresh: no set done, History's locks (a routine saved from a logged workout carries them)
@@ -1063,10 +1096,15 @@ export function useWorkoutMutations({
    * (RIR = reps to failure − reps; reps to failure = 1 + 30 × (1RM ÷ weight − 1)), so whoever loads it gets the same
    * effort at their own weight.
    */
-  const routineSlotsForStorage = slots =>
+  // effortHistory: the History each set's effort is measured against (default: all of it; a logged session saved as
+  // part of a program uses History as of that session, so its effort reads as it was then)
+  const routineSlotsForStorage = (slots, effortHistory = null) =>
     (slots || []).map(rawSlot =>
       mapSlotLists(withoutResetSnapshot(rawSlot), (list, exId, scheme) => {
-        const oneRM = exId && !isBodyweightExercise(exId) ? getHistoricalCalculated1RM(exId, history, oneRepMaxes) : 0;
+        const oneRM =
+          exId && !isBodyweightExercise(exId)
+            ? getHistoricalCalculated1RM(exId, effortHistory || history, effortHistory ? {} : oneRepMaxes)
+            : 0;
         const name = EXERCISE_MAP[exId]?.name || exId;
         return (list || []).map((st, idx) => {
           if (!st) return st;
@@ -3187,6 +3225,7 @@ export function useWorkoutMutations({
     buildProgramDaySlots,
     handleStartProgramDay,
     copyProgramToRoutines,
+    cycleToRoutines,
     handleDirectLoadRoutine,
     handleOpenPreviewRoutine,
     handleCancelRoutineSelection,

@@ -55,6 +55,7 @@ aren't in the smoke tests yet; they are listed under "Not yet automated" and sti
 ### Programs
 - **routines.page** — the Programs page: PROGRAMS / ROUTINES / SHARED; ROUTINES has + NEW ROUTINE, AUTO ROUTINE, LOAD
 - **programs.built-in** — built-in programs: details, training days, next session, their routines at your weights, LOAD
+- **programs.cycles** — cycles logged under a program: reviewed week by week (planned vs done, effort, against the cycle before) and SAVE AS PROGRAM (week by week as done)
 - **programs.choose** — USE THIS PROGRAM chooses the program you follow (moved from Configuration); COPY TO MY PROGRAMS makes one of your own, chosen as CUSTOM, whose next routine AUTO SESSION loads
 
 ### Settings and data
