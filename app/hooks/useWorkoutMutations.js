@@ -1662,12 +1662,24 @@ export function useWorkoutMutations({
     setIsCurrentEditorShared(true);
   };
 
+  // RESET: no exercises. A live session also starts over as a new one would: your program at its current week and
+  // day (a PROGRAM / WEEK / DAY picked for this session is dropped), its rest, and the default name (re-named by the
+  // auto-namer). Its id and start time stay.
   const handleResetCurrentEditor = () => {
-    updateCurrentWorkoutState(prev => ({
-      ...prev,
-      loadedRoutineTitle: 'MANUAL',
-      slots: []
-    }));
+    updateCurrentWorkoutState(prev => {
+      const cleared = { ...prev, loadedRoutineTitle: 'MANUAL', slots: [] };
+      if (currentView !== 'session') return cleared;
+      const { program, programWeek, programDay, programWeekPicked, programDayPicked, titleEdited, autoNamed, ...rest } = cleared;
+      const fresh = newSessionBase();
+      return {
+        ...rest,
+        title: getDefaultSessionName(),
+        defaultRestSeconds: fresh.defaultRestSeconds,
+        ...(fresh.program
+          ? { program: fresh.program, programWeek: fresh.programWeek, ...(fresh.programDay ? { programDay: fresh.programDay } : {}) }
+          : {})
+      };
+    });
   };
 
   const handleConfirmDeleteAction = () => {
@@ -3195,9 +3207,17 @@ export function useWorkoutMutations({
         const { completedAt: _c, restSec: _r, ...rest } = st;
         return { ...rest, completed: false };
       }
-      if (!live) return { ...st, completed: true };
+      // A set marked done locks every field (type, weight, reps and its intensity when it has one): it records what
+      // was done, so nothing re-plans it; unticking leaves the padlocks as they are, to open by hand
+      const locks = {
+        lockType: true,
+        lockWeight: true,
+        lockReps: true,
+        ...(st.intensity && st.intensity.value !== null && st.intensity.value !== undefined && st.intensity.value !== '' ? { lockIntensity: true } : {})
+      };
+      if (!live) return { ...st, completed: true, ...locks };
       const rest = setRestSeconds(st, list, nowMs);
-      return { ...withPlan(st), completed: true, completedAt: nowMs, ...(rest !== null ? { restSec: rest } : {}) };
+      return { ...withPlan(st), completed: true, ...locks, completedAt: nowMs, ...(rest !== null ? { restSec: rest } : {}) };
     };
     // No rest timer while editing a logged workout or looking at a preview
     if (markingDone && isRoutineEditorView && currentView !== 'history_editor' && currentView !== 'routine_preview') {
