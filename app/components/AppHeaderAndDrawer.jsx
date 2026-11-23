@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { PROGRAMS, getProgram, getProgramContext } from '../data/programs';
+import { PROGRAMS, getProgram, getProgramContext, isCustomProgramId } from '../data/programs';
 import { SFSymbol, SessionRestTimerBar, SessionTitleBar } from './Primitives';
 import { ProfileAvatar } from './ProfileAvatar';
 import { getNextIncompleteSetInfo } from '../utils/workoutEngine';
@@ -23,7 +23,7 @@ export const PAGE_TITLES = {
   auth: 'SIGN IN',
   profile: 'PROFILE',
   friend_profile: 'PROFILE',
-  routines: 'ROUTINES',
+  routines: 'PROGRAMS',
   gym_editor: 'EQUIPMENT SETUP',
   // The live session has no page title: its locked header already names it, and the space goes to the sets
   routine_editor: 'ROUTINE',
@@ -100,6 +100,9 @@ export function AppHeaderAndDrawer({
   onChangeProgramWeek,
   // The PROGRAM box: this session's program (useWorkoutMutations.handleChangeSessionProgram)
   onChangeSessionProgram,
+  // Your own programs in the PROGRAM list ([{ id: 'custom:<id>', label }]) and what picking one does
+  customProgramOptions = [],
+  onChooseCustomProgram,
   // The DAY box (programs with set days): useWorkoutMutations.handleChangeProgramDay
   onChangeProgramDay,
   // Logged workouts: the program's week keeps track of itself from them (getAutoProgramWeek)
@@ -308,9 +311,14 @@ export function AppHeaderAndDrawer({
               return {
                 label: program.label,
                 programId: program.id,
-                programOptions: PROGRAMS.map(p => ({ id: p.id, label: p.label, note: p.comingSoon ? 'COMING SOON' : '' })),
+                programOptions: [
+                  ...PROGRAMS.map(p => ({ id: p.id, label: p.label, note: p.comingSoon ? 'COMING SOON' : '' })),
+                  ...customProgramOptions
+                ],
                 onChangeProgram: id =>
-                  onChangeSessionProgram
+                  isCustomProgramId(id)
+                    ? onChooseCustomProgram?.(id)
+                    : onChangeSessionProgram
                     ? onChangeSessionProgram(id)
                     : updateCurrentWorkoutState(prev => ({ ...prev, program: id, programWeek: '' })),
                 week: currentEditorWorkout.programWeek || (ctx ? ctx.program.weekName(ctx.week) : ''),
@@ -482,7 +490,7 @@ export function AppHeaderAndDrawer({
                           onOpenSession?.();
                         }
                       },
-                      { id: 'routines', label: 'Routines' }
+                      { id: 'routines', label: 'Programs' }
                     ]
                   },
                   {

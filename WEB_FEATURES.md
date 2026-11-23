@@ -20,7 +20,7 @@ aren't in the smoke tests yet; they are listed under "Not yet automated" and sti
 - **home.feed** — CHALLENGES and FEED below the tiles (signed out: a sign-in prompt)
 
 ### Navigation
-- **nav.menu** — the menu reaches every page: Session, Routines, Performance, History, Stimulus, Friends, Leaderboards, Privacy, Configuration, Info
+- **nav.menu** — the menu reaches every page: Session, Programs, Performance, History, Stimulus, Friends, Leaderboards, Privacy, Configuration, Info
 - **nav.back** — the ← BACK button and the phone's back gesture follow the pages visited
 - **nav.feedback** — FEEDBACK sends feedback with session logs
 
@@ -52,11 +52,13 @@ aren't in the smoke tests yet; they are listed under "Not yet automated" and sti
 - **performance.chart-and-accuracy** — Performance: the 1RM chart, lift rows, ACCURACY and REP CURVE
 - **stimulus.map** — Stimulus: the body map, thresholds and suggested exercises
 
-### Routines
-- **routines.page** — the Routines page: SAVED / PLAYLISTS / SHARED, + NEW ROUTINE, AUTO ROUTINE, LOAD
+### Programs
+- **routines.page** — the Programs page: PROGRAMS / ROUTINES / SHARED; ROUTINES has + NEW ROUTINE, AUTO ROUTINE, LOAD
+- **programs.built-in** — built-in programs: details, training days, next session, their routines at your weights, LOAD
+- **programs.choose** — USE THIS PROGRAM chooses the program you follow (moved from Configuration); COPY TO MY PROGRAMS makes one of your own, chosen as CUSTOM, whose next routine AUTO SESSION loads
 
 ### Settings and data
-- **configuration.tabs** — Configuration: BODY METRICS, GOALS, EQUIPMENT (and plates), PROGRAM
+- **configuration.tabs** — Configuration: BODY METRICS, GOALS, EQUIPMENT (and plates), TRAINING (set preferences, fatigue)
 - **privacy.page** — Privacy: profile and sharing settings, sharing defaults, voice input
 - **info.backup** — Info: the explanation of the system, and DATA & BACKUP (export / import / reset)
 - **app.state-saves** — everything is saved on the device and survives a reload

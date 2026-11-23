@@ -45,7 +45,7 @@ test.describe('Navigation', () => {
   test('[nav.menu] the menu opens every page', async ({ page }) => {
     await openHome(page);
     const pages = [
-      ['Routines', 'ROUTINES'],
+      ['Programs', 'PROGRAMS'],
       ['Performance', 'PERFORMANCE'],
       ['History', 'HISTORY'],
       ['Stimulus', 'STIMULUS'],
@@ -373,20 +373,43 @@ test.describe('History and progress', () => {
   });
 });
 
-test.describe('Routines', () => {
-  test('[routines.page] the Routines page: + NEW ROUTINE and AUTO ROUTINE', async ({ page }) => {
+test.describe('Programs', () => {
+  test('[routines.page] the Programs page: ROUTINES tab with + NEW ROUTINE and AUTO ROUTINE', async ({ page }) => {
     await openHome(page);
-    await openFromMenu(page, 'Routines');
+    await openFromMenu(page, 'Programs');
+    await page.getByRole('tab', { name: /^ROUTINES/ }).click();
     await expect(page.getByRole('button', { name: /\+ NEW ROUTINE/ })).toBeVisible();
     await expect(page.getByRole('button', { name: /AUTO ROUTINE/ })).toBeVisible();
+  });
+
+  test('[programs.built-in] built-in programs: details, routines at your weights, LOAD', async ({ page }) => {
+    await openHome(page);
+    await openFromMenu(page, 'Programs');
+    await page.getByRole('button', { name: 'Open program Linear 5x5 Foundation' }).click();
+    await expect(page.getByText('TRAINING DAYS')).toBeVisible();
+    await expect(page.getByText(/^ROUTINES \(2\)$/)).toBeVisible();
+    await page.getByRole('button', { name: /^Load Linear 5x5 Foundation/ }).first().click();
+    await waitForState(page, s => (s.activeSession?.slots || []).length > 0 && s.activeSession.program === 'linear_5x5');
+  });
+
+  test('[programs.choose] USE THIS PROGRAM chooses a program; COPY makes one of your own, chosen as CUSTOM', async ({ page }) => {
+    await openHome(page);
+    await openFromMenu(page, 'Programs');
+    await page.getByRole('button', { name: 'Open program Society' }).click();
+    await page.getByRole('button', { name: 'USE THIS PROGRAM' }).click();
+    await waitForState(page, s => s.settings?.program === 'society');
+    await page.getByRole('button', { name: 'COPY TO MY PROGRAMS' }).click();
+    await expect(page.getByText('PROGRAM NAME')).toBeVisible();
+    await page.getByRole('button', { name: 'USE THIS PROGRAM' }).click();
+    await waitForState(page, s => String(s.settings?.program || '').startsWith('custom:') && (s.savedRoutines || []).length >= 5);
   });
 });
 
 test.describe('Settings and data', () => {
-  test('[configuration.tabs] Configuration: body metrics, goals, equipment and program', async ({ page }) => {
+  test('[configuration.tabs] Configuration: body metrics, goals, equipment and training', async ({ page }) => {
     await openHome(page);
     await openFromMenu(page, 'Configuration');
-    for (const tab of ['BODY METRICS', 'GOALS', 'EQUIPMENT', 'PROGRAM']) {
+    for (const tab of ['BODY METRICS', 'GOALS', 'EQUIPMENT', 'TRAINING']) {
       await page.getByRole('button', { name: tab, exact: true }).or(page.getByRole('tab', { name: tab, exact: true })).first().click();
     }
   });

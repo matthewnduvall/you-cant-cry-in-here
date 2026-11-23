@@ -89,6 +89,7 @@ import {
   getProgram,
   getProgramContext,
   getSlotSpecExercise,
+  getProgramDay,
   hasProgramDays,
   BIG3_IDS,
   isBig3Variant
@@ -929,6 +930,86 @@ export function useWorkoutMutations({
     setOpenedFromRoutines(false);
     setIsCurrentEditorShared(false);
     setCurrentView('session');
+  };
+
+  // ── Programs page ───────────────────────────────────────────────────────────────────────────────────────────
+  // A built-in program's day as a routine: the session that day would get today (its exercises, sets, reps and
+  // effort at this athlete's weights), built the way the session's PROGRAM / DAY boxes build one.
+  // Returns { slots, week, restSeconds }.
+  const buildProgramDaySlots = (programId, dayId = null) => {
+    const program = getProgram(programId);
+    const day = dayId ? getProgramDay(program, dayId) : null;
+    const base = {
+      id: `program_${programId}_${dayId || 'session'}`,
+      startedAt: new Date().toISOString(),
+      program: program.id,
+      programWeek: '',
+      programDay: dayId || null,
+      programWeekPicked: false,
+      programDayPicked: Boolean(dayId)
+    };
+    const ctx = programContextFor(base);
+    const target = { ...base, programWeek: ctx ? ctx.program.weekName(ctx.week) : '' };
+    return {
+      slots: buildGeneratedAutoSlots([], { programTarget: target }),
+      week: target.programWeek,
+      restSeconds: day?.restSeconds || program.restSeconds || 90
+    };
+  };
+
+  // LOAD on a built-in program's day: a new session on that program and day (this session only; the program you
+  // follow is chosen with USE THIS PROGRAM)
+  const handleStartProgramDay = (programId, dayId = null) => {
+    const program = getProgram(programId);
+    const startedAt = new Date().toISOString();
+    const built = withTrace(`LOAD ${program.label.toUpperCase()}${dayId ? ` · ${getProgramDay(program, dayId)?.name || dayId}` : ''}`, () =>
+      buildProgramDaySlots(programId, dayId)
+    );
+    setActiveSession({
+      id: `session_${Date.now()}`,
+      startedAt,
+      updatedAt: startedAt,
+      gymId: selectedGymId,
+      title: getDefaultSessionName(),
+      loadedRoutineTitle: 'AUTO',
+      defaultRestSeconds: built.restSeconds,
+      program: program.id,
+      programWeek: built.week,
+      ...(dayId ? { programDay: dayId, programDayPicked: true } : {}),
+      slots: built.slots
+    });
+    setOpenedFromRoutines(false);
+    setIsCurrentEditorShared(false);
+    setRoutineSelectReturnView(null);
+    setCurrentView('session');
+  };
+
+  // COPY on a built-in program: each of its days saved as one of your routines (weights removed, as every routine;
+  // the program's own progression tags dropped, so they load as plain routines). Returns the new routines in order.
+  const copyProgramToRoutines = programId => {
+    const program = getProgram(programId);
+    if (!hasProgramDays(program)) return [];
+    const savedAt = new Date().toISOString();
+    const stamp = Date.now().toString(36);
+    const plain = slot => {
+      if (!slot) return slot;
+      const { programRef, programmed, programInfo, programOff, resetSnapshot, ...rest } = slot;
+      return rest;
+    };
+    const routines = program.days.map((day, i) => {
+      const built = buildProgramDaySlots(program.id, day.id);
+      return {
+        key: `routine_${stamp}_${i}`,
+        label: `${program.label} · ${day.name}`,
+        author: user?.username || 'test_lifter',
+        savedAt,
+        fromProgram: program.id,
+        defaultRestSeconds: built.restSeconds,
+        slots: routineSlotsForStorage(built.slots.map(plain))
+      };
+    });
+    setSavedRoutines(prev => [...routines, ...(prev || [])]);
+    return routines;
   };
 
   // A loaded routine starts fresh: no set done, History's locks (a routine saved from a logged workout carries them)
@@ -3103,6 +3184,9 @@ export function useWorkoutMutations({
     handleConfirmHistoricalEdit,
     handleOpenNewSession,
     handleOpenNewAutoSession,
+    buildProgramDaySlots,
+    handleStartProgramDay,
+    copyProgramToRoutines,
     handleDirectLoadRoutine,
     handleOpenPreviewRoutine,
     handleCancelRoutineSelection,

@@ -13,7 +13,7 @@ import {
 
 // The filter option for Configuration → EQUIPMENT (the athlete's own ON list): the default when it is set
 const MY_EQUIPMENT = 'my_equipment';
-import { Button, CollapseToggle, DeleteButton, GymSelect, TabBar } from '../Controls';
+import { AttachedTabStrip, Button, CollapseToggle, DeleteButton, GymSelect } from '../Controls';
 import { SHARED_PICKER_GROUP, SHARED_CELL_BORDER } from '../../styles/kineticTokens';
 import {
   HistoryExerciseFilter,
@@ -27,10 +27,11 @@ import { RoutinePlaylists } from '../RoutinePlaylists';
 
 // The routine lists, one per tab (in this order)
 const ROUTINE_LISTS = [
-  { id: 'saved', tab: 'SAVED', title: 'SAVED ROUTINES', none: 'No saved routines yet. Turn on ROUTINE when you finish a session to save one.', deleteType: 'saved_routine' },
+  // Programs: built-in ones and your own (ordered saved routines that keep your place; RoutinePlaylists, id kept
+  // 'playlists'); the routine filters don't apply
+  { id: 'playlists', tab: 'PROGRAMS', title: 'PROGRAMS' },
+  { id: 'saved', tab: 'ROUTINES', title: 'YOUR ROUTINES', none: 'No saved routines yet. Turn on SAVE AS ROUTINE when you finish a session, or COPY a program, to save some.', deleteType: 'saved_routine' },
   // Everything you shared: public to friends (@all) and copies sent to chosen friends
-  // Named, ordered groups of saved routines that keep your place (RoutinePlaylists; the filters don't apply)
-  { id: 'playlists', tab: 'PLAYLISTS', title: 'PLAYLISTS' },
   { id: 'shared', tab: 'SHARED', title: 'SHARED ROUTINES', none: 'Nothing shared yet. Use SHARE when you finish or save, or SEND on a saved routine.', deleteType: 'shared_routine' },
   { id: 'friends', tab: 'FRIENDS', title: "FRIENDS' ROUTINES", none: 'Your friends haven’t shared any routines yet.' },
   // Routines friends sent you (public.routine_shares, pending): SAVE / LOAD / ✕ dismiss
@@ -77,9 +78,13 @@ export function RoutinesView({
   // Opens on this tab (Home's INBOX tile: 'received'); onInitialTabUsed lets the page reset it
   initialTab = null,
   onInitialTabUsed,
-  // PLAYLISTS tab (settings.routinePlaylists): shown when 'playlists' is in sections
+  // PROGRAMS tab (settings.routinePlaylists = your programs): shown when 'playlists' is in sections
   playlists = [],
-  setPlaylists
+  setPlaylists,
+  // The PROGRAMS tab's built-in programs, choosing one, their routines, COPY (see RoutinePlaylists)
+  programLibraryProps = {},
+  // The tab it opens on when nothing is picked yet (the Programs page: 'playlists'); else the first list with routines
+  defaultTab = null
 }) {
   const [tabChoice, setTabChoice] = useState(initialTab);
   useEffect(() => {
@@ -194,6 +199,7 @@ export function RoutinesView({
   // Until a tab is picked: the first list that has routines (fitting first, then any), else the first list
   // (anything received comes first: that's what the count on Home / the menu points to)
   const defaultList =
+    lists.find(l => l.id === defaultTab) ||
     lists.find(l => l.id === 'received' && rawCount.received > 0) ||
     lists.find(l => l.id !== 'playlists' && byList[l.id].fits.length > 0) ||
     lists.find(l => l.id !== 'playlists' && byList[l.id].needsMore.length > 0) ||
@@ -423,6 +429,7 @@ export function RoutinesView({
           onLoad={(r, onLoaded) => handleDirectLoadRoutine(r, routineSelectReturnView || 'session', onLoaded)}
           setDeleteConfirmTarget={setDeleteConfirmTarget}
           readOnly={readOnly}
+          {...programLibraryProps}
         />
       );
     const routines = routinesByList[list.id];
@@ -456,19 +463,36 @@ export function RoutinesView({
     );
   };
 
+  const onPrograms = activeList?.id === 'playlists';
   return (
     <div style={UI.pagePad}>
+      {/* PROGRAMS · ROUTINES · SHARED: the attached tab strip (the same as the Performance and Leaderboards tabs) */}
+      {useTabs && (
+        <div style={{ padding: '0 var(--dp-spacing-gutter)', marginBottom: '12px' }}>
+          <AttachedTabStrip
+            rounded
+            ariaLabel="Programs and routines"
+            tabs={lists.map(l => ({ id: l.id, label: `${l.tab} (${l.id === 'playlists' ? (playlists || []).length + (programLibraryProps.builtInPrograms || []).length : routinesByList[l.id].length})` }))}
+            value={activeList?.id}
+            onChange={setTabChoice}
+            fontSize="11px"
+            letterSpacing="0.04em"
+          />
+        </div>
+      )}
+      {(!onPrograms || showCancel) && (
       <div
         style={{
           ...UI.gutterBottom,
           display: 'grid',
-          gridTemplateColumns: showCancel ? '1fr 1fr' : '1fr',
+          gridTemplateColumns: showCancel && !onPrograms ? '1fr 1fr' : '1fr',
           gap: 0,
           borderTop: '1px solid var(--dp-color-rule)',
           borderLeft: '1px solid var(--dp-color-rule)'
         }}
       >
-        {/* EQUIPMENT DROPDOWN AT TOP OF ROUTINES SELECTION */}
+        {/* EQUIPMENT DROPDOWN AT TOP OF ROUTINES SELECTION (not on PROGRAMS) */}
+        {!onPrograms && (
         <GymSelect
           variant="tile"
           tileLabel="FILTER BY EQUIPMENT"
@@ -481,6 +505,7 @@ export function RoutinesView({
           gyms={gyms}
           extraOptions={hasMyEquipment ? [{ id: MY_EQUIPMENT, label: 'My equipment' }] : []}
         />
+        )}
 
         {showCancel && (
           <Button
@@ -492,10 +517,11 @@ export function RoutinesView({
           </Button>
         )}
       </div>
+      )}
 
       {/* + NEW ROUTINE (Routines page): an empty routine in the session editor; AUTO ROUTINE: an auto-built
           workout (same as AUTO SESSION) instead of a saved routine */}
-      {(onNewRoutine || onAutoRoutine) && (
+      {(onNewRoutine || onAutoRoutine) && !onPrograms && (
         <div
           style={{
             padding: '0 var(--dp-spacing-gutter)',
@@ -566,17 +592,6 @@ export function RoutinesView({
               </button>
             </div>
           )}
-        </div>
-      )}
-
-      {useTabs && (
-        <div style={{ padding: '0 var(--dp-spacing-gutter)', marginBottom: '12px' }}>
-          <TabBar
-            ariaLabel="Routine lists"
-            tabs={lists.map(l => ({ id: l.id, label: `${l.tab} (${routinesByList[l.id].length})` }))}
-            value={activeList?.id}
-            onChange={setTabChoice}
-          />
         </div>
       )}
 

@@ -535,7 +535,14 @@ export const PROGRAM_IDS = PROGRAMS.map(p => p.id);
 
 export const getProgram = id => PROGRAMS.find(p => p.id === id) || PROGRAMS[0];
 
-export const normalizeProgramId = id => (PROGRAM_IDS.includes(id) ? id : DEFAULT_PROGRAM_ID);
+// Your own programs (the Programs page: ordered saved routines, settings.routinePlaylists) are chosen as
+// 'custom:<id>'. The engine plans their sessions as Crying does (getProgram falls back to it); starting one loads the
+// routine up next.
+export const CUSTOM_PROGRAM_PREFIX = 'custom:';
+export const isCustomProgramId = id => typeof id === 'string' && id.startsWith(CUSTOM_PROGRAM_PREFIX);
+export const customProgramId = ownId => `${CUSTOM_PROGRAM_PREFIX}${ownId}`;
+export const customProgramOwnId = id => (isCustomProgramId(id) ? id.slice(CUSTOM_PROGRAM_PREFIX.length) : null);
+export const normalizeProgramId = id => (PROGRAM_IDS.includes(id) || isCustomProgramId(id) ? id : DEFAULT_PROGRAM_ID);
 
 /**
  * A History entry keeps its program and week (`program`, `programWeek`) on the workout and on each exercise: the
