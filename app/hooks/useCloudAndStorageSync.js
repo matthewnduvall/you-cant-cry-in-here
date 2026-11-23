@@ -131,7 +131,7 @@ export function useCloudAndStorageSync({
   // Configuration → EQUIPMENT → PLATES ({ [size]: count } | null = not counted)
   plateInventory = null,
   setPlateInventory,
-  sessionMode = 'advanced',
+  sessionMode = 'easy',
   setSessionMode,
   // Routines page -> PLAYLISTS (settings.routinePlaylists)
   routinePlaylists = [],
@@ -274,7 +274,7 @@ export function useCloudAndStorageSync({
         setCryingVariety?.(normalizeVariety(hydrated.settings.cryingVariety));
         setFatiguePerSet?.(normalizeFatiguePerSet(hydrated.settings.fatiguePerSet));
         setPlateInventory?.(normalizePlateInventory(hydrated.settings.plateInventory));
-        setSessionMode?.(hydrated.settings.sessionMode === 'easy' ? 'easy' : 'advanced');
+        setSessionMode?.(hydrated.settings.sessionMode === 'advanced' ? 'advanced' : 'easy');
         setRoutinePlaylists?.(normalizeRoutinePlaylists(hydrated.settings.routinePlaylists));
         if (typeof hydrated.settings.profilePhoto === 'string') setProfilePhoto?.(hydrated.settings.profilePhoto);
         if (hydrated.settings.social) {
@@ -961,7 +961,7 @@ export function useCloudAndStorageSync({
           setCryingVariety?.(normalizeVariety(rehydrated.settings.cryingVariety));
           setFatiguePerSet?.(normalizeFatiguePerSet(rehydrated.settings.fatiguePerSet));
           setPlateInventory?.(normalizePlateInventory(rehydrated.settings.plateInventory));
-          setSessionMode?.(rehydrated.settings.sessionMode === 'easy' ? 'easy' : 'advanced');
+          setSessionMode?.(rehydrated.settings.sessionMode === 'advanced' ? 'advanced' : 'easy');
           setRoutinePlaylists?.(normalizeRoutinePlaylists(rehydrated.settings.routinePlaylists));
           setShareStatsWithFriends(rehydrated.settings.social.shareStatsWithFriends);
           setShareRoutinesWithFriends(rehydrated.settings.social.shareRoutinesWithFriends);

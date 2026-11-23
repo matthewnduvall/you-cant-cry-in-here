@@ -1305,16 +1305,18 @@ export function SlotEditor({
         <button
           type="button"
           aria-pressed={ownLocked}
-          aria-label={`${ownLocked ? 'Unlock' : 'Lock'} ${label} of set ${st.setNumber}. Drag up or down to do the same to other sets`}
+          aria-label={`${ownLocked ? 'Unlock' : 'Lock'} ${label} of set ${st.setNumber}. Hold, then drag up or down to do the same to other sets`}
           title={ownLocked ? `${label} locked: RECALCULATE won't change it` : `Lock ${label}`}
-          // Touch / mouse: pressing toggles it on release, dragging carries the same lock state over other rows
-          // (useFillDrag). The click event is only used by the keyboard (detail 0).
+          // Touch / mouse: a tap toggles it on release; held still for LOCK_HOLD_MS, then dragged, it carries the same lock
+          // state over other rows (useFillDrag); a scroll started on it changes nothing. The click event is only used by
+          // the keyboard (detail 0).
           {...fillDrag.sourceProps({ exIdx, setIdx, field, kind: 'lock', payload: { target: !ownLocked } })}
           onClick={e => {
             if (e.detail === 0 && !fillDrag.consumeClick()) onToggleSetLock({ exIdx, set: st, field });
           }}
           style={{
-            touchAction: 'none',
+            // The page still scrolls from a padlock: a drag across rows needs a held press first (useFillDrag)
+            touchAction: 'pan-y',
             flex: `0 0 ${LOCK_COL_PX}px`,
             height: '100%',
             boxSizing: 'border-box',

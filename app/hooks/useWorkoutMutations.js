@@ -1131,7 +1131,27 @@ export function useWorkoutMutations({
    * intensity is the set's own, else its type's (Warm-up RIR 5, Working 2, Top Out 1, Burn Out 3; 1 Rep Max = the
    * 1RM). Weights round to 2.5 lb; bodyweight exercises store what is added; timed sets keep their time.
    */
-  const weighRoutineSlot = slot =>
+  // One of your programs' routines (routine.programCycle = { startMs }): the CYCLE INCREMENT. Each exercise works from
+  // its 1RM as of the cycle's start (the last sessions before it, smoothed) + your increment (scaled to the lift,
+  // learned from your History, held after a session that came in harder than planned) — fixed for the whole cycle, so
+  // the same reps and effort give the same weights all cycle and a step heavier the next. null: never logged before
+  // the cycle (the usual 1RM is used).
+  const cycleTarget1RM = (exId, startMs) => {
+    if (!exId || !startMs || isBodyweightExercise(exId)) return null;
+    const pool = (history || []).filter(w => w && workoutTimeMs(w) < startMs);
+    const base = getLastSession1RM(exId, pool);
+    if (!(base > 0)) return null;
+    const inc = progressionIncrement(exId, currentIncrementLbs, base, pool);
+    if (isTracing()) {
+      traceLine(
+        `${EXERCISE_MAP[exId]?.name || exId}: cycle target 1RM = ${fmt(base)} (your 1RM before this cycle) + ${fmt(inc)} lb cycle increment = ${fmt(base + inc)}`
+      );
+    }
+    return base + inc;
+  };
+
+  // oneRMOf(exId): a 1RM to use instead of the usual one (the cycle target), or null
+  const weighRoutineSlot = (slot, oneRMOf = null) =>
     toAddedWeights(
       mapSlotLists(slot, (list, exId, scheme) => {
         const name = EXERCISE_MAP[exId]?.name || exId;
@@ -1139,8 +1159,9 @@ export function useWorkoutMutations({
           if (isTracing()) traceLine(`${name}: timed sets, kept as they are`);
           return list;
         }
-        const oneRM = getHistoricalCalculated1RM(exId, history, oneRepMaxes);
-        if (isTracing()) traceLine(describe1RM(exId, startOpts));
+        const target = oneRMOf ? oneRMOf(exId) : null;
+        const oneRM = target || getHistoricalCalculated1RM(exId, history, oneRepMaxes);
+        if (isTracing() && !target) traceLine(describe1RM(exId, startOpts));
         return list.map((st, idx) => {
           if (!st || isTimedRoutineSet(st, scheme) || !(oneRM > 0)) return st;
           const type = normalizeSetType(st.type);
@@ -1191,7 +1212,10 @@ export function useWorkoutMutations({
             : 'Routines keep reps and effort, not weights: each set\'s weight comes from your calculated 1RM as of today.'
         );
         traceLine(`${freshSlots.length} exercise${freshSlots.length === 1 ? '' : 's'}; sets start not done.`);
-        return normalizeSlotLabels(freshSlots.map(weighRoutineSlot));
+        const cycleStartMs = Number(routineObj.programCycle?.startMs) || null;
+        if (cycleStartMs) traceLine('From one of your programs: each exercise works from its 1RM before this cycle + your cycle increment.');
+        const oneRMOf = cycleStartMs ? exId => cycleTarget1RM(exId, cycleStartMs) : null;
+        return normalizeSlotLabels(freshSlots.map(slot => weighRoutineSlot(slot, oneRMOf)));
       },
       `load_${routineObj.key || routineObj.label}`
     );

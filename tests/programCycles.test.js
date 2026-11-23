@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { findLoggedCycles, reviewCycle, previousCycle } from '../app/utils/programCycles';
+import { findLoggedCycles, reviewCycle, previousCycle, programCycleLoad } from '../app/utils/programCycles';
 
 const day = (y, m, d) => new Date(y, m - 1, d, 18).toISOString();
 let n = 0;
@@ -56,5 +56,27 @@ describe('logged program cycles', () => {
     expect(w1).toMatchObject({ week: 1, sessions: 1, sets: 2, planned: 2, asPlanned: 1, fewerReps: 1, rirGap: null });
     // reported RIR 1 and 2 against a planned 3: on average 1.5 harder
     expect(w2).toMatchObject({ week: 2, rated: 2, rirGap: -1.5 });
+  });
+});
+
+describe('cycle increment bookkeeping', () => {
+  it('starts a cycle on first use and again at the first routine after another', () => {
+    const first = programCycleLoad({}, 0);
+    expect(first.patch).toMatchObject({ cycle: 1, lastIndex: 0 });
+    expect(first.programCycle.startMs).toBe(first.patch.cycleStartMs);
+
+    const mid = programCycleLoad({ ...first.patch, cycleStartMs: 1000 }, 1);
+    expect(mid.patch).toMatchObject({ cycle: 1, cycleStartMs: 1000, lastIndex: 1 });
+
+    const again = programCycleLoad({ cycle: 1, cycleStartMs: 1000, lastIndex: 3 }, 0);
+    expect(again.patch.cycle).toBe(2);
+    expect(again.patch.cycleStartMs).toBeGreaterThan(1000);
+
+    // Repeating the first routine stays in the same cycle
+    expect(programCycleLoad({ cycle: 2, cycleStartMs: 5000, lastIndex: 0 }, 0).patch).toMatchObject({ cycle: 2, cycleStartMs: 5000 });
+  });
+
+  it('no cycle target when the increment is off', () => {
+    expect(programCycleLoad({ cycleIncrement: false }, 0).programCycle).toBeNull();
   });
 });

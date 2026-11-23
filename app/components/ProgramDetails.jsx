@@ -41,7 +41,9 @@ export function ProgramDetails({
   setProgramSchedule,
   onRestartCycle,
   cryingVariety = 5,
-  setCryingVariety
+  setCryingVariety,
+  // COACH mode: the variables list and Crying's VARIETY (ATHLETE mode shows the description and training days)
+  showVariables = true
 }) {
   const nowIso = useSyncExternalStore(subscribeMinute, minuteNowIso, noNowOnServer);
   if (!program) return null;
@@ -75,7 +77,7 @@ export function ProgramDetails({
 
       {/* Crying's VARIETY: 0 = the fewest different exercises that still train every muscle evenly, 10 = no exercise
           repeats within 20 sessions, 5 = the default */}
-      {program.id === 'crying' && (
+      {program.id === 'crying' && showVariables && (
         <div style={{ padding: '4px 16px 14px' }}>
           <label style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             <span style={UI.capsLabel}>VARIETY</span>
@@ -99,7 +101,7 @@ export function ProgramDetails({
       )}
 
       {/* The program's variables (sets, reps, intensity, increment, trigger, cycle, rest, equipment) */}
-      {Array.isArray(program.variables) && program.variables.length > 0 && (
+      {showVariables && Array.isArray(program.variables) && program.variables.length > 0 && (
         <dl
           style={{
             margin: 0,

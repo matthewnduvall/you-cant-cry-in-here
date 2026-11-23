@@ -16,7 +16,7 @@
 //   ROUTINES drop out.
 // ============================================================================
 
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { UI, SHARED_CELL_BORDER } from '../styles/kineticTokens';
 import { IOSListSection, IOSListRow } from './Primitives';
 import { Button, DeleteButton, DragNumberBadge } from './Controls';
@@ -25,7 +25,9 @@ import { EXERCISE_MAP, stripDateFromTitle, stripEquipmentFromExerciseName } from
 import { getWorkoutExerciseIds } from './HistoryExerciseFilter';
 import { ProgramDetails } from './ProgramDetails';
 import { customProgramId, hasProgramDays } from '../data/programs';
-import { reviewCycle, previousCycle } from '../utils/programCycles';
+import { reviewCycle, previousCycle, programCycleLoad } from '../utils/programCycles';
+
+export { programCycleLoad };
 import { formatDateYMD } from '../data/exerciseLibrary';
 
 const newId = () => `pl_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`;
@@ -158,25 +160,40 @@ export function RoutinePlaylists({
   // Cycles logged under each program (utils/programCycles.js findLoggedCycles) and SAVE AS PROGRAM:
   // onSaveCycle(cycle) → the cycle's sessions as routines (useWorkoutMutations.cycleToRoutines)
   loggedCycles = [],
-  onSaveCycle
+  onSaveCycle,
+  // The program open ('builtin:<id>' | 'own:<id>' | null). Controlled by page.js so an open program is a step of its
+  // own in the back history (← and the phone's back gesture return to the list); uncontrolled when not passed.
+  openRef: controlledRef,
+  onOpenRef,
+  // ATHLETE mode: no variables, cycle reviews, COPY, cycle setting or routine preferences (just choosing and loading)
+  athleteMode = false
 }) {
   // The logged cycle opened on a built-in program's page (its review)
   const [openCycleId, setOpenCycleId] = useState(null);
-  const [openId, setOpenId] = useState(null);
+  const [localRef, setLocalRef] = useState(null);
+  const openRef = onOpenRef ? controlledRef || null : localRef;
+  const setOpenRef = onOpenRef || setLocalRef;
+  const openId = openRef?.startsWith('own:') ? openRef.slice(4) : null;
+  const builtInId = openRef?.startsWith('builtin:') ? openRef.slice(8) : null;
+  const setOpenId = id => setOpenRef(id ? `own:${id}` : null);
+  const closeBuiltIn = () => setOpenRef(null);
   const [adding, setAdding] = useState(false);
-  // A built-in program opened, and its days as routines (worked out when it is opened, not on every render)
-  const [builtInOpen, setBuiltInOpen] = useState(null);
   const open = (playlists || []).find(p => p.id === openId) || null;
-  const openBuiltIn = (builtInPrograms || []).find(p => p.id === builtInOpen?.id) || null;
+  const openBuiltIn = (builtInPrograms || []).find(p => p.id === builtInId) || null;
+  // The open built-in program's days as routines: worked out once each time a program is opened
+  const builtInDays = useMemo(
+    () =>
+      openBuiltIn && hasProgramDays(openBuiltIn)
+        ? openBuiltIn.days.map(day => {
+            const slots = buildProgramDay?.(openBuiltIn.id, day.id)?.slots || [];
+            return { id: day.id, name: day.name, exercises: exerciseNamesOf({ slots }), count: getWorkoutExerciseIds({ slots }).length };
+          })
+        : [],
+    [builtInId] // eslint-disable-line react-hooks/exhaustive-deps
+  );
 
   const openProgram = program => {
-    const days = hasProgramDays(program)
-      ? program.days.map(day => {
-          const slots = buildProgramDay?.(program.id, day.id)?.slots || [];
-          return { id: day.id, name: day.name, exercises: exerciseNamesOf({ slots }), count: getWorkoutExerciseIds({ slots }).length };
-        })
-      : [];
-    setBuiltInOpen({ id: program.id, days });
+    setOpenRef(`builtin:${program.id}`);
     if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'instant' });
   };
 
@@ -192,7 +209,6 @@ export function RoutinePlaylists({
       updatedAt: new Date().toISOString()
     };
     setPlaylists?.(prev => [...(prev || []), p]);
-    setBuiltInOpen(null);
     setOpenId(p.id);
     setAdding(false);
   };
@@ -211,7 +227,6 @@ export function RoutinePlaylists({
       updatedAt: new Date().toISOString()
     };
     setPlaylists?.(prev => [...(prev || []), p]);
-    setBuiltInOpen(null);
     setOpenId(p.id);
     setAdding(false);
     if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'instant' });
@@ -276,7 +291,10 @@ export function RoutinePlaylists({
   const loadFrom = (playlist, items, index) => {
     const routine = items[index];
     if (!routine) return;
-    onLoad?.(routine, () => update(playlist.id, { nextKey: items[(index + 1) % items.length]?.key || null }));
+    const { patch, programCycle } = programCycleLoad(playlist, index);
+    onLoad?.({ ...routine, programCycle }, () =>
+      update(playlist.id, { ...patch, nextKey: items[(index + 1) % items.length]?.key || null })
+    );
   };
 
   const { handleProps, rowDragStyle } = usePointerReorder(
@@ -294,6 +312,7 @@ export function RoutinePlaylists({
   // YOUR LOGGED CYCLES on a built-in program's page: each cycle (dates, sessions, weeks), its week-by-week review
   // against the cycle before it, and SAVE AS PROGRAM
   const renderCycles = program => {
+    if (athleteMode) return null;
     const cycles = (loggedCycles || []).filter(c => c.programId === program.id);
     if (cycles.length === 0) {
       return (
@@ -358,18 +377,18 @@ export function RoutinePlaylists({
 
   // ── A built-in program ──────────────────────────────────────────────────────────────────────────────────────
   if (openBuiltIn) {
-    const days = builtInOpen?.days || [];
+    const days = builtInDays;
     return (
       <div>
         <div style={{ padding: '0 var(--dp-spacing-gutter)', marginBottom: '12px', display: 'grid', gap: '8px' }}>
-          {backButton(() => setBuiltInOpen(null))}
+          {backButton(closeBuiltIn)}
           <div style={{ fontSize: '22px', fontWeight: 300, color: '#FFFFFF', padding: '0 4px' }}>{openBuiltIn.label}</div>
           {!readOnly && programChoiceButton(openBuiltIn.id)}
         </div>
-        <ProgramDetails colors={colors} program={openBuiltIn} isActive={openBuiltIn.id === activeProgramId} {...programDetailProps} />
+        <ProgramDetails colors={colors} program={openBuiltIn} isActive={openBuiltIn.id === activeProgramId} showVariables={!athleteMode} {...programDetailProps} />
         {openBuiltIn.id === 'crying' ? (
           <>
-            {cryingSettings}
+            {!athleteMode && cryingSettings}
             {onAutoSession && !readOnly && (
               <div style={{ padding: '0 var(--dp-spacing-gutter)', marginBottom: '16px' }}>
                 <div style={{ ...UI.sentence, padding: '0 4px 8px' }}>
@@ -418,7 +437,7 @@ export function RoutinePlaylists({
               the weights from your own 1RMs.
             </div>
             {renderCycles(openBuiltIn)}
-            {!readOnly && onCopyProgram && (
+            {!readOnly && !athleteMode && onCopyProgram && (
               <div style={{ padding: '0 var(--dp-spacing-gutter)', marginBottom: '16px' }}>
                 <Button variant="dashed" onClick={() => copyProgram(openBuiltIn)} style={{ width: '100%', minHeight: '48px' }}>
                   COPY TO MY PROGRAMS
@@ -545,6 +564,31 @@ export function RoutinePlaylists({
           </div>
         )}
         {!readOnly && items.length > 0 && programChoiceButton(customProgramId(open.id))}
+        {/* CYCLE INCREMENT (on unless turned off): the same reps and effort every cycle, the weights a step up each one */}
+        {!athleteMode && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', alignItems: 'center', gap: '12px', padding: '12px', backgroundColor: '#1C1C1C', borderRadius: '14px' }}>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontSize: '15px', fontWeight: 500, color: '#FFFFFF' }}>Cycle increment</div>
+            <div style={{ ...UI.sentence, fontSize: '12px', marginTop: '2px' }}>
+              {open.cycleIncrement === false
+                ? 'Off: each routine works from your 1RM as it stands when you load it.'
+                : 'Reps and effort stay as they are; each cycle works from your 1RM before it plus your increment, so the weights go up a step every cycle.'}
+              {open.cycle ? ` Cycle ${open.cycle}, started ${formatDateYMD(open.cycleStartMs)}.` : ''}
+            </div>
+          </div>
+          <button
+            type="button"
+            className="kinetic-btn"
+            aria-pressed={open.cycleIncrement !== false}
+            aria-label={`Cycle increment: ${open.cycleIncrement === false ? 'off' : 'on'}`}
+            disabled={readOnly}
+            onClick={() => update(open.id, p => ({ cycleIncrement: p.cycleIncrement === false }))}
+            style={{ ...UI.pillBtn(open.cycleIncrement !== false), minWidth: '64px', minHeight: '44px' }}
+          >
+            {open.cycleIncrement === false ? 'OFF' : 'ON'}
+          </button>
+        </div>
+        )}
         {items.length > 0 && (
           <Button variant="primary" onClick={() => loadFrom(open, items, nextIndex)} style={{ minHeight: '52px', width: '100%' }}>
             <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
