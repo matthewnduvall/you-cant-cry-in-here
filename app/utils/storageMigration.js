@@ -286,20 +286,28 @@ export const normalizeShareDefaults = value => {
   );
 };
 
-/** Routine playlists as stored (settings.routinePlaylists, local + cloud): bad entries dropped, keys de-duplicated. */
 /** Fatigue per set (reps of reserve), 0–2 in quarter steps; not set = 0.5 */
 export const normalizeFatiguePerSet = v =>
   v === null || v === undefined || v === '' || !Number.isFinite(Number(v)) ? 0.5 : Math.min(2, Math.max(0, Math.round(Number(v) * 4) / 4));
 
+/** Your programs (formerly playlists) as stored (settings.routinePlaylists, local + cloud): bad entries dropped, keys
+ * de-duplicated. */
 export function normalizeRoutinePlaylists(value) {
   if (!Array.isArray(value)) return [];
   return value
     .filter(p => p && typeof p === 'object' && typeof p.id === 'string')
     .map(p => ({
       id: p.id,
-      name: typeof p.name === 'string' ? p.name.slice(0, 60) : 'Playlist',
+      name: typeof p.name === 'string' ? p.name.slice(0, 60) : 'Program',
       routineKeys: [...new Set((Array.isArray(p.routineKeys) ? p.routineKeys : []).filter(k => typeof k === 'string'))],
       nextKey: typeof p.nextKey === 'string' ? p.nextKey : null,
-      updatedAt: typeof p.updatedAt === 'string' ? p.updatedAt : null
+      updatedAt: typeof p.updatedAt === 'string' ? p.updatedAt : null,
+      // A program saved from a logged cycle keeps its routines inside it (weight-free, each with its week and day)
+      ...(Array.isArray(p.routines)
+        ? { routines: p.routines.filter(r => r && typeof r === 'object' && typeof r.key === 'string' && Array.isArray(r.slots)) }
+        : {}),
+      // Where it came from: { programId, startMs, endMs, sessions } (a logged cycle) / fromProgram (a COPY)
+      ...(p.source && typeof p.source === 'object' ? { source: p.source } : {}),
+      ...(typeof p.fromProgram === 'string' ? { fromProgram: p.fromProgram } : {})
     }));
 }

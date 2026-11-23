@@ -25,6 +25,8 @@ import { EXERCISE_MAP, stripDateFromTitle, stripEquipmentFromExerciseName } from
 import { getWorkoutExerciseIds } from './HistoryExerciseFilter';
 import { ProgramDetails } from './ProgramDetails';
 import { customProgramId, hasProgramDays } from '../data/programs';
+import { reviewCycle, previousCycle } from '../utils/programCycles';
+import { formatDateYMD } from '../data/exerciseLibrary';
 
 const newId = () => `pl_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`;
 const nameOf = r => stripDateFromTitle(r?.label) || r?.label || 'Routine';
@@ -35,9 +37,10 @@ const exerciseNamesOf = r =>
     .map(name => stripEquipmentFromExerciseName(name))
     .join(' · ');
 
-/** A playlist's routines that still exist, in order, and the index of the one up next. */
+/** A program's routines that still exist, in order, and the index of the one up next (its own routines — a saved
+ * cycle's — first, then your saved routines). */
 export function resolvePlaylist(playlist, savedRoutines = []) {
-  const byKey = new Map((savedRoutines || []).map(r => [r.key, r]));
+  const byKey = new Map([...(savedRoutines || []), ...(playlist?.routines || [])].map(r => [r.key, r]));
   const items = (playlist?.routineKeys || []).map(k => byKey.get(k)).filter(Boolean);
   const found = items.findIndex(r => r.key === playlist?.nextKey);
   return { items, nextIndex: items.length === 0 ? -1 : found >= 0 ? found : 0 };
@@ -70,6 +73,64 @@ const pill = {
   whiteSpace: 'nowrap'
 };
 
+const cycleDates = c => `${formatDateYMD(c.startMs)} – ${formatDateYMD(c.endMs)}`;
+const pctOf = (n, d) => (d > 0 ? `${Math.round((n / d) * 100)}%` : '—');
+const effortText = gap => (gap === null || gap === undefined ? '—' : Math.abs(gap) < 0.25 ? 'AS PLANNED' : `${Math.abs(gap)} ${gap < 0 ? 'HARDER' : 'EASIER'}`);
+
+/**
+ * A logged cycle week by week (planned vs done), with the cycle before it under each value: SESSIONS · AS PLANNED
+ * (share of planned working sets done at the planned weight and reps) · FEWER REPS · EFFORT (reported RIR against
+ * the planned RIR, from sets whose effort you entered).
+ */
+function CycleReview({ cycle, before }) {
+  const rows = reviewCycle(cycle);
+  const prevByWeek = new Map(before ? reviewCycle(before).map(r => [r.week, r]) : []);
+  const cell = { padding: '8px 4px', textAlign: 'center', ...SHARED_CELL_BORDER, fontSize: '13px', color: '#FFFFFF' };
+  const head = { ...cell, ...UI.capsLabel, fontSize: '10px', color: '#9A9A9A' };
+  const prevLine = text => <div style={{ fontSize: '10px', color: '#8A8A8A', marginTop: '2px' }}>{text}</div>;
+  const anyPlanned = rows.some(r => r.planned > 0 || r.rated > 0);
+  return (
+    <div style={{ backgroundColor: '#000000' }}>
+      <div role="table" aria-label="Cycle review, week by week" style={{ display: 'grid', gridTemplateColumns: '0.8fr 0.9fr 1fr 1fr 1.3fr' }}>
+        {['WEEK', 'SESS.', 'AS PLANNED', 'FEWER REPS', 'EFFORT'].map(h => (
+          <div key={h} role="columnheader" style={head}>
+            {h}
+          </div>
+        ))}
+        {rows.map(r => {
+          const p = prevByWeek.get(r.week);
+          return (
+            <React.Fragment key={r.week}>
+              <div role="cell" style={cell}>{r.week}</div>
+              <div role="cell" style={cell}>
+                {r.sessions}
+                {p && prevLine(`WAS ${p.sessions}`)}
+              </div>
+              <div role="cell" style={cell}>
+                {pctOf(r.asPlanned, r.planned)}
+                {p && prevLine(`WAS ${pctOf(p.asPlanned, p.planned)}`)}
+              </div>
+              <div role="cell" style={cell}>
+                {pctOf(r.fewerReps, r.planned)}
+                {p && prevLine(`WAS ${pctOf(p.fewerReps, p.planned)}`)}
+              </div>
+              <div role="cell" style={cell}>
+                {effortText(r.rirGap)}
+                {p && prevLine(`WAS ${effortText(p.rirGap)}`)}
+              </div>
+            </React.Fragment>
+          );
+        })}
+      </div>
+      <div style={{ ...UI.sentence, fontSize: '12px', padding: '10px 12px' }}>
+        {anyPlanned
+          ? `AS PLANNED and FEWER REPS count working sets done against the app's plan; EFFORT compares the effort you entered with the planned one${before ? `; WAS is the cycle before (${cycleDates(before)})` : ''}.`
+          : 'No planned sets to compare yet: sessions record the plan when you train with them live, and EFFORT needs the effort you entered on a set.'}
+      </div>
+    </div>
+  );
+}
+
 export function RoutinePlaylists({
   colors,
   playlists = [],
@@ -93,8 +154,14 @@ export function RoutinePlaylists({
   onCopyProgram,
   // Crying's ROUTINE PREFERENCES (a node), shown on its page; onAutoSession: its START A SESSION
   cryingSettings = null,
-  onAutoSession
+  onAutoSession,
+  // Cycles logged under each program (utils/programCycles.js findLoggedCycles) and SAVE AS PROGRAM:
+  // onSaveCycle(cycle) → the cycle's sessions as routines (useWorkoutMutations.cycleToRoutines)
+  loggedCycles = [],
+  onSaveCycle
 }) {
+  // The logged cycle opened on a built-in program's page (its review)
+  const [openCycleId, setOpenCycleId] = useState(null);
   const [openId, setOpenId] = useState(null);
   const [adding, setAdding] = useState(false);
   // A built-in program opened, and its days as routines (worked out when it is opened, not on every render)
@@ -128,6 +195,26 @@ export function RoutinePlaylists({
     setBuiltInOpen(null);
     setOpenId(p.id);
     setAdding(false);
+  };
+
+  // SAVE AS PROGRAM: a logged cycle, week by week as it was done, as a program of your own (its routines inside it)
+  const saveCycle = cycle => {
+    const routines = onSaveCycle?.(cycle) || [];
+    if (routines.length === 0) return;
+    const p = {
+      id: newId(),
+      name: `${cycle.programLabel} · ${formatDateYMD(cycle.startMs)}`,
+      routineKeys: routines.map(r => r.key),
+      nextKey: routines[0].key,
+      routines,
+      source: { programId: cycle.programId, startMs: cycle.startMs, endMs: cycle.endMs, sessions: cycle.sessions.length },
+      updatedAt: new Date().toISOString()
+    };
+    setPlaylists?.(prev => [...(prev || []), p]);
+    setBuiltInOpen(null);
+    setOpenId(p.id);
+    setAdding(false);
+    if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'instant' });
   };
 
   // USE THIS PROGRAM (white) / FOLLOWING ✓ (the program you follow)
@@ -204,6 +291,71 @@ export function RoutinePlaylists({
     { attribute: 'data-playlist-index' }
   );
 
+  // YOUR LOGGED CYCLES on a built-in program's page: each cycle (dates, sessions, weeks), its week-by-week review
+  // against the cycle before it, and SAVE AS PROGRAM
+  const renderCycles = program => {
+    const cycles = (loggedCycles || []).filter(c => c.programId === program.id);
+    if (cycles.length === 0) {
+      return (
+        <IOSListSection header="YOUR LOGGED CYCLES" colors={colors}>
+          <IOSListRow isLast colors={colors}>
+            <span style={UI.rowSub}>
+              None yet. Each session you log on this program is kept with its week and day; once a cycle is logged you can
+              review it here and save it as a program of your own, exactly as you did it.
+            </span>
+          </IOSListRow>
+        </IOSListSection>
+      );
+    }
+    return (
+      <IOSListSection header={`YOUR LOGGED CYCLES (${cycles.length})`} colors={colors}>
+        {cycles.map(c => {
+          const isOpen = openCycleId === c.id;
+          return (
+            <div key={c.id}>
+              <button
+                type="button"
+                className="kinetic-btn"
+                aria-expanded={isOpen}
+                aria-label={`Cycle ${cycleDates(c)}: ${isOpen ? 'hide' : 'show'} its review`}
+                onClick={() => setOpenCycleId(isOpen ? null : c.id)}
+                style={rowStyle}
+              >
+                <span style={{ minWidth: 0 }}>
+                  <span style={{ display: 'block', fontSize: '15px', ...UI.sessionName, color: '#FFFFFF' }}>{cycleDates(c)}</span>
+                  <span style={{ ...subLine, display: 'block' }}>
+                    {c.sessions.length} {c.sessions.length === 1 ? 'SESSION' : 'SESSIONS'} • WEEKS {c.weeks.join(', ')} •{' '}
+                    {c.complete ? 'COMPLETE' : 'IN PROGRESS'}
+                  </span>
+                </span>
+                <span aria-hidden="true" style={{ color: '#9A9A9A', fontSize: '14px' }}>
+                  {isOpen ? '▴' : '▾'}
+                </span>
+              </button>
+              {isOpen && (
+                <>
+                  <CycleReview cycle={c} before={previousCycle(loggedCycles, c)} />
+                  {!readOnly && onSaveCycle && (
+                    <div style={{ padding: '10px 12px 12px', backgroundColor: '#000000', ...SHARED_CELL_BORDER }}>
+                      <Button variant="success" onClick={() => saveCycle(c)} style={{ minHeight: '48px', width: '100%' }}>
+                        SAVE AS PROGRAM
+                      </Button>
+                      <div style={{ ...UI.sentence, fontSize: '12px', paddingTop: '8px' }}>
+                        Makes a program of your own from these {c.sessions.length} sessions, week by week as you did them
+                        (your edits included). Each keeps its reps and effort; the weights are worked out for whoever loads
+                        it.
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          );
+        })}
+      </IOSListSection>
+    );
+  };
+
   // ── A built-in program ──────────────────────────────────────────────────────────────────────────────────────
   if (openBuiltIn) {
     const days = builtInOpen?.days || [];
@@ -265,6 +417,7 @@ export function RoutinePlaylists({
               Each routine is shown as it would be built for you today: the program keeps reps and effort, and works out
               the weights from your own 1RMs.
             </div>
+            {renderCycles(openBuiltIn)}
             {!readOnly && onCopyProgram && (
               <div style={{ padding: '0 var(--dp-spacing-gutter)', marginBottom: '16px' }}>
                 <Button variant="dashed" onClick={() => copyProgram(openBuiltIn)} style={{ width: '100%', minHeight: '48px' }}>
@@ -384,6 +537,13 @@ export function RoutinePlaylists({
             style={{ ...UI.field, width: '100%', boxSizing: 'border-box' }}
           />
         </label>
+        {open.source && (
+          <div style={{ ...UI.sentence, padding: '0 4px' }}>
+            From your {(builtInPrograms || []).find(b => b.id === open.source.programId)?.label || 'program'} cycle,{' '}
+            {formatDateYMD(open.source.startMs)} – {formatDateYMD(open.source.endMs)}: {open.source.sessions} sessions as you
+            did them.
+          </div>
+        )}
         {!readOnly && items.length > 0 && programChoiceButton(customProgramId(open.id))}
         {items.length > 0 && (
           <Button variant="primary" onClick={() => loadFrom(open, items, nextIndex)} style={{ minHeight: '52px', width: '100%' }}>
@@ -403,9 +563,14 @@ export function RoutinePlaylists({
           items.map((r, i) => {
             const isNext = i === nextIndex;
             const count = getWorkoutExerciseIds(r).length;
+            // A saved cycle's routines carry their week: a WEEK n heading where the week changes
+            const weekHeading = r.week && r.week !== items[i - 1]?.week;
             return (
+              <React.Fragment key={r.key}>
+              {weekHeading && (
+                <div style={{ ...UI.capsLabel, padding: '10px 12px 6px', backgroundColor: '#000000' }}>WEEK {r.week}</div>
+              )}
               <div
-                key={r.key}
                 data-playlist-index={i}
                 style={{
                   display: 'grid',
@@ -470,6 +635,7 @@ export function RoutinePlaylists({
                     onClick={() =>
                       update(open.id, p => ({
                         routineKeys: (p.routineKeys || []).filter(k => k !== r.key),
+                        ...(Array.isArray(p.routines) ? { routines: p.routines.filter(x => x.key !== r.key) } : {}),
                         // Up next moves on to the routine after it (none left: nothing)
                         nextKey: p.nextKey === r.key ? (items.length > 1 ? items[(i + 1) % items.length].key : null) : p.nextKey
                       }))
@@ -477,6 +643,7 @@ export function RoutinePlaylists({
                   />
                 )}
               </div>
+              </React.Fragment>
             );
           })
         )}
@@ -544,7 +711,7 @@ export function RoutinePlaylists({
                 type: 'generic',
                 title: 'DELETE PROGRAM?',
                 verb: 'delete',
-                label: `${open.name || 'this program'} (the routines stay in ROUTINES)`,
+                label: `${open.name || 'this program'} ${Array.isArray(open.routines) && open.routines.length ? '(its saved sessions are deleted with it; your History stays)' : '(the routines stay in ROUTINES)'}`,
                 confirmLabel: 'DELETE',
                 onConfirm: () => {
                   setPlaylists?.(prev => (prev || []).filter(p => p.id !== open.id));

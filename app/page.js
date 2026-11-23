@@ -3,6 +3,7 @@
 import { FormulaConsole } from './components/FormulaConsole';
 import { getProgram, getWorkoutProgramInfo, PROGRAMS, isCustomProgramId, customProgramId } from './data/programs';
 import { resolvePlaylist } from './components/RoutinePlaylists';
+import { findLoggedCycles } from './utils/programCycles';
 import React, { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback } from 'react';
 import { IOS_DARK, KINETIC_CSS } from './styles/kineticTokens';
 import { getIncrementInLbs, getInitial1RMs, asHistoricalWorkout, withAutoSessionName, setEngineFatigue, setEngineFatigueByExercise, learnFatigueRates, setEngineProgression, learnProgressionRates, setEngineBodyweight, setEngineRestExponent, DEFAULT_REST_EXPONENT, setEngineEstimator } from './utils/workoutEngine';
@@ -623,6 +624,7 @@ export default function App() {
     buildProgramDaySlots,
     handleStartProgramDay,
     copyProgramToRoutines,
+    cycleToRoutines,
     handleDirectLoadRoutine,
     handleOpenPreviewRoutine,
     handleCancelRoutineSelection,
@@ -1123,6 +1125,8 @@ export default function App() {
   // Opened from Home / the menu (no session waiting on a pick): the full Programs page
   const routinesAsPage = !routineSelectReturnView;
 
+  // Cycles logged under each program (week 1 → its last week), newest first
+  const loggedCycles = useMemo(() => findLoggedCycles(history), [history]);
   // ── Your own programs (Programs page; settings.routinePlaylists), chosen as 'custom:<id>' ────────────────────
   const activeCustomProgram = isCustomProgramId(trainingProgram)
     ? (routinePlaylists || []).find(p => customProgramId(p.id) === trainingProgram) || null
@@ -1169,6 +1173,9 @@ export default function App() {
       confirmReplaceSession(`${program.label}${day ? `: ${day.name}` : ''}`, () => handleStartProgramDay(programId, dayId));
     },
     onCopyProgram: copyProgramToRoutines,
+    // The cycles you logged under each program: reviewed week by week, and SAVE AS PROGRAM
+    loggedCycles,
+    onSaveCycle: cycleToRoutines,
     cryingSettings: <RoutinePreferencesSection colors={colors} routinePreferences={routinePreferences} setRoutinePreferences={setRoutinePreferences} />,
     onAutoSession: () => confirmReplaceSession('a Crying session', () => handleOpenNewAutoSession())
   };
