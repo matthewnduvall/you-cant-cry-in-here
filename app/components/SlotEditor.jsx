@@ -40,7 +40,7 @@ import {
 import { getVariationFamily } from '../data/exerciseVariations';
 import { searchExercises } from '../utils/exerciseSearch';
 import { parseExerciseSentence, describeSentence } from '../utils/exerciseSentence';
-import { speechSupported, startSpeech } from '../utils/speech';
+import { isBlockedError, speechSupported, startSpeech } from '../utils/speech';
 export { searchExercises };
 import {
   normalizeSetType,
@@ -523,8 +523,11 @@ export function SlotEditor({
   const speechRef = useRef(null);
   // True while the search text came from speech (typing clears it): only spoken requests enter themselves
   const heardRef = useRef(false);
+  // The browser or the phone refused the mic: say so in the search (no prompt ever appears then)
+  const [micBlocked, setMicBlocked] = useState(false);
   const startListening = half => {
     speechRef.current?.stop();
+    setMicBlocked(false);
     let session = null;
     session = startSpeech({
       onText: text => {
@@ -533,7 +536,8 @@ export function SlotEditor({
         // Keeps a search opened by the mic shortcut keyboard-free (voice)
         setSearch(prev => ({ half, query: text, voice: prev?.voice }));
       },
-      onEnd: () => {
+      onEnd: error => {
+        if (isBlockedError(error)) setMicBlocked(true);
         if (speechRef.current === session) {
           speechRef.current = null;
           setListening(false);
@@ -955,6 +959,22 @@ export function SlotEditor({
           boxShadow: '0 12px 24px rgba(0, 0, 0, 0.6)'
         }}
       >
+        {micBlocked && (
+          <div
+            role="status"
+            style={{
+              padding: '12px',
+              backgroundColor: '#1C1C1C',
+              borderBottom: '1px solid var(--dp-color-rule)',
+              color: 'var(--cr-red-text)',
+              fontFamily: 'var(--dp-typography-face)',
+              fontSize: '13px',
+              lineHeight: 1.35
+            }}
+          >
+            The microphone is blocked for this browser. Allow it in your phone&apos;s Settings, then try again.
+          </div>
+        )}
         {familyName && (
           <>
             <div style={{ ...hintStyle, padding: '8px 12px' }}>VARIATIONS · {familyName.toUpperCase()}</div>

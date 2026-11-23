@@ -271,6 +271,25 @@ test.describe('Session', () => {
     await expect(box).toHaveCount(0);
   });
 
+  test('[session.mic-blocked] a refused mic is explained in the search', async ({ page }) => {
+    await page.addInitScript(() => {
+      class RefusedRecognition {
+        start() {
+          setTimeout(() => this.onerror?.({ error: 'not-allowed' }), 10);
+        }
+        abort() {}
+        stop() {}
+      }
+      window.webkitSpeechRecognition = RefusedRecognition;
+      window.SpeechRecognition = RefusedRecognition;
+    });
+    await newSession(page);
+    await addExercise(page);
+    await page.getByRole('button', { name: /Say the exercise/ }).first().click();
+    await expect(page.getByRole('status').filter({ hasText: 'microphone is blocked' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Stop listening' })).toHaveCount(0);
+  });
+
   test('[session.delete-exercise] the ✕ at the top right deletes the exercise', async ({ page }) => {
     await newSession(page);
     await addExercise(page);

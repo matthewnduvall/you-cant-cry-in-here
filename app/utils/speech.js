@@ -25,6 +25,10 @@ export const WATCHDOG_MS = 6000;
 export const SOUND_WATCHDOG_MS = 3500;
 export const RESTART_GAP_MS = 300;
 export const MAX_RESTARTS = 2;
+// Errors after which the recogniser is gone (no `end` needed): the mic or speech recognition refused, or broken
+const FATAL_ERRORS = new Set(['not-allowed', 'service-not-allowed', 'audio-capture', 'network', 'language-not-supported']);
+/** The mic or speech recognition was refused by the browser or the phone's settings. */
+export const isBlockedError = code => code === 'not-allowed' || code === 'service-not-allowed';
 
 let rec = null; // the current recogniser (a new one per session)
 let engine = 'idle'; // 'idle' | 'starting' | 'listening' | 'ending' | 'cooldown' — from its events
@@ -129,7 +133,28 @@ const freshRecogniser = () => {
     owner.onText?.(text);
   };
   rec.onnomatch = () => note('nomatch');
-  rec.onerror = e => note('error', e?.error || e?.message || '');
+  rec.onerror = e => {
+    const code = e?.error || e?.message || '';
+    note('error', code);
+    // A refused or broken mic may never send `end` (Chrome on iPhone: not-allowed at once): end the session here so
+    // the next tap starts straight away instead of waiting for a recogniser that is already gone
+    if (!FATAL_ERRORS.has(code)) return;
+    const session = owner;
+    clearWatchdog();
+    detach(rec);
+    rec = null;
+    owner = null;
+    engine = 'idle';
+    if (session) {
+      session.error = code;
+      session.finish();
+    }
+    if (pending) {
+      const next = pending;
+      pending = null;
+      begin(next);
+    }
+  };
   rec.onend = () => {
     note('end', owner && !owner.stopped ? 'by itself' : '');
     clearWatchdog();
@@ -177,8 +202,8 @@ const begin = session => {
 };
 
 /**
- * Starts listening. onText(text) gets the words so far (interim results); onEnd() runs once when this session stops
- * listening for any reason. Returns { stop() }, or null where speech isn't supported.
+ * Starts listening. onText(text) gets the words so far (interim results); onEnd(error) runs once when this session
+ * stops listening for any reason (error: the fatal error code that ended it, else null). Returns { stop() }, or null where speech isn't supported.
  */
 export function startSpeech({ onText, onEnd } = {}) {
   if (!recogniserApi()) return null;
@@ -186,7 +211,7 @@ export function startSpeech({ onText, onEnd } = {}) {
   session.finish = () => {
     if (session.ended) return;
     session.ended = true;
-    onEnd?.();
+    onEnd?.(session.error || null);
   };
   session.stop = () => {
     if (session.stopped) return;

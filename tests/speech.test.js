@@ -185,6 +185,16 @@ describe('speech controller', () => {
     expect(rec().aborts).toBe(1);
   });
 
+  it('a refused mic ends the session at once, and the next tap starts straight away', () => {
+    const errors = [];
+    speech.startSpeech({ onEnd: e => errors.push(e) });
+    rec().onerror({ error: 'not-allowed' }); // no end follows (Chrome on iPhone)
+    expect(errors).toEqual(['not-allowed']);
+    expect(speech.isBlockedError(errors[0])).toBe(true);
+    speech.startSpeech({});
+    expect(instances).toHaveLength(2); // started now, not after a handover
+  });
+
   it('keeps a log of what the recogniser did, for FEEDBACK', () => {
     const s = speech.startSpeech({});
     vi.advanceTimersByTime(10);

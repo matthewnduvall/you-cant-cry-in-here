@@ -43,6 +43,7 @@ aren't in the smoke tests yet; they are listed under "Not yet automated" and sti
 - **session.typo-search** — the search forgives typos
 - **session.microphone** — the microphone in the search box and beside the exercise name (where the browser has speech recognition), lit white while listening
 - **session.mic-no-keyboard** — the mic shortcut listens without opening the keyboard; tapping outside closes the search
+- **session.mic-blocked** — when the browser or phone refuses the mic, the search says so
 - **session.console** — the CONSOLE explains the maths, and goes full screen
 - **session.finish** — FINISH logs the done sets to History
 
