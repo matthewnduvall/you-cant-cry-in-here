@@ -244,6 +244,22 @@ export default function App() {
   // PROGRAM / WEEK / DAY row, no CONSOLE, no ACCURACY / REP CURVE, no stimulus thresholds, Configuration without
   // TRAINING, and programs without their variables, cycle reviews, COPY and cycle settings. COACH shows everything.
   const athleteMode = sessionMode === 'easy';
+  // Switching modes changes how tall the page above the footer is: the toggle stays exactly where it was on screen
+  // (its position is measured before the switch and the page scrolled by the difference after it)
+  const modeToggleRef = useRef(null);
+  const modeAnchorTopRef = useRef(null);
+  const switchAppMode = mode => {
+    if (mode === sessionMode) return;
+    modeAnchorTopRef.current = modeToggleRef.current?.getBoundingClientRect().top ?? null;
+    setSessionMode(mode);
+  };
+  useLayoutEffect(() => {
+    const before = modeAnchorTopRef.current;
+    modeAnchorTopRef.current = null;
+    if (before === null || typeof window === 'undefined') return;
+    const after = modeToggleRef.current?.getBoundingClientRect().top;
+    if (Number.isFinite(after) && Math.abs(after - before) > 0.5) window.scrollBy(0, after - before);
+  }, [sessionMode]);
   // Routines page -> PLAYLISTS: named, ordered groups of saved routines ([{ id, name, routineKeys, nextKey }])
   const [routinePlaylists, setRoutinePlaylists] = useState([]);
   // The program open on the Programs page ('builtin:<id>' | 'own:<id>' | null): part of the page's place in the back
@@ -1912,7 +1928,7 @@ export default function App() {
           }}
         >
           {/* ATHLETE / COACH: the whole app's level of detail (persistent; settings.sessionMode) */}
-          <div style={{ maxWidth: '320px', margin: '0 auto 12px' }}>
+          <div ref={modeToggleRef} style={{ maxWidth: '320px', margin: '0 auto 12px' }}>
             <AttachedTabStrip
               rounded
               ariaLabel="App mode"
@@ -1921,7 +1937,7 @@ export default function App() {
                 { id: 'advanced', label: 'COACH' }
               ]}
               value={athleteMode ? 'easy' : 'advanced'}
-              onChange={setSessionMode}
+              onChange={switchAppMode}
               fontSize="11px"
             />
             <div style={{ marginTop: '6px', fontSize: '11px', fontWeight: 400, letterSpacing: 0, color: '#8A8A8A', fontFamily: 'var(--dp-typography-face)' }}>

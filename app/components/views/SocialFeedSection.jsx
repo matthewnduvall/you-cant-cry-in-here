@@ -4,9 +4,9 @@
 // and your friends: workouts and routines you posted, PRs posted automatically, challenges finished), each with
 // reactions and comments. Data and actions come from useSocialFeed (page.js). Signed in only.
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useSyncExternalStore } from 'react';
 import { UI } from '../../styles/kineticTokens';
-import { Button, CloseButton } from '../Controls';
+import { Button, CloseButton, CollapseToggle } from '../Controls';
 import { ProfileAvatar } from '../ProfileAvatar';
 import { ExercisePicker } from '../ExercisePicker';
 import { PickBadge, PickList, PickRow, friendAvatar } from '../PickList';
@@ -773,6 +773,32 @@ function PostCard({ post, me, nowMs, photoOf, onReact, onComment, onDeleteCommen
 
 // ---------------------------------------------------------------------------------------------------------------
 
+// CHALLENGES and FEED fold away (SHOW / HIDE), remembered on this device (yccih_home_collapsed_v1: { challenges, feed }).
+// Read through useSyncExternalStore so the server render (everything open) matches the first client render.
+const COLLAPSE_KEY = 'yccih_home_collapsed_v1';
+const collapseListeners = new Set();
+const readCollapsed = () => {
+  try {
+    return window.localStorage.getItem(COLLAPSE_KEY) || '{}';
+  } catch {
+    return '{}';
+  }
+};
+const subscribeCollapsed = cb => {
+  collapseListeners.add(cb);
+  return () => collapseListeners.delete(cb);
+};
+const setCollapsed = (part, value) => {
+  let next = {};
+  try {
+    next = { ...JSON.parse(readCollapsed()), [part]: value };
+    window.localStorage.setItem(COLLAPSE_KEY, JSON.stringify(next));
+  } catch {
+    // storage unavailable: nothing to remember
+  }
+  collapseListeners.forEach(cb => cb());
+};
+
 export function SocialFeedSection({
   user,
   social,
@@ -799,6 +825,7 @@ export function SocialFeedSection({
     };
   }, []);
   const wrap = { padding: '4px var(--dp-spacing-gutter) 16px', display: 'flex', flexDirection: 'column', gap: '8px' };
+  const collapsedRaw = useSyncExternalStore(subscribeCollapsed, readCollapsed, () => '{}');
 
   if (!user) {
     return (
@@ -822,6 +849,13 @@ export function SocialFeedSection({
     );
   }
 
+  const collapsed = (() => {
+    try {
+      return JSON.parse(collapsedRaw) || {};
+    } catch {
+      return {};
+    }
+  })();
   const photoOf = id => (id === user.id ? profilePhoto : (friendsList || []).find(f => f?.id === id)?.profilePhoto || null);
   const ended = c => (nowMs ? Date.parse(c.ends_at) < nowMs : false);
   const active = social.challenges.filter(c => !ended(c));
@@ -830,12 +864,19 @@ export function SocialFeedSection({
   return (
     <>
       <section aria-label="Challenges" style={wrap}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div style={{ ...heading, margin: 0 }}>CHALLENGES</div>
-          <button type="button" style={{ ...smallBtn, minHeight: '44px', backgroundColor: 'transparent', color: '#FFFFFF' }} onClick={() => setCreating(true)}>
-            + NEW
-          </button>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+          <div style={{ ...heading, margin: 0, flex: '1 1 auto' }}>
+            CHALLENGES{collapsed.challenges && active.length > 0 ? ` (${active.length})` : ''}
+          </div>
+          {!collapsed.challenges && (
+            <button type="button" style={{ ...smallBtn, minHeight: '44px', backgroundColor: 'transparent', color: '#FFFFFF' }} onClick={() => setCreating(true)}>
+              + NEW
+            </button>
+          )}
+          <CollapseToggle collapsed={Boolean(collapsed.challenges)} label="challenges" onClick={() => setCollapsed('challenges', !collapsed.challenges)} />
         </div>
+        {!collapsed.challenges && (
+        <>
         {active.length === 0 && (
           <div style={{ ...tile, ...UI.sentence }}>
             {social.loaded ? 'No challenges yet. Start one and your friends can join.' : 'Loading…'}
@@ -863,10 +904,17 @@ export function SocialFeedSection({
           finished.map(c => (
             <ChallengeCard key={c.id} challenge={c} me={user.id} nowMs={nowMs} canJoin={false} onJoin={() => {}} onLeave={() => {}} onDelete={social.deleteChallenge} />
           ))}
+        </>
+        )}
       </section>
 
       <section aria-label="Feed" style={wrap}>
-        <div style={heading}>FEED</div>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+          <div style={{ ...heading, margin: 0 }}>FEED{collapsed.feed && social.posts.length > 0 ? ` (${social.posts.length})` : ''}</div>
+          <CollapseToggle collapsed={Boolean(collapsed.feed)} label="the feed" onClick={() => setCollapsed('feed', !collapsed.feed)} />
+        </div>
+        {!collapsed.feed && (
+        <>
         {social.error && <div style={{ ...tile, ...UI.sentence }}>{social.error}</div>}
         {social.posts.length === 0 && !social.error && (
           <div style={{ ...tile, ...UI.sentence }}>
@@ -890,6 +938,8 @@ export function SocialFeedSection({
             onOpenProfile={onOpenProfile}
           />
         ))}
+        </>
+        )}
       </section>
 
       {creating && <NewChallengeModal nowMs={nowMs} friends={friendsList} onCreate={social.createChallenge} onClose={() => setCreating(false)} />}

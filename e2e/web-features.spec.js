@@ -56,6 +56,15 @@ test.describe('Navigation', () => {
     await waitForState(page, s => s.settings?.sessionMode === 'advanced');
     await page.reload();
     await expect(page.getByRole('tablist', { name: 'App mode' }).getByRole('tab', { name: 'COACH', exact: true })).toHaveAttribute('aria-selected', 'true');
+    // Switching keeps the toggle where it was on screen, even when the page above it changes height (Performance:
+    // ATHLETE drops ACCURACY and REP CURVE)
+    await openFromMenu(page, 'Performance');
+    const toggle = page.getByRole('tablist', { name: 'App mode' });
+    await toggle.scrollIntoViewIfNeeded();
+    const before = (await toggle.boundingBox()).y;
+    await setAppMode(page, 'ATHLETE');
+    await expect(toggle.getByRole('tab', { name: 'ATHLETE', exact: true })).toHaveAttribute('aria-selected', 'true');
+    expect(Math.abs((await toggle.boundingBox()).y - before)).toBeLessThan(2);
   });
 
   test('[nav.menu] the menu opens every page', async ({ page }) => {
@@ -102,11 +111,23 @@ test.describe('Session', () => {
     expect(slots[0].sets.some(s => Number(s.weight) > 0)).toBe(true);
   });
 
-  test('[session.tick-set] ticking a set marks it done and starts the rest timer', async ({ page }) => {
+  test('[session.tick-set] ticking a set marks it done, locks its fields and starts the rest timer', async ({ page }) => {
     await newSession(page);
     await addExercise(page);
     await page.getByRole('button', { name: 'Mark set complete' }).first().click();
-    await waitForState(page, s => s.activeSession?.slots?.[0]?.sets?.[0]?.completed);
+    await waitForState(page, s => {
+      const st = s.activeSession?.slots?.[0]?.sets?.[0];
+      return st?.completed && st.lockType === true && st.lockWeight === true && st.lockReps === true;
+    });
+  });
+
+  test('[session.reset] RESET clears the session, its program and its name', async ({ page }) => {
+    await newSession(page);
+    await addExercise(page);
+    await waitForState(page, s => (s.activeSession?.title || 'Session') !== 'Session');
+    await page.getByRole('button', { name: 'RESET', exact: true }).first().click();
+    await page.getByRole('button', { name: 'RESET', exact: true }).last().click();
+    await waitForState(page, s => (s.activeSession?.slots || []).length === 0 && s.activeSession?.title === 'Session' && !s.activeSession?.titleEdited);
   });
 
   test('[session.simple-effort] ATHLETE asks how many more reps after a working set', async ({ page }) => {

@@ -215,6 +215,15 @@ export function ApplyToLaterToggle({ laterSets = [], on = false, onToggle, style
 }
 
 export function TabBar({ tabs = [], value, onChange, ariaLabel = 'Tabs', style, scrollable = false }) {
+  // Page tabs are the attached strip (2026/11: one style for every tab row — Programs, Configuration, Performance,
+  // Leaderboards, Profile, Friends): equal cells divided by hairlines, the selected one white with black text
+  if (scrollable) return <ScrollingTabBar tabs={tabs} value={value} onChange={onChange} ariaLabel={ariaLabel} style={style} />;
+  return <AttachedTabStrip rounded ariaLabel={ariaLabel} tabs={tabs} value={value} onChange={onChange} fontSize="11px" letterSpacing="0.04em" style={style} />;
+}
+
+// More tabs than fit in one row: natural-width pills in a sideways-scrolling row
+function ScrollingTabBar({ tabs = [], value, onChange, ariaLabel = 'Tabs', style }) {
+  const scrollable = true;
   // scrollable: one row of natural-width pills that scrolls sideways (more boards than fit, e.g. Leaderboards); it
   // runs to the screen edges so the cut-off pill shows there is more, and the selected pill is kept in view
   const rowRef = React.useRef(null);

@@ -22,12 +22,13 @@ aren't in the smoke tests yet; they are listed under "Not yet automated" and sti
 ### Navigation
 - **nav.menu** — the menu reaches every page: Session, Programs, Performance, History, Stimulus, Friends, Leaderboards, Privacy, Configuration, Info
 - **nav.back** — the ← BACK button and the phone's back gesture follow the pages visited
-- **app.mode** — ATHLETE / COACH toggle in the footer of every page (kept; new accounts start in ATHLETE): ATHLETE simplifies the whole app, COACH shows every setting
+- **app.mode** — ATHLETE / COACH toggle in the footer of every page (kept; new accounts start in ATHLETE; it stays put on screen when switching): ATHLETE simplifies the whole app, COACH shows every setting
 - **nav.feedback** — FEEDBACK sends feedback with session logs
 
 ### Session (live workout)
 - **session.add-exercise** — + ADD EXERCISE adds a planned exercise (weights, reps, intensity worked out)
-- **session.tick-set** — ticking a set marks it done and starts the rest timer
+- **session.tick-set** — ticking a set marks it done, locks its fields and starts the rest timer
+- **session.reset** — RESET clears the session and puts its program and name back to a new session's
 - **session.simple-effort** — ATHLETE mode asks "how many more reps" after a working set and saves it as RIR
 - **session.simple-rows-superset** — ATHLETE mode's + 1 ROW, SUPERSET and UNPAIR
 - **session.advanced-scheme** — COACH mode's scheme pop-up (scheme, sets, reps)
@@ -73,7 +74,7 @@ aren't in the smoke tests yet; they are listed under "Not yet automated" and sti
 ## Not yet automated (signed in; still covered by the rule)
 
 - Friends: find athletes, requests, friend profiles (PROGRESS / HISTORY / ROUTINES / FRIENDS), INBOX
-- Feed: posts, reactions, comments; challenges (all kinds, repeating, personal, chosen friends) and their emails
+- Feed: posts, reactions, comments; CHALLENGES and FEED fold away (SHOW / HIDE, remembered on the device); challenges (all kinds, repeating, personal, chosen friends) and their emails
 - Leaderboards with friends (BIG 3 / BW, BIG 3 LB, OHP / BW, IMPROVED, CHALLENGES)
 - Live session sync with a friend, and synced History updates
 - Routines sent to friends; playlists
