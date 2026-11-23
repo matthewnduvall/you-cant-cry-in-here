@@ -59,6 +59,7 @@ aren't in the smoke tests yet; they are listed under "Not yet automated" and sti
 - **programs.built-in** — built-in programs: details, training days, next session, their routines at your weights, LOAD; ← from a program returns to the list
 - **programs.cycles** — cycles logged under a program: reviewed week by week (planned vs done, effort, against the cycle before) and SAVE AS PROGRAM (week by week as done)
 - **programs.cycle-increment** — your own programs: CYCLE INCREMENT (on by default) keeps reps and effort and steps the weights up each cycle
+- **programs.grid** — the program grid (COACH): weeks × days of routines, week 1 once with a WEEK RULE per later week (effort, reps, sets), resizing, played in order
 - **programs.choose** — USE THIS PROGRAM chooses the program you follow (moved from Configuration); COPY TO MY PROGRAMS makes one of your own, chosen as CUSTOM, whose next routine AUTO SESSION loads
 
 ### Settings and data

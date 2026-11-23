@@ -314,6 +314,17 @@ export function normalizeRoutinePlaylists(value) {
       ...(p.cycleIncrement === false ? { cycleIncrement: false } : {}),
       ...(Number.isFinite(Number(p.cycleStartMs)) && p.cycleStartMs ? { cycleStartMs: Number(p.cycleStartMs) } : {}),
       ...(Number.isFinite(Number(p.cycle)) && p.cycle ? { cycle: Number(p.cycle) } : {}),
-      ...(Number.isInteger(p.lastIndex) ? { lastIndex: p.lastIndex } : {})
+      ...(Number.isInteger(p.lastIndex) ? { lastIndex: p.lastIndex } : {}),
+      // A program grid (weeks × days of routines, week rules): utils/programGrid.js
+      ...(p.grid && typeof p.grid === 'object' && Array.isArray(p.grid.days) && Number(p.grid.weeks) > 0
+        ? {
+            grid: {
+              weeks: Math.min(12, Math.max(1, Math.round(Number(p.grid.weeks)))),
+              days: p.grid.days.filter(d => d && typeof d.id === 'string').map(d => ({ id: d.id, name: typeof d.name === 'string' ? d.name : `Day ${d.id}` })),
+              cells: p.grid.cells && typeof p.grid.cells === 'object' ? Object.fromEntries(Object.entries(p.grid.cells).filter(([, v]) => typeof v === 'string')) : {},
+              weekRules: p.grid.weekRules && typeof p.grid.weekRules === 'object' ? p.grid.weekRules : {}
+            }
+          }
+        : {})
     }));
 }

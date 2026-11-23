@@ -517,6 +517,51 @@ test.describe('Programs', () => {
     await waitForState(page, s => topWeight(s) > 0 && topWeight(s) < withIncrement);
   });
 
+  test('[programs.grid] the program grid: week 1 once, a week rule for week 2, played in order', async ({ page }) => {
+    await page.addInitScript(() => {
+      if (window.localStorage.getItem('yccih_e2e_grid')) return;
+      window.localStorage.setItem('yccih_e2e_grid', '1');
+      const sets = [0, 1, 2].map(i => ({ id: `g_${i}`, type: 'Working', weight: 0, reps: 8, intensity: { mode: 'rir', value: 3 } }));
+      window.localStorage.setItem(
+        'yccih_app_state_v3',
+        JSON.stringify({
+          schemaVersion: 3,
+          savedRoutines: [{ key: 'r_push', label: 'Push', savedAt: '2026-11-01T00:00:00.000Z', slots: [{ id: 'gs', category: 'Compound', exerciseId: 'barbell_bench_press', scheme: '5x8', sets }] }],
+          settings: { sessionMode: 'advanced' }
+        })
+      );
+    });
+    await openHome(page);
+    await openFromMenu(page, 'Programs');
+    await page.getByRole('button', { name: '+ NEW PROGRAM' }).click();
+    await expect(page.getByRole('grid', { name: /Program grid/ })).toBeVisible();
+    // One day a week
+    await page.getByRole('button', { name: 'Fewer days' }).click();
+    await page.getByRole('button', { name: 'Fewer days' }).click();
+    // Week 1, day A: Push
+    await page.getByRole('gridcell', { name: /^Week 1, Day A/ }).click();
+    await page.getByRole('option', { name: 'Push' }).click();
+    // Week 2: one RIR harder
+    await page.getByRole('rowheader', { name: /^Week 2 rule/ }).click();
+    await page.getByRole('group', { name: 'Effort change' }).getByRole('button', { name: '−1' }).click();
+    await page.getByRole('button', { name: 'APPLY' }).click();
+    await waitForState(page, s => {
+      const p = (s.settings?.routinePlaylists || [])[0];
+      return p?.grid?.cells?.['1:A'] === 'r_push' && p.grid.weekRules?.['2']?.rir === -1 && p.grid.days.length === 1;
+    });
+    // START NEXT plays week 1, then week 2 with its rule
+    await page.getByRole('button', { name: /^START NEXT/ }).click();
+    await waitForState(page, s => s.activeSession?.title?.includes('Push'));
+    await openFromMenu(page, 'Programs');
+    await page.getByRole('button', { name: /^Open program Program/ }).click();
+    await page.getByRole('button', { name: /^START NEXT/ }).click();
+    await page.getByRole('button', { name: 'LOAD', exact: true }).click();
+    await waitForState(page, s => {
+      const working = (s.activeSession?.slots?.[0]?.sets || []).filter(st => st.type !== 'Warmup');
+      return s.activeSession?.title?.includes('Week 2') && working.length > 0 && working.every(st => st.intensity?.mode === 'rir' && st.intensity.value <= 2);
+    });
+  });
+
   test('[programs.choose] USE THIS PROGRAM chooses a program; COPY makes one of your own, chosen as CUSTOM', async ({ page }) => {
     await openHome(page);
     // (a COACH feature: new accounts start in ATHLETE)
