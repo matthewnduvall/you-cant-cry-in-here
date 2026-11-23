@@ -1,7 +1,8 @@
 'use client';
 
 import { FormulaConsole } from './components/FormulaConsole';
-import { getProgram, getWorkoutProgramInfo } from './data/programs';
+import { getProgram, getWorkoutProgramInfo, PROGRAMS, isCustomProgramId, customProgramId } from './data/programs';
+import { resolvePlaylist } from './components/RoutinePlaylists';
 import React, { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback } from 'react';
 import { IOS_DARK, KINETIC_CSS } from './styles/kineticTokens';
 import { getIncrementInLbs, getInitial1RMs, asHistoricalWorkout, withAutoSessionName, setEngineFatigue, setEngineFatigueByExercise, learnFatigueRates, setEngineProgression, learnProgressionRates, setEngineBodyweight, setEngineRestExponent, DEFAULT_REST_EXPONENT, setEngineEstimator } from './utils/workoutEngine';
@@ -45,7 +46,7 @@ import { useSyncedHistoryUpdates } from './hooks/useSyncedHistoryUpdates';
 import { useRoutineShares } from './hooks/useRoutineShares';
 import { useSocialFeed, workoutExerciseNames } from './hooks/useSocialFeed';
 import { SocialFeedSection } from './components/views/SocialFeedSection';
-import { SocialSettingsSection, SharingDefaultsSection, VoiceInputPrivacySection } from './components/views/SettingsView';
+import { SocialSettingsSection, SharingDefaultsSection, VoiceInputPrivacySection, RoutinePreferencesSection } from './components/views/SettingsView';
 import { normalizeShareDefaults } from './utils/storageMigration';
 import { CORE_LIFT_IDS, getClassGoalSummary } from './components/LiftGoals';
 import { withTrace, traceLine, logOperation } from './utils/calcTrace';
@@ -619,6 +620,9 @@ export default function App() {
     handleConfirmHistoricalEdit,
     handleOpenNewSession,
     handleOpenNewAutoSession,
+    buildProgramDaySlots,
+    handleStartProgramDay,
+    copyProgramToRoutines,
     handleDirectLoadRoutine,
     handleOpenPreviewRoutine,
     handleCancelRoutineSelection,
@@ -1116,8 +1120,58 @@ export default function App() {
     });
     setCurrentView('routine_editor');
   };
-  // Opened from Home / the menu (no session waiting on a pick): the full Routines page
+  // Opened from Home / the menu (no session waiting on a pick): the full Programs page
   const routinesAsPage = !routineSelectReturnView;
+
+  // ── Your own programs (Programs page; settings.routinePlaylists), chosen as 'custom:<id>' ────────────────────
+  const activeCustomProgram = isCustomProgramId(trainingProgram)
+    ? (routinePlaylists || []).find(p => customProgramId(p.id) === trainingProgram) || null
+    : null;
+  // Loads one of your programs' UP NEXT routine and moves UP NEXT on (false when it has no routines)
+  const loadNextFromProgram = program => {
+    const { items, nextIndex } = resolvePlaylist(program, savedRoutines);
+    if (!program || items.length === 0) return false;
+    const routine = items[nextIndex];
+    const run = () => {
+      handleDirectLoadRoutine(routine, 'session');
+      setRoutinePlaylists(prev =>
+        (prev || []).map(p =>
+          p.id === program.id ? { ...p, nextKey: items[(nextIndex + 1) % items.length]?.key || null, updatedAt: new Date().toISOString() } : p
+        )
+      );
+    };
+    confirmReplaceSession(stripDateFromTitle(routine.label) || 'this routine', run);
+    return true;
+  };
+  // AUTO SESSION: following one of your programs, its routine up next; otherwise the program's own session
+  const startAutoSession = () => {
+    if (activeCustomProgram && loadNextFromProgram(activeCustomProgram)) return;
+    handleOpenNewAutoSession();
+  };
+  // The Programs page's PROGRAMS tab (RoutinePlaylists): built-in programs and choosing one
+  const programLibraryProps = {
+    builtInPrograms: PROGRAMS,
+    activeProgramId: trainingProgram,
+    onUseProgram: selectTrainingProgram,
+    programDetailProps: {
+      programCycleStart,
+      history,
+      programSchedules,
+      setProgramSchedule: (programId, days) => setProgramSchedules(prev => ({ ...(prev || {}), [programId]: days })),
+      onRestartCycle: () => setProgramCycleStart(new Date().toISOString()),
+      cryingVariety,
+      setCryingVariety
+    },
+    buildProgramDay: buildProgramDaySlots,
+    onStartProgramDay: (programId, dayId) => {
+      const program = getProgram(programId);
+      const day = (program.days || []).find(d => d.id === dayId);
+      confirmReplaceSession(`${program.label}${day ? `: ${day.name}` : ''}`, () => handleStartProgramDay(programId, dayId));
+    },
+    onCopyProgram: copyProgramToRoutines,
+    cryingSettings: <RoutinePreferencesSection colors={colors} routinePreferences={routinePreferences} setRoutinePreferences={setRoutinePreferences} />,
+    onAutoSession: () => confirmReplaceSession('a Crying session', () => handleOpenNewAutoSession())
+  };
 
   const renderProgressPage = ({
     readOnly = false,
@@ -1306,6 +1360,12 @@ export default function App() {
           updateCurrentWorkoutState={updateCurrentWorkoutState}
           onChangeProgramWeek={handleChangeProgramWeek}
           onChangeSessionProgram={handleChangeSessionProgram}
+          // The PROGRAM list also offers your own programs (CUSTOM · name): picking one loads its routine up next
+          customProgramOptions={(routinePlaylists || []).map(p => ({ id: customProgramId(p.id), label: `CUSTOM · ${p.name || 'Program'}` }))}
+          onChooseCustomProgram={id => {
+            const program = (routinePlaylists || []).find(p => customProgramId(p.id) === id);
+            if (program) loadNextFromProgram(program);
+          }}
           onChangeProgramDay={handleChangeProgramDay}
           history={history}
           user={user}
@@ -1329,7 +1389,7 @@ export default function App() {
               history={history}
               hasActiveSession={Boolean(activeSession?.slots?.length > 0)}
               handleOpenNewSession={handleOpenNewSession}
-              handleOpenNewAutoSession={handleOpenNewAutoSession}
+              handleOpenNewAutoSession={startAutoSession}
               setCurrentView={setCurrentView}
               setRoutineSelectReturnView={setRoutineSelectReturnView}
               friendsList={friendsList}
@@ -1499,7 +1559,9 @@ export default function App() {
               handleCancelRoutineSelection={handleCancelRoutineSelection}
               showCancel={!routinesAsPage}
               // Routines friends send you arrive in the Social page's INBOX (SAVE moves them to SAVED here)
-              sections={['saved', 'playlists', 'shared']}
+              sections={['playlists', 'saved', 'shared']}
+              defaultTab={routinesAsPage ? 'playlists' : null}
+              programLibraryProps={programLibraryProps}
               playlists={routinePlaylists}
               setPlaylists={setRoutinePlaylists}
               onNewRoutine={routinesAsPage ? handleNewRoutine : undefined}

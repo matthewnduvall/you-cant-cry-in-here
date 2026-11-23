@@ -61,9 +61,19 @@ export function Button({ variant = 'primary', active = false, style, className =
  * others graphite with grey text. Render it as the tile's first child so the tile's rounded corners clip it.
  * tabs = [{ id, label }]
  */
-export function AttachedTabStrip({ tabs = [], value, onChange, ariaLabel, fontSize = '12px', letterSpacing = '0.06em' }) {
+export function AttachedTabStrip({ tabs = [], value, onChange, ariaLabel, fontSize = '12px', letterSpacing = '0.06em', rounded = false, style }) {
   return (
-    <div role="tablist" aria-label={ariaLabel} style={{ display: 'grid', gridTemplateColumns: `repeat(${tabs.length || 1}, minmax(0, 1fr))` }}>
+    <div
+      role="tablist"
+      aria-label={ariaLabel}
+      style={{
+        display: 'grid',
+        gridTemplateColumns: `repeat(${tabs.length || 1}, minmax(0, 1fr))`,
+        // rounded: a page's own tabs (Programs, Configuration) — the same strip as a rounded tile of its own
+        ...(rounded ? { borderRadius: '14px', overflow: 'hidden' } : {}),
+        ...style
+      }}
+    >
       {tabs.map((tab, i) => {
         const active = tab.id === value;
         return (
@@ -78,7 +88,7 @@ export function AttachedTabStrip({ tabs = [], value, onChange, ariaLabel, fontSi
               minHeight: '44px',
               padding: '4px 1px',
               border: 'none',
-              borderBottom: '1px solid var(--dp-color-rule)',
+              borderBottom: rounded ? 'none' : '1px solid var(--dp-color-rule)',
               borderRight: i < tabs.length - 1 ? '1px solid var(--dp-color-rule)' : 'none',
               backgroundColor: active ? '#FFFFFF' : '#1C1C1C',
               color: active ? '#000000' : '#9A9A9A',
