@@ -31,6 +31,7 @@ aren't in the smoke tests yet; they are listed under "Not yet automated" and sti
 - **session.simple-rows-superset** — SIMPLE mode's + 1 ROW, SUPERSET and UNPAIR
 - **session.advanced-scheme** — ADVANCED mode's scheme pop-up (scheme, sets, reps)
 - **session.reset-exercise** — RESET puts an exercise back as it was loaded
+- **session.delete-exercise** — the ✕ at an exercise card's top right deletes it (after asking)
 - **session.search** — the exercise search finds and picks an exercise
 - **session.sentence-search** — typed or spoken sentences set up exercise, sets, reps and rest
 - **session.sentence-superset** — a superset sentence pairs two exercises
@@ -41,6 +42,7 @@ aren't in the smoke tests yet; they are listed under "Not yet automated" and sti
 - **session.spoken-enter** — a complete spoken request enters itself after 2 s with no new words (typed ones wait for a tap)
 - **session.typo-search** — the search forgives typos
 - **session.microphone** — the microphone in the search box and beside the exercise name (where the browser has speech recognition), lit white while listening
+- **session.mic-no-keyboard** — the mic shortcut listens without opening the keyboard; tapping outside closes the search
 - **session.console** — the CONSOLE explains the maths, and goes full screen
 - **session.finish** — FINISH logs the done sets to History
 
