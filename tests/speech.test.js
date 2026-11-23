@@ -26,6 +26,7 @@ class FakeRecognition {
     setTimeout(() => this.live && this.onstart?.(), 5);
   }
   abort() {
+    this.aborts = (this.aborts || 0) + 1;
     if (stuck) return;
     setTimeout(() => this.end(), 50);
   }
@@ -174,6 +175,14 @@ describe('speech controller', () => {
     expect(instances).toHaveLength(2);
     rec().say('rows');
     expect(heard).toEqual(['rows']);
+  });
+
+  it('listens continuously and ends sessions itself with abort() (an iPhone session left to end keeps the mic)', () => {
+    const s = speech.startSpeech({});
+    vi.advanceTimersByTime(10);
+    expect(rec().continuous).toBe(true);
+    s.stop();
+    expect(rec().aborts).toBe(1);
   });
 
   it('keeps a log of what the recogniser did, for FEEDBACK', () => {

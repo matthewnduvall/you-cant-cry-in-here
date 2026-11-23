@@ -9,6 +9,8 @@
 //     HANDOVER_MS, replacing it if even that doesn't end it) and RESTART_GAP_MS more, then starts;
 //   - a watchdog restarts a session once if the mic is on but no words arrive (WATCHDOG_MS after start, or
 //     SOUND_WATCHDOG_MS after sound is detected);
+//   - it listens continuously and the app ends each session itself with abort(): one left to end on its own after a
+//     pause kept holding the mic on an iPhone (the indicator stayed on) and the next heard nothing;
 //   - every event is kept in a short log (getSpeechLog) that FEEDBACK sends with its diagnostics.
 // Nothing is recorded or kept: results are handed to the caller as text.
 
@@ -103,7 +105,9 @@ const freshRecogniser = () => {
   rec = new Api();
   rec.lang = 'en-US';
   rec.interimResults = true;
-  rec.continuous = false;
+  // Continuous: the app ends every session itself (abort). An iPhone recogniser that ends on its own after a pause
+  // keeps the mic (the system indicator stays on) and the next one hears nothing (FEEDBACK logs, 2026/11/23)
+  rec.continuous = true;
   rec.maxAlternatives = 1;
   rec.onstart = () => {
     engine = 'listening';
@@ -127,7 +131,7 @@ const freshRecogniser = () => {
   rec.onnomatch = () => note('nomatch');
   rec.onerror = e => note('error', e?.error || e?.message || '');
   rec.onend = () => {
-    note('end');
+    note('end', owner && !owner.stopped ? 'by itself' : '');
     clearWatchdog();
     const finished = owner;
     owner = null;
@@ -193,8 +197,8 @@ export function startSpeech({ onText, onEnd } = {}) {
       clearWatchdog();
       engine = 'ending';
       try {
-        // stop() lets the recogniser finish cleanly (abort() can leave an iPhone's mic half-held)
-        rec.stop();
+        // abort() releases the mic at once (a recogniser left to finish on its own can keep holding it)
+        rec.abort();
       } catch {
         // already ended
       }
