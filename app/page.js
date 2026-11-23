@@ -808,7 +808,8 @@ export default function App() {
   // gesture does the same as the header ←. Going Home clears the stack.
   // An open program is shown only on the Programs page: leaving the page closes it (adjusted during render, so the
   // page never opens on a program from an earlier visit)
-  if (currentView !== 'routines' && programOpen !== null) setProgramOpen(null);
+  // (editing a routine from a program's grid keeps the program open to come back to)
+  if (currentView !== 'routines' && currentView !== 'routine_editor' && programOpen !== null) setProgramOpen(null);
   const placeOf = () => ({
     view: currentView,
     progressTab: progressTabChoice,
@@ -1142,12 +1143,14 @@ export default function App() {
     });
   };
   // + NEW ROUTINE: an empty routine in the session editor (SAVE stores it and comes back here)
-  const handleNewRoutine = () => {
+  // (key / title: a routine made for a program grid's cell, already assigned to that cell)
+  const handleNewRoutine = ({ key = null, title = 'Routine' } = {}) => {
+    const newKey = key || `routine_${Date.now()}`;
     setRoutineSelectReturnView(null);
     setRoutineDraft({
-      id: `routine_${Date.now()}`,
-      key: `routine_${Date.now()}`,
-      title: 'Routine',
+      id: newKey,
+      key: newKey,
+      title,
       loadedRoutineTitle: 'MANUAL',
       isEditingExisting: false,
       defaultRestSeconds: 90,
@@ -1229,6 +1232,21 @@ export default function App() {
       confirmReplaceSession(`${program.label}${day ? `: ${day.name}` : ''}`, () => handleStartProgramDay(programId, dayId));
     },
     onCopyProgram: copyProgramToRoutines,
+    // The program grid: + NEW ROUTINE FOR THIS CELL puts the new routine's key in the cell first, then opens it in the
+    // routine editor (SAVE stores it and comes back to the program; discarded, the cell shows empty)
+    onNewRoutineForCell: (programId, week, dayId) => {
+      const key = `routine_${Date.now()}`;
+      const program = (routinePlaylists || []).find(p => p.id === programId);
+      setRoutinePlaylists(prev =>
+        (prev || []).map(p =>
+          p.id === programId && p.grid
+            ? { ...p, grid: { ...p.grid, cells: { ...(p.grid.cells || {}), [`${week}:${dayId}`]: key } }, updatedAt: new Date().toISOString() }
+            : p
+        )
+      );
+      handleNewRoutine({ key, title: `${program?.name || 'Program'} · Week ${week} · Day ${dayId}` });
+    },
+    onEditRoutine: handleEditRoutine,
     // The cycles you logged under each program: reviewed week by week, and SAVE AS PROGRAM
     loggedCycles,
     onSaveCycle: cycleToRoutines,
@@ -1626,7 +1644,7 @@ export default function App() {
               programLibraryProps={{ ...programLibraryProps, openRef: programOpen, onOpenRef: setProgramOpen, athleteMode }}
               playlists={routinePlaylists}
               setPlaylists={setRoutinePlaylists}
-              onNewRoutine={routinesAsPage ? handleNewRoutine : undefined}
+              onNewRoutine={routinesAsPage ? () => handleNewRoutine() : undefined}
               onEditRoutine={routinesAsPage ? handleEditRoutine : undefined}
               received={routineShares.incoming}
               sent={routineShares.sent}

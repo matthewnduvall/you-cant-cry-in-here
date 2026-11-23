@@ -24,6 +24,8 @@ import { usePointerReorder } from '../hooks/usePointerReorder';
 import { EXERCISE_MAP, stripDateFromTitle, stripEquipmentFromExerciseName } from '../data/exerciseLibrary';
 import { getWorkoutExerciseIds } from './HistoryExerciseFilter';
 import { ProgramDetails } from './ProgramDetails';
+import { ProgramGrid } from './ProgramGrid';
+import { gridItems, newGrid } from '../utils/programGrid';
 import { customProgramId, hasProgramDays } from '../data/programs';
 import { reviewCycle, previousCycle, programCycleLoad } from '../utils/programCycles';
 
@@ -42,6 +44,12 @@ const exerciseNamesOf = r =>
 /** A program's routines that still exist, in order, and the index of the one up next (its own routines — a saved
  * cycle's — first, then your saved routines). */
 export function resolvePlaylist(playlist, savedRoutines = []) {
+  // A grid program (weeks × days): its cells in play order, later weeks from week 1 + their rule (utils/programGrid.js)
+  if (playlist?.grid) {
+    const items = gridItems(playlist.grid, savedRoutines);
+    const found = items.findIndex(r => r.key === playlist.nextKey);
+    return { items, nextIndex: items.length === 0 ? -1 : found >= 0 ? found : 0 };
+  }
   const byKey = new Map([...(savedRoutines || []), ...(playlist?.routines || [])].map(r => [r.key, r]));
   const items = (playlist?.routineKeys || []).map(k => byKey.get(k)).filter(Boolean);
   const found = items.findIndex(r => r.key === playlist?.nextKey);
@@ -166,7 +174,10 @@ export function RoutinePlaylists({
   openRef: controlledRef,
   onOpenRef,
   // ATHLETE mode: no variables, cycle reviews, COPY, cycle setting or routine preferences (just choosing and loading)
-  athleteMode = false
+  athleteMode = false,
+  // The program grid: a new routine for a cell (onNewRoutineForCell(programId, week, dayId)) and editing one
+  onNewRoutineForCell,
+  onEditRoutine
 }) {
   // The logged cycle opened on a built-in program's page (its review)
   const [openCycleId, setOpenCycleId] = useState(null);
@@ -281,10 +292,18 @@ export function RoutinePlaylists({
     );
 
   const createPlaylist = () => {
-    const p = { id: newId(), name: `Program ${(playlists || []).length + 1}`, routineKeys: [], nextKey: null, updatedAt: new Date().toISOString() };
+    // COACH: a program grid (4 weeks × 3 days) to build week by week; ATHLETE: a simple list of routines
+    const p = {
+      id: newId(),
+      name: `Program ${(playlists || []).length + 1}`,
+      routineKeys: [],
+      nextKey: null,
+      ...(athleteMode ? {} : { grid: newGrid(4, 3) }),
+      updatedAt: new Date().toISOString()
+    };
     setPlaylists?.(prev => [...(prev || []), p]);
     setOpenId(p.id);
-    setAdding(true);
+    setAdding(!p.grid);
   };
 
   // Loading a routine from a playlist: the one after it is up next (the first again after the last)
@@ -536,6 +555,8 @@ export function RoutinePlaylists({
   const { items, nextIndex } = resolvePlaylist(open, savedRoutines);
   const inPlaylist = new Set(items.map(r => r.key));
   const addable = (savedRoutines || []).filter(r => !inPlaylist.has(r.key));
+  // A grid program's routines come from its grid: as a list (ATHLETE) they can't be reordered, removed or added to
+  const listLocked = readOnly || Boolean(open.grid);
 
   return (
     <div>
@@ -598,10 +619,24 @@ export function RoutinePlaylists({
         )}
       </div>
 
+      {open.grid && !athleteMode && (
+        <ProgramGrid
+          grid={open.grid}
+          savedRoutines={savedRoutines}
+          upNextKey={items[nextIndex]?.key || null}
+          onChange={grid => update(open.id, { grid })}
+          onNewRoutineForCell={(week, dayId) => onNewRoutineForCell?.(open.id, week, dayId)}
+          onEditRoutine={onEditRoutine}
+        />
+      )}
+      {!(open.grid && !athleteMode) && (
+      <>
       <IOSListSection header={`ROUTINES (${items.length})`} colors={colors}>
         {items.length === 0 ? (
           <IOSListRow isLast colors={colors}>
-            <span style={UI.rowSub}>No routines in this program yet. Add your saved routines below.</span>
+            <span style={UI.rowSub}>
+              {open.grid ? 'No routines in this program yet.' : 'No routines in this program yet. Add your saved routines below.'}
+            </span>
           </IOSListRow>
         ) : (
           items.map((r, i) => {
@@ -618,7 +653,7 @@ export function RoutinePlaylists({
                 data-playlist-index={i}
                 style={{
                   display: 'grid',
-                  gridTemplateColumns: `34px minmax(0, 1fr)${isNext ? '' : ' 56px'} 60px${readOnly ? '' : ' 44px'}`,
+                  gridTemplateColumns: `34px minmax(0, 1fr)${isNext ? '' : ' 56px'} 60px${listLocked ? '' : ' 44px'}`,
                   alignItems: 'stretch',
                   backgroundColor: isNext ? '#262626' : '#1C1C1C',
                   ...rowDragStyle(i)
@@ -630,7 +665,7 @@ export function RoutinePlaylists({
                   minHeight="56px"
                   title="Hold, then drag to reorder"
                   aria-label={`Drag to reorder ${nameOf(r)}`}
-                  {...handleProps(i, { disabled: readOnly })}
+                  {...handleProps(i, { disabled: listLocked })}
                 />
                 <div style={{ padding: '8px 12px', minWidth: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center', ...SHARED_CELL_BORDER }}>
                   {/* The name wraps (two lines at most) so similar names, e.g. Society's days, stay tellable apart */}
@@ -669,7 +704,7 @@ export function RoutinePlaylists({
                 >
                   LOAD
                 </button>
-                {!readOnly && (
+                {!listLocked && (
                   <DeleteButton
                     label={`Take ${nameOf(r)} out of the program`}
                     variant="outline"
@@ -692,20 +727,20 @@ export function RoutinePlaylists({
           })
         )}
       </IOSListSection>
-      {items.length > 1 && (
+      {items.length > 1 && !listLocked && (
         <div style={{ ...UI.sentence, padding: '0 calc(var(--dp-spacing-gutter) + 4px)', margin: '-4px 0 12px' }}>
           Hold a number, then drag to reorder. Loading a routine moves UP NEXT to the one after it.
         </div>
       )}
 
-      {!readOnly && (
+      {!listLocked && (
         <div style={{ padding: '0 var(--dp-spacing-gutter)', marginBottom: '12px' }}>
           <Button variant="dashed" onClick={() => setAdding(a => !a)} style={{ width: '100%', minHeight: '48px' }}>
             {adding ? 'HIDE SAVED ROUTINES ▴' : '+ ADD ROUTINES'}
           </Button>
         </div>
       )}
-      {!readOnly && adding && (
+      {!listLocked && adding && (
         <IOSListSection header={`ADD FROM SAVED (${addable.length})`} colors={colors}>
           {addable.length === 0 ? (
             <IOSListRow isLast colors={colors}>
@@ -744,6 +779,8 @@ export function RoutinePlaylists({
             ))
           )}
         </IOSListSection>
+      )}
+      </>
       )}
 
       {!readOnly && (
