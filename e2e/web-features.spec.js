@@ -2,7 +2,7 @@
 // (tests/webFeatures.test.js checks every listed feature has one). They check each feature is there and does its basic
 // job, not every detail — the unit tests cover the maths.
 import { test, expect, devices } from '@playwright/test';
-import { appState, waitForState, openHome, openFromMenu, newSession, addExercise, sessionSlots, searchInCard, seedHistory, results } from './helpers';
+import { appState, waitForState, openHome, openFromMenu, setAppMode, newSession, addExercise, sessionSlots, searchInCard, seedHistory, results } from './helpers';
 
 test.describe('Home', () => {
   test('[home.session-buttons] NEW SESSION and AUTO SESSION', async ({ page }) => {
@@ -42,6 +42,22 @@ test.describe('Home', () => {
 });
 
 test.describe('Navigation', () => {
+  test('[app.mode] ATHLETE / COACH in the footer of every page, kept, and applied app-wide', async ({ page }) => {
+    await openHome(page);
+    // New accounts start in ATHLETE
+    await expect(page.getByRole('tablist', { name: 'App mode' }).getByRole('tab', { name: 'ATHLETE', exact: true })).toHaveAttribute('aria-selected', 'true');
+    await setAppMode(page, 'ATHLETE');
+    await waitForState(page, s => s.settings?.sessionMode === 'easy');
+    // Configuration in ATHLETE mode: no TRAINING tab
+    await openFromMenu(page, 'Configuration');
+    await expect(page.getByRole('tab', { name: 'TRAINING', exact: true })).toHaveCount(0);
+    await setAppMode(page, 'COACH');
+    await expect(page.getByRole('tab', { name: 'TRAINING', exact: true })).toBeVisible();
+    await waitForState(page, s => s.settings?.sessionMode === 'advanced');
+    await page.reload();
+    await expect(page.getByRole('tablist', { name: 'App mode' }).getByRole('tab', { name: 'COACH', exact: true })).toHaveAttribute('aria-selected', 'true');
+  });
+
   test('[nav.menu] the menu opens every page', async ({ page }) => {
     await openHome(page);
     const pages = [
@@ -93,8 +109,8 @@ test.describe('Session', () => {
     await waitForState(page, s => s.activeSession?.slots?.[0]?.sets?.[0]?.completed);
   });
 
-  test('[session.simple-effort] SIMPLE asks how many more reps after a working set', async ({ page }) => {
-    await newSession(page, 'SIMPLE');
+  test('[session.simple-effort] ATHLETE asks how many more reps after a working set', async ({ page }) => {
+    await newSession(page, 'ATHLETE');
     await addExercise(page);
     const sets = (await sessionSlots(page))[0].sets;
     const working = sets.findIndex(s => s.type !== 'Warmup');
@@ -105,8 +121,8 @@ test.describe('Session', () => {
     await waitForState(page, s => s.activeSession?.slots?.[0]?.sets?.[working]?.intensity?.value === 2);
   });
 
-  test('[session.simple-rows-superset] SIMPLE: + 1 ROW and SUPERSET / UNPAIR', async ({ page }) => {
-    await newSession(page, 'SIMPLE');
+  test('[session.simple-rows-superset] ATHLETE: + 1 ROW and SUPERSET / UNPAIR', async ({ page }) => {
+    await newSession(page, 'ATHLETE');
     await addExercise(page);
     const before = (await sessionSlots(page))[0].sets.length;
     await page.getByRole('button', { name: '+ 1 ROW' }).click();
@@ -117,7 +133,7 @@ test.describe('Session', () => {
     await waitForState(page, s => s.activeSession?.slots?.[0]?.category !== 'Superset');
   });
 
-  test('[session.advanced-scheme] ADVANCED: the scheme pop-up changes sets and reps', async ({ page }) => {
+  test('[session.advanced-scheme] COACH: the scheme pop-up changes sets and reps', async ({ page }) => {
     await newSession(page);
     await addExercise(page);
     await page.getByRole('button', { name: /^Scheme:/ }).first().click();
@@ -125,7 +141,7 @@ test.describe('Session', () => {
     await expect(page.getByRole('button', { name: /^APPLY/ })).toBeVisible();
   });
 
-  test('[session.reset-exercise] ADVANCED: RESET puts an exercise back as it was loaded', async ({ page }) => {
+  test('[session.reset-exercise] COACH: RESET puts an exercise back as it was loaded', async ({ page }) => {
     await newSession(page);
     await addExercise(page);
     await expect(page.getByRole('button', { name: 'RESET', exact: true }).last()).toBeVisible();
@@ -359,6 +375,8 @@ test.describe('History and progress', () => {
   test('[performance.chart-and-accuracy] Performance shows the chart, ACCURACY and REP CURVE', async ({ page }) => {
     await seedHistory(page);
     await openHome(page);
+    // (a COACH feature: new accounts start in ATHLETE)
+    await setAppMode(page, 'COACH');
     await openFromMenu(page, 'Performance');
     await expect(page.getByText('ACCURACY', { exact: true })).toBeVisible();
     await expect(page.getByText('REP CURVE', { exact: true })).toBeVisible();
@@ -367,6 +385,8 @@ test.describe('History and progress', () => {
 
   test('[stimulus.map] Stimulus shows the body map, thresholds and suggestions', async ({ page }) => {
     await openHome(page);
+    // (a COACH feature: new accounts start in ATHLETE)
+    await setAppMode(page, 'COACH');
     await openFromMenu(page, 'Stimulus');
     await expect(page.getByText('STIMULUS THRESHOLDS')).toBeVisible();
     await expect(page.locator('svg').first()).toBeVisible();
@@ -387,6 +407,10 @@ test.describe('Programs', () => {
     await openFromMenu(page, 'Programs');
     await page.getByRole('button', { name: 'Open program Linear 5x5 Foundation' }).click();
     await expect(page.getByText('TRAINING DAYS')).toBeVisible();
+    // ← from a program returns to the list of programs (not Home)
+    await page.getByRole('button', { name: 'Back to the previous page' }).click();
+    await expect(page.getByText('BUILT-IN', { exact: true })).toBeVisible();
+    await page.getByRole('button', { name: 'Open program Linear 5x5 Foundation' }).click();
     await expect(page.getByText(/^ROUTINES \(2\)$/)).toBeVisible();
     await page.getByRole('button', { name: /^Load Linear 5x5 Foundation/ }).first().click();
     await waitForState(page, s => (s.activeSession?.slots || []).length > 0 && s.activeSession.program === 'linear_5x5');
@@ -420,6 +444,8 @@ test.describe('Programs', () => {
       );
     });
     await openHome(page);
+    // (a COACH feature: new accounts start in ATHLETE)
+    await setAppMode(page, 'COACH');
     await openFromMenu(page, 'Programs');
     await page.getByRole('button', { name: 'Open program Society' }).click();
     await expect(page.getByText('YOUR LOGGED CYCLES (1)')).toBeVisible();
@@ -433,8 +459,47 @@ test.describe('Programs', () => {
     });
   });
 
+  test('[programs.cycle-increment] your own programs step the weights up each cycle (on by default)', async ({ page }) => {
+    await page.addInitScript(() => {
+      if (window.localStorage.getItem('yccih_e2e_inc')) return;
+      window.localStorage.setItem('yccih_e2e_inc', '1');
+      // (heavy enough that the increment — scaled to the lift — is more than one 5 lb plate step)
+      const sets = [0, 1, 2].map(i => ({ id: `i_${i}`, type: 'Working', weight: 245, reps: 6, completed: true, lockIntensity: true, intensity: { mode: 'rir', value: 3 } }));
+      const routine = { key: 'r_inc', label: 'Bench day', savedAt: '2026-10-01T00:00:00.000Z', slots: [{ id: 'rs', category: 'Compound', exerciseId: 'barbell_bench_press', scheme: '5x5', sets: sets.map(st => ({ ...st, weight: 0, completed: false })) }] };
+      window.localStorage.setItem(
+        'yccih_app_state_v3',
+        JSON.stringify({
+          schemaVersion: 3,
+          history: [{ id: 'h_inc', title: 'Bench', startedAt: new Date(2026, 9, 1, 18).toISOString(), slots: [{ id: 'hs', category: 'Compound', exerciseId: 'barbell_bench_press', scheme: '5x5', sets }] }],
+          savedRoutines: [routine],
+          settings: { routinePlaylists: [{ id: 'pl_inc', name: 'Bench program', routineKeys: ['r_inc'], nextKey: 'r_inc' }] }
+        })
+      );
+    });
+    // The exercise's total over its sets (the increment, scaled to the lift, can be under one 5 lb plate step on a set)
+    const topWeight = s => (s.activeSession?.slots?.[0]?.sets || []).reduce((sum, st) => sum + (Number(st.weight) || 0), 0);
+    await openHome(page);
+    // (a COACH feature: new accounts start in ATHLETE)
+    await setAppMode(page, 'COACH');
+    await openFromMenu(page, 'Programs');
+    await page.getByRole('button', { name: 'Open program Bench program' }).click();
+    await expect(page.getByRole('button', { name: 'Cycle increment: on' })).toBeVisible();
+    await page.getByRole('button', { name: /^START NEXT/ }).click();
+    await waitForState(page, s => topWeight(s) > 0);
+    const withIncrement = topWeight(await appState(page));
+    // The same routine with the increment off: your 1RM as it stands, a step lighter
+    await openFromMenu(page, 'Programs');
+    await page.getByRole('button', { name: 'Open program Bench program' }).click();
+    await page.getByRole('button', { name: 'Cycle increment: on' }).click();
+    await page.getByRole('button', { name: 'Load Bench day' }).click();
+    await page.getByRole('button', { name: 'LOAD', exact: true }).click();
+    await waitForState(page, s => topWeight(s) > 0 && topWeight(s) < withIncrement);
+  });
+
   test('[programs.choose] USE THIS PROGRAM chooses a program; COPY makes one of your own, chosen as CUSTOM', async ({ page }) => {
     await openHome(page);
+    // (a COACH feature: new accounts start in ATHLETE)
+    await setAppMode(page, 'COACH');
     await openFromMenu(page, 'Programs');
     await page.getByRole('button', { name: 'Open program Society' }).click();
     await page.getByRole('button', { name: 'USE THIS PROGRAM' }).click();
@@ -449,6 +514,8 @@ test.describe('Programs', () => {
 test.describe('Settings and data', () => {
   test('[configuration.tabs] Configuration: body metrics, goals, equipment and training', async ({ page }) => {
     await openHome(page);
+    // (a COACH feature: new accounts start in ATHLETE)
+    await setAppMode(page, 'COACH');
     await openFromMenu(page, 'Configuration');
     for (const tab of ['BODY METRICS', 'GOALS', 'EQUIPMENT', 'TRAINING']) {
       await page.getByRole('button', { name: tab, exact: true }).or(page.getByRole('tab', { name: tab, exact: true })).first().click();

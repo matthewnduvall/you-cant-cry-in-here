@@ -70,20 +70,23 @@ export function ConfigurationView({
   equipmentProps,
   setPreferencesProps,
   programProps,
+  // ATHLETE mode: no TRAINING tab (set preferences, fatigue)
+  athleteMode = false,
   // Called when NEXT / DONE leaves a tab (e.g. leaving BODY METRICS confirms the bodyweight and height)
   onStepDone
 }) {
+  const tabs = athleteMode ? CONFIGURATION_TABS.filter(t => t.id !== 'routines') : CONFIGURATION_TABS;
   const tabIndex = Math.max(
     0,
-    CONFIGURATION_TABS.findIndex(t => t.id === tab)
+    tabs.findIndex(t => t.id === tab)
   );
-  const activeTab = CONFIGURATION_TABS[tabIndex].id;
-  const isLastTab = tabIndex === CONFIGURATION_TABS.length - 1;
+  const activeTab = tabs[tabIndex].id;
+  const isLastTab = tabIndex === tabs.length - 1;
 
   return (
     <div style={{ paddingBottom: '24px' }}>
       <div style={{ padding: '12px var(--dp-spacing-gutter) 0' }}>
-        <AttachedTabStrip rounded ariaLabel="Configuration" tabs={CONFIGURATION_TABS} value={activeTab} onChange={setTab} fontSize="11px" letterSpacing="0.04em" />
+        <AttachedTabStrip rounded ariaLabel="Configuration" tabs={tabs} value={activeTab} onChange={setTab} fontSize="11px" letterSpacing="0.04em" />
       </div>
 
       {/* Selections on each tab (pressed pills and rows, ON) are white: .cr-config in KINETIC_CSS */}
@@ -109,7 +112,7 @@ export function ConfigurationView({
       {/* NEXT / DONE is white: the red is on the answers above. STEP n OF 4 says where you are in the setup. */}
       <div style={{ padding: '0 var(--dp-spacing-gutter)' }}>
         <div style={{ ...UI.capsLabel, padding: '0 4px', marginBottom: '6px' }}>
-          STEP {tabIndex + 1} OF {CONFIGURATION_TABS.length}
+          STEP {tabIndex + 1} OF {tabs.length}
         </div>
         <Button
           variant="primary-row"
@@ -120,12 +123,12 @@ export function ConfigurationView({
               setCurrentView('home');
               return;
             }
-            setTab(CONFIGURATION_TABS[tabIndex + 1].id);
+            setTab(tabs[tabIndex + 1].id);
             // The next step starts at its top
             if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'instant' });
           }}
         >
-          <span>{isLastTab ? 'DONE' : `NEXT: ${CONFIGURATION_TABS[tabIndex + 1].label}`}</span>
+          <span>{isLastTab ? 'DONE' : `NEXT: ${tabs[tabIndex + 1].label}`}</span>
           <span>→</span>
         </Button>
       </div>

@@ -1,8 +1,9 @@
 'use client';
 
 // Drag to fill set rows (SlotEditor), like a spreadsheet's fill handle:
-// - a padlock: press and drag up or down; every set row passed gets the lock state the first padlock is turning to
-//   (holdMs 0: the padlock has touch-action none, so it drags at once; a plain tap still toggles that one lock)
+// - a padlock: hold it still for LOCK_HOLD_MS (a short buzz), then drag up or down; every set row passed gets the lock
+//   state the first padlock is turning to. Moving before the hold ends is a scroll (the padlock lets the page scroll:
+//   touch-action pan-y), so scrolling across the padlocks never changes them; a plain tap still toggles that one lock
 // - a weight / reps / timer cell: hold it still for VALUE_HOLD_MS (a short buzz), then drag; every row passed gets that
 //   value. Moving before the hold ends is a scroll, and a quick tap still opens the cell's pop-up.
 // Rows are found under the finger by `data-set-reorder="exIdx:setIdx"` among the source row's own siblings (the keys
@@ -12,6 +13,8 @@
 import { useEffect, useRef, useState } from 'react';
 
 export const VALUE_HOLD_MS = 350;
+// Longer than a value cell's: the padlocks sit where a thumb starts a scroll
+export const LOCK_HOLD_MS = 600;
 const MOVE_CANCEL_PX = 10;
 const ROW_ATTR = 'data-set-reorder';
 
@@ -72,7 +75,7 @@ export function useFillDrag(onCommit) {
   /** Pointer props for a fill source. kind 'lock' (payload { target }) or 'value' (payload { value }). */
   const sourceProps = ({ exIdx, setIdx, field, kind, payload, disabled = false }) => {
     if (disabled) return {};
-    const holdMs = kind === 'lock' ? 0 : VALUE_HOLD_MS;
+    const holdMs = kind === 'lock' ? LOCK_HOLD_MS : VALUE_HOLD_MS;
     return {
       onContextMenu: e => e.preventDefault(),
       onPointerDown: e => {
@@ -111,7 +114,15 @@ export function useFillDrag(onCommit) {
           const cur = dragRef.current;
           detach();
           update(null);
-          if (!cur?.armed) return;
+          if (!cur) return;
+          if (!cur.armed) {
+            // A quick tap on a padlock (released before the hold, without moving): toggles just that one
+            if (cur.kind === 'lock') {
+              suppressClickUntil.current = Date.now() + 500;
+              commitRef.current?.({ ...cur, to: cur.from });
+            }
+            return;
+          }
           // The click that follows a fill must not also open a pop-up / toggle again
           suppressClickUntil.current = Date.now() + 500;
           if (cur.kind === 'lock' || cur.to !== cur.from) commitRef.current?.(cur);

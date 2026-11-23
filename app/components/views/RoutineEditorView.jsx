@@ -17,7 +17,7 @@ import {
   getBestHistory1RMInfo,
   historyAsOf
 } from '../../utils/workoutEngine';
-import { Button, TabBar, AttachedTabStrip } from '../Controls';
+import { Button, AttachedTabStrip } from '../Controls';
 import { downloadRoutineCsv } from '../../utils/routineCsv';
 import { SlotEditor } from '../SlotEditor';
 import { EffortPromptModal } from '../EffortPromptModal';
@@ -69,10 +69,9 @@ export function RoutineEditorView({
   colors,
   // Each exercise's 1RM box LAST / PR open that History workout (yours only: not on a friend's tab or preview)
   onOpenHistoryWorkout = null,
-  // The live session's SIMPLE / ADVANCED tabs: sessionMode ('easy' | 'advanced') + onChangeSessionMode(mode).
+  // ATHLETE / COACH (app-wide, chosen in the footer): sessionMode 'easy' = ATHLETE (the simple exercise card).
   // SIMPLE hides the 1RM box, the filter row, set types, intensity, locks and RECALCULATE.
   sessionMode = 'advanced',
-  onChangeSessionMode,
   // Programs other than Crying: an INTENSITY strip under each set (%1RM / RIR / RPE)
   showIntensity = false,
   currentView,
@@ -137,9 +136,9 @@ export function RoutineEditorView({
   // Inside an open History workout the History list already has the page gutter, so the editor adds none (set rows
   // keep their full width and set types like WORKING aren't cut off)
   const sideGutter = isEmbeddedHistorySession ? '0' : '0 var(--dp-spacing-gutter)';
-  // The tabs show in a live session (not History, routines or past workouts); SIMPLE only applies there
-  const showModeTabs = currentView === 'session' && !isEmbeddedHistorySession && Boolean(onChangeSessionMode);
-  const easyMode = showModeTabs && sessionMode === 'easy';
+  // ATHLETE mode (the footer's ATHLETE / COACH, sessionMode 'easy'): the simple exercise card in every editor — live
+  // session, routines, History, past workouts
+  const easyMode = !isEmbeddedHistorySession && sessionMode === 'easy';
 
   const fieldLabelStyle = {
     fontSize: '11px',
@@ -398,21 +397,6 @@ export function RoutineEditorView({
 
       {/* ALWAYS-EXPANDED EXERCISES — SHARED BORDERS, LARGER CONTROLS & TEXT */}
       <section style={{ marginBottom: '20px', padding: sideGutter }}>
-        {/* SIMPLE / ADVANCED (live session only) */}
-        {showModeTabs && (
-          <div style={{ marginBottom: '12px' }}>
-            <TabBar
-              ariaLabel="Session mode"
-              tabs={[
-                // stored as 'easy'; shown as SIMPLE
-                { id: 'easy', label: 'SIMPLE' },
-                { id: 'advanced', label: 'ADVANCED' }
-              ]}
-              value={easyMode ? 'easy' : 'advanced'}
-              onChange={onChangeSessionMode}
-            />
-          </div>
-        )}
         {!isEmbeddedHistorySession && (
           <div
             style={{
@@ -555,7 +539,7 @@ export function RoutineEditorView({
                       // SIMPLE hides the INTENSITY cell, so ask how the set felt: the answer is its RIR (reps in
                       // reserve), which the 1RM, live adjustment and the learned models read. Working sets only, not
                       // timed ones, and only when ticking (not unticking)
-                      if (easyMode && !set.completed && !/warm/i.test(String(set.type || '')) && !(Number(set.durationSeconds) > 0)) {
+                      if (easyMode && currentView === 'session' && !set.completed && !/warm/i.test(String(set.type || '')) && !(Number(set.durationSeconds) > 0)) {
                         const update = slotHandler('handleUpdateSetField');
                         const exId = supIds[exIdx] || slot.exerciseId;
                         setEffortAsk({

@@ -27,11 +27,16 @@ export const openFromMenu = async (page, label) => {
   await page.locator('nav').getByText(label, { exact: true }).first().click();
 };
 
-/** NEW SESSION, then the SIMPLE or ADVANCED tab. */
-export const newSession = async (page, mode = 'ADVANCED') => {
+/** Picks ATHLETE or COACH in the footer's app-mode toggle (on every page). */
+export const setAppMode = async (page, mode) => {
+  await page.getByRole('tablist', { name: 'App mode' }).getByRole('tab', { name: mode, exact: true }).click();
+};
+
+/** NEW SESSION in ATHLETE or COACH mode (SIMPLE / ADVANCED are the old names, still accepted). */
+export const newSession = async (page, mode = 'COACH') => {
   await openHome(page);
+  await setAppMode(page, mode === 'SIMPLE' ? 'ATHLETE' : mode === 'ADVANCED' ? 'COACH' : mode);
   await page.getByRole('button', { name: /NEW SESSION|CURRENT SESSION/ }).click();
-  await page.getByRole('tab', { name: mode, exact: true }).first().click();
 };
 
 /** + ADD EXERCISE, and waits for the card's sets and for the session to be saved with it. */

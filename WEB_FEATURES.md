@@ -22,14 +22,15 @@ aren't in the smoke tests yet; they are listed under "Not yet automated" and sti
 ### Navigation
 - **nav.menu** — the menu reaches every page: Session, Programs, Performance, History, Stimulus, Friends, Leaderboards, Privacy, Configuration, Info
 - **nav.back** — the ← BACK button and the phone's back gesture follow the pages visited
+- **app.mode** — ATHLETE / COACH toggle in the footer of every page (kept; new accounts start in ATHLETE): ATHLETE simplifies the whole app, COACH shows every setting
 - **nav.feedback** — FEEDBACK sends feedback with session logs
 
 ### Session (live workout)
 - **session.add-exercise** — + ADD EXERCISE adds a planned exercise (weights, reps, intensity worked out)
 - **session.tick-set** — ticking a set marks it done and starts the rest timer
-- **session.simple-effort** — SIMPLE mode asks "how many more reps" after a working set and saves it as RIR
-- **session.simple-rows-superset** — SIMPLE mode's + 1 ROW, SUPERSET and UNPAIR
-- **session.advanced-scheme** — ADVANCED mode's scheme pop-up (scheme, sets, reps)
+- **session.simple-effort** — ATHLETE mode asks "how many more reps" after a working set and saves it as RIR
+- **session.simple-rows-superset** — ATHLETE mode's + 1 ROW, SUPERSET and UNPAIR
+- **session.advanced-scheme** — COACH mode's scheme pop-up (scheme, sets, reps)
 - **session.reset-exercise** — RESET puts an exercise back as it was loaded
 - **session.delete-exercise** — the ✕ at an exercise card's top right deletes it (after asking)
 - **session.search** — the exercise search finds and picks an exercise
@@ -54,8 +55,9 @@ aren't in the smoke tests yet; they are listed under "Not yet automated" and sti
 
 ### Programs
 - **routines.page** — the Programs page: PROGRAMS / ROUTINES / SHARED; ROUTINES has + NEW ROUTINE, AUTO ROUTINE, LOAD
-- **programs.built-in** — built-in programs: details, training days, next session, their routines at your weights, LOAD
+- **programs.built-in** — built-in programs: details, training days, next session, their routines at your weights, LOAD; ← from a program returns to the list
 - **programs.cycles** — cycles logged under a program: reviewed week by week (planned vs done, effort, against the cycle before) and SAVE AS PROGRAM (week by week as done)
+- **programs.cycle-increment** — your own programs: CYCLE INCREMENT (on by default) keeps reps and effort and steps the weights up each cycle
 - **programs.choose** — USE THIS PROGRAM chooses the program you follow (moved from Configuration); COPY TO MY PROGRAMS makes one of your own, chosen as CUSTOM, whose next routine AUTO SESSION loads
 
 ### Settings and data

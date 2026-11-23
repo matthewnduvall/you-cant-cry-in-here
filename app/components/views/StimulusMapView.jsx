@@ -190,6 +190,8 @@ function BodyFigure({ label, parts, part }) {
 
 export function StimulusMapView({
   colors,
+  // COACH mode: the STIMULUS THRESHOLDS settings (ATHLETE mode hides them)
+  showThresholds = true,
   stimulusGreenDays,
   stimulusYellowDays,
   setStimulusGreenDays,
@@ -281,6 +283,7 @@ export function StimulusMapView({
         </IOSListRow>
       </IOSListSection>
 
+      {showThresholds && (
       <StimulusSettingsSection
         colors={colors}
         stimulusGreenDays={stimulusGreenDays}
@@ -289,6 +292,7 @@ export function StimulusMapView({
         setStimulusYellowDays={setStimulusYellowDays}
         setSetValueTarget={setSetValueTarget}
       />
+      )}
     </div>
   );
 }

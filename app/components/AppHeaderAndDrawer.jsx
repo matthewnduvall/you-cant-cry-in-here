@@ -300,8 +300,8 @@ export function AppHeaderAndDrawer({
             programRow={(() => {
               // A logged workout keeps the program it was done under (no re-planning); so does a friend's preview
               if (currentView === 'history_editor' || currentView === 'routine_preview') return null;
-              // SIMPLE mode (live session): no PROGRAM / WEEK / DAY row
-              if (currentView === 'session' && sessionMode === 'easy') return null;
+              // ATHLETE mode: no PROGRAM / WEEK / DAY row
+              if (sessionMode === 'easy') return null;
               // Shown while a program other than Crying is chosen, or this session has one
               const sessionProgramId = currentEditorWorkout.program || trainingProgram;
               const program = getProgram(sessionProgramId);

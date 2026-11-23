@@ -127,3 +127,18 @@ export const reviewCycle = cycle => {
 /** The cycle logged before this one under the same program (for comparing), or null. */
 export const previousCycle = (cycles = [], cycle) =>
   (cycles || []).filter(c => c.programId === cycle?.programId && c.startMs < cycle.startMs).sort((a, b) => b.startMs - a.startMs)[0] || null;
+
+/**
+ * Loading routine `index` of one of your programs: which cycle it belongs to. A new cycle starts the first time the
+ * program is used and each time its first routine is loaded after another one (repeating the first routine stays in
+ * the same cycle). Returns { patch } for the program (cycleStartMs, cycle, lastIndex) and { programCycle } for the
+ * routine — { startMs }, or null when the program's CYCLE INCREMENT is off.
+ */
+export function programCycleLoad(program, index) {
+  const newCycle = !program?.cycleStartMs || (index === 0 && program.lastIndex !== 0);
+  const startMs = newCycle ? Date.now() : program.cycleStartMs;
+  return {
+    patch: { cycleStartMs: startMs, cycle: (Number(program?.cycle) || 0) + (newCycle ? 1 : 0), lastIndex: index },
+    programCycle: program?.cycleIncrement === false ? null : { startMs }
+  };
+}

@@ -2,7 +2,7 @@
 
 import { FormulaConsole } from './components/FormulaConsole';
 import { getProgram, getWorkoutProgramInfo, PROGRAMS, isCustomProgramId, customProgramId } from './data/programs';
-import { resolvePlaylist } from './components/RoutinePlaylists';
+import { resolvePlaylist, programCycleLoad } from './components/RoutinePlaylists';
 import { findLoggedCycles } from './utils/programCycles';
 import React, { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback } from 'react';
 import { IOS_DARK, KINETIC_CSS } from './styles/kineticTokens';
@@ -60,7 +60,7 @@ import { useIdleAutoFinish } from './hooks/useIdleAutoFinish';
 import { collectSetValues, sameSetValues, overlaySetValues } from './utils/sessionSync';
 import { useWorkoutMutations } from './hooks/useWorkoutMutations';
 import { usePlateCalculator } from './hooks/usePlateCalculator';
-import { TabBar } from './components/Controls';
+import { AttachedTabStrip, TabBar } from './components/Controls';
 
 const PROGRESS_TABS = [
   { id: 'progress', label: 'PROGRESS' },
@@ -237,9 +237,18 @@ export default function App() {
   // like the engine's bodyweight)
   setPlateInventory(plateInventory);
   // The session page's SIMPLE / ADVANCED tabs (easy hides the program row, 1RM box, filters, types, intensity, locks…)
-  const [sessionMode, setSessionMode] = useState('advanced');
+  // ATHLETE for new accounts (nothing saved yet); a saved COACH stays
+  const [sessionMode, setSessionMode] = useState('easy');
+  // ATHLETE / COACH, app-wide (stored as settings.sessionMode: 'easy' = ATHLETE, 'advanced' = COACH; the footer's
+  // toggle on every page). ATHLETE keeps everything to what's needed to train: the simple exercise card everywhere, no
+  // PROGRAM / WEEK / DAY row, no CONSOLE, no ACCURACY / REP CURVE, no stimulus thresholds, Configuration without
+  // TRAINING, and programs without their variables, cycle reviews, COPY and cycle settings. COACH shows everything.
+  const athleteMode = sessionMode === 'easy';
   // Routines page -> PLAYLISTS: named, ordered groups of saved routines ([{ id, name, routineKeys, nextKey }])
   const [routinePlaylists, setRoutinePlaylists] = useState([]);
+  // The program open on the Programs page ('builtin:<id>' | 'own:<id>' | null): part of the page's place in the back
+  // history, so ← from a program returns to the list of programs
+  const [programOpen, setProgramOpen] = useState(null);
   // Picking a different program starts its cycle today (week 1)
   const selectTrainingProgram = id => {
     if (id === trainingProgram) return;
@@ -781,13 +790,17 @@ export default function App() {
   // PROGRESS page) its tab and the History workout opened from elsewhere (e.g. a chart point), so BACK from that
   // workout returns to the chart. Each place is also a browser history entry, so the phone's / browser's back
   // gesture does the same as the header ←. Going Home clears the stack.
+  // An open program is shown only on the Programs page: leaving the page closes it (adjusted during render, so the
+  // page never opens on a program from an earlier visit)
+  if (currentView !== 'routines' && programOpen !== null) setProgramOpen(null);
   const placeOf = () => ({
     view: currentView,
     progressTab: progressTabChoice,
-    workoutId: currentView === 'history_editor' ? expandedHistoryWorkoutId : null
+    workoutId: currentView === 'history_editor' ? expandedHistoryWorkoutId : null,
+    program: currentView === 'routines' ? programOpen : null
   });
   const backStackRef = useRef([]);
-  const placeRef = useRef({ view: currentView, progressTab: progressTabChoice, workoutId: null });
+  const placeRef = useRef({ view: currentView, progressTab: progressTabChoice, workoutId: null, program: null });
   const ignorePopsRef = useRef(0);
   // How many browser entries this app has pushed above where it started (each carries its number in
   // history.state.yccihBack), so a popstate can tell back from forward and Home can rewind to the start
@@ -828,25 +841,43 @@ export default function App() {
     const next = placeOf();
     placeRef.current = next;
     // Tab changes on the same page aren't back steps; nor is a back step (goBack already set placeRef to the
-    // place it went to, so prev and next match)
-    if (prev.view === next.view) return;
+    // place it went to, so prev and next match). On the Programs page, opening a program is a step; closing it with
+    // its own ‹ ALL PROGRAMS is the same as BACK (the list's place comes off the trail).
+    if (prev.view === next.view) {
+      if ((prev.program || null) === (next.program || null)) return;
+      if (next.program) {
+        pushPlace(prev);
+        return;
+      }
+      const top = backStackRef.current[backStackRef.current.length - 1];
+      if (top && top.view === next.view && !top.program) {
+        backStackRef.current = backStackRef.current.slice(0, -1);
+        goBrowserBack(1);
+      }
+      return;
+    }
     if (next.view === 'home') rewindToHome();
     else pushPlace(prev);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentView, progressTabChoice, expandedHistoryWorkoutId]);
+  }, [currentView, progressTabChoice, expandedHistoryWorkoutId, programOpen]);
   // Goes to the newest place that can still be shown (editors need their draft, sign-in only while signed out,
   // a History workout must still exist), else Home. `fromBrowser`: the browser already went back one entry.
   const goBack = ({ fromBrowser = false } = {}) => {
     const canShow = place =>
       place &&
-      !(place.view === currentView && (place.workoutId || null) === (placeRef.current?.workoutId || null)) &&
+      !(
+        place.view === currentView &&
+        (place.workoutId || null) === (placeRef.current?.workoutId || null) &&
+        (place.program || null) === (placeRef.current?.program || null)
+      ) &&
       !(place.view === 'gym_editor' && !gymDraft) &&
       !(place.view === 'historical_entry' && !historicalDraft) &&
       !(place.view === 'routine_editor' && !routineDraft) &&
       !(place.view === 'routine_preview' && !previewRoutineDraft) &&
       !(place.view === 'friend_profile' && !viewingFriendProfile) &&
       !(place.view === 'auth' && user) &&
-      !(place.workoutId && !history.some(w => w?.id === place.workoutId));
+      !(place.workoutId && !history.some(w => w?.id === place.workoutId)) &&
+      !(String(place.program || '').startsWith('own:') && !(routinePlaylists || []).some(p => `own:${p.id}` === place.program));
     const stack = [...backStackRef.current];
     let target = stack.pop();
     while (target && !canShow(target)) target = stack.pop();
@@ -862,7 +893,13 @@ export default function App() {
     if (place.view === 'history') setProgressTabChoice(place.progressTab || 'progress');
     setExpandedHistoryWorkoutId(place.workoutId || null);
     // The place now shown is the current one (so the effect above doesn't record it as a new step)
-    placeRef.current = { view: place.view, progressTab: place.progressTab || progressTabChoice, workoutId: place.workoutId || null };
+    placeRef.current = {
+      view: place.view,
+      progressTab: place.progressTab || progressTabChoice,
+      workoutId: place.workoutId || null,
+      program: place.view === 'routines' ? place.program || null : null
+    };
+    setProgramOpen(place.view === 'routines' ? place.program || null : null);
     setCurrentView(place.view);
   };
   const handleBack = () => goBack();
@@ -1117,7 +1154,7 @@ export default function App() {
       // Routines store reps and effort, not weights: the editor shows them at your weights today (traced)
       slots: withTrace(`EDIT ROUTINE: ${stripDateFromTitle(routine.label) || 'Routine'}`, () => {
         traceLine('Routines keep reps and effort, not weights: each set is shown at your calculated 1RM for its reps and effort. Weights are removed again when it is saved.');
-        return (Array.isArray(routine.slots) ? routine.slots : []).map(weighRoutineSlot);
+        return (Array.isArray(routine.slots) ? routine.slots : []).map(slot => weighRoutineSlot(slot));
       }, `edit_${routine.key}`)
     });
     setCurrentView('routine_editor');
@@ -1137,10 +1174,13 @@ export default function App() {
     if (!program || items.length === 0) return false;
     const routine = items[nextIndex];
     const run = () => {
-      handleDirectLoadRoutine(routine, 'session');
+      const { patch, programCycle } = programCycleLoad(program, nextIndex);
+      handleDirectLoadRoutine({ ...routine, programCycle }, 'session');
       setRoutinePlaylists(prev =>
         (prev || []).map(p =>
-          p.id === program.id ? { ...p, nextKey: items[(nextIndex + 1) % items.length]?.key || null, updatedAt: new Date().toISOString() } : p
+          p.id === program.id
+            ? { ...p, ...patch, nextKey: items[(nextIndex + 1) % items.length]?.key || null, updatedAt: new Date().toISOString() }
+            : p
         )
       );
     };
@@ -1231,7 +1271,7 @@ export default function App() {
           totalHeightInches={totalHeightInches}
           customGoalWeights={goalSettings ? goalSettings.customGoalWeights || {} : customGoalWeights}
           // Your own chart: how well the engine predicts you, and your rep curves (not on a friend's profile)
-          predictionReport={readOnly ? null : predictionReport}
+          predictionReport={readOnly || athleteMode ? null : predictionReport}
         />
       )}
       {tab === 'history' && (
@@ -1465,7 +1505,6 @@ export default function App() {
             <RoutineEditorView
               colors={colors}
               sessionMode={sessionMode}
-              onChangeSessionMode={setSessionMode}
               showIntensity={
                 currentView === 'history_editor'
                   ? // Logged under a program other than Crying: its sets keep their INTENSITY cell
@@ -1568,7 +1607,7 @@ export default function App() {
               // Routines friends send you arrive in the Social page's INBOX (SAVE moves them to SAVED here)
               sections={['playlists', 'saved', 'shared']}
               defaultTab={routinesAsPage ? 'playlists' : null}
-              programLibraryProps={programLibraryProps}
+              programLibraryProps={{ ...programLibraryProps, openRef: programOpen, onOpenRef: setProgramOpen, athleteMode }}
               playlists={routinePlaylists}
               setPlaylists={setRoutinePlaylists}
               onNewRoutine={routinesAsPage ? handleNewRoutine : undefined}
@@ -1608,6 +1647,7 @@ export default function App() {
               Routines / Equipment / Goals menu pages) */}
           {currentView === 'configuration' && (
             <ConfigurationView
+              athleteMode={athleteMode}
               colors={colors}
               tab={configurationTab}
               setTab={setConfigurationTab}
@@ -1689,6 +1729,7 @@ export default function App() {
           {currentView === 'stimulus_map' && (
             <StimulusMapView
               colors={colors}
+              showThresholds={!athleteMode}
               stimulusGreenDays={stimulusGreenDays}
               stimulusYellowDays={stimulusYellowDays}
               setStimulusGreenDays={setStimulusGreenDays}
@@ -1870,13 +1911,30 @@ export default function App() {
             color: '#9A9A9A'
           }}
         >
+          {/* ATHLETE / COACH: the whole app's level of detail (persistent; settings.sessionMode) */}
+          <div style={{ maxWidth: '320px', margin: '0 auto 12px' }}>
+            <AttachedTabStrip
+              rounded
+              ariaLabel="App mode"
+              tabs={[
+                { id: 'easy', label: 'ATHLETE' },
+                { id: 'advanced', label: 'COACH' }
+              ]}
+              value={athleteMode ? 'easy' : 'advanced'}
+              onChange={setSessionMode}
+              fontSize="11px"
+            />
+            <div style={{ marginTop: '6px', fontSize: '11px', fontWeight: 400, letterSpacing: 0, color: '#8A8A8A', fontFamily: 'var(--dp-typography-face)' }}>
+              {athleteMode ? 'Athlete: just what you need to train.' : 'Coach: every setting, plan and formula.'}
+            </div>
+          </div>
           Copyright © 2026 MaNoDuV LLC
         </footer>
 
         {/* CONSOLE (workout editors, Routines): what the app just did and the formulas behind it */}
         {['session', 'routine_editor', 'historical_entry', 'routine_preview', 'history_editor', 'routines'].includes(currentView) &&
-          // SIMPLE mode (live session) hides the CONSOLE
-          !(currentView === 'session' && sessionMode === 'easy') && <FormulaConsole />}
+          // ATHLETE mode hides the CONSOLE
+          !athleteMode && <FormulaConsole />}
 
         {/* MODALS */}
         <DeleteConfirmModal

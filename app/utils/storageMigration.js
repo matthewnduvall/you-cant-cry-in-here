@@ -95,7 +95,8 @@ export const DEFAULT_SETTINGS_V2 = {
   cryingVariety: 5,
   // Fatigue: reps of reserve each earlier working set uses up (Configuration → PROGRAM → FATIGUE)
   fatiguePerSet: 0.5,
-  sessionMode: 'advanced',
+  // ATHLETE ('easy') for new accounts; COACH ('advanced') when chosen
+  sessionMode: 'easy',
   // Routines page -> PLAYLISTS ([{ id, name, routineKeys, nextKey, updatedAt }])
   routinePlaylists: [],
   // shareBodyweightWithFriends: off unless the athlete turns it on (also for accounts saved before it existed)
@@ -231,7 +232,7 @@ export const loadHydratedAppState = () => {
         parsed.settings?.programSchedules && typeof parsed.settings.programSchedules === 'object' ? parsed.settings.programSchedules : {},
       fatiguePerSet: normalizeFatiguePerSet(parsed.settings?.fatiguePerSet),
       cryingVariety: Number.isFinite(Number(parsed.settings?.cryingVariety)) ? Math.min(10, Math.max(0, Math.round(Number(parsed.settings.cryingVariety)))) : 5,
-      sessionMode: parsed.settings?.sessionMode === 'easy' ? 'easy' : 'advanced',
+      sessionMode: parsed.settings?.sessionMode === 'advanced' ? 'advanced' : 'easy',
       routinePlaylists: normalizeRoutinePlaylists(parsed.settings?.routinePlaylists)
     };
 
@@ -308,6 +309,11 @@ export function normalizeRoutinePlaylists(value) {
         : {}),
       // Where it came from: { programId, startMs, endMs, sessions } (a logged cycle) / fromProgram (a COPY)
       ...(p.source && typeof p.source === 'object' ? { source: p.source } : {}),
-      ...(typeof p.fromProgram === 'string' ? { fromProgram: p.fromProgram } : {})
+      ...(typeof p.fromProgram === 'string' ? { fromProgram: p.fromProgram } : {}),
+      // CYCLE INCREMENT (on unless false) and where the current cycle stands
+      ...(p.cycleIncrement === false ? { cycleIncrement: false } : {}),
+      ...(Number.isFinite(Number(p.cycleStartMs)) && p.cycleStartMs ? { cycleStartMs: Number(p.cycleStartMs) } : {}),
+      ...(Number.isFinite(Number(p.cycle)) && p.cycle ? { cycle: Number(p.cycle) } : {}),
+      ...(Number.isInteger(p.lastIndex) ? { lastIndex: p.lastIndex } : {})
     }));
 }
